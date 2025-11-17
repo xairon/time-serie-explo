@@ -1,6 +1,5 @@
 {
-    "random_seed": 42,
-    "model": "DLinear",
+    "model": "PatchTST",
     "data": "piezos/piezo1.csv",
     "input_len": 15,
     "pred_len": 30,
@@ -13,6 +12,8 @@
     "debug": false,
     "save_name": "",
     "label_len": 0,
+    "n_heads": 8,
+    "individual": false,
     "enc_in": 4,
     "seq_len": 15,
     "patch_len": 16,
