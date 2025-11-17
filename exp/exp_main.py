@@ -64,7 +64,8 @@ class Exp_Main:
             print(f"  batch_x, batch_y size :{batch_x.shape}, {batch_y.shape}")
         
         proj = lambda t: t.reshape(t.size(0), -1)
-        return proj(model(batch_x)), proj(batch_y)
+        pred = model(batch_x)
+        return proj(pred), proj(batch_y)
 
     def _evaluate_loss(self, loader):
         if self.args.debug :
