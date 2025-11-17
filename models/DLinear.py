@@ -22,12 +22,12 @@ class moving_avg(nn.Module):
         return x
 
 
-class series_decomp(nn.Module):
+class SeriesDecomp(nn.Module):
     """
     Series decomposition block
     """
     def __init__(self, kernel_size):
-        super(series_decomp, self).__init__()
+        super(SeriesDecomp, self).__init__()
         self.moving_avg = moving_avg(kernel_size, stride=1)
 
     def forward(self, x):
@@ -46,7 +46,7 @@ class Model(nn.Module):
 
         # Decompsition Kernel Size
         kernel_size = 25
-        self.decompsition = series_decomp(kernel_size)
+        self.decompsition = SeriesDecomp(kernel_size)
         self.individual = individual
         self.channels = configs.enc_in
 
