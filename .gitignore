@@ -128,4 +128,6 @@ dmypy.json
 # project generated
 results/
 figs/
+checkpoints/*.pth
+checkpoints/*.pt
 emissions.csv
