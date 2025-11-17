@@ -4,3 +4,4 @@ matplotlib
 torch
 tqdm
 codecarbon
+scikit-learn
