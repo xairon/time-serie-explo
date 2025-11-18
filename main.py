@@ -73,6 +73,7 @@ def make_parser():
     parser = argparse.ArgumentParser(description="Models args")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="config file path")
     parser.add_argument("--seed", type=int, default=42, help="random seed")
+    parser.add_argument("--codecarbon", type=bool, default=False, help="whether to use codecarbon for energy tracking")
 
     known_args = parser.parse_known_args()[0]
 
@@ -155,9 +156,11 @@ if __name__ == '__main__':
 
     set_seed(args.seed)
 
-    tracker = EmissionsTracker() #allow_multiple_runs=True
-    tracker.start()
+    if args.codecarbon:
+        tracker = EmissionsTracker() #allow_multiple_runs=True
+        tracker.start()
     try:
         metrics_test, metrics_val = main(args, args.data)
     finally:
-        tracker.stop()
+        if args.codecarbon:
+            tracker.stop()
