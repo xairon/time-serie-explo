@@ -190,10 +190,12 @@ class TSTEncoder(nn.Module):
         output = src
         scores = None
         if self.res_attention:
-            for mod in self.layers: output, scores = mod(output, prev=scores, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            for mod in self.layers:
+                output, scores = mod(output, prev=scores, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             return output
         else:
-            for mod in self.layers: output = mod(output, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            for mod in self.layers:
+                output = mod(output, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
             return output
 
 
