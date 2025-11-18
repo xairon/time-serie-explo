@@ -94,26 +94,40 @@ class Exp_Main:
         patience_counter = 0
         best_model_state = None
 
-        for ep in tqdm(range(self.args.epochs),desc="train ep"):
+        epoch_loss = float('inf')
+        val_loss = float('inf')
+
+        pbar = tqdm(range(self.args.epochs),desc="train ep")
+        for ep in pbar:
             time_update = 0
             self.model_pred.train()
+            num_batches = 0
+            loss_accum = 0.0
+
+            batch_i = 0
             for batch in train_loader:
                 batch_x, batch_y, batch_idx = batch
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 
                 pred, true = self._process_one_batch(self.model_pred, batch_x, batch_y)
                 loss_pred = self.loss_fn(pred, true).mean()
+                loss_accum += loss_pred.item()
+
+                if batch_i % 10 == 0:
+                    pbar.set_description(f"batch loss: {loss_pred.item():.4f} | train loss: {epoch_loss:.4f} | val loss: {val_loss:.4f}")
     
                 self.optim_pred.zero_grad()
                 loss_pred.backward()
                 self.optim_pred.step()
+                num_batches += 1
+                batch_i += 1
 
             self.scheduler_pred.step()
+
+            epoch_loss = loss_accum / num_batches if num_batches > 0 else float('inf')
     
             val_loss = self._evaluate_loss(valid_loader)
-            if self.args.debug :
-                print(f"  [Epoch {ep+1}] Validation Loss: {val_loss:.4f}")
-    
+
             best_loss, patience_counter, best_model_state = self._early_stopping_check(
                 val_loss, best_loss, patience_counter, best_model_state
             )
