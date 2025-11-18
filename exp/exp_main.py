@@ -19,6 +19,9 @@ import numpy as np
 # import torchvision
 # from thop import profile
 
+from tools.gradcam_utils import grad_cam_timeseries
+
+
 warnings.filterwarnings('ignore')
 
 class Exp_Main:
