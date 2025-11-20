@@ -1,40 +1,50 @@
-# 🌊 Junon Time Series - Prévision Piézométrique avec Darts
+# 🌊 Time Series Exploration Dashboard
 
-Projet de Deep Learning pour prédire les niveaux d'eau souterraine (nappes phréatiques) en utilisant la librairie **Darts**.
+Dashboard interactif Streamlit pour l'analyse et la prévision de séries temporelles hydrologiques avec des modèles deep learning.
 
 ## 🎯 Description
 
-Prévision des niveaux piézométriques avec des modèles deep learning state-of-the-art :
+Dashboard complet pour l'exploration, la modélisation et l'évaluation de modèles de prévision sur des données piézométriques (nappes phréatiques). Intègre des outils d'analyse statistique avancée, d'optimisation d'hyperparamètres, et d'explicabilité via SHAP.
+
+### Modèles Supportés
+
+- **N-BEATS** - Décomposition automatique tendance/saisonnalité
 - **TFT** (Temporal Fusion Transformer) - Attention multi-horizon + interprétabilité
-- **N-BEATS** - Décomposition tendance/saisonnalité automatique
 - **TCN** (Temporal Convolutional Network) - Rapide et performant
 - **LSTM** - Baseline récurrente classique
 
-### Pourquoi Darts ?
+### Fonctionnalités
 
-Les nappes phréatiques ont des caractéristiques spécifiques :
-- **Forte autocorrélation** - Le niveau d'aujourd'hui dépend d'hier
-- **Influences exogènes** - Précipitations, température, évapotranspiration
-- **Délais temporels** - La pluie influence la nappe avec 2-3 semaines de retard
-- **Saisonnalité** - Cycles annuels de recharge/décharge
-
-Darts offre une gestion native des covariates, un backtesting automatique, et une API unifiée pour plus de 40 modèles.
+✅ **Exploration interactive** des données temporelles  
+✅ **Analyses statistiques** complètes (ADF, KPSS, STL, ACF/PACF)  
+✅ **Entraînement de modèles** avec hyperparamètres personnalisés  
+✅ **Optimisation Optuna** pour recherche automatique d'hyperparamètres  
+✅ **Backtesting** robuste via fenêtre glissante  
+✅ **Explicabilité SHAP** pour comprendre les prédictions  
+✅ **Métriques hydrologiques** (NSE, KGE) en plus des métriques classiques  
 
 ## 📊 Données
 
 **18 stations piézométriques françaises** (~30 ans de données historiques)
 
-**Features :**
-- `level` - Niveau de la nappe (cible)
-- `PRELIQ_Q` - Précipitations (mm)
-- `T_Q` - Température (°C)
+**Variables :**
+- `level` - Niveau de la nappe (cible à prédire)
+- `PRELIQ_Q` - Précipitations quotidiennes (mm)
+- `T_Q` - Température moyenne (°C)
 - `ETP_Q` - Évapotranspiration potentielle (mm)
 
-Les données sont dans `data/piezos/piezoX.csv` (X = 1 à 18)
+Les données sont dans `data/piezos/piezo1.csv` à `piezo18.csv`.
 
 ## 🚀 Installation
 
-### Setup automatique (recommandé)
+### 1. Cloner le dépôt
+
+```bash
+git clone https://scm.univ-tours.fr/ringuet/time-serie-explo.git
+cd time-serie-explo
+```
+
+### 2. Setup automatique (recommandé)
 
 **Windows :**
 ```bash
@@ -47,200 +57,206 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-Ces scripts :
-1. Installent `uv` (gestionnaire de packages ultra-rapide)
-2. Créent l'environnement virtuel `.venv`
-3. Installent toutes les dépendances (PyTorch + Darts + Optuna)
-4. Configurent PyTorch avec support GPU NVIDIA (CUDA 12.1)
+Ces scripts installent automatiquement :
+- `uv` (gestionnaire de packages ultra-rapide)
+- Python 3.11 dans un environnement virtuel `.venv`
+- Toutes les dépendances (PyTorch + Darts + Optuna + Streamlit + SHAP)
+- Support GPU NVIDIA (CUDA 12.1) si disponible
 
-### Installation manuelle
+### 3. Installation manuelle (alternative)
 
 ```bash
-# 1. Installer uv
+# Installer uv
 curl -LsSf https://astral.sh/uv/install.sh | sh  # Linux/Mac
 # ou
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 
-# 2. Créer l'environnement et installer les dépendances
+# Créer l'environnement
 uv sync --extra all
 
-# 3. Installer PyTorch avec CUDA 12.1 (GPU NVIDIA)
+# Installer PyTorch avec CUDA 12.1 (GPU NVIDIA)
 uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-# 4. Activer l'environnement
+# Activer l'environnement
 source .venv/bin/activate  # Linux/Mac
 .venv\Scripts\activate     # Windows
 ```
 
-## 📓 Utilisation
+## 🖥️ Lancer le Dashboard
 
-Le projet est organisé en **deux notebooks complémentaires** :
-
-### 1. Analyse des Données (`1_data_analysis_darts.ipynb`)
-
-**Objectif** : Analyse statistique complète des séries temporelles avec tous les outils Darts.
-
-**Contenu** :
-- Tests de stationnarité (ADF, KPSS)
-- Détection de saisonnalité (hebdomadaire, mensuelle, annuelle)
-- Décomposition STL (tendance + saisonnalité + résidus)
-- ACF, PACF (autocorrélation)
-- CCF (cross-corrélation avec covariates)
-- Tests de causalité de Granger
-- Analyse des délais optimaux
-- Distribution et outliers
-- Analyse des résidus
-
-### 2. Modèles de Prévision (`2_forecasting_models.ipynb`)
-
-**Objectif** : Entraîner et comparer 4 modèles deep learning state-of-the-art.
-
-**Contenu** :
-1. **Setup et imports** - Configuration PyTorch Lightning
-2. **Chargement des données** - 18 stations piézométriques
-3. **Préparation** - Format Darts, split train/val/test, normalisation
-4. **Configuration** - Hyperparamètres par défaut recommandés
-5. **Entraînement** - N-BEATS, TFT, TCN, LSTM
-6. **Métriques** - Standards (MAE, RMSE, R²) + bornées (sMAPE, NRMSE, Dir_Acc)
-7. **Évaluation** - Comparaison sur le test set
-8. **Visualisations** - Graphiques de performances
-9. **Résumé** - Meilleurs modèles et fichiers générés
-
-**Note** : Ce notebook utilise des hyperparamètres par défaut. Pour l'optimisation Optuna, voir une version future.
-
-### Lancer les notebooks
-
-**Avec VSCode** (recommandé) :
-1. Ouvrir le notebook
-2. Sélectionner le kernel : `.venv/bin/python` (ou `.venv\Scripts\python.exe` sur Windows)
-3. Run All
-
-**Avec Jupyter Lab** :
 ```bash
-jupyter lab
+# Activer l'environnement (si pas déjà fait)
+source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate     # Windows
+
+# Lancer Streamlit
+streamlit run dashboard/app.py
 ```
 
-### Résultats
+Le dashboard s'ouvre automatiquement dans votre navigateur à `http://localhost:8501`.
 
-Tous les résultats sont sauvegardés automatiquement :
-
-- **Métriques** : `results/darts_comparison_complete.csv`
-- **Visualisations** : `figs/darts_*.png`
-- **Checkpoints** : `checkpoints/darts/{model}/`
-- **Logs TensorBoard** : `logs/darts/`
-
-Pour visualiser les logs d'entraînement :
-```bash
-tensorboard --logdir logs/darts
-```
-
-## 📂 Structure du projet
+## 📂 Structure du Projet
 
 ```
-junon-time-series/
+time-serie-explo/
+├── dashboard/
+│   ├── app.py                          # Page d'accueil du dashboard
+│   ├── config.py                       # Configuration globale
+│   ├── pages/
+│   │   ├── 1_📊_Data_Explorer.py       # Visualisation des séries temporelles
+│   │   ├── 2_📈_Statistical_Analysis.py # Tests statistiques (ADF, KPSS, STL)
+│   │   ├── 3_🔗_Correlations.py        # Corrélations et causalité de Granger
+│   │   ├── 4_🎯_Train_Models.py        # Entraînement + Optuna
+│   │   ├── 5_🔮_Forecasting.py         # Prédictions interactives
+│   │   ├── 6_📉_Model_Comparison.py    # Comparaison des modèles
+│   │   ├── 7_🔄_Backtesting.py         # Validation historique
+│   │   └── 8_💡_Explainability.py      # Analyse SHAP
+│   └── utils/
+│       ├── data_loader.py              # Chargement et préparation des données
+│       ├── forecasting.py              # Pipeline d'entraînement et prédiction
+│       ├── optuna_utils.py             # Optimisation Optuna
+│       ├── plots.py                    # Visualisations Plotly
+│       ├── statistics.py               # Tests statistiques
+│       └── state.py                    # Gestion de l'état de session
+│
 ├── data/
-│   └── piezos/              # 18 stations piézométriques (piezo1.csv à piezo18.csv)
+│   └── piezos/                         # 18 stations piézométriques
 │
-├── notebooks/
-│   ├── 1_data_analysis_darts.ipynb      # Analyse statistique complète
-│   └── 2_forecasting_models.ipynb       # Entraînement des modèles
+├── notebooks/                          # Notebooks d'analyse exploratoire
+│   ├── 1_data_analysis_darts.ipynb
+│   └── 3_darts_advanced_forecasting.ipynb
 │
-├── pyproject.toml           # Dépendances (uv/pip)
-├── uv.lock                  # Lock file pour reproductibilité
-├── setup.sh                 # Setup automatique Linux/Mac
-├── SETUP.bat                # Setup automatique Windows
-├── .python-version          # Python 3.11
+├── checkpoints/                        # Modèles entraînés (généré)
+├── results/                            # Métriques CSV (généré)
+├── logs/                               # TensorBoard logs (généré)
+├── figs/                               # Graphiques (généré)
 │
-├── results/                 # Métriques et résultats (généré)
-├── figs/                    # Graphiques (généré)
-├── checkpoints/             # Modèles sauvegardés (généré)
-└── logs/                    # TensorBoard logs (généré)
+├── pyproject.toml                      # Dépendances du projet
+├── uv.lock                             # Lock file pour reproductibilité
+└── README.md                           # Ce fichier
 ```
 
-## 🔧 Dépendances principales
+## 🧭 Guide d'Utilisation
 
-- **Darts** (`>=0.32.0`) - Librairie de forecasting
-- **PyTorch** (`>=2.0.0`) - Deep learning backend
-- **PyTorch Lightning** (`>=2.0.0`) - Framework d'entraînement
-- **Optuna** (`>=3.0.0`) - Optimisation bayésienne des hyperparamètres
-- **TensorBoard** (`>=2.13.0`) - Visualisation des métriques
-- **Pandas, NumPy, Matplotlib, Seaborn** - Data science stack
+### 1. **📊 Data Explorer**
+- Visualisez les séries temporelles de plusieurs stations simultanément
+- Graphiques interactifs Plotly avec zoom, pan, export
+- Sélection multiple de variables et stations
 
-Voir `pyproject.toml` pour la liste complète.
+### 2. **📈 Statistical Analysis**
+- **Tests de stationnarité** : ADF, KPSS
+- **Décomposition STL** : Tendance + Saisonnalité + Résidus
+- **ACF/PACF** : Autocorrélation et autocorrélation partielle
+- **Tests de normalité** : Shapiro-Wilk, Q-Q plots
 
-## 📈 Métriques utilisées
+### 3. **🔗 Correlations**
+- **Matrices de corrélation** entre stations
+- **Cross-corrélation** (CCF) entre cible et covariables
+- **Tests de causalité de Granger** : est-ce que la pluie cause le niveau ?
+- **Analyse des lags optimaux**
 
-### Métriques standards
+### 4. **🎯 Train Models**
+Deux modes d'entraînement :
+
+**Quick Train** : Entraînement rapide avec hyperparamètres manuels
+- Sélectionnez un modèle et une station
+- Ajustez les hyperparamètres via sliders
+- Visualisez les résultats immédiatement
+
+**Optuna Optimization** : Recherche automatique des meilleurs hyperparamètres
+- Définissez le nombre d'essais et la métrique à optimiser
+- Optuna teste intelligemment différentes combinaisons
+- Visualisez l'historique d'optimisation et l'importance des paramètres
+- Entraînez le modèle final avec les meilleurs paramètres trouvés
+
+### 5. **🔮 Forecasting**
+- Chargez un modèle entraîné depuis les checkpoints
+- Générez des prédictions sur le test set
+- Visualisez les prédictions vs réalité
+- Calculez automatiquement 9 métriques de performance
+
+### 6. **📉 Model Comparison**
+- Comparez les performances de plusieurs modèles
+- Tableaux de métriques, graphiques comparatifs
+- Radar charts pour visualisation multidimensionnelle
+- Identifiez le meilleur modèle par station
+
+### 7. **🔄 Backtesting**
+- Validation robuste via fenêtre glissante
+- Testez la stabilité de vos modèles sur différentes périodes
+- Visualisez l'évolution des performances dans le temps
+- Détectez les périodes où le modèle performe moins bien
+
+### 8. **💡 Explainability**
+- Comprenez **pourquoi** votre modèle prédit ce qu'il prédit
+- **Importance globale** : quelles features sont les plus influentes ?
+- **Explications locales** : qu'est-ce qui a causé cette prédiction précise ?
+- Visualisations interactives : beeswarm, waterfall, dependence plots
+- Fonctionne avec TFT, TCN, LSTM (N-BEATS peut échouer car très profond)
+
+## 📊 Métriques de Performance
+
+### Métriques Classiques
 - **MAE** (Mean Absolute Error) - Erreur moyenne en mètres
 - **RMSE** (Root Mean Square Error) - Pénalise les grosses erreurs
 - **MAPE** (Mean Absolute Percentage Error) - Erreur en %
-- **R²** (Coefficient de détermination) - Qualité de l'ajustement (1.0 = parfait)
+- **R²** (Coefficient de détermination) - 1.0 = ajustement parfait
 
-### Métriques bornées (plus interprétables)
+### Métriques Bornées
 - **sMAPE** (0-100%) - Erreur symétrique
 - **NRMSE** (0-1) - Erreur normalisée par la plage
-- **Directional Accuracy** (0-100%) - % de prédictions avec la bonne tendance
+- **Dir_Acc** (0-100%) - % de tendances correctement prédites
 
-## 🧠 Modèles
+### Métriques Hydrologiques
+- **NSE** (Nash-Sutcliffe Efficiency) - Standard en hydrologie (1.0 = parfait)
+- **KGE** (Kling-Gupta Efficiency) - Amélioration de NSE
 
-### TFT (Temporal Fusion Transformer)
-- Architecture encoder-decoder avec attention multi-head
-- Variable selection networks (apprend l'importance de chaque feature)
-- Gère automatiquement les délais temporels (pluie → nappe)
-- **Idéal pour** : Interprétabilité + covariates multiples
+## 🔧 Technologies Utilisées
 
-### N-BEATS (Neural Basis Expansion Analysis)
-- Décomposition automatique tendance + saisonnalité
-- Architecture doubly residual
-- Pas de preprocessing nécessaire
-- **Idéal pour** : Séries avec forte saisonnalité
+- **Streamlit** (`>=1.28.0`) - Framework du dashboard
+- **Darts** (`>=0.32.0`) - Librairie de forecasting
+- **PyTorch** (`>=2.0.0`) - Deep learning backend
+- **PyTorch Lightning** (`>=2.0.0`) - Framework d'entraînement
+- **Optuna** (`>=3.0.0`) - Optimisation bayésienne
+- **SHAP** (`>=0.42.0`) - Explicabilité des modèles
+- **Plotly** (`>=5.15.0`) - Visualisations interactives
+- **Pandas, NumPy, Scikit-learn** - Data science stack
 
-### TCN (Temporal Convolutional Network)
-- Convolutions causales 1D avec dilations exponentielles
-- Champ réceptif large (regarde loin dans le passé)
-- Très rapide à entraîner
-- **Idéal pour** : Compromis performance/vitesse
+Voir `pyproject.toml` pour la liste complète.
 
-### LSTM (Long Short-Term Memory)
-- Réseau récurrent classique
-- Mémoire à long et court terme
-- **Idéal pour** : Baseline de référence
+## 💡 Conseils d'Utilisation
 
-## 🎯 Workflow
+### Pour l'Entraînement
+1. Commencez par **Statistical Analysis** pour comprendre vos données
+2. Utilisez **Optuna Optimization** pour trouver les meilleurs hyperparamètres (10-30 trials suffisent)
+3. Entraînez le modèle final avec ces hyperparamètres
+4. Si vous avez un GPU, préférez TFT ou TCN (plus rapides que LSTM)
 
-### 1. Analyse des données (`1_data_analysis_darts.ipynb`)
+### Pour l'Évaluation
+1. Vérifiez plusieurs métriques (ne vous fiez pas qu'au MAE)
+2. Pour l'hydrologie, privilégiez NSE et KGE
+3. Utilisez le **Backtesting** pour valider la robustesse
+4. L'**Explainability** SHAP aide à détecter les artefacts (ex: le modèle se base trop sur un lag spécifique)
 
-Comprendre les caractéristiques statistiques des séries temporelles :
-- Stationnarité et transformations nécessaires
-- Périodes de saisonnalité dominantes
-- Relations entre covariates et cible
-- Délais temporels optimaux
-
-### 2. Modélisation (`2_forecasting_models.ipynb`)
-
-Entraînement et comparaison des modèles :
-- Split temporel : 50% train / 10% val / 40% test
-- Normalisation (StandardScaler)
-- Entraînement avec early stopping
-- Évaluation sur 7 métriques
-- Visualisations des prédictions
-
-**Note** : Le notebook actuel utilise des hyperparamètres par défaut recommandés. Une future version intégrera **Optuna** pour l'optimisation automatique.
-
-## 🌍 Carbon Footprint
-
-Le projet utilise **CodeCarbon** pour tracker automatiquement l'empreinte carbone de l'entraînement.
-Résultats sauvegardés dans `emissions.csv`.
-
-Pour désactiver : modifier `use_codecarbon = False` dans le notebook.
+### Performances
+- **N-BEATS** : Excellent pour la saisonnalité, mais lent
+- **TFT** : Meilleur pour l'interprétabilité, supporte les covariates
+- **TCN** : Excellent compromis vitesse/performance
+- **LSTM** : Baseline de référence, souvent surpassé
 
 ## 📚 Références
 
-- **Darts** - Unit8 - [GitHub](https://github.com/unit8co/darts) | [Docs](https://unit8co.github.io/darts/)
+- **Darts** - [GitHub](https://github.com/unit8co/darts) | [Documentation](https://unit8co.github.io/darts/)
 - **TFT** - Lim et al. (2021) - [arXiv:1912.09363](https://arxiv.org/abs/1912.09363)
 - **N-BEATS** - Oreshkin et al. (2020) - [arXiv:1905.10437](https://arxiv.org/abs/1905.10437)
 - **TCN** - Bai et al. (2018) - [arXiv:1803.01271](https://arxiv.org/abs/1803.01271)
+- **SHAP** - Lundberg & Lee (2017) - [arXiv:1705.07874](https://arxiv.org/abs/1705.07874)
 - **Optuna** - [Documentation](https://optuna.org/)
+- **Streamlit** - [Documentation](https://docs.streamlit.io/)
+
+## 👤 Auteur
+
+Nicolas Ringuet - [nicolas.ringuet@univ-tours.fr](mailto:nicolas.ringuet@univ-tours.fr)
 
 ## 📄 Licence
 
