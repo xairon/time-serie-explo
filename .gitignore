@@ -80,7 +80,7 @@ profile_default/
 ipython_config.py
 
 # pyenv
-.python-version
+# .python-version (on garde car c'est pour uv)
 
 # pipenv
 Pipfile.lock
@@ -122,12 +122,23 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# vscode
+# VSCode
 .vscode/
 
-# project generated
+# ============================================
+# Project-specific: Fichiers générés
+# ============================================
+
+# Résultats et visualisations
 results/
 figs/
-checkpoints/*.pth
-checkpoints/*.pt
+
+# Checkpoints de modèles
+checkpoints/
+logs/
+
+# CodeCarbon
 emissions.csv
+
+# TensorBoard logs (peuvent être lourds)
+runs/

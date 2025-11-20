@@ -25,7 +25,8 @@ echo.
 REM Créer l'environnement et installer les dépendances (sans PyTorch)
 echo [2/3] Creation environnement + installation dependances...
 echo (utilise Python 3.12 pour compatibilite PyTorch CUDA)
-uv sync --extra notebooks --python 3.12
+echo Installation: dependances de base + notebooks + advanced (darts, nixtla) + dashboard
+uv sync --extra notebooks --extra advanced --extra dashboard --python 3.12
 echo.
 
 REM Installer PyTorch avec CUDA (GPU NVIDIA)
@@ -45,6 +46,9 @@ echo 1. Ouvrir notebooks/1_train_baselines.ipynb
 echo 2. Cliquer sur "Select Kernel" en haut a droite
 echo 3. Choisir Python: .venv\Scripts\python.exe
 echo 4. Run All
+echo.
+echo Pour lancer le dashboard:
+echo   streamlit run dashboard/app.py
 echo.
 echo ================================================
 pause
