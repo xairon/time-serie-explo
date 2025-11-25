@@ -5,7 +5,7 @@ import pandas as pd
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from dashboard.config import RESULTS_DIR, METRICS
 from dashboard.utils.plots import plot_metrics_comparison, plot_metrics_radar

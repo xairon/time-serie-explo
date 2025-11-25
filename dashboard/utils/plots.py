@@ -8,12 +8,36 @@ import numpy as np
 from pathlib import Path
 import sys
 from statsmodels.tsa.seasonal import STL
+import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from dashboard.config import VARIABLE_NAMES, MODEL_COLORS
+from dashboard.config import VARIABLE_NAMES, MODEL_COLORS, PERFORMANCE_CONFIG
+
+# Performance configuration
+MAX_PLOT_POINTS = PERFORMANCE_CONFIG['MAX_PLOT_POINTS']
 
 
+def downsample_data(df: pd.DataFrame, max_points: int = MAX_PLOT_POINTS) -> pd.DataFrame:
+    """
+    Downsample data if it exceeds max_points for faster plotting.
+    
+    Args:
+        df: DataFrame to downsample
+        max_points: Maximum number of points to keep
+        
+    Returns:
+        Downsampled DataFrame
+    """
+    if len(df) <= max_points:
+        return df
+    
+    # Use every nth point to reduce to approximately max_points
+    step = len(df) // max_points
+    return df.iloc[::step]
+
+
+@st.cache_data(ttl=3600)
 def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> go.Figure:
     """
     Graphique temporel interactif multi-séries.
@@ -45,10 +69,13 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
     ]
 
     for i, (station, df) in enumerate(dfs.items()):
+        # Downsample for plotting performance
+        df_plot = downsample_data(df)
+        
         style = station_styles[i % len(station_styles)]
 
         for var in variables:
-            if var in df.columns:
+            if var in df_plot.columns:
                 color = variable_colors.get(var, '#666666')
 
                 # Si une seule station, ligne pleine. Si plusieurs, varier le style
@@ -58,8 +85,8 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
                     line_style = dict(color=color, **style)
 
                 fig.add_trace(go.Scatter(
-                    x=df.index,
-                    y=df[var],
+                    x=df_plot.index,
+                    y=df_plot[var],
                     name=f"{station} - {VARIABLE_NAMES.get(var, var)}",
                     mode='lines',
                     line=line_style,
@@ -86,6 +113,7 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation Matrix") -> go.Figure:
     """
     Heatmap de corrélation.
@@ -124,6 +152,7 @@ def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
                   title: str = "ACF/PACF") -> go.Figure:
     """
@@ -179,6 +208,7 @@ def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
                            title: str = "Cross-Correlation") -> go.Figure:
     """
@@ -246,6 +276,7 @@ def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.Series,
                            residual: pd.Series, title: str = "STL Decomposition") -> go.Figure:
     """
@@ -299,6 +330,7 @@ def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.S
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
                      title: str = "Predictions vs Reality") -> go.Figure:
     """
@@ -349,6 +381,7 @@ def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
                             title: str = None) -> go.Figure:
     """
@@ -391,6 +424,7 @@ def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Figure:
     """
     Radar chart multi-métriques.
@@ -448,6 +482,7 @@ def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Fig
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
     Histogramme + density plot.
@@ -485,6 +520,7 @@ def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
     Boxplot mensuel pour détecter la saisonnalité.
@@ -528,6 +564,7 @@ def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> 
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     """
     Graphique simplifié des patterns saisonniers (Annuel et Mensuel).
@@ -620,6 +657,7 @@ def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     """
     Graphique montrant les données manquantes.
@@ -694,6 +732,7 @@ def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     return fig
 
 
+@st.cache_data(ttl=3600)
 def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> dict:
     """
     Détecte les changements de comportement dans une série temporelle.
@@ -756,6 +795,7 @@ def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) 
     }
 
 
+@st.cache_data(ttl=3600)
 def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> go.Figure:
     """
     Graphique montrant les changements de comportement détectés.
@@ -855,6 +895,7 @@ def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) ->
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: float = 3.0) -> go.Figure:
     """
     Graphique détectant les outliers avec Rolling Z-Score.
@@ -918,6 +959,7 @@ def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: floa
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: int = 365) -> go.Figure:
     """
     Graphique montrant la série originale, la tendance (STL) et la composante saisonnière.

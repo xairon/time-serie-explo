@@ -7,8 +7,10 @@ from statsmodels.tsa.stattools import adfuller, kpss, acf, pacf, grangercausalit
 from statsmodels.tsa.seasonal import STL
 from darts import TimeSeries
 from darts.utils.statistics import check_seasonality
+import streamlit as st
 
 
+@st.cache_data(ttl=3600)
 def test_stationarity(series: pd.Series, name: str = "Series") -> dict:
     """
     Tests de stationnarité ADF et KPSS.
@@ -46,6 +48,7 @@ def test_stationarity(series: pd.Series, name: str = "Series") -> dict:
     }
 
 
+@st.cache_data(ttl=3600)
 def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int = 400) -> dict:
     """
     Détection de saisonnalité avec Darts.
@@ -90,6 +93,7 @@ def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int =
     return results
 
 
+@st.cache_data(ttl=3600)
 def stl_decomposition(series: pd.Series, seasonal: int = 365, trend: int = None) -> dict:
     """
     Décomposition STL (Seasonal-Trend-Loess).
@@ -146,6 +150,7 @@ def stl_decomposition(series: pd.Series, seasonal: int = 365, trend: int = None)
     }
 
 
+@st.cache_data(ttl=3600)
 def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
     """
     Corrélation croisée entre deux séries.
@@ -188,6 +193,7 @@ def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
     return list(lags), correlations
 
 
+@st.cache_data(ttl=3600)
 def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str, max_lag: int = 30) -> dict:
     """
     Test de causalité de Granger.
@@ -233,6 +239,7 @@ def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str
         }
 
 
+@st.cache_data(ttl=3600)
 def calculate_lagged_correlations(df: pd.DataFrame, target_col: str, covariate_col: str, max_lag: int = 60) -> tuple:
     """
     Calcule la corrélation pour différents lags.
@@ -269,6 +276,7 @@ def calculate_lagged_correlations(df: pd.DataFrame, target_col: str, covariate_c
     return list(lags), correlations, optimal_lag, optimal_corr
 
 
+@st.cache_data(ttl=3600)
 def normality_test(series: pd.Series, name: str = "Series") -> dict:
     """
     Test de normalité (Shapiro-Wilk).

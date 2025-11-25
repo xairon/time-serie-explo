@@ -103,3 +103,11 @@ else:
 
 # Random seed
 RANDOM_SEED = 42
+
+# Performance Configuration
+PERFORMANCE_CONFIG = {
+    'CACHE_TTL': 3600,  # 1 hour
+    'MAX_PLOT_POINTS': 10000,
+    'ENABLE_LAZY_LOADING': True,
+    'ENABLE_DATA_DOWNSAMPLING': True
+}

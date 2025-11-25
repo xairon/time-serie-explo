@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from typing import Optional, List, Tuple, Dict
 from darts import TimeSeries
 from darts.dataprocessing.transformers import Scaler
 import streamlit as st
@@ -14,10 +15,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from dashboard.config import DATA_DIR, STATIONS
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_station_data(station_name: str, fill_missing: bool = False) -> pd.DataFrame:
     """
-    Charge les données d'une station.
+    Charge les données d'une station (ancienne fonction, hardcodée).
+
+    ⚠️ DEPRECATED: Utilisez load_station_data_flexible() à la place.
+    Cette fonction est conservée pour compatibilité avec l'ancien code.
 
     Args:
         station_name: Nom de la station (ex: 'piezo1')
@@ -37,14 +41,15 @@ def load_station_data(station_name: str, fill_missing: bool = False) -> pd.DataF
     # Gérer les NaN
     if fill_missing:
         # Interpolation linéaire pour le niveau (target)
-        df['level'] = df['level'].interpolate(method='time')
-        
+        if 'level' in df.columns:
+            df['level'] = df['level'].interpolate(method='time')
+
         # Interpolation linéaire ou ffill pour les covariables météo
         # (On suppose que la météo est continue)
         for col in ['PRELIQ_Q', 'T_Q', 'ETP_Q']:
             if col in df.columns:
                 df[col] = df[col].interpolate(method='time')
-                
+
         # S'il reste des NaN au début ou à la fin, on drop
         df = df.dropna()
     else:
@@ -60,7 +65,107 @@ def load_station_data(station_name: str, fill_missing: bool = False) -> pd.DataF
     return df
 
 
-@st.cache_data
+def load_station_data_flexible(
+    file_path: Path,
+    date_col: str = 'date',
+    target_col: Optional[str] = None,
+    covariate_cols: Optional[list] = None,
+    fill_missing: bool = False
+) -> pd.DataFrame:
+    """
+    Charge les données d'une station avec N'IMPORTE QUELS noms de colonnes.
+
+    Pas de hardcoding de noms de colonnes !
+
+    Args:
+        file_path: Chemin vers le fichier CSV
+        date_col: Nom de la colonne de date
+        target_col: Nom de la colonne target (optionnel, si None retourne toutes les colonnes)
+        covariate_cols: Liste des noms des colonnes covariates (optionnel)
+        fill_missing: Si True, interpole les valeurs manquantes
+
+    Returns:
+        DataFrame avec les colonnes demandées, date en index
+    """
+    if not file_path.exists():
+        raise FileNotFoundError(f"Data file not found: {file_path}")
+
+    # Charger le CSV
+    df = pd.read_csv(file_path, parse_dates=[date_col])
+    df = df.set_index(date_col).sort_index()
+
+    # Sélectionner les colonnes demandées
+    if target_col or covariate_cols:
+        cols_to_keep = []
+        if target_col:
+            if target_col not in df.columns:
+                raise ValueError(f"Target column '{target_col}' not found. Available: {list(df.columns)}")
+            cols_to_keep.append(target_col)
+
+        if covariate_cols:
+            for col in covariate_cols:
+                if col not in df.columns:
+                    raise ValueError(f"Covariate column '{col}' not found. Available: {list(df.columns)}")
+                cols_to_keep.append(col)
+
+        df = df[cols_to_keep]
+
+    # Gérer les NaN
+    if fill_missing:
+        # Interpolation linéaire pour toutes les colonnes
+        for col in df.columns:
+            df[col] = df[col].interpolate(method='time')
+
+        # Drop les NaN restants (début/fin)
+        df = df.dropna()
+    else:
+        # Supprimer les NaN
+        df = df.dropna()
+
+    return df
+
+
+def load_data_from_model_config(model_config) -> pd.DataFrame:
+    """
+    Charge les données à partir d'une ModelConfig.
+
+    Utilise les VRAIS noms de colonnes du modèle (pas de hardcoding).
+
+    Args:
+        model_config: Instance de ModelConfig
+
+    Returns:
+        DataFrame avec les données
+    """
+    from dashboard.utils.model_config import ModelConfig
+
+    if not isinstance(model_config, ModelConfig):
+        raise TypeError("model_config must be a ModelConfig instance")
+
+    # Déterminer le chemin du fichier
+    if model_config.data_source['type'] == 'embedded':
+        # Données embarquées dans le dossier du modèle
+        # Le chemin est stocké comme relatif, on doit le reconstruire
+        # Cette fonction sera appelée avec le bon contexte
+        raise ValueError("Use load_model_with_config() instead for embedded data")
+    elif model_config.data_source['type'] == 'file':
+        file_path = Path(model_config.data_source['file_path'])
+    else:
+        raise ValueError(f"Unknown data source type: {model_config.data_source['type']}")
+
+    # Charger avec les noms de colonnes du modèle
+    df = load_station_data_flexible(
+        file_path=file_path,
+        date_col=model_config.columns['date'],
+        target_col=model_config.columns['target'],
+        covariate_cols=model_config.columns['covariates'],
+        fill_missing=(model_config.preprocessing.get('fill_method', 'Supprimer les lignes') != 'Supprimer les lignes')
+    )
+
+    return df
+
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_all_stations_summary() -> pd.DataFrame:
     """
     Retourne un résumé de toutes les stations.
@@ -100,7 +205,7 @@ def get_all_stations_summary() -> pd.DataFrame:
     return pd.DataFrame(summaries)
 
 
-@st.cache_data
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_timeseries(station_name: str, fill_missing: bool = False) -> dict:
     """
     Convertit les données en TimeSeries Darts.
@@ -212,6 +317,7 @@ def normalize_data(train_data, val_data, test_data):
     return train_scaled, val_scaled, test_scaled, scalers
 
 
+@st.cache_data(ttl=1800)  # Cache for 30 minutes
 def prepare_data_for_training(station_name: str, train_ratio=0.5, val_ratio=0.1, fill_missing: bool = False):
     """
     Pipeline complet de préparation des données.
@@ -249,4 +355,48 @@ def prepare_data_for_training(station_name: str, train_ratio=0.5, val_ratio=0.1,
         'train_raw': train_data,
         'val_raw': val_data,
         'test_raw': test_data
+    }
+
+
+# ============================================================================
+# Fonctions pour gérer les données uploadées
+# ============================================================================
+
+def get_uploaded_or_default_data(station_name: str = None, fill_missing: bool = False):
+    """
+    Retourne les données uploadées si disponibles, sinon charge la station par défaut.
+    
+    Args:
+        station_name: Nom de la station par défaut (si pas de données uploadées)
+        fill_missing: Interpoler les valeurs manquantes
+    
+    Returns:
+        tuple: (df, source) où source est 'uploaded' ou 'station'
+    """
+    # Vérifier s'il y a des données uploadées
+    if 'uploaded_data' in st.session_state:
+        return st.session_state['uploaded_data'], 'uploaded'
+    
+    # Sinon charger la station par défaut
+    if station_name is None:
+        raise ValueError("Aucune donnée uploadée et aucune station spécifiée")
+    
+    df = load_station_data(station_name, fill_missing=fill_missing)
+    return df, 'station'
+
+
+def get_available_data_sources():
+    """
+    Retourne la liste des sources de données disponibles.
+    
+    Returns:
+        dict avec 'has_uploaded' (bool), 'uploaded_filename' (str ou None), 'default_stations' (list)
+    """
+    has_uploaded = 'uploaded_data' in st.session_state
+    uploaded_filename = st.session_state.get('uploaded_filename', None)
+    
+    return {
+        'has_uploaded': has_uploaded,
+        'uploaded_filename': uploaded_filename,
+        'default_stations': STATIONS
     }

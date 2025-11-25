@@ -5,6 +5,7 @@ from optuna.visualization import plot_optimization_history, plot_param_importanc
 import plotly.graph_objects as go
 from pathlib import Path
 import sys
+import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -179,6 +180,7 @@ def get_best_value(study: optuna.Study) -> float:
     return study.best_value
 
 
+@st.cache_data(ttl=3600)
 def plot_optuna_optimization_history(study: optuna.Study) -> go.Figure:
     """
     Graphique de l'historique d'optimisation.
@@ -194,6 +196,7 @@ def plot_optuna_optimization_history(study: optuna.Study) -> go.Figure:
     return fig
 
 
+@st.cache_data(ttl=3600)
 def plot_optuna_param_importances(study: optuna.Study) -> go.Figure:
     """
     Graphique de l'importance des paramètres.
@@ -213,6 +216,7 @@ def plot_optuna_param_importances(study: optuna.Study) -> go.Figure:
         return None
 
 
+@st.cache_data(ttl=3600)
 def plot_optuna_contour(study: optuna.Study, params: list = None) -> go.Figure:
     """
     Graphique de contour.
@@ -237,6 +241,7 @@ def plot_optuna_contour(study: optuna.Study, params: list = None) -> go.Figure:
         return None
 
 
+@st.cache_data(ttl=3600)
 def get_trials_dataframe(study: optuna.Study):
     """
     Retourne un DataFrame avec les trials.

@@ -256,11 +256,13 @@ def predict(model, series, past_covariates=None, n: int = None):
     return pred
 
 
+@st.cache_data
 def calculate_nse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Nash-Sutcliffe Efficiency."""
     return 1 - np.sum((y_true - y_pred) ** 2) / np.sum((y_true - np.mean(y_true)) ** 2)
 
 
+@st.cache_data
 def calculate_kge(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Kling-Gupta Efficiency."""
     r = np.corrcoef(y_true, y_pred)[0, 1]
@@ -269,6 +271,7 @@ def calculate_kge(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return 1 - np.sqrt((r - 1) ** 2 + (alpha - 1) ** 2 + (beta - 1) ** 2)
 
 
+@st.cache_data
 def compute_metrics(y_true, y_pred) -> dict:
     """
     Calcule toutes les métriques.

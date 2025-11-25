@@ -1,0 +1,39 @@
+[server]
+# Optimisations serveur
+maxUploadSize = 200
+maxMessageSize = 200
+enableCORS = true
+enableXsrfProtection = true
+enableWebsocketCompression = true
+
+# Performance
+runOnSave = false
+fileWatcherType = "none"
+
+[browser]
+# Désactiver la collecte de stats
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[runner]
+# Optimisation de l'exécution
+magicEnabled = false
+fastReruns = true
+
+[client]
+# Optimisation client
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[theme]
+# Thème sombre pour réduire la charge GPU
+base = "dark"
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+
+[logger]
+# Réduire les logs
+level = "error"
+messageFormat = "%(message)s"
