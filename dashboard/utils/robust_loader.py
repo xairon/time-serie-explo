@@ -91,16 +91,29 @@ def _load_in_subprocess(model_path: Path, model_type: str) -> Any:
     """
 
     # Script pour charger le modèle dans un environnement propre
-    loader_script = '''
+    loader_script = '''# -*- coding: utf-8 -*-
 import sys
 import os
+
+# ISOLATION TOTALE DE STREAMLIT - TRÈS IMPORTANT !
+# Bloquer Streamlit AVANT tout import pour éviter l'erreur __setstate__
+os.environ['NO_STREAMLIT'] = '1'
+
+# Supprimer tous les modules Streamlit du cache
+modules_to_remove = [m for m in sys.modules.keys() if 'streamlit' in m.lower()]
+for module in modules_to_remove:
+    del sys.modules[module]
+
+# Créer un mock pour streamlit pour bloquer toute tentative d'import
+class StreamlitMock:
+    def __getattr__(self, name):
+        raise ImportError("Streamlit is disabled in this subprocess")
+
+sys.modules['streamlit'] = StreamlitMock()
+
+# Maintenant on peut importer les autres modules en sécurité
 import pickle
 from pathlib import Path
-
-# Bloquer complètement Streamlit
-os.environ['NO_STREAMLIT'] = '1'
-if 'streamlit' in sys.modules:
-    del sys.modules['streamlit']
 
 # Arguments
 model_path = Path(sys.argv[1])
@@ -149,21 +162,28 @@ except Exception as e:
 
     try:
         # Créer des fichiers temporaires
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
             f.write(loader_script)
             script_path = f.name
 
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pkl') as f:
             output_path = f.name
 
-        # Exécuter le script
+        # Exécuter le script dans un environnement PROPRE
+        # Créer un nouvel environnement minimal pour éviter toute contamination Streamlit
         env = os.environ.copy()
-        env['PYTHONPATH'] = str(Path(__file__).parent.parent.parent)
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['NO_STREAMLIT'] = '1'
 
+        # Convertir le chemin en string avec protection des caractères spéciaux
+        model_path_str = str(model_path)
+
+        # Utiliser python -u pour forcer unbuffered output
         result = subprocess.run(
-            [sys.executable, script_path, str(model_path), model_type, output_path],
+            [sys.executable, '-u', script_path, model_path_str, model_type, output_path],
             capture_output=True,
             text=True,
+            encoding='utf-8',
             env=env,
             timeout=120
         )
@@ -185,9 +205,7 @@ except Exception as e:
             if os.path.exists(output_path):
                 os.unlink(output_path)
 
-            raise RuntimeError(
-                f"Subprocess loading failed:\n{result.stderr}\n{result.stdout}"
-            )
+            raise RuntimeError(f"Subprocess loading failed:\n{result.stderr}\n{result.stdout}")
 
     except Exception as e:
         # Nettoyer les fichiers temporaires

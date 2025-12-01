@@ -275,18 +275,18 @@ def load_model_with_config(model_dir: Path):
     if not model_class:
         raise ValueError(f"Unknown model type: {config.model_name}")
 
-    # Chargement avec le loader robuste pour éviter les conflits Streamlit/pickle
+    # Chargement avec le loader externe pour éviter les conflits Streamlit/pickle
     try:
-        # Utiliser le loader robuste qui fonctionne toujours
-        from dashboard.utils.robust_loader import load_model_safe
-        model = load_model_safe(model_path, config.model_name.upper())
+        # Essayer d'abord le loader simple et externe
+        from dashboard.utils.simple_loader import load_model_external
+        model = load_model_external(model_path, config.model_name.upper())
     except Exception as e:
-        raise RuntimeError(
-            f"Impossible de charger le modèle: {e}\n\n"
-            f"✅ Solution:\n"
-            f"   1. Supprimez le dossier: rmdir /s /q \"{model_path.parent}\"\n"
-            f"   2. Ré-entraînez le modèle sur la page Train Models"
-        )
+        # Si ça échoue, essayer le loader robuste
+        try:
+            from dashboard.utils.robust_loader import load_model_safe
+            model = load_model_safe(model_path, config.model_name.upper())
+        except Exception as e2:
+            raise RuntimeError(f"Failed to load model: {e} (fallback also failed: {e2})")
 
     # 3. Charger les données
     date_col = config.columns.get('date', 'date')
