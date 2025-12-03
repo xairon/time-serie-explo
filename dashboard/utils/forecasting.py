@@ -38,7 +38,10 @@ def update_leaderboard(model_name: str, station: str, model_type: str, metrics: 
     
     if results_path.exists():
         try:
-            df_old = pd.read_csv(results_path)
+            try:
+                df_old = pd.read_csv(results_path, encoding='utf-8')
+            except UnicodeDecodeError:
+                df_old = pd.read_csv(results_path, encoding='latin1')
             # Concaténer et garder le plus récent si doublon exact (optionnel, ici on ajoute tout)
             df_updated = pd.concat([df_old, df_new], ignore_index=True)
         except Exception:

@@ -35,7 +35,10 @@ def load_station_data(station_name: str, fill_missing: bool = False) -> pd.DataF
     if not file_path.exists():
         raise FileNotFoundError(f"Station {station_name} not found at {file_path}")
 
-    df = pd.read_csv(file_path, parse_dates=['date'])
+    try:
+        df = pd.read_csv(file_path, parse_dates=['date'], encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(file_path, parse_dates=['date'], encoding='latin1')
     df = df.set_index('date').sort_index()
 
     # Gérer les NaN
@@ -90,8 +93,11 @@ def load_station_data_flexible(
     if not file_path.exists():
         raise FileNotFoundError(f"Data file not found: {file_path}")
 
-    # Charger le CSV
-    df = pd.read_csv(file_path, parse_dates=[date_col])
+    # Charger le CSV avec gestion de l'encodage
+    try:
+        df = pd.read_csv(file_path, parse_dates=[date_col], encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(file_path, parse_dates=[date_col], encoding='latin1')
     df = df.set_index(date_col).sort_index()
 
     # Sélectionner les colonnes demandées
@@ -182,7 +188,10 @@ def get_all_stations_summary() -> pd.DataFrame:
                 continue
                 
             # Optimisation: lire seulement la colonne date
-            df = pd.read_csv(file_path, usecols=['date'], parse_dates=['date'])
+            try:
+                df = pd.read_csv(file_path, usecols=['date'], parse_dates=['date'], encoding='utf-8')
+            except UnicodeDecodeError:
+                df = pd.read_csv(file_path, usecols=['date'], parse_dates=['date'], encoding='latin1')
             df = df.sort_values('date')
             
             if len(df) == 0:

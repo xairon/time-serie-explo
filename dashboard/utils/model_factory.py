@@ -156,8 +156,8 @@ class ModelFactory:
             if device == 'cuda' and torch.cuda.is_available():
                 params['pl_trainer_kwargs']['devices'] = [0]  # GPU 0
 
-            # Désactiver certains logs
-            params['pl_trainer_kwargs']['enable_progress_bar'] = True
+            # Désactiver certains logs et la progress bar pour compatibilité Streamlit
+            params['pl_trainer_kwargs']['enable_progress_bar'] = False  # Fix: Évite OSError dans Streamlit
             params['pl_trainer_kwargs']['enable_model_summary'] = False
             params['pl_trainer_kwargs']['enable_checkpointing'] = False
             

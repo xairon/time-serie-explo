@@ -129,8 +129,13 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     try:
-        # Lire le CSV
-        df_raw = pd.read_csv(uploaded_file)
+        # Lire le CSV avec gestion de l'encodage
+        # Essayer UTF-8 d'abord, puis Latin-1 si échec
+        try:
+            df_raw = pd.read_csv(uploaded_file, encoding='utf-8')
+        except UnicodeDecodeError:
+            uploaded_file.seek(0)  # Retour au début du fichier
+            df_raw = pd.read_csv(uploaded_file, encoding='latin1')
 
         st.success(f"✅ Fichier **{uploaded_file.name}** lu avec succès ({len(df_raw):,} lignes)")
 

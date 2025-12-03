@@ -31,9 +31,12 @@ if not results_path.exists():
     """)
     st.stop()
 
-# Charger les données
+# Charger les données avec gestion de l'encodage
 try:
-    df_results = pd.read_csv(results_path)
+    try:
+        df_results = pd.read_csv(results_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        df_results = pd.read_csv(results_path, encoding='latin1')
     st.success(f"✅ Résultats chargés : {len(df_results)} lignes.")
 except Exception as e:
     st.error(f"❌ Erreur lors du chargement : {e}")

@@ -277,16 +277,11 @@ def load_model_with_config(model_dir: Path):
 
     # Chargement avec le loader externe pour éviter les conflits Streamlit/pickle
     try:
-        # Essayer d'abord le loader simple et externe
-        from dashboard.utils.simple_loader import load_model_external
-        model = load_model_external(model_path, config.model_name.upper())
+        # On utilise UNIQUEMENT le nouveau loader robuste simplifié
+        from dashboard.utils.robust_loader import load_model_safe
+        model = load_model_safe(model_path, config.model_name.upper())
     except Exception as e:
-        # Si ça échoue, essayer le loader robuste
-        try:
-            from dashboard.utils.robust_loader import load_model_safe
-            model = load_model_safe(model_path, config.model_name.upper())
-        except Exception as e2:
-            raise RuntimeError(f"Failed to load model: {e} (fallback also failed: {e2})")
+        raise RuntimeError(f"Failed to load model: {e}")
 
     # 3. Charger les données
     date_col = config.columns.get('date', 'date')
@@ -299,11 +294,17 @@ def load_model_with_config(model_dir: Path):
             if file_path.exists():
                 try:
                     # Essayer d'abord avec la colonne date comme index
-                    df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+                    try:
+                        df = pd.read_csv(file_path, index_col=0, parse_dates=True, encoding='utf-8')
+                    except UnicodeDecodeError:
+                        df = pd.read_csv(file_path, index_col=0, parse_dates=True, encoding='latin1')
                     data_dict[split_name] = df
                 except Exception:
                     # Fallback: charger sans index
-                    df = pd.read_csv(file_path, parse_dates=[date_col])
+                    try:
+                        df = pd.read_csv(file_path, parse_dates=[date_col], encoding='utf-8')
+                    except UnicodeDecodeError:
+                        df = pd.read_csv(file_path, parse_dates=[date_col], encoding='latin1')
                     df = df.set_index(date_col)
                     data_dict[split_name] = df
 
@@ -312,7 +313,10 @@ def load_model_with_config(model_dir: Path):
         old_data_path = model_dir / "station_data.csv"
         if old_data_path.exists():
             try:
-                df = pd.read_csv(old_data_path, index_col=0, parse_dates=True)
+                try:
+                    df = pd.read_csv(old_data_path, index_col=0, parse_dates=True, encoding='utf-8')
+                except UnicodeDecodeError:
+                    df = pd.read_csv(old_data_path, index_col=0, parse_dates=True, encoding='latin1')
                 data_dict['full'] = df
 
                 # Recréer les splits à partir des tailles
