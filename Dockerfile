@@ -7,19 +7,23 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
+# Copy project files needed for uv
 COPY pyproject.toml ./
 COPY uv.lock ./
 
-# Install dependencies with uv (creates virtual environment in /app/.venv)
+# Create minimal package structure for uv to recognize the workspace
+RUN mkdir -p dashboard && touch dashboard/__init__.py
+
+# Install dependencies with uv
 RUN uv sync --frozen --no-dev
 
 # Production stage
 FROM python:3.11-slim AS production
 
-# Install system dependencies for PyTorch and visualization
+# Install system dependencies for PyTorch and curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
