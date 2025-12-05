@@ -134,12 +134,15 @@ class ModelRegistry:
                 from dashboard.utils.model_config import ModelConfig
 
                 config = ModelConfig.load(config_yaml_path)
+                
+                # Utiliser original_station_id pour le nom complet de la station
+                station_display = config.original_station_id or config.station
 
                 return ModelInfo(
                     model_path=model_path,
                     model_name=config.model_name,
                     model_type=config.model_name,
-                    station=config.station,
+                    station=station_display,
                     creation_date=config.creation_date,
                     metrics=config.metrics,
                     hyperparams=config.hyperparams
@@ -229,7 +232,8 @@ class ModelRegistry:
         from darts.models import (
             TFTModel, NBEATSModel, NHiTSModel, TransformerModel,
             RNNModel, BlockRNNModel, TCNModel, TiDEModel,
-            DLinearModel, NLinearModel
+            DLinearModel, NLinearModel, TSMixerModel,
+            GlobalNaiveAggregate, GlobalNaiveDrift, GlobalNaiveSeasonal
         )
 
         model_path = model_info.model_path
@@ -250,6 +254,10 @@ class ModelRegistry:
             'TIDE': TiDEModel,
             'DLINEAR': DLinearModel,
             'NLINEAR': NLinearModel,
+            'TSMIXER': TSMixerModel,
+            'GLOBALNAIVEAGGREGATE': GlobalNaiveAggregate,
+            'GLOBALNAIVEDRIFT': GlobalNaiveDrift,
+            'GLOBALNAIVESEASONAL': GlobalNaiveSeasonal,
         }
 
         model_type = model_info.model_type.upper()

@@ -1,9 +1,14 @@
-"""Factory pour instancier dynamiquement les modèles Darts."""
+"""Factory pour instancier dynamiquement les modèles Darts.
+
+Modèles supportés:
+- Deep Learning: Tous utilisent input_chunk_length/output_chunk_length
+- Global Baselines: Utilisent aussi input/output chunk (compatibles)
+"""
 
 import torch
 from typing import Dict, Any, Optional
 from darts.models import (
-    # Deep Learning
+    # Deep Learning - Tous utilisent input_chunk_length/output_chunk_length
     TFTModel,
     NBEATSModel,
     NHiTSModel,
@@ -14,36 +19,21 @@ from darts.models import (
     TiDEModel,
     DLinearModel,
     NLinearModel,
-
-    # Statistical
-    ARIMA,
-    AutoARIMA,
-    VARIMA,
-    ExponentialSmoothing,
-    Theta,
-    FourTheta,
-    Prophet,
-
-    # ML
-    RandomForest,
-    LightGBMModel,
-    XGBModel,
-    CatBoostModel,
-    LinearRegressionModel,
-
-    # Ensemble
-    NaiveEnsembleModel,
-
-    # Baselines
-    NaiveSeasonal,
-    NaiveDrift,
-    NaiveMean,
+    TSMixerModel,
+    
+    # Global Baselines - Compatibles avec input/output chunk
+    GlobalNaiveAggregate,
+    GlobalNaiveDrift,
+    GlobalNaiveSeasonal,
 )
 
 
 class ModelFactory:
     """
     Factory pour créer des modèles Darts de façon dynamique.
+    
+    Supporte les modèles Deep Learning et Global Baselines qui partagent
+    une interface commune (input_chunk_length, output_chunk_length).
     """
 
     # Mapping des noms vers les classes
@@ -53,44 +43,31 @@ class ModelFactory:
         'NBEATS': NBEATSModel,
         'NHiTS': NHiTSModel,
         'Transformer': TransformerModel,
-        'LSTM': RNNModel,  # RNNModel avec model='LSTM'
-        'GRU': RNNModel,   # RNNModel avec model='GRU'
+        'LSTM': RNNModel,
+        'GRU': RNNModel,
         'BlockRNN': BlockRNNModel,
         'TCN': TCNModel,
         'TiDE': TiDEModel,
         'DLinear': DLinearModel,
         'NLinear': NLinearModel,
-
-        # Statistical
-        'ARIMA': ARIMA,
-        'AutoARIMA': AutoARIMA,
-        'VARIMA': VARIMA,
-        'ExponentialSmoothing': ExponentialSmoothing,
-        'Theta': Theta,
-        'FourTheta': FourTheta,
-        'Prophet': Prophet,
-
-        # ML
-        'RandomForest': RandomForest,
-        'LightGBM': LightGBMModel,
-        'XGBoost': XGBModel,
-        'CatBoost': CatBoostModel,
-        'LinearRegression': LinearRegressionModel,
-
-        # Ensemble
-        'NaiveEnsemble': NaiveEnsembleModel,
-
-        # Baselines
-        'NaiveSeasonal': NaiveSeasonal,
-        'NaiveDrift': NaiveDrift,
-        'NaiveMean': NaiveMean,
+        'TSMixer': TSMixerModel,
+        
+        # Global Baselines
+        'GlobalNaiveAggregate': GlobalNaiveAggregate,
+        'GlobalNaiveDrift': GlobalNaiveDrift,
+        'GlobalNaiveSeasonal': GlobalNaiveSeasonal,
     }
 
-    # Modèles qui supportent PyTorch Lightning (deep learning)
+    # Modèles PyTorch (Deep Learning)
     TORCH_MODELS = {
         'TFT', 'NBEATS', 'NHiTS', 'Transformer',
         'LSTM', 'GRU', 'BlockRNN', 'TCN', 'TiDE',
-        'DLinear', 'NLinear'
+        'DLinear', 'NLinear', 'TSMixer'
+    }
+    
+    # Modèles qui n'ont PAS besoin de PyTorch
+    NON_TORCH_MODELS = {
+        'GlobalNaiveAggregate', 'GlobalNaiveDrift', 'GlobalNaiveSeasonal'
     }
 
     @classmethod
@@ -117,61 +94,73 @@ class ModelFactory:
             raise ValueError(f"Modèle inconnu: {model_name}. Disponibles: {list(cls.MODEL_CLASSES.keys())}")
 
         model_class = cls.MODEL_CLASSES[model_name]
-
-        # Préparer les paramètres
         params = hyperparams.copy()
 
-        # Gestion device pour modèles PyTorch
-        if model_name in cls.TORCH_MODELS:
-            if device is None:
-                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # =====================================================================
+        # MODÈLES NON-PYTORCH (Global Baselines)
+        # =====================================================================
+        if model_name in cls.NON_TORCH_MODELS:
+            # Ces modèles n'ont besoin que de input/output_chunk_length
+            simple_params = {
+                'input_chunk_length': params.get('input_chunk_length', 30),
+                'output_chunk_length': params.get('output_chunk_length', 7),
+            }
+            try:
+                model = model_class(**simple_params)
+                return model
+            except Exception as e:
+                raise RuntimeError(f"Erreur création {model_name}: {e}")
 
-            # Extraire les paramètres qui ne sont pas du modèle mais de l'optimiseur
-            learning_rate = params.pop('learning_rate', 1e-3)
-            n_epochs = params.pop('n_epochs', 50)
-            batch_size = params.pop('batch_size', 32)
+        # =====================================================================
+        # MODÈLES PYTORCH (Deep Learning)
+        # =====================================================================
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-            # Ajouter ces paramètres aux bons endroits
-            params['n_epochs'] = n_epochs
-            params['batch_size'] = batch_size
+        # Extraire les paramètres optimiseur
+        learning_rate = params.pop('learning_rate', 1e-3)
+        n_epochs = params.pop('n_epochs', 50)
+        batch_size = params.pop('batch_size', 32)
 
-            # Learning rate va dans optimizer_kwargs
-            if 'optimizer_kwargs' not in params:
-                params['optimizer_kwargs'] = {}
-            params['optimizer_kwargs']['lr'] = learning_rate
+        params['n_epochs'] = n_epochs
+        params['batch_size'] = batch_size
 
-            # Gestion de la fonction de loss
-            loss_fn_name = params.pop('loss_fn', None)
-            if loss_fn_name:
-                loss_fn = cls._get_loss_function(loss_fn_name, params)
-                if loss_fn is not None:
-                    params['loss_fn'] = loss_fn
+        # Learning rate dans optimizer_kwargs
+        if 'optimizer_kwargs' not in params:
+            params['optimizer_kwargs'] = {}
+        params['optimizer_kwargs']['lr'] = learning_rate
 
-            # Ajouter le device et autres configs PyTorch Lightning
-            if 'pl_trainer_kwargs' not in params:
-                params['pl_trainer_kwargs'] = {}
+        # Gestion de la fonction de loss
+        loss_fn_name = params.pop('loss_fn', None)
+        if loss_fn_name:
+            loss_fn = cls._get_loss_function(loss_fn_name, params)
+            if loss_fn is not None:
+                params['loss_fn'] = loss_fn
 
-            params['pl_trainer_kwargs']['accelerator'] = 'gpu' if device == 'cuda' else 'cpu'
+        # Configuration PyTorch Lightning
+        if 'pl_trainer_kwargs' not in params:
+            params['pl_trainer_kwargs'] = {}
 
-            if device == 'cuda' and torch.cuda.is_available():
-                params['pl_trainer_kwargs']['devices'] = [0]  # GPU 0
+        params['pl_trainer_kwargs']['accelerator'] = 'gpu' if device == 'cuda' else 'cpu'
 
-            # Désactiver certains logs et la progress bar pour compatibilité Streamlit
-            params['pl_trainer_kwargs']['enable_progress_bar'] = False  # Fix: Évite OSError dans Streamlit
-            params['pl_trainer_kwargs']['enable_model_summary'] = False
-            params['pl_trainer_kwargs']['enable_checkpointing'] = False
-            
-            # ⚠️ Gradient clipping pour éviter l'explosion des gradients
-            # Ceci est CRITIQUE pour éviter les pertes NaN
-            params['pl_trainer_kwargs']['gradient_clip_val'] = 1.0
-            params['pl_trainer_kwargs']['gradient_clip_algorithm'] = 'norm'
+        if device == 'cuda' and torch.cuda.is_available():
+            params['pl_trainer_kwargs']['devices'] = [0]  # GPU 0
 
-            # Override avec les kwargs fournis (pour callbacks notamment)
-            if pl_trainer_kwargs_override:
-                params['pl_trainer_kwargs'].update(pl_trainer_kwargs_override)
+        # Désactiver certains logs et la progress bar pour compatibilité Streamlit
+        params['pl_trainer_kwargs']['enable_progress_bar'] = False
+        params['pl_trainer_kwargs']['enable_model_summary'] = False
+        params['pl_trainer_kwargs']['enable_checkpointing'] = False
+        
+        # ⚠️ Gradient clipping pour éviter l'explosion des gradients
+        params['pl_trainer_kwargs']['gradient_clip_val'] = 1.0
+        params['pl_trainer_kwargs']['gradient_clip_algorithm'] = 'norm'
 
-            # Random seed pour reproductibilité
-            params['random_state'] = 42
+        # Override avec les kwargs fournis (pour callbacks notamment)
+        if pl_trainer_kwargs_override:
+            params['pl_trainer_kwargs'].update(pl_trainer_kwargs_override)
+
+        # Random seed pour reproductibilité
+        params['random_state'] = 42
 
         # Gestion spéciale pour RNNModel (LSTM/GRU)
         if model_name in ['LSTM', 'GRU']:
@@ -185,7 +174,6 @@ class ModelFactory:
         # Gestion spéciale pour TFT (requires future covariates or add_relative_index)
         if model_name == 'TFT':
             if 'add_relative_index' not in params and 'add_encoders' not in params:
-                # Enable automatic time index generation if no future covariates provided
                 params['add_relative_index'] = True
 
         # Créer le modèle
@@ -199,45 +187,31 @@ class ModelFactory:
     def _get_loss_function(cls, loss_name: str, params: Dict[str, Any]):
         """
         Convertit le nom de la fonction de loss en objet PyTorch loss.
-
-        Args:
-            loss_name: Nom de la loss ('MAE', 'MSE', 'Huber', 'Quantile', 'RMSE')
-            params: Paramètres du modèle (pour extraire des infos comme quantile)
-
-        Returns:
-            Fonction de loss PyTorch ou None pour utiliser le défaut
         """
         import torch.nn as nn
-        from darts.utils.losses import MAELoss
 
         if loss_name == 'MAE':
-            # MAE est le défaut pour la plupart des modèles Darts
             return None  # Laisser Darts utiliser le défaut
 
         elif loss_name == 'MSE':
             return nn.MSELoss()
 
         elif loss_name == 'Huber':
-            # Huber loss avec delta=1.0 par défaut
             delta = params.pop('loss_delta', 1.0)
             return nn.HuberLoss(delta=delta)
 
         elif loss_name == 'Quantile':
-            # Quantile loss nécessite darts.utils.losses
             try:
                 from darts.utils.losses import QuantileLoss
                 quantile = params.pop('loss_quantile', 0.5)
                 return QuantileLoss(quantile=quantile)
             except ImportError:
-                # Fallback si QuantileLoss n'est pas disponible
                 return None
 
         elif loss_name == 'RMSE':
-            # RMSE = sqrt(MSE), on peut utiliser MSE car l'ordre est préservé
             return nn.MSELoss()
 
         else:
-            # Loss inconnue, utiliser le défaut
             return None
 
     @classmethod
@@ -257,24 +231,14 @@ class ModelFactory:
 
 
 def get_device() -> str:
-    """
-    Détecte le device disponible.
-
-    Returns:
-        'cuda' si GPU disponible, sinon 'cpu'
-    """
+    """Détecte le device disponible."""
     if torch.cuda.is_available():
         return 'cuda'
     return 'cpu'
 
 
 def get_device_info() -> Dict[str, Any]:
-    """
-    Retourne des informations sur le device.
-
-    Returns:
-        Dict avec infos GPU/CPU
-    """
+    """Retourne des informations sur le device."""
     info = {
         'cuda_available': torch.cuda.is_available(),
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',

@@ -250,6 +250,7 @@ def run_training_pipeline(
     progress_callback: Optional[Any] = None,
     pl_trainer_kwargs: Optional[Dict[str, Any]] = None,
     station_data_df: Optional[pd.DataFrame] = None,
+    station_data_df_raw: Optional[pd.DataFrame] = None,  # Raw data for display
     column_mapping: Optional[Dict[str, str]] = None,
     target_preprocessor: Optional[Any] = None,
     cov_preprocessor: Optional[Any] = None,
@@ -271,7 +272,8 @@ def run_training_pipeline(
         verbose: Afficher les logs
         progress_callback: Callback pour progression
         pl_trainer_kwargs: Kwargs pour PyTorch Lightning Trainer
-        station_data_df: DataFrame complet de la station (OBLIGATOIRE pour sauvegarde)
+        station_data_df: DataFrame complet de la station PROCESSED (obligatoire pour sauvegarde)
+        station_data_df_raw: DataFrame complet de la station RAW (pour affichage)
         column_mapping: Mapping des colonnes {'target_var': '...', 'covariate_vars': [...]}
         target_preprocessor: Scaler fitté sur train pour la target
         cov_preprocessor: Scaler fitté sur train pour les covariables
@@ -295,15 +297,23 @@ def run_training_pipeline(
             pl_trainer_kwargs_override=pl_trainer_kwargs
         )
 
-        # 2. Préparer les covariables
+        # 2. Préparer les covariables selon ce que le modèle supporte
         train_past_cov = None
         val_past_cov = None
+        train_future_cov = None
+        val_future_cov = None
 
-        if use_covariates:
-            if train_cov is not None:
+        if use_covariates and train_cov is not None:
+            # Vérifier quel type de covariables le modèle supporte
+            supports_past = getattr(model, "supports_past_covariates", False)
+            supports_future = getattr(model, "supports_future_covariates", False)
+            
+            if supports_past:
                 train_past_cov = train_cov
-            if val_cov is not None:
                 val_past_cov = val_cov
+            elif supports_future:
+                train_future_cov = train_cov
+                val_future_cov = val_cov
 
         # 3. Entraîner
         model = train_model(
@@ -312,6 +322,8 @@ def run_training_pipeline(
             val_series=val,
             train_past_covariates=train_past_cov,
             val_past_covariates=val_past_cov,
+            train_future_covariates=train_future_cov,
+            val_future_covariates=val_future_cov,
             verbose=verbose
         )
 
@@ -323,10 +335,14 @@ def run_training_pipeline(
         # Pour la prédiction, on a besoin de la série complète jusqu'au test
         full_train = train.append(val)
 
-        # Covariables complètes pour prédiction
+        # Covariables complètes pour prédiction (selon support du modèle)
         full_past_cov = None
+        full_future_cov = None
         if use_covariates and full_cov is not None:
-            full_past_cov = full_cov
+            if getattr(model, "supports_past_covariates", False):
+                full_past_cov = full_cov
+            elif getattr(model, "supports_future_covariates", False):
+                full_future_cov = full_cov
 
         predictions, metrics = evaluate_model(
             model=model,
@@ -334,6 +350,7 @@ def run_training_pipeline(
             test_series=test,
             horizon=min(output_chunk, len(test)),
             past_covariates=full_past_cov,
+            future_covariates=full_future_cov,
             num_samples=1
         )
 
@@ -406,6 +423,16 @@ def run_training_pipeline(
             )
 
             # Sauvegarder avec le nouveau système (modèle + config + splits)
+            # Préparer les DataFrames RAW si disponibles
+            train_df_raw = None
+            val_df_raw = None
+            test_df_raw = None
+            
+            if station_data_df_raw is not None:
+                train_df_raw = station_data_df_raw.iloc[:train_size].copy()
+                val_df_raw = station_data_df_raw.iloc[train_size:train_size + val_size].copy()
+                test_df_raw = station_data_df_raw.iloc[train_size + val_size:].copy()
+            
             model_dir = save_model_with_data(
                 model=model,
                 save_dir=save_dir,
@@ -417,7 +444,10 @@ def run_training_pipeline(
                 test_df=test_df,
                 full_df=station_data_df,
                 target_preprocessor=target_preprocessor,
-                cov_preprocessor=cov_preprocessor
+                cov_preprocessor=cov_preprocessor,
+                train_df_raw=train_df_raw,
+                val_df_raw=val_df_raw,
+                test_df_raw=test_df_raw
             )
 
             results['saved_path'] = str(model_dir)

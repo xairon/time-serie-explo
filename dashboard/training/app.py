@@ -1,4 +1,4 @@
-"""Application Streamlit pour l'entraînement de modèles de prévision."""
+"""Streamlit application for forecasting model training."""
 
 import streamlit as st
 import pandas as pd
@@ -15,19 +15,19 @@ st.set_page_config(
 # Sidebar
 st.sidebar.title("🧭 Navigation")
 st.sidebar.markdown("""
-### Pages disponibles
-- 🎯 **Train Models** : Entraînement de modèles
-- 🔮 **Forecasting** : Prédictions sur nouvelles données
-- 📉 **Model Comparison** : Comparer les performances
+### Available Pages
+- 🎯 **Train Models**: Train forecasting models
+- 🔮 **Forecasting**: Predict on new data
+- 📉 **Model Comparison**: Compare performance
 """)
 st.sidebar.markdown("---")
 
-# Afficher les données chargées
+# Show loaded data
 if 'training_data_configured' in st.session_state and st.session_state['training_data_configured']:
-    st.sidebar.success(f"✅ Données chargées : **{st.session_state['training_filename']}**")
+    st.sidebar.success(f"✅ Data loaded: **{st.session_state['training_filename']}**")
     st.sidebar.info(f"📊 {len(st.session_state['training_variables'])} variables")
 
-    if st.sidebar.button("🔄 Charger un autre fichier"):
+    if st.sidebar.button("🔄 Load another file"):
         # Reset session state
         keys_to_remove = ['training_data', 'training_data_raw', 'training_variables',
                          'training_stations', 'training_date_col', 'training_station_col',
@@ -38,21 +38,21 @@ if 'training_data_configured' in st.session_state and st.session_state['training
                 del st.session_state[key]
         st.rerun()
 else:
-    st.sidebar.warning("⚠️ Aucune donnée chargée")
+    st.sidebar.warning("⚠️ No data loaded")
 
-# Titre principal
+# Main Title
 st.title("🎯 Junon Model Training")
-st.markdown("**Entraînement de modèles de prévision de séries temporelles**")
+st.markdown("**Time Series Forecasting Model Training**")
 st.markdown("---")
 
-# Si données déjà chargées, afficher le résumé
+# If data already loaded, show summary
 if 'training_data_configured' in st.session_state and st.session_state['training_data_configured']:
-    st.success("🎉 Données prêtes pour l'entraînement !")
+    st.success("🎉 Data ready for training!")
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("📁 Fichier", st.session_state['training_filename'])
+        st.metric("📁 File", st.session_state['training_filename'])
 
     with col2:
         st.metric("📊 Variables", len(st.session_state['training_variables']))
@@ -66,41 +66,41 @@ if 'training_data_configured' in st.session_state and st.session_state['training
         else:
             df = st.session_state['training_data']
             duration_years = (df.index[-1] - df.index[0]).days / 365.25
-            st.metric("📅 Durée", f"{duration_years:.1f} ans")
+            st.metric("📅 Duration", f"{duration_years:.1f} years")
 
-    st.info("👉 Utilisez les pages dans la sidebar pour entraîner vos modèles")
+    st.info("👉 Use the sidebar pages to train your models")
 
-    # Aperçu des données
-    with st.expander("🔍 Voir un aperçu des données"):
+    # Data Preview
+    with st.expander("🔍 View data preview"):
         if st.session_state.get('training_is_multistation', False):
             st.dataframe(st.session_state['training_data_raw'].head(20), use_container_width=True)
         else:
             st.dataframe(st.session_state['training_data'].head(20), use_container_width=True)
 
-    # Configuration preprocessing
-    with st.expander("⚙️ Configuration du preprocessing"):
+    # Preprocessing Configuration
+    with st.expander("⚙️ Preprocessing configuration"):
         preprocessing = st.session_state.get('training_preprocessing', {})
         st.json(preprocessing)
 
     st.stop()
 
-# Section Upload CSV
-st.subheader("📤 Charger vos données d'entraînement")
+# Upload CSV Section
+st.subheader("📤 Upload your training data")
 
 st.markdown("""
-### 📝 Format attendu
+### 📝 Expected Format
 
-Votre fichier CSV doit contenir :
-- **Une colonne temporelle** (date, time, timestamp, etc.)
-- **Une variable cible** à prédire (ex: niveau d'eau)
-- **Des covariables** optionnelles (pluie, température, etc.)
-- **Optionnel** : une colonne avec les codes stations (si plusieurs stations)
+Your CSV file must contain:
+- **A time column** (date, time, timestamp, etc.)
+- **A target variable** to predict (e.g., water level)
+- **Optional covariates** (rain, temperature, etc.)
+- **Optional**: a station code column (if multiple stations)
 
-**Important** : Plus vous avez de données historiques, meilleur sera le modèle (minimum 1 an recommandé).
+**Important**: The more historical data you have, the better the model (minimum 1 year recommended).
 """)
 
-# Exemple téléchargeable
-with st.expander("📄 Télécharger un exemple de CSV"):
+# Downloadable example
+with st.expander("📄 Download CSV example"):
     example_df = pd.DataFrame({
         'date': pd.date_range('2020-01-01', periods=365, freq='D'),
         'level': [10.5 + i*0.01 + (i%30)*0.2 for i in range(365)],
@@ -110,7 +110,7 @@ with st.expander("📄 Télécharger un exemple de CSV"):
     })
 
     st.download_button(
-        label="📥 Télécharger example_training.csv",
+        label="📥 Download example_training.csv",
         data=example_df.to_csv(index=False),
         file_name="example_training_data.csv",
         mime="text/csv"
@@ -122,9 +122,9 @@ st.markdown("---")
 
 # Upload
 uploaded_file = st.file_uploader(
-    "Sélectionnez votre fichier CSV",
+    "Select your CSV file",
     type=['csv'],
-    help="Le fichier doit être au format CSV"
+    help="The file must be in CSV format"
 )
 
 if uploaded_file is not None:
@@ -137,12 +137,12 @@ if uploaded_file is not None:
             uploaded_file.seek(0)  # Retour au début du fichier
             df_raw = pd.read_csv(uploaded_file, encoding='latin1')
 
-        st.success(f"✅ Fichier **{uploaded_file.name}** lu avec succès ({len(df_raw):,} lignes)")
+        st.success(f"✅ File **{uploaded_file.name}** read successfully ({len(df_raw):,} rows)")
 
-        st.markdown("### 🔧 Configuration des données")
+        st.markdown("### 🔧 Data Configuration")
 
-        # Étape 1: Colonne temporelle
-        st.markdown("#### 1️⃣ Colonne temporelle")
+        # Step 1: Time Column
+        st.markdown("#### 1️⃣ Time Column")
 
         potential_date_cols = []
         for col in df_raw.columns:
@@ -159,18 +159,18 @@ if uploaded_file is not None:
             potential_date_cols = list(df_raw.columns)
 
         date_col = st.selectbox(
-            "Sélectionnez la colonne contenant les dates",
+            "Select the column containing dates",
             options=potential_date_cols,
-            help="La colonne avec les dates/timestamps"
+            help="The column with dates/timestamps"
         )
 
-        # Étape 2: Colonne station (optionnel)
-        st.markdown("#### 2️⃣ Colonne stations (optionnel)")
+        # Step 2: Station Column (optional)
+        st.markdown("#### 2️⃣ Station Column (optional)")
 
         has_station_col = st.checkbox(
-            "Le CSV contient plusieurs stations identifiées par une colonne",
+            "CSV contains multiple stations identified by a column",
             value=False,
-            help="Cochez si une colonne identifie différentes stations"
+            help="Check if a column identifies different stations"
         )
 
         station_col = None
@@ -181,17 +181,17 @@ if uploaded_file is not None:
 
             if potential_station_cols:
                 station_col = st.selectbox(
-                    "Sélectionnez la colonne contenant les codes stations",
+                    "Select the column containing station codes",
                     options=potential_station_cols
                 )
 
                 stations_found = df_raw[station_col].unique()
-                st.info(f"📍 **{len(stations_found)} stations** détectées : {', '.join(map(str, stations_found[:5]))}" +
-                       (f" (+ {len(stations_found)-5} autres)" if len(stations_found) > 5 else ""))
+                st.info(f"📍 **{len(stations_found)} stations** detected: {', '.join(map(str, stations_found[:5]))}" +
+                       (f" (+ {len(stations_found)-5} others)" if len(stations_found) > 5 else ""))
             else:
-                st.warning("Aucune colonne catégorielle trouvée")
+                st.warning("No categorical column found")
 
-        # Étape 3: Variables
+        # Step 3: Variables
         st.markdown("#### 3️⃣ Variables")
 
         exclude_cols = [date_col]
@@ -202,97 +202,98 @@ if uploaded_file is not None:
         available_vars = [col for col in numeric_cols if col not in exclude_cols]
 
         if not available_vars:
-            st.error("❌ Aucune colonne numérique trouvée !")
+            st.error("❌ No numeric columns found!")
             st.stop()
 
         col1, col2 = st.columns(2)
 
         with col1:
             target_var = st.selectbox(
-                "Variable cible (à prédire)",
+                "Target variable (to predict)",
                 options=available_vars,
-                help="La variable que vous voulez prédire (ex: niveau d'eau)"
+                help="The variable you want to predict (e.g., water level)"
             )
 
         with col2:
             covariate_vars = st.multiselect(
-                "Covariables (optionnel)",
+                "Covariates (optional)",
                 options=[v for v in available_vars if v != target_var],
-                help="Variables qui peuvent aider à prédire la cible (pluie, température, etc.)"
+                help="Variables that can help predict the target (rain, temperature, etc.)"
             )
 
         all_selected_vars = [target_var] + covariate_vars
 
-        # Étape 4: Preprocessing
-        st.markdown("#### 4️⃣ Configuration du preprocessing")
+        # Step 4: Preprocessing
+        st.markdown("#### 4️⃣ Preprocessing Configuration")
 
-        with st.expander("⚙️ Options de preprocessing"):
-            st.markdown("##### Gestion des valeurs manquantes")
-            fill_method = st.selectbox(
-                "Méthode",
-                options=["Supprimer les lignes", "Interpolation linéaire", "Forward fill", "Backward fill"],
-                help="Comment traiter les valeurs manquantes"
-            )
+        with st.expander("⚙️ Preprocessing Options", expanded=True):
+            col_prep1, col_prep2 = st.columns(2)
+            
+            with col_prep1:
+                st.markdown("##### Missing Values")
+                fill_method = st.selectbox(
+                    "Method",
+                    options=["Linear Interpolation", "Forward fill", "Drop rows"],
+                    help="Interpolation recommended for piezo levels"
+                )
 
-            st.markdown("##### Normalisation")
-            normalization = st.selectbox(
-                "Type de normalisation",
-                options=["MinMax (0-1)", "StandardScaler (z-score)", "RobustScaler (médiane+IQR)", "Aucune"],
-                help="Normaliser les données améliore l'entraînement des réseaux de neurones"
-            )
+            with col_prep2:
+                st.markdown("##### Normalization")
+                normalization = st.selectbox(
+                    "Type",
+                    options=["MinMax (0-1)", "StandardScaler (z-score)", "None"],
+                    help="MinMax recommended for neural networks"
+                )
+            
+            st.markdown("##### Additional Features")
+            col_feat1, col_feat2 = st.columns(2)
+            
+            with col_feat1:
+                use_datetime_features = st.checkbox(
+                    "📅 Time Features",
+                    value=False,
+                    help="Adds: day, month, season (cyclic)"
+                )
 
-            st.markdown("##### Transformation")
-            transformation = st.selectbox(
-                "Transformation des données",
-                options=["Aucune", "Log", "BoxCox", "Différenciation (order 1)"],
-                help="Transformations pour rendre les données plus stationnaires"
-            )
-
-            st.markdown("##### Meta-features (features Darts)")
-            use_datetime_features = st.checkbox(
-                "Extraire features temporelles (jour, mois, etc.)",
-                value=False,
-                help="Ajoute: jour du mois, mois, jour de la semaine, etc."
-            )
-
-            use_lags = st.checkbox(
-                "Ajouter des lags de la cible",
-                value=False,
-                help="Ajoute les valeurs passées comme features (utile pour certains modèles)"
-            )
+            with col_feat2:
+                use_lags = st.checkbox(
+                    "📊 Target Lags",
+                    value=False,
+                    help="Adds past values as covariates"
+                )
 
             if use_lags:
                 lag_values = st.text_input(
-                    "Lags à ajouter (séparés par des virgules)",
+                    "Lags (comma separated)",
                     value="1,7,30",
-                    help="Ex: 1,7,30 pour ajouter les valeurs d'il y a 1, 7 et 30 jours"
+                    help="Ex: 1,7,30 = values from 1, 7, and 30 days ago"
                 )
                 lags_list = [int(x.strip()) for x in lag_values.split(',') if x.strip()]
             else:
                 lags_list = []
 
-        # Validation et preview
+        # Validation and preview
         st.markdown("---")
         st.markdown("#### 5️⃣ Validation")
 
-        if st.button("🔍 Prévisualiser les données préprocessées", use_container_width=False):
+        if st.button("🔍 Preview preprocessed data", use_container_width=False):
             try:
-                # Processus de preview
+                # Preview process
                 df_preview = df_raw.copy()
                 df_preview[date_col] = pd.to_datetime(df_preview[date_col])
 
                 if station_col:
-                    # Preview première station seulement
+                    # Preview first station only
                     first_station = df_preview[station_col].iloc[0]
                     df_preview = df_preview[df_preview[station_col] == first_station]
-                    st.info(f"Preview pour la station: {first_station}")
+                    st.info(f"Preview for station: {first_station}")
 
                 df_preview = df_preview[[date_col] + all_selected_vars].set_index(date_col).sort_index()
 
                 # Gestion valeurs manquantes
                 missing_before = df_preview.isnull().sum().sum()
 
-                if fill_method == "Interpolation linéaire":
+                if fill_method == "Linear Interpolation":
                     df_preview = df_preview.interpolate(method='linear')
                 elif fill_method == "Forward fill":
                     df_preview = df_preview.fillna(method='ffill')
@@ -303,22 +304,22 @@ if uploaded_file is not None:
 
                 missing_after = df_preview.isnull().sum().sum()
 
-                st.success(f"✅ Valeurs manquantes : {missing_before} → {missing_after}")
-                st.metric("Échantillons après preprocessing", len(df_preview))
+                st.success(f"✅ Missing values: {missing_before} → {missing_after}")
+                st.metric("Samples after preprocessing", len(df_preview))
 
-                # Afficher les données
+                # Show data
                 st.dataframe(df_preview.head(50), use_container_width=True)
 
                 # Stats
-                st.markdown("**Statistiques**")
+                st.markdown("**Statistics**")
                 st.dataframe(df_preview.describe(), use_container_width=True)
 
             except Exception as e:
-                st.error(f"Erreur lors du preview : {e}")
+                st.error(f"Preview error: {e}")
 
         st.markdown("---")
 
-        if st.button("✅ Valider et charger les données", type="primary", use_container_width=True):
+        if st.button("✅ Validate and load data", type="primary", use_container_width=True):
             try:
                 df_processed = df_raw.copy()
                 df_processed[date_col] = pd.to_datetime(df_processed[date_col])
@@ -327,7 +328,6 @@ if uploaded_file is not None:
                 preprocessing_config = {
                     'fill_method': fill_method,
                     'normalization': normalization,
-                    'transformation': transformation,
                     'datetime_features': use_datetime_features,
                     'lags': lags_list if use_lags else []
                 }
@@ -359,18 +359,18 @@ if uploaded_file is not None:
                 st.session_state['training_preprocessing'] = preprocessing_config
                 st.session_state['training_data_configured'] = True
 
-                st.success("🎉 Données chargées avec succès !")
+                st.success("🎉 Data loaded successfully!")
                 st.balloons()
                 st.rerun()
 
             except Exception as e:
-                st.error(f"❌ Erreur : {e}")
+                st.error(f"❌ Error: {e}")
                 import traceback
                 st.code(traceback.format_exc())
 
     except Exception as e:
-        st.error(f"❌ Erreur lors de la lecture : {e}")
-        st.info("Vérifiez le format de votre fichier CSV")
+        st.error(f"❌ Error reading file: {e}")
+        st.info("Check your CSV file format")
 
 # Footer
 st.markdown("---")

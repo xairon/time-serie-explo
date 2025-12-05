@@ -1,0 +1,38 @@
+services:
+  # Training Dashboard - Model training and forecasting
+  training-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: timeseries-training
+    ports:
+      - "49500-49599:8501"
+    volumes:
+      # Persist checkpoints and results
+      - ./checkpoints:/app/checkpoints
+      - ./logs:/app/logs
+      - ./results:/app/results
+      # Mount data directory if needed (optional)
+      - ./data:/app/data:ro
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+
+networks:
+  default:
+    name: timeseries-network

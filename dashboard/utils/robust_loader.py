@@ -202,14 +202,18 @@ def load_model_safe(model_path: Path, model_type: str) -> Any:
     from darts.models import (
         TFTModel, NBEATSModel, NHiTSModel, TransformerModel,
         RNNModel, BlockRNNModel, TCNModel, TiDEModel,
-        DLinearModel, NLinearModel
+        DLinearModel, NLinearModel, TSMixerModel,
+        GlobalNaiveAggregate, GlobalNaiveDrift, GlobalNaiveSeasonal
     )
     
     model_classes = {
         'TFT': TFTModel, 'NBEATS': NBEATSModel, 'NHITS': NHiTSModel,
         'TRANSFORMER': TransformerModel, 'LSTM': RNNModel, 'GRU': RNNModel,
         'BLOCKRNN': BlockRNNModel, 'TCN': TCNModel, 'TIDE': TiDEModel,
-        'DLINEAR': DLinearModel, 'NLINEAR': NLinearModel,
+        'DLINEAR': DLinearModel, 'NLINEAR': NLinearModel, 'TSMIXER': TSMixerModel,
+        'GLOBALNAIVEAGGREGATE': GlobalNaiveAggregate,
+        'GLOBALNAIVEDRIFT': GlobalNaiveDrift,
+        'GLOBALNAIVESEASONAL': GlobalNaiveSeasonal,
     }
     
     model_class = model_classes.get(model_type.upper())

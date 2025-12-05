@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+.eggs/
+*.egg-info/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+dist/
+build/
+
+# Notebooks
+notebooks/
+*.ipynb
+
+# Local data (mount as volume instead)
+data/
+checkpoints/
+logs/
+results/
+figs/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+LICENSE
+docs/
+
+# Local dev files
+.claude/

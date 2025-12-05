@@ -35,5 +35,5 @@ textColor = "#FAFAFA"
 
 [logger]
 # Réduire les logs
-level = "error"
+level = "info"
 messageFormat = "%(message)s"

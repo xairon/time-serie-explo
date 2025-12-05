@@ -45,7 +45,7 @@ class StreamlitProgressCallback(Callback):
         """Appelé au début de l'entraînement."""
         self.start_time = time.time()
         if self.status_text:
-            self.status_text.text(f"🚀 Démarrage de l'entraînement ({self.total_epochs} epochs)...")
+            self.status_text.text(f"🚀 Starting training ({self.total_epochs} epochs)...")
 
     def on_train_epoch_start(self, trainer, pl_module):
         """Appelé au début de chaque epoch."""
@@ -137,7 +137,7 @@ class StreamlitProgressCallback(Callback):
                 ))
 
             fig.update_layout(
-                title="Évolution de la Loss",
+                title="Loss Evolution",
                 xaxis_title="Epoch",
                 yaxis_title="Loss",
                 template="plotly_white",

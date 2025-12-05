@@ -140,14 +140,18 @@ def save_model_with_data(
     test_df: pd.DataFrame,
     full_df: Optional[pd.DataFrame] = None,
     target_preprocessor=None,
-    cov_preprocessor=None
+    cov_preprocessor=None,
+    # Raw data (optional - for display purposes)
+    train_df_raw: Optional[pd.DataFrame] = None,
+    val_df_raw: Optional[pd.DataFrame] = None,
+    test_df_raw: Optional[pd.DataFrame] = None
 ) -> Path:
     """
     Sauvegarde un modèle avec sa configuration YAML et TOUS ses fichiers de données.
 
     Cette fonction crée une structure complète et autonome :
     - Le modèle peut être rechargé et utilisé sans dépendre d'autres fichiers externes
-    - Les splits train/val/test sont sauvegardés séparément
+    - Les splits train/val/test sont sauvegardés séparément (processed + raw)
     - Les scalers sont sauvegardés pour permettre les prédictions
 
     Args:
@@ -156,12 +160,15 @@ def save_model_with_data(
         model_name: Nom du modèle (TFT, NBEATS, etc.)
         station_name: Nom de la station (nettoyé, ex: "P1")
         config: Configuration du modèle
-        train_df: DataFrame du set d'entraînement
-        val_df: DataFrame du set de validation
-        test_df: DataFrame du set de test
+        train_df: DataFrame du set d'entraînement (processed)
+        val_df: DataFrame du set de validation (processed)
+        test_df: DataFrame du set de test (processed)
         full_df: DataFrame complet (optionnel, sinon concaténation train+val+test)
         target_preprocessor: Scaler pour la target
         cov_preprocessor: Scaler pour les covariables
+        train_df_raw: DataFrame brut d'entraînement (pour affichage)
+        val_df_raw: DataFrame brut de validation (pour affichage)
+        test_df_raw: DataFrame brut de test (pour affichage)
 
     Returns:
         Path du dossier du modèle
@@ -174,8 +181,7 @@ def save_model_with_data(
     model_path = model_dir / f"{station_name}.pkl"
     model.save(str(model_path))
 
-    # 2. Sauvegarder les données de splits
-    # Les DataFrames ont l'index = date
+    # 2. Sauvegarder les données PROCESSED (pour le modèle)
     train_path = model_dir / "train.csv"
     val_path = model_dir / "val.csv"
     test_path = model_dir / "test.csv"
@@ -184,19 +190,30 @@ def save_model_with_data(
     val_df.to_csv(val_path)
     test_df.to_csv(test_path)
 
-    # 3. Sauvegarder les données complètes
+    # 3. Sauvegarder les données RAW (pour l'affichage)
+    if train_df_raw is not None:
+        train_df_raw.to_csv(model_dir / "train_raw.csv")
+    if val_df_raw is not None:
+        val_df_raw.to_csv(model_dir / "val_raw.csv")
+    if test_df_raw is not None:
+        test_df_raw.to_csv(model_dir / "test_raw.csv")
+
+    # 4. Sauvegarder les données complètes
     if full_df is None:
         full_df = pd.concat([train_df, val_df, test_df])
 
     full_path = model_dir / "full_data.csv"
     full_df.to_csv(full_path)
 
-    # 4. Mettre à jour les infos de la config
+    # 5. Mettre à jour les infos de la config
     config.data_files = {
         'train': 'train.csv',
         'val': 'val.csv',
         'test': 'test.csv',
-        'full': 'full_data.csv'
+        'full': 'full_data.csv',
+        'train_raw': 'train_raw.csv' if train_df_raw is not None else None,
+        'val_raw': 'val_raw.csv' if val_df_raw is not None else None,
+        'test_raw': 'test_raw.csv' if test_df_raw is not None else None
     }
 
     # Ajouter les dates de split
@@ -207,11 +224,11 @@ def save_model_with_data(
     config.splits['test_start'] = str(test_df.index[0])
     config.splits['test_end'] = str(test_df.index[-1])
 
-    # 5. Sauvegarder la config YAML
+    # 6. Sauvegarder la config YAML
     config_path = model_dir / "model_config.yaml"
     config.save(config_path)
 
-    # 6. Sauvegarder les scalers
+    # 7. Sauvegarder les scalers
     if target_preprocessor is not None or cov_preprocessor is not None:
         import pickle
         scalers_path = model_dir / "scalers.pkl"
@@ -223,6 +240,7 @@ def save_model_with_data(
             pickle.dump(scalers_data, f)
 
     return model_dir
+
 
 
 def load_model_with_config(model_dir: Path):
@@ -239,7 +257,8 @@ def load_model_with_config(model_dir: Path):
     from darts.models import (
         TFTModel, NBEATSModel, NHiTSModel, TransformerModel,
         RNNModel, BlockRNNModel, TCNModel, TiDEModel,
-        DLinearModel, NLinearModel
+        DLinearModel, NLinearModel, TSMixerModel,
+        GlobalNaiveAggregate, GlobalNaiveDrift, GlobalNaiveSeasonal
     )
 
     # Mapping des types de modèles
@@ -255,6 +274,10 @@ def load_model_with_config(model_dir: Path):
         'TIDE': TiDEModel,
         'DLINEAR': DLinearModel,
         'NLINEAR': NLinearModel,
+        'TSMIXER': TSMixerModel,
+        'GLOBALNAIVEAGGREGATE': GlobalNaiveAggregate,
+        'GLOBALNAIVEDRIFT': GlobalNaiveDrift,
+        'GLOBALNAIVESEASONAL': GlobalNaiveSeasonal,
     }
 
     model_dir = Path(model_dir)

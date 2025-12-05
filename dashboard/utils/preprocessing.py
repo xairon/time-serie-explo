@@ -229,7 +229,7 @@ def add_datetime_features(series: TimeSeries) -> TimeSeries:
     Returns:
         TimeSeries avec features temporelles ajoutées
     """
-    df = series.pd_dataframe()
+    df = series.to_dataframe()
 
     # Extraire features datetime
     df['day_of_month'] = df.index.day
@@ -270,7 +270,7 @@ def add_lag_features(
     Returns:
         TimeSeries avec lags ajoutés
     """
-    df = series.pd_dataframe()
+    df = series.to_dataframe()
     lag_df = pd.DataFrame(index=df.index)
 
     for lag in lags:
@@ -329,7 +329,7 @@ def compute_data_statistics(series: TimeSeries) -> Dict:
     Returns:
         Dict avec stats
     """
-    df = series.pd_dataframe()
+    df = series.to_dataframe()
 
     stats = {
         'n_samples': len(df),
@@ -361,7 +361,7 @@ def detect_frequency(series: TimeSeries) -> str:
         return series.freq_str
 
     # Inférer depuis le DataFrame
-    df = series.pd_dataframe()
+    df = series.to_dataframe()
     if len(df) < 2:
         return 'D'  # Default
 
