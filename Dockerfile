@@ -1,13 +1,16 @@
-# Multi-stage build for optimized image size
-FROM python:3.11-slim AS builder
+# Simple single-stage build
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy project files
-COPY pyproject.toml ./
-
-# Install dependencies with pip (more Docker-friendly)
-RUN pip install --no-cache-dir --target=/app/deps \
+# Install Python dependencies
+RUN pip install --no-cache-dir \
     numpy>=1.24.0 \
     pandas>=2.0.0 \
     matplotlib>=3.7.0 \
@@ -25,20 +28,6 @@ RUN pip install --no-cache-dir --target=/app/deps \
     optuna>=3.0.0 \
     torch>=2.0.0
 
-# Production stage
-FROM python:3.11-slim AS production
-
-# Install system dependencies for PyTorch and curl for healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy installed packages from builder
-COPY --from=builder /app/deps /usr/local/lib/python3.11/site-packages/
-
 ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 
@@ -55,8 +44,8 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# Default command
-CMD ["streamlit", "run", "dashboard/training/app.py", \
+# Use python -m to ensure streamlit is found
+CMD ["python", "-m", "streamlit", "run", "dashboard/training/app.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \
