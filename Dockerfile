@@ -1,21 +1,29 @@
 # Multi-stage build for optimized image size
 FROM python:3.11-slim AS builder
 
-# Install uv for faster dependency installation
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
-# Set working directory
 WORKDIR /app
 
-# Copy project files needed for uv
+# Copy project files
 COPY pyproject.toml ./
-COPY uv.lock ./
 
-# Create minimal package structure for uv to recognize the workspace
-RUN mkdir -p dashboard && touch dashboard/__init__.py
-
-# Install dependencies with uv
-RUN uv sync --frozen --no-dev
+# Install dependencies with pip (more Docker-friendly)
+RUN pip install --no-cache-dir --target=/app/deps \
+    numpy>=1.24.0 \
+    pandas>=2.0.0 \
+    matplotlib>=3.7.0 \
+    seaborn>=0.12.0 \
+    scikit-learn>=1.3.0 \
+    scipy>=1.10.0 \
+    tqdm>=4.65.0 \
+    einops>=0.7.0 \
+    streamlit>=1.28.0 \
+    plotly>=5.17.0 \
+    darts>=0.32.0 \
+    pytorch-lightning>=2.0.0 \
+    statsmodels>=0.14.0 \
+    shap>=0.42.0 \
+    optuna>=3.0.0 \
+    torch>=2.0.0
 
 # Production stage
 FROM python:3.11-slim AS production
@@ -26,14 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy virtual environment from builder
-COPY --from=builder /app/.venv /app/.venv
+# Copy installed packages from builder
+COPY --from=builder /app/deps /usr/local/lib/python3.11/site-packages/
 
-# Set PATH to use the virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 
@@ -44,14 +49,13 @@ COPY .streamlit/ ./.streamlit/
 # Create directories for data persistence
 RUN mkdir -p /app/checkpoints /app/logs /app/results
 
-# Expose Streamlit default port (will be mapped in docker-compose)
 EXPOSE 8501
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# Default command - run the training app
+# Default command
 CMD ["streamlit", "run", "dashboard/training/app.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
