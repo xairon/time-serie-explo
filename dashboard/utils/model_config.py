@@ -144,7 +144,10 @@ def save_model_with_data(
     # Raw data (optional - for display purposes)
     train_df_raw: Optional[pd.DataFrame] = None,
     val_df_raw: Optional[pd.DataFrame] = None,
-    test_df_raw: Optional[pd.DataFrame] = None
+    test_df_raw: Optional[pd.DataFrame] = None,
+    # New registry parameters
+    model_type: str = "single",  # "single" or "global"
+    stations: Optional[List[str]] = None  # List of all stations for this model
 ) -> Path:
     """
     Sauvegarde un modèle avec sa configuration YAML et TOUS ses fichiers de données.
@@ -153,12 +156,13 @@ def save_model_with_data(
     - Le modèle peut être rechargé et utilisé sans dépendre d'autres fichiers externes
     - Les splits train/val/test sont sauvegardés séparément (processed + raw)
     - Les scalers sont sauvegardés pour permettre les prédictions
+    - Le modèle est enregistré dans le registre central
 
     Args:
         model: Modèle Darts à sauvegarder
         save_dir: Répertoire racine des checkpoints (ex: checkpoints/darts)
         model_name: Nom du modèle (TFT, NBEATS, etc.)
-        station_name: Nom de la station (nettoyé, ex: "P1")
+        station_name: Nom de la station principale (ex: "00104X0054/P1")
         config: Configuration du modèle
         train_df: DataFrame du set d'entraînement (processed)
         val_df: DataFrame du set de validation (processed)
@@ -169,31 +173,37 @@ def save_model_with_data(
         train_df_raw: DataFrame brut d'entraînement (pour affichage)
         val_df_raw: DataFrame brut de validation (pour affichage)
         test_df_raw: DataFrame brut de test (pour affichage)
+        model_type: "single" for single-station or "global" for multi-station
+        stations: List of all station IDs this model applies to
 
     Returns:
         Path du dossier du modèle
     """
-    # Créer le dossier du modèle avec TIMESTAMP pour éviter l'écrasement
-    # Structure: checkpoints/darts/{station_path}/{model_name}/{timestamp}/
-    # Example: checkpoints/darts/00104X0054/P1/TFT/20231209_111500/
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    from dashboard.utils.model_registry import ModelRegistry
     
-    # Station name can contain paths like "00104X0054/P1" - preserve the structure
-    # Only clean individual path components, not the whole path
-    if '/' in station_name or '\\' in station_name:
-        # Split, clean each part, rejoin
-        parts = station_name.replace('\\', '/').split('/')
-        safe_parts = ["".join([c for c in part if c.isalnum() or c in ('_', '-')]) for part in parts]
-        station_path = "/".join(safe_parts)
-    else:
-        station_path = "".join([c for c in station_name if c.isalnum() or c in ('_', '-')])
+    # Ensure stations list is set
+    if stations is None:
+        stations = [station_name]
     
-    # Create full path: {save_dir}/{station_path}/{model_name}/{timestamp}/
-    model_dir = save_dir / station_path / model_name / timestamp
+    # Generate unique model ID using the registry
+    timestamp_dt = datetime.now()
+    timestamp = timestamp_dt.strftime("%Y%m%d_%H%M%S")
+    model_id = ModelRegistry.generate_model_id(model_name, model_type, stations, timestamp_dt)
+    
+    # Create model directory using model_id for flat structure under darts/
+    # Structure: checkpoints/darts/{model_id}/
+    # Example: checkpoints/darts/single_TFT_00104X0054-P1_20231209_111500/
+    model_dir = save_dir / model_id
     model_dir.mkdir(parents=True, exist_ok=True)
+    
+    # For display purposes, get simple station name
+    if '/' in station_name or '\\' in station_name:
+        parts = station_name.replace('\\', '/').split('/')
+        simple_station_name = parts[-1]
+    else:
+        simple_station_name = station_name
 
     # 1. Sauvegarder le modèle PyTorch - use simple name for the .pkl file
-    simple_station_name = station_path.split('/')[-1] if '/' in station_path else station_path
     model_path = model_dir / f"{simple_station_name}.pkl"
     model.save(str(model_path))
 
@@ -270,6 +280,32 @@ def save_model_with_data(
         }
         with open(scalers_path, 'wb') as f:
             pickle.dump(scalers_data, f)
+
+    # 8. Register in central registry
+    try:
+        # Get parent of save_dir to find checkpoints root
+        # save_dir is typically checkpoints/darts, so parent is checkpoints
+        checkpoints_root = save_dir.parent
+        registry = ModelRegistry(checkpoints_root)
+        
+        # Calculate relative path from checkpoints root
+        rel_path = str(model_dir.relative_to(checkpoints_root)).replace("\\", "/")
+        
+        registry.register_model(
+            model_id=model_id,
+            model_name=model_name,
+            model_type=model_type,
+            stations=stations,
+            path=rel_path,
+            metrics={k: float(v) if v is not None else None for k, v in config.metrics.items()},
+            hyperparams=config.hyperparams,
+            data_source=config.data_source.get('original_file') if isinstance(config.data_source, dict) else str(config.data_source),
+            preprocessing_config=config.preprocessing,
+            primary_station=station_name if model_type == "single" else None
+        )
+    except Exception as e:
+        import logging
+        logging.warning(f"Failed to register model in registry: {e}")
 
     return model_dir
 
