@@ -18,26 +18,29 @@ import shap
 
 # --- SHAP COMPATIBILITY PATCH FOR TIMESHAP ---
 # TimeSHAP requires `shap.explainers._kernel.Kernel`, which was moved/renamed in SHAP >=0.43.0.
-# We manually alias it to `shap.KernelExplainer` to prevent ImportError.
 try:
-    if not hasattr(shap, 'explainers'):
-        import types
-        shap.explainers = types.ModuleType('shap.explainers')
-    
-    if not hasattr(shap.explainers, '_kernel'):
-        import types
-        import sys
-        # Create a fake _kernel module
-        _kernel = types.ModuleType('shap.explainers._kernel')
-        # Map Kernel to KernelExplainer (modern equivalent)
-        from shap import KernelExplainer
+    from shap import KernelExplainer
+    import sys
+    import types
+
+    # 1. Try to get existing module or create new one
+    try:
+        from shap.explainers import _kernel
+    except ImportError:
+        _kernel = types.ModuleType("shap.explainers._kernel")
+        sys.modules["shap.explainers._kernel"] = _kernel
+        if hasattr(shap, "explainers"):
+            shap.explainers._kernel = _kernel
+
+    # 2. Inject Kernel attribute
+    if not hasattr(_kernel, "Kernel"):
         _kernel.Kernel = KernelExplainer
         
-        # Inject into shap and sys.modules
-        shap.explainers._kernel = _kernel
-        sys.modules['shap.explainers._kernel'] = _kernel
+    # 3. Double check sys.modules entry
+    if "shap.explainers._kernel" not in sys.modules:
+        sys.modules["shap.explainers._kernel"] = _kernel
+        
 except Exception as e:
-    # If patching fails, we proceed and let the actual import fail if it must
     print(f"Warning: Failed to patch SHAP for TimeSHAP compatibility: {e}")
 # ---------------------------------------------
 
@@ -55,13 +58,17 @@ from darts.metrics import mae, rmse, mape, smape, r2_score
 st.set_page_config(layout="wide", page_title="Forecasting")
 
 
-def load_model_data(model_info):
+def load_model_data(model_entry):
     """Loads model, config, data, and scalers with caching."""
-    cache_key = f"model_{model_info.model_path}"
+    cache_key = f"model_{model_entry.model_id}"
     if cache_key not in st.session_state:
+        # Get full model path
+        registry = get_registry(CHECKPOINTS_DIR.parent)  # checkpoints/
+        model_dir = registry.checkpoints_dir / model_entry.path
+        
         # Load fresh if not in cache
-        model, config, data_dict = load_model_with_config(model_info.model_path.parent)
-        scalers = load_scalers(model_info.model_path.parent)
+        model, config, data_dict = load_model_with_config(model_dir)
+        scalers = load_scalers(model_dir)
         st.session_state[cache_key] = {
             'model': model,
             'config': config,
@@ -76,25 +83,41 @@ def load_model_data(model_info):
 # =============================================================================
 st.sidebar.header("Model Selection")
 
-registry = get_registry()
-all_models = registry.scan_models()
-models = [m for m in all_models if m.model_path.exists()]
+# Get registry and scan for any unregistered models
+registry = get_registry(CHECKPOINTS_DIR.parent)  # checkpoints/ is parent
+registry.scan_existing_checkpoints()  # Auto-register legacy models
 
-if not models:
+all_models = registry.list_all_models()
+
+if not all_models:
     st.warning("No trained models available.")
     st.info("Please train a model first on the **Train Models** page.")
     st.stop()
 
-# Group by station
-models_by_station = {}
-for m in models:
-    if m.station not in models_by_station:
-        models_by_station[m.station] = []
-    models_by_station[m.station].append(m)
+# Get all unique stations across all models
+all_stations = registry.get_all_stations()
 
-selected_station = st.sidebar.selectbox("Station", sorted(models_by_station.keys()))
-station_models = models_by_station[selected_station]
-model_labels = [f"{m.model_type} ({m.creation_date})" for m in station_models]
+if not all_stations:
+    st.warning("No stations found in registered models.")
+    st.stop()
+
+# Select station first
+selected_station = st.sidebar.selectbox("Station", sorted(all_stations))
+
+# Get models for this station (both single and global)
+station_models = registry.get_models_for_station(selected_station)
+
+if not station_models:
+    st.warning(f"No models found for station {selected_station}")
+    st.stop()
+
+# Create model labels with type indicator
+def get_model_label(m):
+    type_icon = "🏠" if m.model_type == "single" else "🌍"
+    date_str = m.created_at[:10] if m.created_at else "unknown"
+    return f"{type_icon} {m.model_name} ({date_str})"
+
+model_labels = [get_model_label(m) for m in station_models]
 
 selected_model_idx = st.sidebar.selectbox(
     "Model", 
@@ -118,15 +141,17 @@ scalers = loaded_data['scalers']
 
 # Handle Global Models (Multi-station)
 # If dataset has 'station' column, filter for specific station
+is_global_model = False
 if 'train' in data_dict and 'station' in data_dict['train'].columns:
     train_df = data_dict['train']
     available_stations = sorted(train_df['station'].unique())
-    
+
     if len(available_stations) > 1:
+        is_global_model = True
         st.sidebar.markdown("---")
         st.sidebar.markdown("### 🌍 Global Model")
         target_station = st.sidebar.selectbox("Select Target Station", available_stations)
-        
+
         # Filter DataFrames for the target station
         data_dict_filtered = {}
         for k, v in data_dict.items():
@@ -134,9 +159,9 @@ if 'train' in data_dict and 'station' in data_dict['train'].columns:
                 data_dict_filtered[k] = v[v['station'] == target_station].copy()
             else:
                 data_dict_filtered[k] = v
-        
+
         data_dict = data_dict_filtered
-        
+
         # Select correct scalers for this station
         scalers_filtered = {}
         for scaler_name in ['target_preprocessor', 'cov_preprocessor']:
@@ -149,7 +174,7 @@ if 'train' in data_dict and 'station' in data_dict['train'].columns:
                     scalers_filtered[scaler_name] = list(s.values())[0] if s else None
             else:
                 scalers_filtered[scaler_name] = s
-        
+
         scalers = scalers_filtered
         st.sidebar.success(f"Predicting on: **{target_station}**")
 # Prepare dataframes - Correct data flow:
@@ -283,8 +308,8 @@ selected_tab = st.radio(
 st.session_state.forecasting_tab = selected_tab
 
 # Cache keys
-full_pred_key = f"full_pred_{selected_model_info.model_path}"
-window_pred_key = f"window_pred_{selected_model_info.model_path}_{start_idx}"
+full_pred_key = f"full_pred_{selected_model_info.model_id}"
+window_pred_key = f"window_pred_{selected_model_info.model_id}_{start_idx}"
 
 
 # =============================================================================
@@ -305,8 +330,16 @@ if full_pred_key not in st.session_state:
             target_preprocessor = scalers.get('target_preprocessor')
             
             # Generate TRUE AUTOREGRESSIVE forecasts (multi-step ahead)
+            # For global models, wrap single station data in lists
+            if is_global_model:
+                series_for_pred = [full_series_processed]
+                cov_for_pred = [covariates_processed] if covariates_processed else None
+            else:
+                series_for_pred = full_series_processed
+                cov_for_pred = covariates_processed
+
             forecast_kwargs = {
-                'series': full_series_processed,  # Already normalized
+                'series': series_for_pred,  # Already normalized
                 'start': test_df_processed.index[0],
                 'forecast_horizon': model_horizon,
                 'stride': model_horizon,
@@ -314,18 +347,27 @@ if full_pred_key not in st.session_state:
                 'last_points_only': False,
                 'verbose': False
             }
-            
-            if covariates_processed is not None and use_covariates:
+
+            if cov_for_pred is not None and use_covariates:
                 if getattr(model, "uses_past_covariates", False):
-                    forecast_kwargs['past_covariates'] = covariates_processed
+                    forecast_kwargs['past_covariates'] = cov_for_pred
                 if getattr(model, "uses_future_covariates", False):
-                    forecast_kwargs['future_covariates'] = covariates_processed
-            
+                    forecast_kwargs['future_covariates'] = cov_for_pred
+
             forecasts_list = model.historical_forecasts(**forecast_kwargs)
             
-            # Concatenate the list of forecasts into a single series
+            # Handle results from global models (which return lists of lists)
             from darts import concatenate
-            if isinstance(forecasts_list, list) and len(forecasts_list) > 0:
+            if is_global_model and isinstance(forecasts_list, list) and len(forecasts_list) > 0:
+                # For global models, we get a list with one element (our station)
+                if isinstance(forecasts_list[0], list):
+                    # List of lists case
+                    forecasts = concatenate(forecasts_list[0])
+                else:
+                    # Single list case
+                    forecasts = forecasts_list[0]
+            elif isinstance(forecasts_list, list) and len(forecasts_list) > 0:
+                # Single model case - concatenate list of forecast windows
                 forecasts = concatenate(forecasts_list)
             else:
                 forecasts = forecasts_list
@@ -376,15 +418,16 @@ if window_pred_key not in st.session_state:
         try:
             # Generate forecast for the specific window using PROCESSED data
             results = generate_single_window_forecast(
-                model=model, 
+                model=model,
                 full_df=full_df_processed,  # PROCESSED data
                 target_col=target_col,
                 covariate_cols=covariate_cols if use_covariates else None,
                 preprocessing_config=config.preprocessing if hasattr(config, 'preprocessing') else {},
-                scalers=scalers, 
-                start_date=window_start_date, 
+                scalers=scalers,
+                start_date=window_start_date,
                 use_covariates=use_covariates,
-                already_processed=True  # Flag: data is already normalized, don't scale
+                already_processed=True,  # Flag: data is already normalized, don't scale
+                is_global_model=is_global_model  # Pass global model flag
             )
             # Unpack results: pred_auto, pred_onestep, target, metrics_auto, metrics_onestep, horizon
             st.session_state[window_pred_key] = {
@@ -422,10 +465,15 @@ if selected_tab == "Predictions":
             annotation_text="Analysis Window", annotation_position="top left"
         )
         
-        # 2. Ground Truth
+        # 2. Ground Truth - Use RAW data directly for display
+        # test_df_raw already contains the raw (non-normalized) values
+        test_series_raw_display, _ = prepare_dataframe_for_darts(
+            test_df_raw, target_col, []
+        )
+
         fig.add_trace(go.Scatter(
-            x=test_df_raw.index,
-            y=test_df_raw[target_col].values,
+            x=test_series_raw_display.time_index,
+            y=test_series_raw_display.values().flatten(),
             mode='lines',
             name='Ground Truth',
             line=dict(color='#2E86AB', width=2)
@@ -433,8 +481,8 @@ if selected_tab == "Predictions":
         
         # 3. Full One-Step Forecasts
         pred_auto = cached_full['pred_auto']
-        gt_start = test_df_raw.index[0]
-        gt_end = test_df_raw.index[-1]
+        gt_start = test_series_raw_display.start_time()
+        gt_end = test_series_raw_display.end_time()
         
         try:
             pred_auto_sliced = pred_auto.slice(gt_start, gt_end)
@@ -519,11 +567,15 @@ if selected_tab == "Predictions":
     # Export Section
     st.markdown("---")
     st.markdown("### Export Predictions")
-    
+
     if st.session_state.get(full_pred_key):
-        pred_auto = st.session_state[full_pred_key]['pred_auto']
-        target = st.session_state[full_pred_key].get('target_raw') or st.session_state[full_pred_key].get('target_processed')
-        
+        pred_auto = st.session_state[full_pred_key]['pred_auto']  # This is RAW (for display)
+        # Create ground truth from RAW data for export
+        test_series_raw_export, _ = prepare_dataframe_for_darts(
+            test_df_raw, target_col, []
+        )
+        target = test_series_raw_export
+
         common_start = max(pred_auto.start_time(), target.start_time())
         common_end = min(pred_auto.end_time(), target.end_time())
         pred_aligned = pred_auto.slice(common_start, common_end)
@@ -658,7 +710,7 @@ else:
         st.markdown("---")
         
         # 3. SHAP Computation
-        shap_cache_key = f"shap_{selected_model_info.model_path}_{start_idx}"
+        shap_cache_key = f"shap_{selected_model_info.model_id}_{start_idx}"
         
         if shap_cache_key not in st.session_state:
             with st.spinner("Calculating local SHAP importance..."):
@@ -673,10 +725,10 @@ else:
                     )
                     
                     # Prepare Data for TimeSHAP
-                    feature_names = [target_col] + [c for c in covariate_cols if c in test_df.columns]
+                    feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
                     
-                    window_length = min(input_chunk, len(test_df) - start_idx)
-                    window_shap_df = test_df.iloc[start_idx:start_idx + window_length]
+                    window_length = min(input_chunk, len(test_df_processed) - start_idx)
+                    window_shap_df = test_df_processed.iloc[start_idx:start_idx + window_length]
                     
                     # Build rows explicitly
                     rows = []
@@ -691,7 +743,7 @@ else:
                     # Baseline (Mean)
                     baseline_rows = []
                     for t in range(window_length):
-                        b_row = {f: float(test_df[f].mean()) for f in actual_features}
+                        b_row = {f: float(test_df_processed[f].mean()) for f in actual_features}
                         baseline_rows.append(b_row)
                     baseline_df = pd.DataFrame(baseline_rows)
                     
@@ -742,7 +794,7 @@ else:
         st.markdown("#### Global Feature Importance")
         st.caption("Aggregated SHAP values across multiple windows.")
         
-        global_shap_key = f"global_shap_{selected_model_info.model_path}"
+        global_shap_key = f"global_shap_{selected_model_info.model_id}"
         
         if st.button("🔍 Compute Global SHAP") or global_shap_key in st.session_state:
              if global_shap_key not in st.session_state or st.session_state.get(global_shap_key, {}).get('success') is False:
@@ -756,18 +808,18 @@ else:
                             forecast_horizon=1
                         )
                         
-                        feature_names = [target_col] + [c for c in covariate_cols if c in test_df.columns]
-                        actual_features = [f for f in feature_names if f in test_df.columns]
+                        feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
+                        actual_features = [f for f in feature_names if f in test_df_processed.columns]
                         
                         # Sub-sample 5 windows for speed
                         n_samples = 5
-                        max_start = len(test_df) - input_chunk - 1
+                        max_start = len(test_df_processed) - input_chunk - 1
                         sample_positions = np.linspace(0, max_start, n_samples, dtype=int)
                         
                         # Build Data
                         all_rows = []
                         for seq_idx, s_idx in enumerate(sample_positions):
-                            window_shap_df = test_df.iloc[s_idx:s_idx + input_chunk]
+                            window_shap_df = test_df_processed.iloc[s_idx:s_idx + input_chunk]
                             for t, (_, row) in enumerate(window_shap_df.iterrows()):
                                 data_row = {'entity': f'seq_{seq_idx}', 't': t}
                                 for f in actual_features:
@@ -776,7 +828,7 @@ else:
                         data_df = pd.DataFrame(all_rows)
                         
                         # Baseline
-                        baseline_rows = [{f: float(test_df[f].mean()) for f in actual_features} for _ in range(input_chunk)]
+                        baseline_rows = [{f: float(test_df_processed[f].mean()) for f in actual_features} for _ in range(input_chunk)]
                         baseline_df = pd.DataFrame(baseline_rows)
                         
                         # Calculate

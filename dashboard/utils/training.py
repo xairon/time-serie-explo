@@ -274,7 +274,8 @@ def run_training_pipeline(
     target_preprocessor: Optional[Any] = None,
     cov_preprocessor: Optional[Any] = None,
     original_filename: Optional[str] = None,
-    preprocessing_config: Optional[Dict[str, Any]] = None
+    preprocessing_config: Optional[Dict[str, Any]] = None,
+    all_stations: Optional[List[str]] = None  # For global models: list of all station IDs
 ) -> Dict[str, Any]:
     """
     Complete training pipeline with split saving.
@@ -382,53 +383,157 @@ def run_training_pipeline(
         if save_dir and station_data_df is not None:
             clean_station_name = station_name.split('/')[-1] if '/' in station_name else station_name
             is_global = isinstance(train, list) or isinstance(train, tuple)
-
+            
             if is_global:
-                train_df = pd.concat([t.to_dataframe() for t in train])
-                val_df = pd.concat([t.to_dataframe() for t in val])
-                test_df = pd.concat([t.to_dataframe() for t in test])
+                # Reconstruct DataFrames WITH station column using all_stations mapping
+                # train, val, test are lists of SCALED TimeSeries
+                # train_cov, val_cov, test_cov are lists of SCALED TimeSeries (if used)
+                station_list = all_stations if all_stations else []
                 
+                if station_list and len(train) == len(station_list):
+                    train_dfs = []
+                    val_dfs = []
+                    test_dfs = []
+                    
+                    for i, station in enumerate(station_list):
+                        # Train
+                        df_t = train[i].to_dataframe()
+                        if train_cov and isinstance(train_cov, list) and i < len(train_cov):
+                            df_t = pd.concat([df_t, train_cov[i].to_dataframe()], axis=1)
+                        df_t['station'] = station
+                        train_dfs.append(df_t)
+                        
+                        # Val
+                        if i < len(val):
+                            df_v = val[i].to_dataframe()
+                            if val_cov and isinstance(val_cov, list) and i < len(val_cov):
+                                df_v = pd.concat([df_v, val_cov[i].to_dataframe()], axis=1)
+                            df_v['station'] = station
+                            val_dfs.append(df_v)
+                            
+                        # Test
+                        if i < len(test):
+                            df_ts = test[i].to_dataframe()
+                            if test_cov and isinstance(test_cov, list) and i < len(test_cov):
+                                df_ts = pd.concat([df_ts, test_cov[i].to_dataframe()], axis=1)
+                            df_ts['station'] = station
+                            test_dfs.append(df_ts)
+                    
+                    train_df = pd.concat(train_dfs)
+                    val_df = pd.concat(val_dfs) if val_dfs else pd.DataFrame()
+                    test_df = pd.concat(test_dfs) if test_dfs else pd.DataFrame()
+                else:
+                    # Fallback (loses station info, but better than crash)
+                    train_df = pd.concat([t.to_dataframe() for t in train])
+                    val_df = pd.concat([t.to_dataframe() for t in val])
+                    test_df = pd.concat([t.to_dataframe() for t in test])
+                
+                full_df = pd.concat([train_df, val_df, test_df])
+                
+                # Raw data reconstruction via inverse transform
+                # For global models, generate raw data from normalized data using station-specific scalers
+                train_raw_list = []
+                val_raw_list = []
+                test_raw_list = []
+
+                # Check if we have station-specific scalers
+                has_dict_scalers = isinstance(target_preprocessor, dict)
+
+                for i, station in enumerate(station_list):
+                    # Get the appropriate scaler for this station
+                    if has_dict_scalers and station in target_preprocessor:
+                        station_target_scaler = target_preprocessor[station]
+                        station_cov_scaler = cov_preprocessor.get(station) if isinstance(cov_preprocessor, dict) else cov_preprocessor
+                    elif has_dict_scalers:
+                        # Fallback to first available scaler
+                        station_target_scaler = list(target_preprocessor.values())[0] if target_preprocessor else None
+                        station_cov_scaler = list(cov_preprocessor.values())[0] if isinstance(cov_preprocessor, dict) and cov_preprocessor else cov_preprocessor
+                    else:
+                        # Single scaler for all
+                        station_target_scaler = target_preprocessor
+                        station_cov_scaler = cov_preprocessor
+
+                    # Inverse transform train
+                    if i < len(train) and station_target_scaler:
+                        train_raw = station_target_scaler.inverse_transform(train[i])
+                        df_t_raw = train_raw.to_dataframe()
+                        if train_cov and isinstance(train_cov, list) and i < len(train_cov) and station_cov_scaler:
+                            cov_raw = station_cov_scaler.inverse_transform(train_cov[i])
+                            df_t_raw = pd.concat([df_t_raw, cov_raw.to_dataframe()], axis=1)
+                        df_t_raw['station'] = station
+                        train_raw_list.append(df_t_raw)
+
+                    # Inverse transform val
+                    if i < len(val) and station_target_scaler:
+                        val_raw = station_target_scaler.inverse_transform(val[i])
+                        df_v_raw = val_raw.to_dataframe()
+                        if val_cov and isinstance(val_cov, list) and i < len(val_cov) and station_cov_scaler:
+                            cov_raw = station_cov_scaler.inverse_transform(val_cov[i])
+                            df_v_raw = pd.concat([df_v_raw, cov_raw.to_dataframe()], axis=1)
+                        df_v_raw['station'] = station
+                        val_raw_list.append(df_v_raw)
+
+                    # Inverse transform test
+                    if i < len(test) and station_target_scaler:
+                        test_raw = station_target_scaler.inverse_transform(test[i])
+                        df_ts_raw = test_raw.to_dataframe()
+                        if test_cov and isinstance(test_cov, list) and i < len(test_cov) and station_cov_scaler:
+                            cov_raw = station_cov_scaler.inverse_transform(test_cov[i])
+                            df_ts_raw = pd.concat([df_ts_raw, cov_raw.to_dataframe()], axis=1)
+                        df_ts_raw['station'] = station
+                        test_raw_list.append(df_ts_raw)
+
+                train_df_raw = pd.concat(train_raw_list) if train_raw_list else None
+                val_df_raw = pd.concat(val_raw_list) if val_raw_list else None
+                test_df_raw = pd.concat(test_raw_list) if test_raw_list else None
+                    
+                station_data_df = full_df
+
+            else:
+                # SINGLE MODE
+                # Use train/val/test (SCALED TimeSeries) directly + merge covariates
+                
+                # Train (SCALED)
+                train_df = train.to_dataframe()
+                if train_cov:
+                    train_df = pd.concat([train_df, train_cov.to_dataframe()], axis=1)
+                
+                # Val (SCALED)
+                val_df = val.to_dataframe()
+                if val_cov:
+                    val_df = pd.concat([val_df, val_cov.to_dataframe()], axis=1)
+                    
+                # Test (SCALED)
+                test_df = test.to_dataframe()
+                if test_cov:
+                    test_df = pd.concat([test_df, test_cov.to_dataframe()], axis=1)
+
                 train_size = len(train_df)
                 val_size = len(val_df)
                 test_size = len(test_df)
                 
                 full_df = pd.concat([train_df, val_df, test_df])
                 
+                # Generate RAW data via inverse_transform (guaranteed alignment!)
                 train_df_raw = None
                 val_df_raw = None
                 test_df_raw = None
                 
-                if isinstance(station_data_df_raw, dict):
-                    raw_list = []
-                    for s, df in station_data_df_raw.items():
-                        d = df.copy()
-                        d['station'] = s
-                        raw_list.append(d)
+                if target_preprocessor is not None:
+                    # Inverse transform target for each split
+                    train_raw_target = target_preprocessor.inverse_transform(train)
+                    val_raw_target = target_preprocessor.inverse_transform(val)
+                    test_raw_target = target_preprocessor.inverse_transform(test)
                     
-                    if raw_list:
-                        station_data_df_raw = pd.concat(raw_list)
-                    else:
-                        station_data_df_raw = None
-                
-                station_data_df = full_df
-
-            else:
-                train_size = len(train)
-                val_size = len(val)
-                test_size = len(test)
-
-                train_df = station_data_df.iloc[:train_size].copy()
-                val_df = station_data_df.iloc[train_size:train_size + val_size].copy()
-                test_df = station_data_df.iloc[train_size + val_size:].copy()
-                
-                train_df_raw = None
-                val_df_raw = None
-                test_df_raw = None
-                
-                if station_data_df_raw is not None and not isinstance(station_data_df_raw, dict):
-                    train_df_raw = station_data_df_raw.iloc[:train_size].copy()
-                    val_df_raw = station_data_df_raw.iloc[train_size:train_size + val_size].copy()
-                    test_df_raw = station_data_df_raw.iloc[train_size + val_size:].copy()
+                    train_df_raw = train_raw_target.to_dataframe()
+                    val_df_raw = val_raw_target.to_dataframe()
+                    test_df_raw = test_raw_target.to_dataframe()
+                    
+                    # Add inverse-transformed covariates if available
+                    if cov_preprocessor is not None and train_cov is not None:
+                        train_df_raw = pd.concat([train_df_raw, cov_preprocessor.inverse_transform(train_cov).to_dataframe()], axis=1)
+                        val_df_raw = pd.concat([val_df_raw, cov_preprocessor.inverse_transform(val_cov).to_dataframe()], axis=1)
+                        test_df_raw = pd.concat([test_df_raw, cov_preprocessor.inverse_transform(test_cov).to_dataframe()], axis=1)
 
             if column_mapping:
                 columns_config = {
@@ -456,6 +561,16 @@ def run_training_pipeline(
 
             from dashboard.utils.model_config import ModelConfig, save_model_with_data
 
+            # Helper to safely handle metrics that might be arrays (global models)
+            def _safe_metric(val):
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    val = np.nanmean(val)
+                try:
+                    vf = float(val)
+                    return None if np.isnan(vf) else vf
+                except:
+                    return None
+
             config = ModelConfig(
                 model_name=model_name,
                 station=clean_station_name,
@@ -472,15 +587,19 @@ def run_training_pipeline(
                 },
                 preprocessing=preproc,
                 hyperparams={k: str(v) for k, v in hyperparams.items()},
-                metrics={k: float(v) if not np.isnan(v) else None for k, v in metrics.items()},
+                metrics={k: _safe_metric(v) for k, v in metrics.items()},
                 use_covariates=use_covariates
             )
 
+            # Determine model type and stations list
+            model_type = "global" if is_global else "single"
+            stations_list = all_stations if all_stations else [station_name]
+            
             model_dir = save_model_with_data(
                 model=model,
                 save_dir=save_dir,
                 model_name=model_name,
-                station_name=clean_station_name,
+                station_name=station_name,
                 config=config,
                 train_df=train_df,
                 val_df=val_df,
@@ -490,7 +609,9 @@ def run_training_pipeline(
                 cov_preprocessor=cov_preprocessor,
                 train_df_raw=train_df_raw,
                 val_df_raw=val_df_raw,
-                test_df_raw=test_df_raw
+                test_df_raw=test_df_raw,
+                model_type=model_type,
+                stations=stations_list
             )
 
             results['saved_path'] = str(model_dir)

@@ -18,7 +18,8 @@ def generate_single_window_forecast(
     scalers: Dict[str, Any],
     start_date: pd.Timestamp,
     use_covariates: bool = True,
-    already_processed: bool = False
+    already_processed: bool = False,
+    is_global_model: bool = False
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], Dict[str, float], int]:
     """
     Generates a forecast for a single window starting from a given date.
@@ -86,19 +87,30 @@ def generate_single_window_forecast(
     # =========================================================================
     # 1. AUTOREGRESSIVE PREDICTION (model predicts on its own predictions)
     # =========================================================================
+    # For global models, wrap single station data in lists
+    if is_global_model:
+        series_for_pred = [history_series]
+        cov_for_pred = [covariates_for_model] if covariates_for_model else None
+    else:
+        series_for_pred = history_series
+        cov_for_pred = covariates_for_model
+
     predict_kwargs = {
         'n': horizon,
-        'series': history_series
+        'series': series_for_pred
     }
-    
-    if covariates_for_model is not None:
+
+    if cov_for_pred is not None:
         if getattr(model, "uses_past_covariates", False):
-            predict_kwargs['past_covariates'] = covariates_for_model
+            predict_kwargs['past_covariates'] = cov_for_pred
         if getattr(model, "uses_future_covariates", False):
-            predict_kwargs['future_covariates'] = covariates_for_model
-    
+            predict_kwargs['future_covariates'] = cov_for_pred
+
     try:
         pred_auto_processed = model.predict(**predict_kwargs)
+        # Handle global model results (list with one element)
+        if is_global_model and isinstance(pred_auto_processed, list):
+            pred_auto_processed = pred_auto_processed[0]
     except Exception as e:
         raise ValueError(f"Autoregressive prediction failed: {e}")
     
@@ -106,32 +118,46 @@ def generate_single_window_forecast(
     # 2. ONE-STEP PREDICTION (each prediction uses real past values)
     # =========================================================================
     end_date = start_date + pd.Timedelta(days=horizon - 1)
-    
+
     try:
         # Use historical_forecasts with forecast_horizon=1 for one-step
+        # For global models, wrap data in lists
+        if is_global_model:
+            series_for_onestep = [full_series_for_model]
+            cov_for_onestep = [covariates_for_model] if covariates_for_model else None
+        else:
+            series_for_onestep = full_series_for_model
+            cov_for_onestep = covariates_for_model
+
         onestep_kwargs = {
-            'series': full_series_for_model,
+            'series': series_for_onestep,
             'start': start_date,
             'forecast_horizon': 1,
             'stride': 1,
             'retrain': False,
             'verbose': False
         }
-        
-        if covariates_for_model is not None:
+
+        if cov_for_onestep is not None:
             if getattr(model, "uses_past_covariates", False):
-                onestep_kwargs['past_covariates'] = covariates_for_model
+                onestep_kwargs['past_covariates'] = cov_for_onestep
             if getattr(model, "uses_future_covariates", False):
-                onestep_kwargs['future_covariates'] = covariates_for_model
-        
+                onestep_kwargs['future_covariates'] = cov_for_onestep
+
         onestep_forecasts = model.historical_forecasts(**onestep_kwargs)
-        
-        # Limit to horizon
-        if isinstance(onestep_forecasts, list):
+
+        # Handle global model results
+        if is_global_model and isinstance(onestep_forecasts, list) and len(onestep_forecasts) > 0:
+            # For global models, we get a list with one element
+            if isinstance(onestep_forecasts[0], list):
+                pred_onestep_processed = concatenate(onestep_forecasts[0][:horizon])
+            else:
+                pred_onestep_processed = onestep_forecasts[0][:horizon]
+        elif isinstance(onestep_forecasts, list):
             pred_onestep_processed = concatenate(onestep_forecasts[:horizon])
         else:
             pred_onestep_processed = onestep_forecasts[:horizon]
-            
+
     except Exception as e:
         print(f"One-step prediction failed: {e}")
         pred_onestep_processed = pred_auto_processed
@@ -146,17 +172,24 @@ def generate_single_window_forecast(
         
     # Extract corresponding real slice (PROCESSED for metrics)
     target_series_processed = full_series_for_model.slice(start_date, end_date)
-    
+
+    # Get RAW target for display (inverse transform if scaler exists)
+    if target_preprocessor:
+        target_series_raw = target_preprocessor.inverse_transform(target_series_processed)
+    else:
+        target_series_raw = target_series_processed
+
     # Align lengths
     min_len = min(len(pred_auto_processed), len(target_series_processed))
     pred_auto_processed_aligned = pred_auto_processed[:min_len]
     pred_onestep_processed_aligned = pred_onestep_processed[:min_len] if len(pred_onestep_processed) >= min_len else pred_onestep_processed
     target_processed_aligned = target_series_processed[:min_len]
-    
+
     # Also align RAW outputs
     pred_auto_raw = pred_auto_raw[:min_len]
     pred_onestep_raw = pred_onestep_raw[:min_len] if len(pred_onestep_raw) >= min_len else pred_onestep_raw
-    
+    target_series_raw = target_series_raw[:min_len]
+
     # Calculate metrics on PROCESSED data (same scale as model training)
     def compute_metrics(target, pred):
         return {
@@ -169,9 +202,9 @@ def generate_single_window_forecast(
 
     metrics_auto = compute_metrics(target_processed_aligned, pred_auto_processed_aligned)
     metrics_onestep = compute_metrics(target_processed_aligned, pred_onestep_processed_aligned)
-    
-    # Return RAW predictions for display, metrics computed on PROCESSED
-    return pred_auto_raw, pred_onestep_raw, target_series_processed, metrics_auto, metrics_onestep, horizon
+
+    # Return RAW predictions and target for display, metrics computed on PROCESSED
+    return pred_auto_raw, pred_onestep_raw, target_series_raw, metrics_auto, metrics_onestep, horizon
 
 
 def generate_global_forecast(

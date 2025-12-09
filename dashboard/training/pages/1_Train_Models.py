@@ -331,12 +331,21 @@ else:
     st.info("ℹ️ Loss function selection is only available for Deep Learning models")
 
 # Covariates
+# Covariates
 use_covariates_flag = False
-if covariate_vars and (model_info['supports_past_covariates'] or model_info['supports_future_covariates']):
+has_datetime = preprocessing_config.get('datetime_features', False)
+has_lags = len(preprocessing_config.get('lags', [])) > 0
+total_covars = len(covariate_vars) + (6 if has_datetime else 0) + len(preprocessing_config.get('lags', []))
+
+if total_covars > 0 and (model_info['supports_past_covariates'] or model_info['supports_future_covariates']):
+    covar_desc = [c for c in covariate_vars]
+    if has_datetime: covar_desc.append("Time Features")
+    if has_lags: covar_desc.append("Lags")
+    
     use_covariates_flag = st.checkbox(
-        f"Use covariates ({len(covariate_vars)} available)",
+        f"Use covariates ({total_covars} features)",
         value=True,
-        help=f"Covariates: {', '.join(covariate_vars)}"
+        help=f"Features: {', '.join(covar_desc)}"
     )
 
 st.markdown("---")
@@ -446,8 +455,9 @@ if st.button(button_label, type="primary", use_container_width=True):
                 df_station = df_station[available_cols]
             else:
                 df_station = df_raw.copy()
-            
-            df_station_raw = df_station.copy()
+                # Filter variables for single station too
+                available_cols = [target_var] + [c for c in covariate_vars if c in df_station.columns]
+                df_station = df_station[available_cols]
 
             # 2. Missing Values
             fill_method = preprocessing_config.get('fill_method', 'Drop rows')
@@ -548,13 +558,14 @@ if st.button(button_label, type="primary", use_container_width=True):
                     global_data['val_cov'].append(val_cov)
                     global_data['test_cov'].append(test_cov)
                     global_data['full_cov'].append(covariates_scaled)
-                
+
                 global_metadata['station_data_map'][station_name] = df_station
-                global_metadata['station_data_raw_map'][station_name] = df_station_raw
+                # Don't store df_station_raw as it contains added features - let inverse transform handle it
+                global_metadata['station_data_raw_map'][station_name] = None
                 global_metadata['target_scalers'][station_name] = target_preprocessor
                 if cov_preprocessor:
                     global_metadata['cov_scalers'][station_name] = cov_preprocessor
-                
+
                 status_text.text(f"📦 Prepared {station_name} for Global Model")
                 continue
 
@@ -599,7 +610,7 @@ if st.button(button_label, type="primary", use_container_width=True):
             
             # FINAL TRAINING
             status_text.text(f"🧠 Training final model for {station_name}...")
-            
+
             training_results = run_training_pipeline(
                 model_name=selected_model,
                 hyperparams=hyperparams,
@@ -611,12 +622,13 @@ if st.button(button_label, type="primary", use_container_width=True):
                 verbose=False,
                 pl_trainer_kwargs=pl_trainer_kwargs,
                 station_data_df=df_station,
-                station_data_df_raw=df_station_raw,
+                station_data_df_raw=None,  # Let run_training_pipeline generate raw data via inverse transform
                 column_mapping=col_mapping,
                 target_preprocessor=target_preprocessor,
                 cov_preprocessor=cov_preprocessor,
                 original_filename=st.session_state.get('training_filename', 'unknown'),
-                preprocessing_config=preprocessing_config
+                preprocessing_config=preprocessing_config,
+                all_stations=[station_name]  # Single station model
             )
             
             results_all_stations[station_name] = training_results
@@ -653,12 +665,13 @@ if st.button(button_label, type="primary", use_container_width=True):
                 verbose=False,
                 pl_trainer_kwargs=pl_trainer_kwargs,
                 station_data_df=global_metadata['station_data_map'],
-                station_data_df_raw=global_metadata['station_data_raw_map'],
+                station_data_df_raw=None,  # Let run_training_pipeline generate raw data via inverse transform
                 column_mapping=col_mapping, # Uses last col_mapping (assumes homogeneous)
                 target_preprocessor=global_metadata['target_scalers'],
                 cov_preprocessor=global_metadata['cov_scalers'] if global_metadata['cov_scalers'] else None,
                 original_filename="Multi-Station Global",
-                preprocessing_config=preprocessing_config
+                preprocessing_config=preprocessing_config,
+                all_stations=selected_stations  # All stations for global model
             )
             results_all_stations["Global_Model"] = training_results
 
@@ -669,6 +682,18 @@ if st.button(button_label, type="primary", use_container_width=True):
         # Display Results
         st.markdown("### 📊 Results Summary")
         
+        def format_metric(value, fmt=".4f", suffix=""):
+            """Safely format a metric that might be a list or scalar."""
+            import numpy as np
+            if value is None:
+                return '-'
+            if isinstance(value, (list, tuple)):
+                # For global models, take mean of per-station metrics
+                value = np.mean([v for v in value if v is not None and not np.isnan(v)])
+            if isinstance(value, float) and np.isnan(value):
+                return '-'
+            return f"{value:{fmt}}{suffix}"
+        
         summary_data = []
         for station, res in results_all_stations.items():
             metrics = res.get('metrics', {})
@@ -676,15 +701,23 @@ if st.button(button_label, type="primary", use_container_width=True):
             summary_data.append({
                 'Station': station,
                 'Status': status,
-                'MAE': f"{metrics.get('MAE', 0):.4f}" if metrics.get('MAE') else '-',
-                'RMSE': f"{metrics.get('RMSE', 0):.4f}" if metrics.get('RMSE') else '-',
-                'R²': f"{metrics.get('R2', 0):.4f}" if metrics.get('R2') else '-',
-                'MAPE': f"{metrics.get('MAPE', 0):.2f}%" if metrics.get('MAPE') else '-',
-                'sMAPE': f"{metrics.get('sMAPE', 0):.2f}%" if metrics.get('sMAPE') else '-',
+                'MAE': format_metric(metrics.get('MAE')),
+                'RMSE': format_metric(metrics.get('RMSE')),
+                'R²': format_metric(metrics.get('R2')),
+                'MAPE': format_metric(metrics.get('MAPE'), ".2f", "%"),
+                'sMAPE': format_metric(metrics.get('sMAPE'), ".2f", "%"),
                 'Saved': '✅' if 'saved_path' in res else '❌'
             })
         
         st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
+        
+        # Show errors if any
+        for station, res in results_all_stations.items():
+            if res['status'] == 'error' and 'error' in res:
+                with st.expander(f"❌ Error details for {station}", expanded=True):
+                    st.error(res.get('error', 'Unknown error'))
+                    if 'traceback' in res:
+                        st.code(res['traceback'])
         
         # Download buttons
         for station, res in results_all_stations.items():
