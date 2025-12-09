@@ -1,11 +1,11 @@
-"""Configuration des modèles disponibles pour le forecasting.
+"""Configuration of available models for forecasting.
 
-IMPORTANT: Seuls les modèles Deep Learning sont supportés car ils partagent
-la même interface (input_chunk_length, output_chunk_length).
+IMPORTANT: Only Deep Learning models are supported as they share
+the same interface (input_chunk_length, output_chunk_length).
 """
 
 # =============================================================================
-# MODÈLES DEEP LEARNING (Seuls modèles supportés)
+# DEEP LEARNING MODELS (Only supported models)
 # =============================================================================
 DL_MODELS = {
     # Transformer-based
@@ -32,7 +32,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Architecture Transformer classique pour séries temporelles',
+        'description': 'Classic Transformer architecture for time series',
         'hyperparams': {
             'd_model': (32, 256, 128),
             'nhead': (2, 8, 4),
@@ -51,7 +51,7 @@ DL_MODELS = {
         'supports_past_covariates': False,
         'supports_future_covariates': False,
         'multivariate': False,
-        'description': 'Décomposition automatique trend/seasonality, très performant',
+        'description': 'Automatic trend/seasonality decomposition, highly performant',
         'hyperparams': {
             'num_stacks': (10, 50, 30),
             'num_blocks': (1, 3, 1),
@@ -66,7 +66,7 @@ DL_MODELS = {
         'supports_past_covariates': False,
         'supports_future_covariates': False,
         'multivariate': False,
-        'description': 'Evolution de N-BEATS, plus rapide et efficace',
+        'description': 'N-BEATS evolution, faster and more efficient',
         'hyperparams': {
             'num_stacks': (2, 5, 3),
             'num_blocks': (1, 3, 1),
@@ -83,7 +83,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Long Short-Term Memory, baseline classique pour séries temporelles',
+        'description': 'Long Short-Term Memory, classic baseline for time series',
         'hyperparams': {
             'hidden_dim': (32, 256, 128),
             'n_rnn_layers': (1, 3, 2),
@@ -97,7 +97,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Gated Recurrent Unit, plus rapide que LSTM',
+        'description': 'Gated Recurrent Unit, faster than LSTM',
         'hyperparams': {
             'hidden_dim': (32, 256, 128),
             'n_rnn_layers': (1, 3, 2),
@@ -111,7 +111,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': False,
         'multivariate': True,
-        'description': 'RNN optimisé pour prédictions multi-horizon',
+        'description': 'Optimized RNN for multi-horizon predictions',
         'hyperparams': {
             'model': ['LSTM', 'GRU'],
             'hidden_dim': (32, 256, 128),
@@ -128,7 +128,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Convolutions causales, rapide et performant',
+        'description': 'Causal convolutions, fast and performant',
         'hyperparams': {
             'num_filters': (16, 128, 64),
             'kernel_size': (2, 7, 3),
@@ -144,7 +144,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Time-series Dense Encoder, architecture MLP efficace',
+        'description': 'Time-series Dense Encoder, efficient MLP architecture',
         'hyperparams': {
             'num_encoder_layers': (1, 3, 1),
             'num_decoder_layers': (1, 3, 1),
@@ -164,7 +164,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Décomposition + Linear, très simple mais efficace',
+        'description': 'Decomposition + Linear, very simple but effective',
         'hyperparams': {
             'kernel_size': (5, 51, 25),
             'shared_weights': [True, False]
@@ -177,7 +177,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'Normalization + Linear, baseline pour long-term forecasting',
+        'description': 'Normalization + Linear, baseline for long-term forecasting',
         'hyperparams': {
             'shared_weights': [True, False],
             'const_init': [True, False]
@@ -192,7 +192,7 @@ DL_MODELS = {
         'supports_past_covariates': True,
         'supports_future_covariates': True,
         'multivariate': True,
-        'description': 'MLP-Mixer pour time series, état de l\'art 2023',
+        'description': 'MLP-Mixer for time series, State-of-the-art 2023',
         'hyperparams': {
             'hidden_size': (32, 256, 64),
             'ff_size': (64, 512, 128),
@@ -203,7 +203,7 @@ DL_MODELS = {
 }
 
 # =============================================================================
-# GLOBAL BASELINES (Modèles simples mais compatibles avec l'interface)
+# GLOBAL BASELINES (Simple models but compatible with interface)
 # =============================================================================
 BASELINE_MODELS = {
     'GlobalNaiveAggregate': {
@@ -213,7 +213,7 @@ BASELINE_MODELS = {
         'supports_past_covariates': False,
         'supports_future_covariates': False,
         'multivariate': True,
-        'description': 'Moyenne/médiane des valeurs passées. Baseline rapide.',
+        'description': 'Mean/Median of past values. Fast baseline.',
         'hyperparams': {}
     },
     'GlobalNaiveDrift': {
@@ -223,7 +223,7 @@ BASELINE_MODELS = {
         'supports_past_covariates': False,
         'supports_future_covariates': False,
         'multivariate': True,
-        'description': 'Extrapolation linéaire du trend. Baseline.',
+        'description': 'Linear extrapolation of trend. Baseline.',
         'hyperparams': {}
     },
     'GlobalNaiveSeasonal': {
@@ -233,38 +233,38 @@ BASELINE_MODELS = {
         'supports_past_covariates': False,
         'supports_future_covariates': False,
         'multivariate': True,
-        'description': 'Répète la saisonnalité passée. Baseline.',
+        'description': 'Repeats past seasonality. Baseline.',
         'hyperparams': {}
     },
 }
 
 # =============================================================================
-# AGRÉGATION FINALE
+# FINAL AGGREGATION
 # =============================================================================
 ALL_MODELS = {**DL_MODELS, **BASELINE_MODELS}
 
-# Catégories pour UI
+# Categories for UI
 MODEL_CATEGORIES = {
     'Deep Learning': list(DL_MODELS.keys()),
     'Baselines': list(BASELINE_MODELS.keys()),
 }
 
-# Modèles recommandés pour démarrer
+# Recommended models to start
 RECOMMENDED_MODELS = ['TFT', 'NBEATS', 'NHiTS', 'TSMixer', 'LSTM']
 
 
 def get_model_info(model_name):
-    """Retourne les informations d'un modèle."""
+    """Returns information about a model."""
     return ALL_MODELS.get(model_name, None)
 
 
 def get_available_models() -> dict:
-    """Retourne les modèles disponibles par catégorie."""
+    """Returns available models by category."""
     return MODEL_CATEGORIES.copy()
 
 
 def get_models_by_capability(capability):
-    """Filtre les modèles par capacité (covariates, multivariate, etc.)."""
+    """Filter models by capability (covariates, multivariate, etc.)."""
     if capability == 'covariates':
         return [name for name, info in ALL_MODELS.items() if info['supports_covariates']]
     elif capability == 'multivariate':
@@ -277,7 +277,7 @@ def get_models_by_capability(capability):
 
 
 def get_hyperparams_space(model_name):
-    """Retourne l'espace de recherche des hyperparamètres."""
+    """Returns the hyperparameter search space."""
     model_info = get_model_info(model_name)
     if model_info:
         return model_info['hyperparams']
@@ -285,57 +285,57 @@ def get_hyperparams_space(model_name):
 
 
 # =============================================================================
-# DESCRIPTIONS DES HYPERPARAMÈTRES
+# HYPERPARAMETER DESCRIPTIONS
 # =============================================================================
 HYPERPARAM_DESCRIPTIONS = {
-    # Hyperparamètres communs
-    'input_chunk_length': 'Nombre de pas de temps en entrée (historique utilisé pour la prédiction).',
-    'output_chunk_length': 'Nombre de pas de temps à prédire. Définit l\'horizon de prévision.',
-    'batch_size': 'Nombre d\'échantillons traités simultanément.',
-    'n_epochs': 'Nombre de passes complètes sur l\'ensemble d\'entraînement.',
-    'learning_rate': 'Taux d\'apprentissage de l\'optimiseur. Typiquement 0.001-0.01.',
+    # Common hyperparameters
+    'input_chunk_length': 'Number of input time steps (history used for prediction).',
+    'output_chunk_length': 'Number of time steps to predict. Defines forecast horizon.',
+    'batch_size': 'Number of samples processed simultaneously.',
+    'n_epochs': 'Number of complete passes through the training set.',
+    'learning_rate': 'Optimizer learning rate. Typically 0.001-0.01.',
 
     # Transformer / Attention-based
-    'hidden_size': 'Taille des représentations internes du modèle.',
-    'lstm_layers': 'Nombre de couches LSTM empilées.',
-    'num_attention_heads': 'Nombre de têtes d\'attention parallèles.',
-    'hidden_continuous_size': 'Taille des embeddings pour variables continues dans TFT.',
-    'd_model': 'Dimension du modèle Transformer.',
-    'nhead': 'Nombre de têtes d\'attention dans le Transformer.',
-    'num_encoder_layers': 'Nombre de couches dans l\'encodeur.',
-    'num_decoder_layers': 'Nombre de couches dans le décodeur.',
-    'dim_feedforward': 'Dimension des couches feed-forward.',
+    'hidden_size': 'Size of internal model representations.',
+    'lstm_layers': 'Number of stacked LSTM layers.',
+    'num_attention_heads': 'Number of parallel attention heads.',
+    'hidden_continuous_size': 'Embedding size for continuous variables in TFT.',
+    'd_model': 'Transformer model dimension.',
+    'nhead': 'Number of attention heads in Transformer.',
+    'num_encoder_layers': 'Number of layers in encoder.',
+    'num_decoder_layers': 'Number of layers in decoder.',
+    'dim_feedforward': 'Dimension of feed-forward layers.',
 
     # RNN-based
-    'hidden_dim': 'Dimension de l\'état caché du RNN/LSTM/GRU.',
-    'n_rnn_layers': 'Nombre de couches RNN empilées.',
-    'model': 'Type de cellule RNN (LSTM ou GRU).',
+    'hidden_dim': 'Hidden state dimension for RNN/LSTM/GRU.',
+    'n_rnn_layers': 'Number of stacked RNN layers.',
+    'model': 'RNN cell type (LSTM or GRU).',
 
     # N-BEATS / N-HiTS
-    'num_stacks': 'Nombre de stacks (échelles temporelles différentes).',
-    'num_blocks': 'Nombre de blocs par stack.',
-    'num_layers': 'Nombre de couches fully-connected par bloc.',
-    'layer_widths': 'Largeur des couches fully-connected.',
+    'num_stacks': 'Number of stacks (different time scales).',
+    'num_blocks': 'Number of blocks per stack.',
+    'num_layers': 'Number of fully-connected layers per block.',
+    'layer_widths': 'Width of fully-connected layers.',
 
     # TCN
-    'num_filters': 'Nombre de filtres convolutionnels.',
-    'kernel_size': 'Taille du noyau de convolution.',
-    'dilation_base': 'Base pour la dilatation exponentielle.',
+    'num_filters': 'Number of convolutional filters.',
+    'kernel_size': 'Size of convolution kernel.',
+    'dilation_base': 'Base for exponential dilation.',
 
     # TiDE
-    'decoder_output_dim': 'Dimension de sortie du décodeur TiDE.',
-    'temporal_width_past': 'Largeur temporelle pour l\'encodage du passé.',
-    'temporal_width_future': 'Largeur temporelle pour l\'encodage du futur.',
+    'decoder_output_dim': 'Output dimension of TiDE decoder.',
+    'temporal_width_past': 'Temporal width for encoding the past.',
+    'temporal_width_future': 'Temporal width for encoding the future.',
 
     # Linear models
-    'shared_weights': 'Partager les poids entre séries (True) ou non (False).',
-    'const_init': 'Initialiser avec constantes (True) ou aléatoire (False).',
+    'shared_weights': 'Share weights between series (True) or not (False).',
+    'const_init': 'Initialize with constants (True) or random (False).',
 
     # Regularization
-    'dropout': 'Taux de dropout pour régularisation (0-0.5).',
+    'dropout': 'Dropout rate for regularization (0-0.5).',
 }
 
 
 def get_hyperparam_description(param_name: str) -> str:
-    """Retourne la description d'un hyperparamètre."""
+    """Returns the description of a hyperparameter."""
     return HYPERPARAM_DESCRIPTIONS.get(param_name, "")

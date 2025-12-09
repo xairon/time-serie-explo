@@ -1,10 +1,11 @@
-"""Module pour la génération de prévisions avec les modèles Darts."""
+"""Module for generating forecasts using Darts models."""
 
 import pandas as pd
-import numpy as np
 from typing import Dict, Any, Optional, Tuple, List
 from darts import TimeSeries
 from darts.models.forecasting.forecasting_model import ForecastingModel
+from darts.metrics import mae, rmse, mape, r2_score, smape
+from darts import concatenate
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
 
@@ -16,32 +17,41 @@ def generate_single_window_forecast(
     preprocessing_config: Dict[str, Any],
     scalers: Dict[str, Any],
     start_date: pd.Timestamp,
-    use_covariates: bool = True
-) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], int]:
+    use_covariates: bool = True,
+    already_processed: bool = False
+) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], Dict[str, float], int]:
     """
-    Génère une prévision pour une seule fenêtre à partir d'une date donnée.
-    
-    Retourne à la fois la prédiction auto-régressive ET la prédiction one-step.
-    
+    Generates a forecast for a single window starting from a given date.
+
+    Returns both the autoregressive prediction AND the one-step prediction, 
+    along with metrics for BOTH.
+
     Args:
-        model: Modèle entraîné
-        full_df: DataFrame complet (train + val + test)
-        target_col: Nom de la colonne cible
-        covariate_cols: Liste des colonnes covariables
-        preprocessing_config: Configuration du preprocessing
-        scalers: Dictionnaire des scalers
-        start_date: Date de début de la prédiction
-        use_covariates: Si True, utilise les covariables
-        
+        model: Trained Darts model.
+        full_df: Complete DataFrame (train + val + test).
+        target_col: Name of the target column.
+        covariate_cols: List of covariate columns.
+        preprocessing_config: Preprocessing configuration.
+        scalers: Dictionary of scalers.
+        start_date: Start date for the prediction.
+        use_covariates: If True, uses covariates.
+        already_processed: If True, data is already normalized (skip scaling).
+
     Returns:
-        Tuple (pred_autoregressive, pred_onestep, target_series, metrics, horizon)
+        A tuple containing:
+            - pred_autoregressive: The autoregressive prediction (RAW scale for display).
+            - pred_onestep: The one-step prediction (RAW scale for display).
+            - target_series: The actual target series (PROCESSED for metrics).
+            - metrics_auto: Metrics for autoregressive (computed on PROCESSED).
+            - metrics_onestep: Metrics for one-step (computed on PROCESSED).
+            - horizon: The forecast horizon used.
     """
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
     
-    # Récupérer l'horizon du modèle
+    # Get model horizon
     horizon = getattr(model, 'output_chunk_length', 30)
     
-    # Préparer la série complète
+    # Prepare full series
     full_series, covariates = prepare_dataframe_for_darts(
         full_df,
         target_col=target_col,
@@ -50,48 +60,57 @@ def generate_single_window_forecast(
         fill_method=fill_method
     )
     
-    # Scaling
+    # Get scalers for inverse transform (output to RAW for display)
     target_preprocessor = scalers.get('target_preprocessor')
-    cov_preprocessor = scalers.get('cov_preprocessor')
     
-    full_series_scaled = full_series
-    covariates_scaled = covariates
-    
-    if target_preprocessor:
-        full_series_scaled = target_preprocessor.transform(full_series)
+    # Scaling logic - skip if already processed
+    if already_processed:
+        # Data is already normalized - use directly
+        full_series_for_model = full_series
+        covariates_for_model = covariates
+    else:
+        # Data is RAW - need to scale
+        cov_preprocessor = scalers.get('cov_preprocessor')
+        full_series_for_model = full_series
+        covariates_for_model = covariates
         
-    if cov_preprocessor and covariates is not None:
-        covariates_scaled = cov_preprocessor.transform(covariates)
+        if target_preprocessor:
+            full_series_for_model = target_preprocessor.transform(full_series)
+        if cov_preprocessor and covariates is not None:
+            covariates_for_model = cov_preprocessor.transform(covariates)
         
-    # Couper l'historique juste avant start_date
+    # Cut history just before start_date
     history_cutoff = start_date - pd.Timedelta(days=1)
-    history_series_scaled = full_series_scaled.split_after(history_cutoff)[0]
+    history_series = full_series_for_model.split_after(history_cutoff)[0]
     
     # =========================================================================
-    # 1. PRÉDICTION AUTO-RÉGRESSIVE (le modèle prédit sur ses propres prédictions)
+    # 1. AUTOREGRESSIVE PREDICTION (model predicts on its own predictions)
     # =========================================================================
     predict_kwargs = {
         'n': horizon,
-        'series': history_series_scaled
+        'series': history_series
     }
     
-    if covariates_scaled is not None:
+    if covariates_for_model is not None:
         if getattr(model, "uses_past_covariates", False):
-            predict_kwargs['past_covariates'] = covariates_scaled
+            predict_kwargs['past_covariates'] = covariates_for_model
         if getattr(model, "uses_future_covariates", False):
-            predict_kwargs['future_covariates'] = covariates_scaled
+            predict_kwargs['future_covariates'] = covariates_for_model
     
-    pred_series_scaled = model.predict(**predict_kwargs)
+    try:
+        pred_auto_processed = model.predict(**predict_kwargs)
+    except Exception as e:
+        raise ValueError(f"Autoregressive prediction failed: {e}")
     
     # =========================================================================
-    # 2. PRÉDICTION ONE-STEP (chaque prédiction utilise les vraies valeurs passées)
+    # 2. ONE-STEP PREDICTION (each prediction uses real past values)
     # =========================================================================
     end_date = start_date + pd.Timedelta(days=horizon - 1)
     
     try:
-        # Utiliser historical_forecasts avec forecast_horizon=1 pour du one-step
+        # Use historical_forecasts with forecast_horizon=1 for one-step
         onestep_kwargs = {
-            'series': full_series_scaled,
+            'series': full_series_for_model,
             'start': start_date,
             'forecast_horizon': 1,
             'stride': 1,
@@ -99,58 +118,61 @@ def generate_single_window_forecast(
             'verbose': False
         }
         
-        if covariates_scaled is not None:
+        if covariates_for_model is not None:
             if getattr(model, "uses_past_covariates", False):
-                onestep_kwargs['past_covariates'] = covariates_scaled
+                onestep_kwargs['past_covariates'] = covariates_for_model
             if getattr(model, "uses_future_covariates", False):
-                onestep_kwargs['future_covariates'] = covariates_scaled
+                onestep_kwargs['future_covariates'] = covariates_for_model
         
         onestep_forecasts = model.historical_forecasts(**onestep_kwargs)
         
-        # Limiter à l'horizon
+        # Limit to horizon
         if isinstance(onestep_forecasts, list):
-            # Concatener les prédictions one-step
-            from darts import concatenate
-            pred_onestep_scaled = concatenate(onestep_forecasts[:horizon])
+            pred_onestep_processed = concatenate(onestep_forecasts[:horizon])
         else:
-            pred_onestep_scaled = onestep_forecasts[:horizon]
+            pred_onestep_processed = onestep_forecasts[:horizon]
             
     except Exception as e:
-        # Fallback: utiliser la même prédiction auto-régressive
         print(f"One-step prediction failed: {e}")
-        pred_onestep_scaled = pred_series_scaled
+        pred_onestep_processed = pred_auto_processed
     
-    # Inverse scaling
+    # Inverse scaling - convert predictions to RAW for display
     if target_preprocessor:
-        pred_series = target_preprocessor.inverse_transform(pred_series_scaled)
-        pred_onestep = target_preprocessor.inverse_transform(pred_onestep_scaled)
-        full_series_unscaled = full_series
+        pred_auto_raw = target_preprocessor.inverse_transform(pred_auto_processed)
+        pred_onestep_raw = target_preprocessor.inverse_transform(pred_onestep_processed)
     else:
-        pred_series = pred_series_scaled
-        pred_onestep = pred_onestep_scaled
-        full_series_unscaled = full_series
+        pred_auto_raw = pred_auto_processed
+        pred_onestep_raw = pred_onestep_processed
         
-    # Extraire la tranche réelle correspondante
-    target_series = full_series_unscaled.slice(start_date, end_date)
+    # Extract corresponding real slice (PROCESSED for metrics)
+    target_series_processed = full_series_for_model.slice(start_date, end_date)
     
-    # Aligner les longueurs
-    min_len = min(len(pred_series), len(target_series))
-    pred_series = pred_series[:min_len]
-    pred_onestep = pred_onestep[:min_len] if len(pred_onestep) >= min_len else pred_onestep
-    target_series = target_series[:min_len]
+    # Align lengths
+    min_len = min(len(pred_auto_processed), len(target_series_processed))
+    pred_auto_processed_aligned = pred_auto_processed[:min_len]
+    pred_onestep_processed_aligned = pred_onestep_processed[:min_len] if len(pred_onestep_processed) >= min_len else pred_onestep_processed
+    target_processed_aligned = target_series_processed[:min_len]
     
-    # Calculer les métriques (sur autoregressive)
-    from darts.metrics import mae, rmse, mape, r2_score, smape
+    # Also align RAW outputs
+    pred_auto_raw = pred_auto_raw[:min_len]
+    pred_onestep_raw = pred_onestep_raw[:min_len] if len(pred_onestep_raw) >= min_len else pred_onestep_raw
     
-    metrics = {
-        'MAE': float(mae(target_series, pred_series)),
-        'RMSE': float(rmse(target_series, pred_series)),
-        'MAPE': float(mape(target_series, pred_series)),
-        'R2': float(r2_score(target_series, pred_series)),
-        'sMAPE': float(smape(target_series, pred_series))
-    }
+    # Calculate metrics on PROCESSED data (same scale as model training)
+    def compute_metrics(target, pred):
+        return {
+            'MAE': float(mae(target, pred)),
+            'RMSE': float(rmse(target, pred)),
+            'MAPE': float(mape(target, pred)),
+            'R2': float(r2_score(target, pred)),
+            'sMAPE': float(smape(target, pred))
+        }
+
+    metrics_auto = compute_metrics(target_processed_aligned, pred_auto_processed_aligned)
+    metrics_onestep = compute_metrics(target_processed_aligned, pred_onestep_processed_aligned)
     
-    return pred_series, pred_onestep, target_series, metrics, horizon
+    # Return RAW predictions for display, metrics computed on PROCESSED
+    return pred_auto_raw, pred_onestep_raw, target_series_processed, metrics_auto, metrics_onestep, horizon
+
 
 def generate_global_forecast(
     model: ForecastingModel,
@@ -163,26 +185,29 @@ def generate_global_forecast(
     use_covariates: bool = True
 ) -> Tuple[TimeSeries, TimeSeries, Dict[str, float]]:
     """
-    Génère une prévision globale sur l'ensemble du jeu de test.
+    Generates a global forecast on the entire test set.
     
     Args:
-        model: Modèle entraîné
-        history_df: DataFrame d'historique (train + val)
-        target_df: DataFrame cible (test)
-        target_col: Nom de la colonne cible
-        covariate_cols: Liste des colonnes covariables
-        preprocessing_config: Configuration du preprocessing (pour fill_method)
-        scalers: Dictionnaire des scalers (target_preprocessor, cov_preprocessor)
-        use_covariates: Si True, utilise les covariables
+        model: Trained Darts model.
+        history_df: History DataFrame (train + val).
+        target_df: Target DataFrame (test).
+        target_col: Name of the target column.
+        covariate_cols: List of covariate columns.
+        preprocessing_config: Preprocessing configuration (for fill_method).
+        scalers: Dictionary of scalers (target_preprocessor, cov_preprocessor).
+        use_covariates: If True, uses covariates.
         
     Returns:
-        Tuple (pred_series, target_series_original, metrics)
+        A tuple containing:
+            - pred_series: Predicted series.
+            - target_series: Original target series (for metrics).
+            - metrics: Dictionary of evaluation metrics.
     """
-    # 1. Récupérer la méthode de remplissage de la config
+    # 1. Get fill method from config
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
     
-    # 2. Préparer les séries Darts
-    # Historique (Contexte)
+    # 2. Prepare Darts series
+    # History (Context)
     history_series, _ = prepare_dataframe_for_darts(
         history_df,
         target_col=target_col,
@@ -191,7 +216,7 @@ def generate_global_forecast(
         fill_method=fill_method
     )
     
-    # Cible (Ground Truth pour métriques)
+    # Target (Ground Truth for metrics)
     target_series, _ = prepare_dataframe_for_darts(
         target_df,
         target_col=target_col,
@@ -200,10 +225,10 @@ def generate_global_forecast(
         fill_method=fill_method
     )
     
-    # Covariables pour la prédiction (doivent couvrir le futur)
+    # Covariates for prediction (must cover the future)
     covariates_future = None
     if use_covariates and covariate_cols:
-        # On a besoin des covariables sur history + target
+        # We need covariates on history + target
         full_cov_df = pd.concat([history_df, target_df])
         _, covariates_future = prepare_dataframe_for_darts(
             full_cov_df,
@@ -213,7 +238,7 @@ def generate_global_forecast(
             fill_method=fill_method
         )
     
-    # 3. Appliquer le scaling
+    # 3. Apply scaling
     target_preprocessor = scalers.get('target_preprocessor')
     cov_preprocessor = scalers.get('cov_preprocessor')
     
@@ -228,7 +253,7 @@ def generate_global_forecast(
     if cov_preprocessor and covariates_future is not None:
         covariates_scaled = cov_preprocessor.transform(covariates_future)
         
-    # 4. Prédire
+    # 4. Predict
     n_pred = len(target_series)
     predict_kwargs = {
         'n': n_pred,
@@ -249,10 +274,8 @@ def generate_global_forecast(
     else:
         pred_series = pred_series_scaled
         
-    # 6. Calculer les métriques
-    from darts.metrics import mae, rmse, mape, r2_score, smape
-    
-    # Aligner les longueurs
+    # 6. Calculate metrics
+    # Align lengths
     min_len = min(len(pred_series), len(target_series))
     pred_series = pred_series[:min_len]
     target_series = target_series[:min_len]
@@ -267,6 +290,7 @@ def generate_global_forecast(
     
     return pred_series, target_series, metrics
 
+
 def generate_rolling_forecast(
     model: ForecastingModel,
     full_df: pd.DataFrame,
@@ -280,26 +304,26 @@ def generate_rolling_forecast(
     use_covariates: bool = True
 ) -> Tuple[List[TimeSeries], TimeSeries]:
     """
-    Génère des prévisions glissantes (historical forecasts).
+    Generates rolling forecasts (historical forecasts).
     
     Args:
-        model: Modèle entraîné
-        full_df: DataFrame complet (train + val + test)
-        target_col: Nom de la colonne cible
-        covariate_cols: Liste des colonnes covariables
-        preprocessing_config: Configuration du preprocessing
-        scalers: Dictionnaire des scalers
-        start_date: Date de début des prévisions (généralement début du test set)
-        forecast_horizon: Horizon de prévision à chaque pas
-        stride: Pas de déplacement de la fenêtre
-        use_covariates: Si True, utilise les covariables
+        model: Trained Darts model.
+        full_df: Complete DataFrame (train + val + test).
+        target_col: Name of the target column.
+        covariate_cols: List of covariate columns.
+        preprocessing_config: Preprocessing configuration.
+        scalers: Dictionary of scalers.
+        start_date: Start date for the forecasts (usually start of test set).
+        forecast_horizon: Forecast horizon at each step.
+        stride: Window shift step.
+        use_covariates: If True, uses covariates.
         
     Returns:
-        Tuple (liste des fenêtres de prévision, série cible complète)
+        Tuple (list of forecast windows, full target series).
     """
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
     
-    # Préparer la série complète
+    # Prepare full series
     full_series, covariates = prepare_dataframe_for_darts(
         full_df,
         target_col=target_col,
@@ -328,7 +352,7 @@ def generate_rolling_forecast(
         'forecast_horizon': forecast_horizon,
         'stride': stride,
         'retrain': False,
-        'last_points_only': False, # On veut toute la trajectoire
+        'last_points_only': False, # We want the full trajectory
         'verbose': False
     }
     
@@ -340,7 +364,7 @@ def generate_rolling_forecast(
             
     forecasts_scaled = model.historical_forecasts(**forecast_kwargs)
     
-    # Inverse scaling pour chaque fenêtre
+    # Inverse scaling for each window
     forecasts = []
     if isinstance(forecasts_scaled, TimeSeries):
         forecasts_scaled = [forecasts_scaled]
@@ -352,6 +376,7 @@ def generate_rolling_forecast(
             forecasts.append(ts)
             
     return forecasts, full_series
+
 
 def generate_comparison_forecast(
     model: ForecastingModel,
@@ -365,25 +390,25 @@ def generate_comparison_forecast(
     use_covariates: bool = True
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], Dict[str, float]]:
     """
-    Génère une comparaison entre prévision auto-régressive et fenêtre exacte (teacher forcing).
+    Generates a comparison between autoregressive forecast and exact window (teacher forcing).
     
     Args:
-        model: Modèle entraîné
-        full_df: DataFrame complet
-        target_col: Nom de la colonne cible
-        covariate_cols: Liste des colonnes covariables
-        preprocessing_config: Configuration du preprocessing
-        scalers: Dictionnaire des scalers
-        start_date: Date de début de la fenêtre de comparaison
-        forecast_horizon: Durée de la fenêtre de comparaison
-        use_covariates: Si True, utilise les covariables
+        model: Trained Darts model.
+        full_df: Complete DataFrame.
+        target_col: Name of the target column.
+        covariate_cols: List of covariate columns.
+        preprocessing_config: Preprocessing configuration.
+        scalers: Dictionary of scalers.
+        start_date: Start date of the comparison window.
+        forecast_horizon: Duration of the comparison window.
+        use_covariates: If True, uses covariates.
         
     Returns:
-        Tuple (target_slice, autoregressive_forecast, exact_window_forecast, metrics_auto, metrics_exact)
+        Tuple (target_slice, autoregressive_forecast, exact_window_forecast, metrics_auto, metrics_exact).
     """
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
     
-    # 1. Préparer les données
+    # 1. Prepare data
     full_series, covariates = prepare_dataframe_for_darts(
         full_df,
         target_col=target_col,
@@ -405,8 +430,8 @@ def generate_comparison_forecast(
     if cov_preprocessor and covariates is not None:
         covariates_scaled = cov_preprocessor.transform(covariates)
         
-    # 3. Prévision Auto-régressive (Drift)
-    # On coupe l'historique juste avant start_date
+    # 3. Autoregressive Forecast (Drift)
+    # Cut history just before start_date
     history_cutoff = start_date - pd.Timedelta(days=1)
     history_series_scaled = full_series_scaled.split_after(history_cutoff)[0]
     
@@ -423,19 +448,14 @@ def generate_comparison_forecast(
             
     autoregressive_scaled = model.predict(**predict_kwargs)
     
-    # 4. Prévision Exacte (Historical Forecast / Teacher Forcing)
-    # On demande une prévision qui commence exactement à start_date
-    # historical_forecasts utilise les vraies valeurs passées pour chaque point si horizon=1
-    # Ici on veut simuler une fenêtre "idéale" où on aurait prédit ce bloc
-    # C'est en fait équivalent à autoregressive si on part du même point.
-    # Ce que l'utilisateur veut probablement dire par "fenêtre de prédiction exact",
-    # c'est "si on avait prédit ce jour là avec les données de la veille".
-    # Donc une série de prédictions à horizon 1 (ou horizon court) concaténées.
+    # 4. Exact Forecast (Historical Forecast / Teacher Forcing)
+    # We ask for a forecast starting exactly at start_date
+    # historical_forecasts uses real past values for each point if horizon=1
     
     hist_kwargs = {
         'series': full_series_scaled,
         'start': start_date,
-        'forecast_horizon': 1, # Horizon 1 = prédiction "exacte" step-by-step
+        'forecast_horizon': 1, # Horizon 1 = exact step-by-step prediction
         'stride': 1,
         'retrain': False,
         'last_points_only': True,
@@ -448,12 +468,10 @@ def generate_comparison_forecast(
         if getattr(model, "uses_future_covariates", False):
             hist_kwargs['future_covariates'] = covariates_scaled
             
-    # On génère sur la même durée que l'horizon
-    # Note: historical_forecasts va générer jusqu'à la fin de la série si on ne limite pas
-    # On va slicer après
+    # Note: historical_forecasts will generate until the end of the series if not limited
     exact_window_scaled = model.historical_forecasts(**hist_kwargs)
     
-    # Slicer pour garder juste la fenêtre demandée
+    # Slice to keep only the requested window
     end_date = start_date + pd.Timedelta(days=forecast_horizon - 1)
     exact_window_scaled = exact_window_scaled.slice(start_date, end_date)
     
@@ -467,9 +485,7 @@ def generate_comparison_forecast(
         exact_window = exact_window_scaled
         target_slice = full_series_scaled.slice(start_date, end_date)
         
-    # 6. Métriques
-    from darts.metrics import mae, rmse, mape, r2_score
-    
+    # 6. Metrics
     def calc_metrics(true, pred):
         return {
             'MAE': float(mae(true, pred)),

@@ -173,12 +173,28 @@ def save_model_with_data(
     Returns:
         Path du dossier du modèle
     """
-    # Créer le dossier du modèle
-    model_dir = save_dir / f"{model_name}_{station_name}"
+    # Créer le dossier du modèle avec TIMESTAMP pour éviter l'écrasement
+    # Structure: checkpoints/darts/{station_path}/{model_name}/{timestamp}/
+    # Example: checkpoints/darts/00104X0054/P1/TFT/20231209_111500/
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Station name can contain paths like "00104X0054/P1" - preserve the structure
+    # Only clean individual path components, not the whole path
+    if '/' in station_name or '\\' in station_name:
+        # Split, clean each part, rejoin
+        parts = station_name.replace('\\', '/').split('/')
+        safe_parts = ["".join([c for c in part if c.isalnum() or c in ('_', '-')]) for part in parts]
+        station_path = "/".join(safe_parts)
+    else:
+        station_path = "".join([c for c in station_name if c.isalnum() or c in ('_', '-')])
+    
+    # Create full path: {save_dir}/{station_path}/{model_name}/{timestamp}/
+    model_dir = save_dir / station_path / model_name / timestamp
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Sauvegarder le modèle PyTorch
-    model_path = model_dir / f"{station_name}.pkl"
+    # 1. Sauvegarder le modèle PyTorch - use simple name for the .pkl file
+    simple_station_name = station_path.split('/')[-1] if '/' in station_path else station_path
+    model_path = model_dir / f"{simple_station_name}.pkl"
     model.save(str(model_path))
 
     # 2. Sauvegarder les données PROCESSED (pour le modèle)
@@ -191,11 +207,27 @@ def save_model_with_data(
     test_df.to_csv(test_path)
 
     # 3. Sauvegarder les données RAW (pour l'affichage)
+    # ⚠️ CRITICAL: Ensure raw DataFrames have SAME INDEX as processed ones
     if train_df_raw is not None:
+        # Align index if needed
+        if not train_df_raw.index.equals(train_df.index):
+            if len(train_df_raw) == len(train_df):
+                train_df_raw = train_df_raw.copy()
+                train_df_raw.index = train_df.index
         train_df_raw.to_csv(model_dir / "train_raw.csv")
+        
     if val_df_raw is not None:
+        if not val_df_raw.index.equals(val_df.index):
+            if len(val_df_raw) == len(val_df):
+                val_df_raw = val_df_raw.copy()
+                val_df_raw.index = val_df.index
         val_df_raw.to_csv(model_dir / "val_raw.csv")
+        
     if test_df_raw is not None:
+        if not test_df_raw.index.equals(test_df.index):
+            if len(test_df_raw) == len(test_df):
+                test_df_raw = test_df_raw.copy()
+                test_df_raw.index = test_df.index
         test_df_raw.to_csv(model_dir / "test_raw.csv")
 
     # 4. Sauvegarder les données complètes

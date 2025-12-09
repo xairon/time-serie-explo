@@ -45,14 +45,16 @@ def import_timeshap():
     try:
         import timeshap
         from timeshap.explainer import local_event, local_feat
-        from timeshap.plot import plot_event_heatmap, plot_feat_barplot
+        from timeshap.plot import plot_event_heatmap, plot_feat_barplot, plot_global_feat, plot_cell_level
         
         return {
             'timeshap': timeshap,
             'local_event': local_event,
             'local_feat': local_feat,
             'plot_event_heatmap': plot_event_heatmap,
-            'plot_feat_barplot': plot_feat_barplot
+            'plot_feat_barplot': plot_feat_barplot,
+            'plot_global_feat': plot_global_feat,
+            'plot_cell_level': plot_cell_level
         }
     except ImportError as e:
         print(f"[timeshap_compat] Failed to import timeshap: {e}")

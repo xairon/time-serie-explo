@@ -1,4 +1,4 @@
-"""Fonctions de tests statistiques."""
+"""Statistical test functions."""
 
 import numpy as np
 import pandas as pd
@@ -13,14 +13,14 @@ import streamlit as st
 @st.cache_data(ttl=3600)
 def test_stationarity(series: pd.Series, name: str = "Series") -> dict:
     """
-    Tests de stationnarité ADF et KPSS.
+    ADF and KPSS Stationarity Tests.
 
     Args:
-        series: Série temporelle (pandas Series)
-        name: Nom de la variable
+        series: Time Series (pandas Series)
+        name: Variable name
 
     Returns:
-        dict avec résultats des tests
+        dict with test results
     """
     # Remove NaN
     series = series.dropna()
@@ -51,15 +51,15 @@ def test_stationarity(series: pd.Series, name: str = "Series") -> dict:
 @st.cache_data(ttl=3600)
 def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int = 400) -> dict:
     """
-    Détection de saisonnalité avec Darts.
+    Seasonality detection using Darts.
 
     Args:
-        ts: TimeSeries Darts
-        periods: Liste des périodes à tester (défaut: [7, 30, 365])
-        max_lag: Lag maximum pour le test
+        ts: Darts TimeSeries
+        periods: List of periods to test (default: [7, 30, 365])
+        max_lag: Maximum lag for testing
 
     Returns:
-        dict avec résultats par période
+        dict with results per period
     """
     if periods is None:
         periods = [7, 30, 365]
@@ -70,11 +70,11 @@ def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int =
         period_name = {7: 'Weekly', 30: 'Monthly', 365: 'Annual'}.get(period, f'{period}-day')
 
         try:
-            # Ajuster max_lag si nécessaire
+            # Adjust max_lag if necessary
             actual_max_lag = min(max_lag, max(period * 2, len(ts) - 1))
             is_seasonal = check_seasonality(ts, m=period, max_lag=actual_max_lag, alpha=0.05)
 
-            # ACF au lag de la période
+            # ACF at period lag
             acf_values = acf(ts.values().flatten(), nlags=min(period + 10, len(ts) - 1))
             acf_at_period = acf_values[period] if period < len(acf_values) else 0
 
@@ -96,27 +96,27 @@ def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int =
 @st.cache_data(ttl=3600)
 def stl_decomposition(series: pd.Series, seasonal: int = 365, trend: int = None) -> dict:
     """
-    Décomposition STL (Seasonal-Trend-Loess).
+    STL Decomposition (Seasonal-Trend-Loess).
 
     Args:
-        series: Série temporelle (pandas Series avec index datetime)
-        seasonal: Période de saisonnalité
-        trend: Période de tendance (défaut: calculé automatiquement)
+        series: Time Series (pandas Series with datetime index)
+        seasonal: Seasonal period
+        trend: Trend period (default: calculated automatically)
 
     Returns:
-        dict avec trend, seasonal, residual, et variance contributions
+        dict with trend, seasonal, residual, and variance contributions
     """
     if trend is None:
-        # Calculer un trend impair et > seasonal
+        # Calculate odd trend window > seasonal
         trend = max(seasonal + 1, 3)
-        # S'assurer que c'est impair
+        # Ensure it is odd
         if trend % 2 == 0:
             trend += 1
     else:
-        # Valider et corriger trend
-        trend = max(trend, seasonal + 1, 3)  # trend > seasonal et >= 3
+        # Validate and correct trend
+        trend = max(trend, seasonal + 1, 3)
         if trend % 2 == 0:
-            trend += 1  # Rendre impair
+            trend += 1  # Make odd
 
     # STL decomposition
     stl = STL(series, seasonal=seasonal, trend=trend)
@@ -153,13 +153,13 @@ def stl_decomposition(series: pd.Series, seasonal: int = 365, trend: int = None)
 @st.cache_data(ttl=3600)
 def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
     """
-    Corrélation croisée entre deux séries.
-    Lag positif (k) = corr(x[t], y[t+k]) -> x mène y (x leads y).
+    Cross correlation between two series.
+    Positive lag (k) = corr(x[t], y[t+k]) -> x leads y.
 
     Args:
-        x: Première série (ex: Pluie)
-        y: Deuxième série (ex: Niveau)
-        max_lag: Lag maximum
+        x: First series (e.g., Rain)
+        y: Second series (e.g., Level)
+        max_lag: Maximum lag
 
     Returns:
         tuple: (lags, correlations)
@@ -169,17 +169,15 @@ def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
 
     for lag in lags:
         if lag > 0:
-            # Lag positif : x leads y
-            # On compare x[0:N-lag] avec y[lag:N]
-            # x[t] vs y[t+lag]
+            # Positive lag: x leads y
+            # Compare x[0:N-lag] with y[lag:N]
             if len(x[:-lag]) == len(y[lag:]):
                 corr = np.corrcoef(x[:-lag], y[lag:])[0, 1]
             else:
                 corr = 0
         elif lag < 0:
-            # Lag négatif : y leads x
-            # On compare x[-lag:N] avec y[0:N+lag]
-            # x[t-lag] vs y[t]  (où -lag > 0)
+            # Negative lag: y leads x
+            # Compare x[-lag:N] with y[0:N+lag]
             if len(x[-lag:]) == len(y[:lag]):
                 corr = np.corrcoef(x[-lag:], y[:lag])[0, 1]
             else:
@@ -196,18 +194,17 @@ def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
 @st.cache_data(ttl=3600)
 def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str, max_lag: int = 30) -> dict:
     """
-    Test de causalité de Granger.
+    Granger Causality Test.
 
     Args:
-        df: DataFrame avec les colonnes
-        target_col: Colonne cible
-        covariate_col: Colonne covariable
-        max_lag: Lag maximum
+        df: DataFrame with columns
+        target_col: Target column
+        covariate_col: Covariate column
+        max_lag: Maximum lag
 
     Returns:
-        dict avec lags, p-values, significant_lags
+        dict with lags, p-values, significant_lags
     """
-    # Préparer les données
     data = df[[covariate_col, target_col]].dropna()
 
     try:
@@ -222,7 +219,7 @@ def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str
             lags.append(lag)
             pvalues.append(pvalue)
 
-        # Lags significatifs (p < 0.05)
+        # Significant lags (p < 0.05)
         significant_lags = [lag for lag, pval in zip(lags, pvalues) if pval < 0.05]
 
         return {
@@ -242,13 +239,13 @@ def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str
 @st.cache_data(ttl=3600)
 def calculate_lagged_correlations(df: pd.DataFrame, target_col: str, covariate_col: str, max_lag: int = 60) -> tuple:
     """
-    Calcule la corrélation pour différents lags.
+    Calculates correlation for different lags.
 
     Args:
         df: DataFrame
-        target_col: Colonne cible
-        covariate_col: Colonne covariable
-        max_lag: Lag maximum
+        target_col: Target column
+        covariate_col: Covariate column
+        max_lag: Maximum lag
 
     Returns:
         tuple: (lags, correlations, optimal_lag, optimal_corr)
@@ -279,18 +276,18 @@ def calculate_lagged_correlations(df: pd.DataFrame, target_col: str, covariate_c
 @st.cache_data(ttl=3600)
 def normality_test(series: pd.Series, name: str = "Series") -> dict:
     """
-    Test de normalité (Shapiro-Wilk).
+    Normality Test (Shapiro-Wilk).
 
     Args:
-        series: Série temporelle
-        name: Nom de la variable
+        series: Time Series
+        name: Variable name
 
     Returns:
-        dict avec résultats
+        dict with results
     """
     series = series.dropna()
 
-    # Sous-échantillonner si trop grand (Shapiro-Wilk limite à 5000)
+    # Subsample if too large (Shapiro-Wilk limit 5000)
     if len(series) > 5000:
         series = series.sample(5000, random_state=42)
 

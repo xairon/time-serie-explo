@@ -23,7 +23,7 @@ fastReruns = true
 [client]
 # Optimisation client
 showErrorDetails = true
-toolbarMode = "minimal"
+toolbarMode = "auto"
 
 [theme]
 # Thème sombre pour réduire la charge GPU

@@ -1,4 +1,4 @@
-"""Fonctions de visualisation avec Plotly."""
+"""Visualization functions using Plotly."""
 
 import plotly.graph_objects as go
 import plotly.express as px
@@ -40,27 +40,27 @@ def downsample_data(df: pd.DataFrame, max_points: int = MAX_PLOT_POINTS) -> pd.D
 @st.cache_data(ttl=3600)
 def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> go.Figure:
     """
-    Graphique temporel interactif multi-séries.
+    Interactive multi-series time plot.
 
     Args:
         dfs: dict {station_name: DataFrame}
-        variables: Liste des variables à afficher
-        title: Titre du graphique
+        variables: List of variables to display
+        title: Chart title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     fig = go.Figure()
 
-    # Couleurs distinctes pour chaque variable
+    # Distinct colors for each variable
     variable_colors = {
-        'level': '#1f77b4',        # Bleu pour niveau
-        'PRELIQ_Q': '#2ca02c',     # Vert pour précipitation
-        'T_Q': '#ff7f0e',          # Orange pour température
-        'ETP_Q': '#d62728'         # Rouge pour évapotranspiration
+        'level': '#1f77b4',        # Blue
+        'PRELIQ_Q': '#2ca02c',     # Green (Precipitation)
+        'T_Q': '#ff7f0e',          # Orange (Temperature)
+        'ETP_Q': '#d62728'         # Red (Evapotranspiration)
     }
 
-    # Si plusieurs stations, varier l'opacité ou le style
+    # Vary opacity or style for multiple stations
     station_styles = [
         dict(dash='solid', width=2),
         dict(dash='dash', width=2),
@@ -78,7 +78,7 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
             if var in df_plot.columns:
                 color = variable_colors.get(var, '#666666')
 
-                # Si une seule station, ligne pleine. Si plusieurs, varier le style
+                # If single station, solid line. If multiple, vary style
                 if len(dfs) == 1:
                     line_style = dict(color=color, width=2)
                 else:
@@ -116,16 +116,16 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
 @st.cache_data(ttl=3600)
 def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation Matrix") -> go.Figure:
     """
-    Heatmap de corrélation.
+    Correlation Heatmap.
 
     Args:
-        corr_matrix: Matrice de corrélation
-        title: Titre
+        corr_matrix: Correlation Matrix
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
-    # Remplacer les noms de colonnes
+    # Replace column names
     labels = [VARIABLE_NAMES.get(col, col) for col in corr_matrix.columns]
 
     fig = go.Figure(data=go.Heatmap(
@@ -156,16 +156,16 @@ def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation
 def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
                   title: str = "ACF/PACF") -> go.Figure:
     """
-    Graphique ACF et PACF.
+    ACF and PACF Plot.
 
     Args:
-        acf_vals: Valeurs ACF
-        pacf_vals: Valeurs PACF
-        lags: Nombre de lags
-        title: Titre
+        acf_vals: ACF values
+        pacf_vals: PACF values
+        lags: Number of lags
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     fig = make_subplots(
         rows=1, cols=2,
@@ -212,16 +212,16 @@ def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
 def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
                            title: str = "Cross-Correlation") -> go.Figure:
     """
-    Graphique de cross-correlation.
+    Cross-correlation plot.
 
     Args:
-        lags: Liste des lags
-        ccf: Valeurs de corrélation croisée
-        optimal_lag: Lag optimal (sera marqué en rouge)
-        title: Titre
+        lags: List of lags
+        ccf: Cross-correlation values
+        optimal_lag: Optimal lag (will be marked in red)
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     fig = go.Figure()
 
@@ -280,17 +280,17 @@ def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
 def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.Series,
                            residual: pd.Series, title: str = "STL Decomposition") -> go.Figure:
     """
-    Graphique de décomposition STL.
+    STL Decomposition Plot.
 
     Args:
-        original: Série originale
-        trend: Tendance
-        seasonal: Saisonnalité
-        residual: Résidus
-        title: Titre
+        original: Original series
+        trend: Trend component
+        seasonal: Seasonal component
+        residual: Residual component
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     fig = make_subplots(
         rows=4, cols=1,
@@ -334,15 +334,15 @@ def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.S
 def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
                      title: str = "Predictions vs Reality") -> go.Figure:
     """
-    Graphique des prédictions vs réalité.
+    Predictions vs Reality Plot.
 
     Args:
-        test_true_df: DataFrame avec les vraies valeurs (index=date, columns=['value'])
-        predictions_dict: dict {model_name: DataFrame avec prédictions}
-        title: Titre
+        test_true_df: DataFrame with ground truth (index=date, columns=['value'])
+        predictions_dict: dict {model_name: Prediction DataFrame}
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     fig = go.Figure()
 
@@ -356,7 +356,7 @@ def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
         hovertemplate='Ground Truth: %{y:.2f}<br>Date: %{x}<extra></extra>'
     ))
 
-    # Prédictions
+    # Predictions
     for model_name, pred_df in predictions_dict.items():
         color = MODEL_COLORS.get(model_name, 'gray')
         fig.add_trace(go.Scatter(
@@ -385,20 +385,20 @@ def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
 def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
                             title: str = None) -> go.Figure:
     """
-    Bar chart de comparaison de métriques.
+    Bar chart comparing metrics.
 
     Args:
-        df_metrics: DataFrame avec colonnes: model, metric
-        metric: Nom de la métrique à afficher
-        title: Titre
+        df_metrics: DataFrame with columns: model, metric
+        metric: Metric name to display
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     if title is None:
         title = f"Comparison of {metric} Across Models"
 
-    # Grouper par modèle
+    # Group by model
     avg_metrics = df_metrics.groupby('model')[metric].mean().sort_values()
 
     colors = [MODEL_COLORS.get(model, 'gray') for model in avg_metrics.index]
@@ -427,28 +427,28 @@ def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
 @st.cache_data(ttl=3600)
 def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Figure:
     """
-    Radar chart multi-métriques.
+    Multi-metric Radar Chart.
 
     Args:
-        avg_metrics: DataFrame avec index=models, columns=metrics
-        models: Liste des modèles à afficher (None = tous)
+        avg_metrics: DataFrame with index=models, columns=metrics
+        models: List of models to display (None = all)
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     if models is not None:
         avg_metrics = avg_metrics.loc[models]
 
-    # Normaliser entre 0 et 1 (inverse pour les métriques "lower is better")
+    # Normalize between 0 and 1 (inverted for "lower is better" metrics)
     normalized = avg_metrics.copy()
 
     for col in normalized.columns:
         min_val = normalized[col].min()
         max_val = normalized[col].max()
         if max_val > min_val:
-            # Normaliser entre 0 et 1
+            # Normalize between 0 and 1
             normalized[col] = (normalized[col] - min_val) / (max_val - min_val)
-            # Inverser pour les métriques "lower is better"
+            # Invert for error metrics
             if col in ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'NRMSE']:
                 normalized[col] = 1 - normalized[col]
 
@@ -456,7 +456,7 @@ def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Fig
 
     for model in normalized.index:
         values = normalized.loc[model].values.tolist()
-        values.append(values[0])  # Fermer le radar
+        values.append(values[0])  # Close the polygon
 
         categories = normalized.columns.tolist()
         categories.append(categories[0])
@@ -485,15 +485,15 @@ def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Fig
 @st.cache_data(ttl=3600)
 def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
-    Histogramme + density plot.
+    Histogram + Density Plot.
 
     Args:
         df: DataFrame
-        variable: Nom de la colonne
-        title: Titre
+        variable: Column name
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     if title is None:
         title = f"Distribution of {VARIABLE_NAMES.get(variable, variable)}"
@@ -523,20 +523,20 @@ def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go
 @st.cache_data(ttl=3600)
 def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
-    Boxplot mensuel pour détecter la saisonnalité.
+    Monthly Boxplot to detect seasonality.
 
     Args:
-        df: DataFrame avec index datetime
-        variable: Colonne à afficher
-        title: Titre
+        df: DataFrame with datetime index
+        variable: Column to display
+        title: Title
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     if title is None:
         title = f"Monthly Distribution - {VARIABLE_NAMES.get(variable, variable)}"
 
-    # Ajouter colonne mois
+    # Add month column
     df_temp = df.copy()
     df_temp['month'] = df_temp.index.month
 
@@ -567,18 +567,18 @@ def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> 
 @st.cache_data(ttl=3600)
 def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     """
-    Graphique simplifié des patterns saisonniers (Annuel et Mensuel).
+    Simplified Seasonal Patterns Plot (Annual and Monthly).
     
     Args:
-        df: DataFrame avec index datetime
-        variable: Variable à analyser
+        df: DataFrame with datetime index
+        variable: Variable to analyze
         
     Returns:
-        Figure Plotly avec subplots
+        Plotly Figure with subplots
     """
     series = df[variable].dropna()
     
-    # Ajouter colonnes pour l'analyse
+    # Add analysis columns
     df_temp = df.copy()
     df_temp['day_of_year'] = df_temp.index.dayofyear
     df_temp['month'] = df_temp.index.month
@@ -586,17 +586,17 @@ def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     fig = make_subplots(
         rows=2, cols=1,
         subplot_titles=(
-            "Cycle Hydrologique Moyen (Moyenne par jour de l'année)",
-            "Distribution Mensuelle (Boxplots)"
+            "Average Hydrological Cycle (Day of Year Mean)",
+            "Monthly Distribution (Boxplots)"
         ),
         vertical_spacing=0.15
     )
     
-    # 1. Pattern annuel (jour de l'année 1-365)
-    # Calculer moyenne et intervalle de confiance (ou écart-type)
+    # 1. Annual Pattern (Day of Year 1-365)
+    # Calculate mean and std
     annual_stats = df_temp.groupby('day_of_year')[variable].agg(['mean', 'std', 'min', 'max'])
     
-    # Zone de variabilité (min-max ou std)
+    # Variability Area (mean +/- std)
     fig.add_trace(go.Scatter(
         x=annual_stats.index,
         y=annual_stats['mean'] + annual_stats['std'],
@@ -613,41 +613,40 @@ def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
         fill='tonexty',
         fillcolor='rgba(0, 100, 255, 0.1)',
         line=dict(width=0),
-        name='Variabilité (±1σ)',
+        name='Variability (±1σ)',
         hoverinfo='skip'
     ), row=1, col=1)
     
-    # Moyenne
+    # Mean Line
     fig.add_trace(go.Scatter(
         x=annual_stats.index,
         y=annual_stats['mean'],
         mode='lines',
-        name='Niveau Moyen',
+        name='Average Level',
         line=dict(color='#1f77b4', width=3)
     ), row=1, col=1)
     
-    # 2. Distribution Mensuelle (Boxplots)
-    month_names = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
-                   'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+    # 2. Monthly Distribution (Boxplots)
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     
-    # Pour boxplot, on doit passer les données brutes, pas agrégées
     fig.add_trace(go.Box(
         x=df_temp['month'].map(lambda x: month_names[x-1]),
         y=df_temp[variable],
         name='Distribution',
         marker_color='#2ca02c',
-        boxmean=True # Affiche aussi la moyenne en pointillés
+        boxmean=True # Show mean as dotted line
     ), row=2, col=1)
     
-    # Mise à jour des axes
-    fig.update_xaxes(title_text="Jour de l'année", row=1, col=1)
-    fig.update_xaxes(title_text="Mois", row=2, col=1)
+    # Update Axes
+    fig.update_xaxes(title_text="Day of Year", row=1, col=1)
+    fig.update_xaxes(title_text="Month", row=2, col=1)
     
     fig.update_yaxes(title_text=VARIABLE_NAMES.get(variable, variable), row=1, col=1)
     fig.update_yaxes(title_text=VARIABLE_NAMES.get(variable, variable), row=2, col=1)
     
     fig.update_layout(
-        title=f"Analyse de la Saisonnalité - {VARIABLE_NAMES.get(variable, variable)}",
+        title=f"Seasonality Analysis - {VARIABLE_NAMES.get(variable, variable)}",
         template='plotly_white',
         height=700,
         showlegend=True,
@@ -660,45 +659,43 @@ def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
 @st.cache_data(ttl=3600)
 def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     """
-    Graphique montrant les données manquantes.
+    Heatmap showing missing data patterns.
 
     Args:
-        df: DataFrame avec index temporel
-        variable: Nom de la variable
+        df: DataFrame with datetime index
+        variable: Variable name
 
     Returns:
-        Figure Plotly Heatmap
+        Plotly Figure Heatmap
     """
-    # Créer un index complet de toutes les dates dans la plage
-    min_date = df.index.min().normalize()  # S'assurer que c'est à minuit
+    # Create a full index of all dates in the range
+    min_date = df.index.min().normalize()
     max_date = df.index.max().normalize()
     full_index = pd.date_range(start=min_date, end=max_date, freq='D')
     
-    # Créer une série avec l'index complet
-    # 0 = données présentes, 1 = données manquantes, NaN = hors période
+    # Create a series with the full index
+    # 0 = data present, 1 = data missing, NaN = outside period (not plotted)
     is_missing = pd.Series(index=full_index, dtype=float)
     
-    # Pour chaque jour dans l'index complet
     for date in full_index:
         if date in df.index:
-            # Le jour existe dans les données : vérifier si la valeur est NaN
+            # Day exists: check if NaN
             if pd.isna(df.loc[date, variable]):
-                is_missing.loc[date] = 1  # Vraiment manquant
+                is_missing.loc[date] = 1  # Missing
             else:
-                is_missing.loc[date] = 0  # Présent
+                is_missing.loc[date] = 0  # Present
         else:
-            # Le jour n'existe pas dans l'index : considérer comme manquant
-            # (car on s'attend à des données quotidiennes)
+            # Day missing from index
             is_missing.loc[date] = 1
     
-    # Créer une matrice pour heatmap (Année x Jour de l'année)
+    # Create matrix for Heatmap (Year x Day of Year)
     years = sorted(is_missing.index.year.unique())
     matrix = []
     
     for year in years:
         year_data = is_missing[is_missing.index.year == year]
-        # Créer un array de 366 jours (pour gérer les années bissextiles)
-        padded = np.full(366, np.nan)  # NaN = pas de données pour ce jour
+        # Array of 366 days (for leap years)
+        padded = np.full(366, np.nan)
         
         for date in year_data.index:
             day_of_year = date.timetuple().tm_yday - 1  # 0-indexed
@@ -709,22 +706,22 @@ def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
         
     matrix = np.array(matrix)
     
-    # Couleurs : 0 = présent (gris clair), 1 = manquant (rouge), NaN = pas dans la période (blanc)
+    # Colors: 0 = present (light green), 1 = missing (red)
     fig = go.Figure(data=go.Heatmap(
         z=matrix,
         x=list(range(1, 367)),
         y=years,
-        colorscale=[[0, '#90EE90'], [0.5, '#eeeeee'], [1, 'red']],  # Vert=0, Gris=0.5, Rouge=1
+        colorscale=[[0, '#90EE90'], [0.5, '#eeeeee'], [1, 'red']],
         zmin=0,
         zmax=1,
         showscale=True,
-        colorbar=dict(title="", tickvals=[0, 1], ticktext=["Données présentes", "Données manquantes"])
+        colorbar=dict(title="", tickvals=[0, 1], ticktext=["Data Present", "Data Missing"])
     ))
     
     fig.update_layout(
-        title=f"Carte des données manquantes - {VARIABLE_NAMES.get(variable, variable)}",
-        xaxis_title="Jour de l'année",
-        yaxis_title="Année",
+        title=f"Missing Data Map - {VARIABLE_NAMES.get(variable, variable)}",
+        xaxis_title="Day of Year",
+        yaxis_title="Year",
         template='plotly_white',
         height=max(300, len(years) * 20)
     )
@@ -735,21 +732,21 @@ def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
 @st.cache_data(ttl=3600)
 def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> dict:
     """
-    Détecte les changements de comportement dans une série temporelle.
+    Detects behavior changes in a time series.
     
-    Méthodes utilisées :
-    - Changement de variance (rolling std)
-    - Changement de moyenne (rolling mean)
-    - Changement de tendance (différence de pente)
-    - Score d'instabilité global
+    Methods used:
+    - Change in variance (rolling std change)
+    - Change in mean (rolling mean change)
+    - Change in trend (slope difference)
+    - Global instability score
     
     Args:
-        df: DataFrame avec index temporel
-        variable: Variable à analyser
-        window: Fenêtre glissante (jours)
+        df: DataFrame with datetime index
+        variable: Variable to analyze
+        window: Rolling window (days)
         
     Returns:
-        dict avec dates de changements détectés et scores
+        dict with detected change points and scores
     """
     series = df[variable].dropna()
     
@@ -757,30 +754,30 @@ def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) 
         return {
             'change_points': [],
             'scores': pd.Series(),
-            'message': 'Pas assez de données pour l\'analyse'
+            'message': 'Not enough data for analysis'
         }
     
-    # 1. Variance glissante
+    # 1. Rolling Variance
     rolling_std = series.rolling(window=window, center=True).std()
     std_change = rolling_std.diff().abs()
     
-    # 2. Moyenne glissante
+    # 2. Rolling Mean
     rolling_mean = series.rolling(window=window, center=True).mean()
     mean_change = rolling_mean.diff().abs()
     
-    # 3. Tendance (première dérivée)
+    # 3. Trend (first derivative)
     trend = series.diff()
     rolling_trend_mean = trend.rolling(window=window, center=True).mean()
     trend_change = rolling_trend_mean.diff().abs()
     
-    # 4. Score d'instabilité combiné (normalisé)
+    # 4. Combined Instability Score (Normalized)
     std_norm = (std_change - std_change.min()) / (std_change.max() - std_change.min() + 1e-10)
     mean_norm = (mean_change - mean_change.min()) / (mean_change.max() - mean_change.min() + 1e-10)
     trend_norm = (trend_change - trend_change.min()) / (trend_change.max() - trend_change.min() + 1e-10)
     
     instability_score = (std_norm + mean_norm + trend_norm) / 3
     
-    # Détecter les changements significatifs (percentile 95)
+    # Detect significant changes (95th percentile)
     threshold = instability_score.quantile(0.95)
     change_points = instability_score[instability_score > threshold].index.tolist()
     
@@ -798,21 +795,21 @@ def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) 
 @st.cache_data(ttl=3600)
 def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> go.Figure:
     """
-    Graphique montrant les changements de comportement détectés.
+    Plot detecting behavior changes.
     
     Args:
         df: DataFrame
         variable: Variable
-        window: Fenêtre glissante
+        window: Sliding window
         
     Returns:
-        Figure Plotly avec subplots
+        Plotly Figure with subplots
     """
     series = df[variable].dropna()
     changes = detect_behavior_changes(df, variable, window)
     
     if 'message' in changes:
-        # Pas assez de données
+        # Not enough data
         fig = go.Figure()
         fig.add_annotation(
             text=changes['message'],
@@ -825,68 +822,69 @@ def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) ->
     fig = make_subplots(
         rows=3, cols=1,
         subplot_titles=(
-            "Série Originale + Changements Détectés",
-            "Variance et Moyenne Glissantes",
-            "Score d'Instabilité"
+            "Original Series + Detected Changes",
+            "Rolling Mean & Variance",
+            "Instability Score"
         ),
         vertical_spacing=0.08
     )
     
-    # 1. Série originale avec marqueurs de changements
+    # 1. Original Series with Markers
     fig.add_trace(go.Scatter(
         x=series.index, y=series.values,
-        mode='lines', name='Série originale',
+        mode='lines', name='Original Series',
         line=dict(color='lightblue', width=1)
     ), row=1, col=1)
     
-    # Marquer les changements
+    # Mark Changes
     if changes['change_points']:
         change_values = series.loc[changes['change_points']]
         fig.add_trace(go.Scatter(
             x=change_values.index, y=change_values.values,
-            mode='markers', name='Changements détectés',
+            mode='markers', name='Detected Changes',
             marker=dict(color='red', size=10, symbol='x', line=dict(width=2))
         ), row=1, col=1)
     
-    # 2. Variance et moyenne glissantes
+    # 2. Rolling Stats
     fig.add_trace(go.Scatter(
         x=changes['rolling_std'].index,
         y=changes['rolling_std'].values,
-        mode='lines', name='Écart-type glissant',
+        mode='lines', name='Rolling Std Dev',
         line=dict(color='orange', width=1)
     ), row=2, col=1)
     
     fig.add_trace(go.Scatter(
         x=changes['rolling_mean'].index,
         y=changes['rolling_mean'].values,
-        mode='lines', name='Moyenne glissante',
+        mode='lines', name='Rolling Mean',
         line=dict(color='green', width=1)
     ), row=2, col=1)
     
-    # 3. Score d'instabilité
+    # 3. Instability Score
     fig.add_trace(go.Scatter(
         x=changes['scores'].index,
         y=changes['scores'].values,
-        mode='lines', name='Score d\'instabilité',
+        mode='lines', name='Instability Score',
         line=dict(color='purple', width=2),
         fill='tozeroy', fillcolor='rgba(128,0,128,0.2)'
     ), row=3, col=1)
     
-    # Ligne de seuil
-    fig.add_hline(
-        y=changes['threshold'],
-        line_dash="dash", line_color="red",
-        annotation_text="Seuil (95e percentile)",
-        row=3, col=1
-    )
+    # Threshold Line
+    fig.add_trace(go.Scatter(
+        x=[changes['scores'].index.min(), changes['scores'].index.max()],
+        y=[changes['threshold'], changes['threshold']],
+        mode='lines',
+        name='Threshold (95th %ile)',
+        line=dict(color='red', dash='dash')
+    ), row=3, col=1)
     
     fig.update_xaxes(title_text="Date", row=3, col=1)
     fig.update_yaxes(title_text=VARIABLE_NAMES.get(variable, variable), row=1, col=1)
-    fig.update_yaxes(title_text="Valeur", row=2, col=1)
+    fig.update_yaxes(title_text="Value", row=2, col=1)
     fig.update_yaxes(title_text="Score", row=3, col=1)
     
     fig.update_layout(
-        title=f"Détection de Changements de Comportement - {VARIABLE_NAMES.get(variable, variable)}",
+        title=f"Behavior Analysis - {VARIABLE_NAMES.get(variable, variable)}",
         template='plotly_white',
         height=800,
         showlegend=True
@@ -898,24 +896,24 @@ def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) ->
 @st.cache_data(ttl=3600)
 def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: float = 3.0) -> go.Figure:
     """
-    Graphique détectant les outliers avec Rolling Z-Score.
+    Outlier Detection Plot using Rolling Z-Score.
 
     Args:
         df: DataFrame
         variable: Variable
-        window: Fenêtre glissante
-        sigma: Seuil Z-score
+        window: Rolling window
+        sigma: Z-score threshold
 
     Returns:
-        Figure Plotly
+        Plotly Figure
     """
     series = df[variable]
     
-    # Calculer Rolling Mean & Std
+    # Rolling Mean & Std
     rolling_mean = series.rolling(window=window, center=True).mean()
     rolling_std = series.rolling(window=window, center=True).std()
     
-    # Détecter outliers
+    # Detect outliers
     lower_bound = rolling_mean - (sigma * rolling_std)
     upper_bound = rolling_mean + (sigma * rolling_std)
     
@@ -923,7 +921,7 @@ def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: floa
     
     fig = go.Figure()
     
-    # Série originale
+    # Original Series
     fig.add_trace(go.Scatter(
         x=series.index, y=series.values,
         mode='lines', name='Original',
@@ -951,7 +949,7 @@ def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: floa
     ))
     
     fig.update_layout(
-        title=f"Détection d'Outliers (Rolling Z-Score, window={window}d, σ={sigma})",
+        title=f"Outlier Detection (Rolling Z-Score, window={window}d, σ={sigma})",
         template='plotly_white',
         height=400
     )
@@ -962,26 +960,26 @@ def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: floa
 @st.cache_data(ttl=3600)
 def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: int = 365) -> go.Figure:
     """
-    Graphique montrant la série originale, la tendance (STL) et la composante saisonnière.
+    Plot displaying Original, Trend (STL), and Seasonal component.
 
     Args:
         df: DataFrame
         variable: Variable
-        trend_window: Fenêtre indicative pour le calcul (jours) – utilisée pour déterminer la période STL
+        trend_window: Indicative window (used to determine STL period)
 
     Returns:
-        Figure Plotly avec subplots
+        Plotly Figure with subplots
     """
     series = df[variable].dropna()
 
     if len(series) < 30:
         fig = go.Figure()
-        fig.add_annotation(text="Pas assez de données pour la décomposition", xref="paper", yref="paper",
+        fig.add_annotation(text="Not enough data for decomposition", xref="paper", yref="paper",
                            x=0.5, y=0.5, showarrow=False)
         fig.update_layout(template='plotly_white', height=400)
         return fig
 
-    # Déterminer une période saisonnière (au moins 7 jours, au plus trend_window)
+    # Determine seasonal period (at least 7 days, at most trend_window)
     period = max(7, min(trend_window, len(series) // 6))
 
     stl = STL(series, period=period, robust=True)
@@ -992,7 +990,7 @@ def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: in
 
     fig = make_subplots(
         rows=3, cols=1,
-        subplot_titles=("Série Originale + Tendance", "Composante Saisonnière", "Résidus"),
+        subplot_titles=("Original Series + Trend", "Seasonal Component", "Residuals"),
         vertical_spacing=0.08
     )
 
@@ -1004,13 +1002,13 @@ def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: in
 
     fig.add_trace(go.Scatter(
         x=trend.index, y=trend.values,
-        mode='lines', name='Tendance (STL)',
+        mode='lines', name='Trend (STL)',
         line=dict(color='red', width=2)
     ), row=1, col=1)
 
     fig.add_trace(go.Scatter(
         x=seasonal.index, y=seasonal.values,
-        mode='lines', name='Saisonnalité (centrée en 0)',
+        mode='lines', name='Seasonality',
         line=dict(color='green', width=1.5)
     ), row=2, col=1)
 
@@ -1018,7 +1016,7 @@ def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: in
 
     fig.add_trace(go.Scatter(
         x=resid.index, y=resid.values,
-        mode='lines', name='Résidus',
+        mode='lines', name='Residuals',
         line=dict(color='gray', width=1)
     ), row=3, col=1)
 
@@ -1027,10 +1025,10 @@ def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: in
     fig.update_xaxes(title_text="Date", row=3, col=1)
     fig.update_yaxes(title_text=VARIABLE_NAMES.get(variable, variable), row=1, col=1)
     fig.update_yaxes(title_text="Amplitude", row=2, col=1)
-    fig.update_yaxes(title_text="Résidus", row=3, col=1)
+    fig.update_yaxes(title_text="Residuals", row=3, col=1)
 
     fig.update_layout(
-        title=f"Tendance et Saisonnalité (STL) - {VARIABLE_NAMES.get(variable, variable)}",
+        title=f"Trend and Seasonality (STL) - {VARIABLE_NAMES.get(variable, variable)}",
         template='plotly_white',
         height=800,
         showlegend=True

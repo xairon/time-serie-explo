@@ -1,8 +1,8 @@
-"""Module d'entraînement pour modèles Darts."""
+"""Training module for Darts models."""
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, Union, Sequence
 from pathlib import Path
 from darts import TimeSeries
 from darts.metrics import mae, rmse, mape, r2_score, smape
@@ -13,56 +13,56 @@ from dashboard.utils.model_factory import ModelFactory
 
 def train_model(
     model: ForecastingModel,
-    train_series: TimeSeries,
-    val_series: Optional[TimeSeries] = None,
-    train_past_covariates: Optional[TimeSeries] = None,
-    val_past_covariates: Optional[TimeSeries] = None,
-    train_future_covariates: Optional[TimeSeries] = None,
-    val_future_covariates: Optional[TimeSeries] = None,
+    train_series: Union[TimeSeries, Sequence[TimeSeries]],
+    val_series: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    train_past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    val_past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    train_future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    val_future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     verbose: bool = True
 ) -> ForecastingModel:
     """
-    Entraîne un modèle Darts.
+    Trains a Darts model.
 
     Args:
-        model: Instance du modèle Darts
-        train_series: Série d'entraînement
-        val_series: Série de validation (optionnel)
-        train_past_covariates: Covariables passées pour train
-        val_past_covariates: Covariables passées pour validation
-        train_future_covariates: Covariables futures pour train
-        val_future_covariates: Covariables futures pour validation
-        verbose: Afficher les logs
+        model: Darts model instance
+        train_series: Training series
+        val_series: Validation series (optional)
+        train_past_covariates: Past covariates for training
+        val_past_covariates: Past covariates for validation
+        train_future_covariates: Future covariates for training
+        val_future_covariates: Future covariates for validation
+        verbose: Whether to print logs
 
     Returns:
-        Modèle entraîné
+        Trained model
     """
-    # Préparer les arguments pour fit()
+    # Prepare fit arguments
     fit_kwargs = {
         'series': train_series,
         'verbose': verbose
     }
 
-    # Ajouter validation si fournie
+    # Add validation if provided
     if val_series is not None:
         fit_kwargs['val_series'] = val_series
 
-    # Ajouter covariates pour train
+    # Add covariates for training
     if train_past_covariates is not None:
         fit_kwargs['past_covariates'] = train_past_covariates
 
-        # Si validation fournie, il FAUT aussi les covariates de validation
+        # If validation is provided, validation covariates are required
         if val_series is not None and val_past_covariates is not None:
             fit_kwargs['val_past_covariates'] = val_past_covariates
 
     if train_future_covariates is not None:
         fit_kwargs['future_covariates'] = train_future_covariates
 
-        # Si validation fournie, il FAUT aussi les covariates de validation
+        # If validation is provided, validation covariates are required
         if val_series is not None and val_future_covariates is not None:
             fit_kwargs['val_future_covariates'] = val_future_covariates
 
-    # Entraîner
+    # Train
     model.fit(**fit_kwargs)
 
     return model
@@ -70,36 +70,43 @@ def train_model(
 
 def evaluate_model(
     model: ForecastingModel,
-    train_series: TimeSeries,
-    test_series: TimeSeries,
+    train_series: Union[TimeSeries, Sequence[TimeSeries]],
+    test_series: Union[TimeSeries, Sequence[TimeSeries]],
     horizon: int,
-    past_covariates: Optional[TimeSeries] = None,
-    future_covariates: Optional[TimeSeries] = None,
+    past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     num_samples: int = 1
-) -> Tuple[TimeSeries, Dict[str, float]]:
+) -> Tuple[Union[TimeSeries, Sequence[TimeSeries]], Dict[str, float]]:
     """
-    Évalue un modèle sur les données de test.
+    Evaluates a model on the test set.
 
     Args:
-        model: Modèle entraîné
-        train_series: Série d'entraînement (nécessaire pour certains modèles)
-        test_series: Série de test
-        horizon: Horizon de prédiction
-        past_covariates: Covariables passées (TOUT le dataset)
-        future_covariates: Covariables futures (TOUT le dataset)
-        num_samples: Nombre d'échantillons pour prédiction probabiliste
+        model: Trained model
+        train_series: Training series (required for some models)
+        test_series: Test series
+        horizon: Forecast horizon
+        past_covariates: Past covariates (FULL dataset)
+        future_covariates: Future covariates (FULL dataset)
+        num_samples: Number of samples for probabilistic prediction
 
     Returns:
-        Tuple (prédictions, métriques)
+        Tuple (predictions, metrics)
     """
-    # Faire les prédictions depuis la fin de train_series
+    # Determine horizon and target series for prediction
+    is_list = isinstance(test_series, list) or isinstance(test_series, tuple)
+    
+    if is_list:
+        horizon_chk = len(test_series[0])
+    else:
+        horizon_chk = len(test_series)
+        
     pred_kwargs = {
-        'n': min(horizon, len(test_series)),
+        'n': min(horizon, horizon_chk),
         'series': train_series,
         'num_samples': num_samples
     }
 
-    # Les covariates doivent couvrir TOUT le range (train + test)
+    # Covariates must cover the FULL range (train + test)
     if past_covariates is not None:
         pred_kwargs['past_covariates'] = past_covariates
 
@@ -108,7 +115,7 @@ def evaluate_model(
 
     predictions = model.predict(**pred_kwargs)
 
-    # Calculer les métriques
+    # Calculate metrics
     metrics = calculate_metrics(test_series, predictions)
 
     return predictions, metrics
@@ -120,25 +127,33 @@ def calculate_metrics(
     metrics_list: Optional[list] = None
 ) -> Dict[str, float]:
     """
-    Calcule les métriques d'évaluation.
+    Calculates evaluation metrics.
 
     Args:
-        actual: Série réelle
-        predicted: Série prédite
-        metrics_list: Liste des métriques à calculer
+        actual: Actual series
+        predicted: Predicted series
+        metrics_list: List of metrics to calculate
 
     Returns:
-        Dict avec les métriques
+        Dictionary with metrics
     """
     if metrics_list is None:
         metrics_list = ['MAE', 'RMSE', 'MAPE', 'R2', 'sMAPE']
 
     results = {}
 
-    # Aligner les séries (même longueur)
-    min_len = min(len(actual), len(predicted))
-    actual_aligned = actual[:min_len]
-    predicted_aligned = predicted[:min_len]
+    is_list = isinstance(actual, list) or isinstance(actual, tuple)
+    
+    if is_list:
+        actual_aligned = []
+        predicted_aligned = []
+        for act, pred in zip(actual, predicted):
+             inter = act.slice_intersect(pred)
+             actual_aligned.append(inter)
+             predicted_aligned.append(pred)
+    else:
+        actual_aligned = actual.slice_intersect(predicted)
+        predicted_aligned = predicted
 
     try:
         if 'MAE' in metrics_list:
@@ -170,12 +185,22 @@ def calculate_metrics(
     except Exception:
         results['sMAPE'] = np.nan
 
-    # Direction accuracy (% de fois où la direction du changement est correcte)
+    # Direction accuracy
     try:
-        actual_diff = np.diff(actual_aligned.values().flatten())
-        pred_diff = np.diff(predicted_aligned.values().flatten())
-        correct_direction = np.sum((actual_diff > 0) == (pred_diff > 0))
-        results['Dir_Acc'] = correct_direction / len(actual_diff) * 100
+        if is_list:
+             accs = []
+             for act, pred in zip(actual_aligned, predicted_aligned):
+                 actual_diff = np.diff(act.values().flatten())
+                 pred_diff = np.diff(pred.values().flatten())
+                 if len(actual_diff) > 0:
+                     correct = np.sum((actual_diff > 0) == (pred_diff > 0))
+                     accs.append(correct / len(actual_diff) * 100)
+             results['Dir_Acc'] = np.mean(accs) if accs else np.nan
+        else:
+            actual_diff = np.diff(actual_aligned.values().flatten())
+            pred_diff = np.diff(predicted_aligned.values().flatten())
+            correct_direction = np.sum((actual_diff > 0) == (pred_diff > 0))
+            results['Dir_Acc'] = correct_direction / len(actual_diff) * 100
     except Exception:
         results['Dir_Acc'] = np.nan
 
@@ -190,24 +215,19 @@ def save_model(
     metadata: Optional[Dict] = None
 ) -> Path:
     """
-    Sauvegarde un modèle entraîné (ancienne méthode).
+    Saves a trained model (deprecated method).
 
-    DEPRECATED: Utilisez run_training_pipeline avec save_dir à la place.
+    DEPRECATED: Use run_training_pipeline with save_dir instead.
     """
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # Nom du fichier
     filename = f"{model_name}_{station}.pkl"
     filepath = save_dir / filename
 
-    # S'assurer que le répertoire parent du fichier existe
     filepath.parent.mkdir(parents=True, exist_ok=True)
-
-    # Sauvegarder le modèle
     model.save(str(filepath))
 
-    # Sauvegarder les métadonnées si fournies
     if metadata:
         import json
         metadata_path = save_dir / f"{model_name}_{station}_metadata.json"
@@ -219,16 +239,15 @@ def save_model(
 
 def load_model(filepath: Path) -> ForecastingModel:
     """
-    Charge un modèle sauvegardé.
+    Loads a saved model.
 
     Args:
-        filepath: Chemin vers le modèle
+        filepath: Path to the model file
 
     Returns:
-        Modèle chargé
+        Loaded model
     """
     from darts.models.forecasting.forecasting_model import ForecastingModel
-
     model = ForecastingModel.load(str(filepath))
     return model
 
@@ -236,21 +255,21 @@ def load_model(filepath: Path) -> ForecastingModel:
 def run_training_pipeline(
     model_name: str,
     hyperparams: Dict[str, Any],
-    train: TimeSeries,
-    val: TimeSeries,
-    test: TimeSeries,
-    train_cov: Optional[TimeSeries] = None,
-    val_cov: Optional[TimeSeries] = None,
-    test_cov: Optional[TimeSeries] = None,
-    full_cov: Optional[TimeSeries] = None,
+    train: Union[TimeSeries, Sequence[TimeSeries]],
+    val: Union[TimeSeries, Sequence[TimeSeries]],
+    test: Union[TimeSeries, Sequence[TimeSeries]],
+    train_cov: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    val_cov: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    test_cov: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
+    full_cov: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     use_covariates: bool = True,
     save_dir: Optional[Path] = None,
     station_name: str = 'default',
     verbose: bool = True,
     progress_callback: Optional[Any] = None,
     pl_trainer_kwargs: Optional[Dict[str, Any]] = None,
-    station_data_df: Optional[pd.DataFrame] = None,
-    station_data_df_raw: Optional[pd.DataFrame] = None,  # Raw data for display
+    station_data_df: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
+    station_data_df_raw: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
     column_mapping: Optional[Dict[str, str]] = None,
     target_preprocessor: Optional[Any] = None,
     cov_preprocessor: Optional[Any] = None,
@@ -258,30 +277,30 @@ def run_training_pipeline(
     preprocessing_config: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Pipeline d'entraînement complet avec sauvegarde des splits.
+    Complete training pipeline with split saving.
 
     Args:
-        model_name: Nom du modèle
-        hyperparams: Hyperparamètres
-        train, val, test: Données train/val/test (TimeSeries)
-        train_cov, val_cov, test_cov: Covariables splittées
-        full_cov: Covariables complètes (train+val+test) pour prediction
-        use_covariates: Utiliser les covariables
-        save_dir: Répertoire de sauvegarde
-        station_name: Nom de la station (peut être un path comme "00104X0054/P1")
-        verbose: Afficher les logs
-        progress_callback: Callback pour progression
-        pl_trainer_kwargs: Kwargs pour PyTorch Lightning Trainer
-        station_data_df: DataFrame complet de la station PROCESSED (obligatoire pour sauvegarde)
-        station_data_df_raw: DataFrame complet de la station RAW (pour affichage)
-        column_mapping: Mapping des colonnes {'target_var': '...', 'covariate_vars': [...]}
-        target_preprocessor: Scaler fitté sur train pour la target
-        cov_preprocessor: Scaler fitté sur train pour les covariables
-        original_filename: Nom du fichier original (pour référence)
-        preprocessing_config: Configuration du preprocessing appliqué
+        model_name: Model name
+        hyperparams: Hyperparameters
+        train, val, test: Train/Val/Test Darts TimeSeries
+        train_cov, val_cov, test_cov: Split covariates
+        full_cov: Full covariates (train+val+test) for prediction
+        use_covariates: Whether to use covariates
+        save_dir: Directory to save results
+        station_name: Station name
+        verbose: Verbose logging
+        progress_callback: Progress callback
+        pl_trainer_kwargs: PyTorch Lightning Trainer kwargs
+        station_data_df: Full PROCESSED station DataFrame (required for saving)
+        station_data_df_raw: Full RAW station DataFrame (for display)
+        column_mapping: Column mapping
+        target_preprocessor: Fitted scaler for target
+        cov_preprocessor: Fitted scaler for covariates
+        original_filename: Original filename
+        preprocessing_config: Preprocessing configuration
 
     Returns:
-        Dict avec résultats (model, metrics, predictions, saved_path)
+        Dictionary with results (model, metrics, predictions, saved_path)
     """
     results = {
         'model_name': model_name,
@@ -290,21 +309,20 @@ def run_training_pipeline(
     }
 
     try:
-        # 1. Créer le modèle
+        # 1. Create model
         model = ModelFactory.create_model(
             model_name,
             hyperparams,
             pl_trainer_kwargs_override=pl_trainer_kwargs
         )
 
-        # 2. Préparer les covariables selon ce que le modèle supporte
+        # 2. Prepare covariates based on model support
         train_past_cov = None
         val_past_cov = None
         train_future_cov = None
         val_future_cov = None
 
         if use_covariates and train_cov is not None:
-            # Vérifier quel type de covariables le modèle supporte
             supports_past = getattr(model, "supports_past_covariates", False)
             supports_future = getattr(model, "supports_future_covariates", False)
             
@@ -315,7 +333,7 @@ def run_training_pipeline(
                 train_future_cov = train_cov
                 val_future_cov = val_cov
 
-        # 3. Entraîner
+        # 3. Train
         model = train_model(
             model=model,
             train_series=train,
@@ -329,13 +347,16 @@ def run_training_pipeline(
 
         results['model'] = model
 
-        # 4. Évaluer sur test
+        # 4. Evaluate on test
         output_chunk = hyperparams.get('output_chunk_length', 7)
 
-        # Pour la prédiction, on a besoin de la série complète jusqu'au test
-        full_train = train.append(val)
+        # For prediction, we need the series up containing the test set
+        if isinstance(train, list) and isinstance(val, list):
+             full_train = [t.append(v) for t, v in zip(train, val)]
+        else:
+             full_train = train.append(val)
 
-        # Covariables complètes pour prédiction (selon support du modèle)
+        # Full covariates for prediction
         full_past_cov = None
         full_future_cov = None
         if use_covariates and full_cov is not None:
@@ -357,22 +378,58 @@ def run_training_pipeline(
         results['predictions'] = predictions
         results['metrics'] = metrics
 
-        # 5. Sauvegarder si demandé (NOUVEAU SYSTÈME avec splits)
+        # 5. Save if requested (NEW SYSTEM with splits)
         if save_dir and station_data_df is not None:
-            # Nettoyer le nom de station
             clean_station_name = station_name.split('/')[-1] if '/' in station_name else station_name
+            is_global = isinstance(train, list) or isinstance(train, tuple)
 
-            # Créer les DataFrames pour chaque split
-            # On doit reconstruire les DataFrames à partir des tailles
-            train_size = len(train)
-            val_size = len(val)
-            test_size = len(test)
+            if is_global:
+                train_df = pd.concat([t.to_dataframe() for t in train])
+                val_df = pd.concat([t.to_dataframe() for t in val])
+                test_df = pd.concat([t.to_dataframe() for t in test])
+                
+                train_size = len(train_df)
+                val_size = len(val_df)
+                test_size = len(test_df)
+                
+                full_df = pd.concat([train_df, val_df, test_df])
+                
+                train_df_raw = None
+                val_df_raw = None
+                test_df_raw = None
+                
+                if isinstance(station_data_df_raw, dict):
+                    raw_list = []
+                    for s, df in station_data_df_raw.items():
+                        d = df.copy()
+                        d['station'] = s
+                        raw_list.append(d)
+                    
+                    if raw_list:
+                        station_data_df_raw = pd.concat(raw_list)
+                    else:
+                        station_data_df_raw = None
+                
+                station_data_df = full_df
 
-            train_df = station_data_df.iloc[:train_size].copy()
-            val_df = station_data_df.iloc[train_size:train_size + val_size].copy()
-            test_df = station_data_df.iloc[train_size + val_size:].copy()
+            else:
+                train_size = len(train)
+                val_size = len(val)
+                test_size = len(test)
 
-            # Construire la config des colonnes
+                train_df = station_data_df.iloc[:train_size].copy()
+                val_df = station_data_df.iloc[train_size:train_size + val_size].copy()
+                test_df = station_data_df.iloc[train_size + val_size:].copy()
+                
+                train_df_raw = None
+                val_df_raw = None
+                test_df_raw = None
+                
+                if station_data_df_raw is not None and not isinstance(station_data_df_raw, dict):
+                    train_df_raw = station_data_df_raw.iloc[:train_size].copy()
+                    val_df_raw = station_data_df_raw.iloc[train_size:train_size + val_size].copy()
+                    test_df_raw = station_data_df_raw.iloc[train_size + val_size:].copy()
+
             if column_mapping:
                 columns_config = {
                     'date': 'date',
@@ -380,14 +437,12 @@ def run_training_pipeline(
                     'covariates': column_mapping['covariate_vars']
                 }
             else:
-                # Fallback
                 columns_config = {
                     'date': 'date',
                     'target': 'level',
                     'covariates': ['PRELIQ_Q', 'T_Q', 'ETP_Q']
                 }
 
-            # Construire la config du preprocessing
             if preprocessing_config:
                 preproc = {
                     'fill_method': preprocessing_config.get('fill_method', 'Unknown'),
@@ -399,7 +454,6 @@ def run_training_pipeline(
                     'scaler_type': 'StandardScaler'
                 }
 
-            # Créer la config du modèle
             from dashboard.utils.model_config import ModelConfig, save_model_with_data
 
             config = ModelConfig(
@@ -422,17 +476,6 @@ def run_training_pipeline(
                 use_covariates=use_covariates
             )
 
-            # Sauvegarder avec le nouveau système (modèle + config + splits)
-            # Préparer les DataFrames RAW si disponibles
-            train_df_raw = None
-            val_df_raw = None
-            test_df_raw = None
-            
-            if station_data_df_raw is not None:
-                train_df_raw = station_data_df_raw.iloc[:train_size].copy()
-                val_df_raw = station_data_df_raw.iloc[train_size:train_size + val_size].copy()
-                test_df_raw = station_data_df_raw.iloc[train_size + val_size:].copy()
-            
             model_dir = save_model_with_data(
                 model=model,
                 save_dir=save_dir,

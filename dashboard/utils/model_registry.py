@@ -267,11 +267,46 @@ class ModelRegistry:
             raise ValueError(f"Unknown model type: {model_type}")
 
         try:
+            # Patch numpy random for compatibility with models saved with older numpy
+            try:
+                import numpy.random._mt19937
+                import numpy.random._bit_generator
+                # Some models reference internal numpy modules during unpickling
+                import sys
+                if 'numpy.random.bit_generator' not in sys.modules:
+                    sys.modules['numpy.random.bit_generator'] = numpy.random._bit_generator
+                # Ensure MT19937 is accessible as expected
+                if not hasattr(numpy.random._bit_generator, 'BitGenerator'):
+                    numpy.random._bit_generator.BitGenerator = numpy.random.BitGenerator
+            except Exception:
+                pass  # Ignore if patch fails
+                
             # Charger le modèle
             model = model_class.load(str(model_path))
             return model
         except Exception as e:
-            raise RuntimeError(f"Failed to load model {model_info.model_name}: {e}")
+            # Try alternative loading with pickle patches
+            try:
+                import pickle
+                import io
+                
+                # Custom unpickler to handle numpy compatibility
+                class NumpyCompatUnpickler(pickle.Unpickler):
+                    def find_class(self, module, name):
+                        # Handle old numpy random references
+                        if 'numpy.random' in module and 'MT19937' in name:
+                            import numpy.random
+                            return numpy.random.MT19937
+                        if module == 'numpy.random.bit_generator':
+                            import numpy.random._bit_generator
+                            return getattr(numpy.random._bit_generator, name)
+                        return super().find_class(module, name)
+                
+                with open(model_path, 'rb') as f:
+                    model = NumpyCompatUnpickler(f).load()
+                return model
+            except Exception as e2:
+                raise RuntimeError(f"Failed to load model {model_info.model_name} despite patches: {e2}")
 
     def delete_model(self, model_info: ModelInfo):
         """

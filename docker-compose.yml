@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: timeseries-training
     ports:
-      - "49500-49599:8501"
+      - "8501:8501"
     volumes:
       # Persist checkpoints and results
       - ./checkpoints:/app/checkpoints
@@ -32,6 +32,10 @@ services:
           memory: 8G
         reservations:
           memory: 2G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 networks:
   default:

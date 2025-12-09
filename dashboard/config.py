@@ -13,7 +13,15 @@ LOGS_DIR = BASE_DIR / 'logs' / 'darts'
 
 # Créer les répertoires s'ils n'existent pas
 for dir_path in [RESULTS_DIR, FIGS_DIR, CHECKPOINTS_DIR, LOGS_DIR]:
-    dir_path.mkdir(parents=True, exist_ok=True)
+    try:
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+        elif not dir_path.is_dir():
+            # Path exists but is not a directory (e.g., symlink or file)
+            pass  # Skip, let it be handled elsewhere
+    except (FileExistsError, OSError):
+        # Directory already exists or permission issue, skip
+        pass
 
 # Liste des stations (dynamique)
 if DATA_DIR.exists():

@@ -1,4 +1,4 @@
-"""Module de preprocessing pour séries temporelles avec Darts."""
+"""Preprocessing module for time series with Darts."""
 
 import pandas as pd
 import numpy as np
@@ -16,16 +16,16 @@ from darts.dataprocessing.transformers.diff import Diff
 
 class TimeSeriesPreprocessor:
     """
-    Classe pour appliquer une chaîne de preprocessing sur des séries temporelles.
-    Utilise les transformers Darts pour garantir la compatibilité.
+    Class to apply a preprocessing chain on time series.
+    Uses Darts transformers to guarantee compatibility.
     """
 
     def __init__(self, config: Dict):
         """
-        Initialise le preprocessor avec une configuration.
+        Initializes the preprocessor with a configuration.
 
         Args:
-            config: Dictionnaire avec les clés:
+            config: Dictionary with keys:
                 - fill_method: str
                 - normalization: str
                 - transformation: str
@@ -36,48 +36,48 @@ class TimeSeriesPreprocessor:
         self.transformers = []
         self.fitted = False
 
-        # Construire la pipeline
+        # Build pipeline
         self._build_pipeline()
 
     def _build_pipeline(self):
-        """Construit la pipeline de transformers selon la config."""
+        """Builds the transformer pipeline according to config."""
 
-        # 1. Gestion des valeurs manquantes
+        # 1. Missing values management
         fill_method = self.config.get('fill_method', 'Supprimer les lignes')
 
-        # MissingValuesFiller n'accepte que 'auto' pour fill
-        # On gérera les valeurs manquantes AVANT la conversion en TimeSeries
-        # dans prepare_dataframe_for_darts() ou en appelant dropna() sur le TimeSeries
+        # MissingValuesFiller only accepts 'auto' for fill
+        # We handle missing values BEFORE TimeSeries conversion
+        # in prepare_dataframe_for_darts() or by calling dropna() on the TimeSeries
 
-        # Si des valeurs manquantes subsistent, utiliser auto
+        # If missing values remain, use auto
         if fill_method != 'Supprimer les lignes':
             self.transformers.append(
                 ('filler', MissingValuesFiller(fill='auto', name='Missing filler'))
             )
-        # Si "Supprimer les lignes", on le fera avec series.dropna() avant preprocessing
+        # If "Supprimer les lignes", we do it with series.dropna() before preprocessing
 
-        # 2. Transformation (avant normalisation pour stabiliser variance)
+        # 2. Transformation (before normalization to stabilize variance)
         transformation = self.config.get('transformation', 'Aucune')
 
         if transformation == 'Log':
-            # Log transform avec mapper custom
+            # Log transform with custom mapper
             self.transformers.append(
                 ('log', InvertibleMapper(
-                    fn=lambda x: np.log(x + 1),  # +1 pour éviter log(0)
+                    fn=lambda x: np.log(x + 1),  # +1 to avoid log(0)
                     inverse_fn=lambda x: np.exp(x) - 1,
                     name='Log transform'
                 ))
             )
         elif transformation == 'BoxCox':
             self.transformers.append(
-                ('boxcox', BoxCox(lmbda=None, name='BoxCox'))  # lmbda=None pour auto
+                ('boxcox', BoxCox(lmbda=None, name='BoxCox'))  # lmbda=None for auto
             )
         elif transformation == 'Différenciation (order 1)':
             self.transformers.append(
                 ('diff', Diff(lags=1, dropna=True, name='Differencing'))
             )
 
-        # 3. Normalisation (après transformation)
+        # 3. Normalization (after transformation)
         normalization = self.config.get('normalization', 'Aucune')
 
         if normalization == 'MinMax (0-1)':
@@ -96,23 +96,23 @@ class TimeSeriesPreprocessor:
 
     def fit_transform(self, series: TimeSeries) -> TimeSeries:
         """
-        Fit les transformers et transforme la série.
+        Fits transformers and transforms the series.
 
         Args:
-            series: TimeSeries Darts
+            series: Darts TimeSeries
 
         Returns:
-            TimeSeries transformée
+            Transformed TimeSeries
         """
         transformed = series
 
         for name, transformer in self.transformers:
-            # Certains transformers (MissingValuesFiller, InvertibleMapper)
-            # ne supportent que transform(), pas fit_transform()
+            # Some transformers (MissingValuesFiller, InvertibleMapper)
+            # only support transform(), not fit_transform()
             if hasattr(transformer, 'fit_transform'):
                 transformed = transformer.fit_transform(transformed)
             else:
-                # Pas de fitting nécessaire, juste transform
+                # No fitting needed, just transform
                 transformed = transformer.transform(transformed)
 
         self.fitted = True
@@ -120,13 +120,13 @@ class TimeSeriesPreprocessor:
 
     def transform(self, series: TimeSeries) -> TimeSeries:
         """
-        Applique les transformers (déjà fitted) à une nouvelle série.
+        Applies transformers (already fitted) to a new series.
 
         Args:
-            series: TimeSeries Darts
+            series: Darts TimeSeries
 
         Returns:
-            TimeSeries transformée
+            Transformed TimeSeries
         """
         if not self.fitted:
             raise ValueError("Preprocessor must be fitted before calling transform()")
@@ -140,30 +140,30 @@ class TimeSeriesPreprocessor:
 
     def inverse_transform(self, series: TimeSeries) -> TimeSeries:
         """
-        Inverse la transformation (pour récupérer les valeurs originales).
+        Inverses the transformation (to recover original values).
 
         Args:
-            series: TimeSeries transformée
+            series: Transformed TimeSeries
 
         Returns:
-            TimeSeries dans l'échelle originale
+            TimeSeries in original scale
         """
         if not self.fitted:
             raise ValueError("Preprocessor must be fitted before calling inverse_transform()")
 
         inversed = series
 
-        # Appliquer les inverses dans l'ordre inverse
+        # Apply inverses in reverse order
         for name, transformer in reversed(self.transformers):
-            # Certains transformers ne sont pas réversibles (MissingValuesFiller)
+            # Some transformers are not reversible (MissingValuesFiller)
             if hasattr(transformer, 'inverse_transform'):
                 inversed = transformer.inverse_transform(inversed)
-            # Sinon on skip (transformation non-réversible)
+            # Else skip (non-reversible transformation)
 
         return inversed
 
     def get_scaler(self, name='scaler'):
-        """Retourne un transformer spécifique par nom."""
+        """Returns a specific transformer by name."""
         for tf_name, transformer in self.transformers:
             if tf_name == name:
                 return transformer
@@ -178,19 +178,19 @@ def prepare_dataframe_for_darts(
     fill_method: str = 'Supprimer les lignes'
 ) -> Tuple[TimeSeries, Optional[TimeSeries]]:
     """
-    Convertit un DataFrame pandas en TimeSeries Darts.
+    Converts a pandas DataFrame to Darts TimeSeries.
 
     Args:
-        df: DataFrame avec index temporel
-        target_col: Colonne cible
-        covariate_cols: Colonnes covariables
-        freq: Fréquence ('D', 'H', etc.)
-        fill_method: Méthode pour valeurs manquantes
+        df: DataFrame with datetime index
+        target_col: Target column
+        covariate_cols: Covariate columns
+        freq: Frequency ('D', 'H', etc.)
+        fill_method: Method for missing values
 
     Returns:
-        Tuple (target_series, covariates_series ou None)
+        Tuple (target_series, covariates_series or None)
     """
-    # Gestion valeurs manquantes AVANT conversion Darts
+    # Manage missing values BEFORE Darts conversion
     if fill_method == 'Supprimer les lignes':
         df = df.dropna()
     elif fill_method == 'Interpolation linéaire':
@@ -200,20 +200,22 @@ def prepare_dataframe_for_darts(
     elif fill_method == 'Backward fill':
         df = df.fillna(method='bfill')
 
-    # Créer la série cible
+    # Create target series with fill_missing_dates to handle gaps in RAW data
     target_series = TimeSeries.from_dataframe(
         df,
         value_cols=target_col,
-        freq=freq
+        freq=freq,
+        fill_missing_dates=True
     )
 
-    # Créer les covariables si spécifiées
+    # Create covariates if specified
     covariates_series = None
     if covariate_cols and len(covariate_cols) > 0:
         covariates_series = TimeSeries.from_dataframe(
             df,
             value_cols=covariate_cols,
-            freq=freq
+            freq=freq,
+            fill_missing_dates=True
         )
 
     return target_series, covariates_series
@@ -221,17 +223,17 @@ def prepare_dataframe_for_darts(
 
 def add_datetime_features(series: TimeSeries) -> TimeSeries:
     """
-    Ajoute des features temporelles (jour, mois, etc.) comme covariables futures.
+    Adds temporal features (day, month, etc.) as future covariates.
 
     Args:
         series: TimeSeries
 
     Returns:
-        TimeSeries avec features temporelles ajoutées
+        TimeSeries with added temporal features
     """
     df = series.to_dataframe()
 
-    # Extraire features datetime
+    # Extract datetime features
     df['day_of_month'] = df.index.day
     df['day_of_week'] = df.index.dayofweek
     df['day_of_year'] = df.index.dayofyear
@@ -241,15 +243,15 @@ def add_datetime_features(series: TimeSeries) -> TimeSeries:
     df['year'] = df.index.year
     df['is_weekend'] = (df.index.dayofweek >= 5).astype(int)
 
-    # Créer cyclical features pour capturer la périodicité
+    # Create cyclical features to capture periodicity
     df['day_sin'] = np.sin(2 * np.pi * df.index.dayofyear / 365.25)
     df['day_cos'] = np.cos(2 * np.pi * df.index.dayofyear / 365.25)
     df['month_sin'] = np.sin(2 * np.pi * df.index.month / 12)
     df['month_cos'] = np.cos(2 * np.pi * df.index.month / 12)
 
-    # Convertir en TimeSeries
+    # Convert to TimeSeries
     datetime_features = TimeSeries.from_dataframe(
-        df.drop(columns=series.columns),  # Garder seulement les nouvelles features
+        df.drop(columns=series.columns),  # Keep only new features
         freq=series.freq_str
     )
 
@@ -261,14 +263,14 @@ def add_lag_features(
     lags: List[int]
 ) -> TimeSeries:
     """
-    Ajoute des lags de la série cible comme features.
+    Adds lags of the target series as features.
 
     Args:
-        series: TimeSeries cible
-        lags: Liste des lags à ajouter (ex: [1, 7, 30])
+        series: Target TimeSeries
+        lags: List of lags to add (e.g., [1, 7, 30])
 
     Returns:
-        TimeSeries avec lags ajoutés
+        TimeSeries with added lags
     """
     df = series.to_dataframe()
     lag_df = pd.DataFrame(index=df.index)
@@ -276,10 +278,10 @@ def add_lag_features(
     for lag in lags:
         lag_df[f'lag_{lag}'] = df[series.columns[0]].shift(lag)
 
-    # Supprimer les NaN créés par les shifts
+    # Remove NaNs created by shifts
     lag_df = lag_df.dropna()
 
-    # Convertir en TimeSeries
+    # Convert to TimeSeries
     lag_series = TimeSeries.from_dataframe(
         lag_df,
         freq=series.freq_str
@@ -295,18 +297,18 @@ def split_train_val_test(
     test_ratio: float = 0.15
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries]:
     """
-    Split une série temporelle en train/val/test.
+    Splits a time series into train/val/test.
 
     Args:
-        series: TimeSeries à splitter
-        train_ratio: Ratio du train
-        val_ratio: Ratio de la validation
-        test_ratio: Ratio du test
+        series: TimeSeries to split
+        train_ratio: Train ratio
+        val_ratio: Validation ratio
+        test_ratio: Test ratio
 
     Returns:
         Tuple (train, val, test)
     """
-    assert train_ratio + val_ratio + test_ratio == 1.0, "Les ratios doivent sommer à 1.0"
+    assert train_ratio + val_ratio + test_ratio == 1.0, "Ratios must sum to 1.0"
 
     n = len(series)
     train_end = int(n * train_ratio)
@@ -321,13 +323,13 @@ def split_train_val_test(
 
 def compute_data_statistics(series: TimeSeries) -> Dict:
     """
-    Calcule des statistiques descriptives sur une série.
+    Calculates descriptive statistics on a series.
 
     Args:
         series: TimeSeries
 
     Returns:
-        Dict avec stats
+        Dict with stats
     """
     df = series.to_dataframe()
 
@@ -349,18 +351,18 @@ def compute_data_statistics(series: TimeSeries) -> Dict:
 
 def detect_frequency(series: TimeSeries) -> str:
     """
-    Détecte automatiquement la fréquence d'une série.
+    Automatically detects the frequency of a series.
 
     Args:
         series: TimeSeries
 
     Returns:
-        Fréquence détectée ('D', 'H', 'W', etc.)
+        Detected frequency ('D', 'H', 'W', etc.)
     """
     if series.freq_str:
         return series.freq_str
 
-    # Inférer depuis le DataFrame
+    # Infer from DataFrame
     df = series.to_dataframe()
     if len(df) < 2:
         return 'D'  # Default
@@ -369,7 +371,7 @@ def detect_frequency(series: TimeSeries) -> str:
     if inferred_freq:
         return inferred_freq
 
-    # Fallback: calculer la différence médiane
+    # Fallback: calculate median difference
     diffs = df.index.to_series().diff().dropna()
     median_diff = diffs.median()
 
@@ -387,37 +389,37 @@ def detect_frequency(series: TimeSeries) -> str:
 
 def get_preprocessing_summary(config: Dict) -> str:
     """
-    Génère un résumé textuel de la configuration preprocessing.
+    Generates a textual summary of the preprocessing configuration.
 
     Args:
-        config: Dict de configuration
+        config: Configuration dict
 
     Returns:
-        Résumé en markdown
+        Summary in markdown
     """
-    summary = "### Configuration du Preprocessing\n\n"
+    summary = "### Preprocessing Configuration\n\n"
 
-    # Valeurs manquantes
+    # Missing values
     fill_method = config.get('fill_method', 'Supprimer les lignes')
-    summary += f"**Valeurs manquantes** : {fill_method}\n\n"
+    summary += f"**Missing Values**: {fill_method}\n\n"
 
     # Transformation
     transformation = config.get('transformation', 'Aucune')
-    summary += f"**Transformation** : {transformation}\n\n"
+    summary += f"**Transformation**: {transformation}\n\n"
 
-    # Normalisation
+    # Normalization
     normalization = config.get('normalization', 'Aucune')
-    summary += f"**Normalisation** : {normalization}\n\n"
+    summary += f"**Normalization**: {normalization}\n\n"
 
-    # Features temporelles
+    # Temporal features
     datetime_features = config.get('datetime_features', False)
-    summary += f"**Features temporelles** : {'Oui' if datetime_features else 'Non'}\n\n"
+    summary += f"**Temporal Features**: {'Yes' if datetime_features else 'No'}\n\n"
 
     # Lags
     lags = config.get('lags', [])
     if lags:
-        summary += f"**Lags ajoutés** : {lags}\n\n"
+        summary += f"**Added Lags**: {lags}\n\n"
     else:
-        summary += f"**Lags ajoutés** : Aucun\n\n"
+        summary += f"**Added Lags**: None\n\n"
 
     return summary

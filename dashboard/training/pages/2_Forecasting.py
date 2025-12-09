@@ -1,20 +1,78 @@
-"""Forecasting Page - Sliding Window on TEST data."""
+"""Forecasting Page - Sliding Window on TEST data.
 
-import streamlit as st
+This page allows users to:
+1. Load a trained model.
+2. Visualize predictions on the test set (Autoregressive & One-Step).
+3. Analyze model explainability locally and globally using TimeSHAP.
+"""
+
 import sys
 from pathlib import Path
+from datetime import timedelta
 import pandas as pd
-import plotly.graph_objects as go
 import numpy as np
+import plotly.graph_objects as go
+import altair as alt
+import streamlit as st
+import shap
 
+# --- SHAP COMPATIBILITY PATCH FOR TIMESHAP ---
+# TimeSHAP requires `shap.explainers._kernel.Kernel`, which was moved/renamed in SHAP >=0.43.0.
+# We manually alias it to `shap.KernelExplainer` to prevent ImportError.
+try:
+    if not hasattr(shap, 'explainers'):
+        import types
+        shap.explainers = types.ModuleType('shap.explainers')
+    
+    if not hasattr(shap.explainers, '_kernel'):
+        import types
+        import sys
+        # Create a fake _kernel module
+        _kernel = types.ModuleType('shap.explainers._kernel')
+        # Map Kernel to KernelExplainer (modern equivalent)
+        from shap import KernelExplainer
+        _kernel.Kernel = KernelExplainer
+        
+        # Inject into shap and sys.modules
+        shap.explainers._kernel = _kernel
+        sys.modules['shap.explainers._kernel'] = _kernel
+except Exception as e:
+    # If patching fails, we proceed and let the actual import fail if it must
+    print(f"Warning: Failed to patch SHAP for TimeSHAP compatibility: {e}")
+# ---------------------------------------------
+
+# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from dashboard.config import CHECKPOINTS_DIR
 from dashboard.utils.model_registry import get_registry
 from dashboard.utils.model_config import load_model_with_config, load_scalers
 from dashboard.utils.forecasting import generate_single_window_forecast
-from dashboard.utils.export import add_download_button
+from dashboard.utils.timeshap_wrapper import DartsModelWrapper
+from dashboard.utils.preprocessing import prepare_dataframe_for_darts
+from darts.metrics import mae, rmse, mape, smape, r2_score
 
+st.set_page_config(layout="wide", page_title="Forecasting")
+
+
+def load_model_data(model_info):
+    """Loads model, config, data, and scalers with caching."""
+    cache_key = f"model_{model_info.model_path}"
+    if cache_key not in st.session_state:
+        # Load fresh if not in cache
+        model, config, data_dict = load_model_with_config(model_info.model_path.parent)
+        scalers = load_scalers(model_info.model_path.parent)
+        st.session_state[cache_key] = {
+            'model': model,
+            'config': config,
+            'data_dict': data_dict,
+            'scalers': scalers
+        }
+    return st.session_state[cache_key]
+
+
+# =============================================================================
+# SIDEBAR: MODEL SELECTION
 # =============================================================================
 st.sidebar.header("Model Selection")
 
@@ -37,38 +95,95 @@ for m in models:
 selected_station = st.sidebar.selectbox("Station", sorted(models_by_station.keys()))
 station_models = models_by_station[selected_station]
 model_labels = [f"{m.model_type} ({m.creation_date})" for m in station_models]
-selected_model_idx = st.sidebar.selectbox("Model", range(len(station_models)), format_func=lambda i: model_labels[i])
+
+selected_model_idx = st.sidebar.selectbox(
+    "Model", 
+    range(len(station_models)), 
+    format_func=lambda i: model_labels[i]
+)
 selected_model_info = station_models[selected_model_idx]
 
-# Loading
-cache_key = f"model_{selected_model_info.model_path}"
-if cache_key not in st.session_state:
-    with st.spinner("Loading..."):
-        try:
-            model, config, data_dict = load_model_with_config(selected_model_info.model_path.parent)
-            scalers = load_scalers(selected_model_info.model_path.parent)
-            st.session_state[cache_key] = {'model': model, 'config': config, 'data_dict': data_dict, 'scalers': scalers}
-        except Exception as e:
-            st.error(f"Error: {e}")
-            st.stop()
+# Load selected model
+with st.spinner("Loading model..."):
+    try:
+        loaded_data = load_model_data(selected_model_info)
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        st.stop()
 
-loaded_data = st.session_state[cache_key]
 model = loaded_data['model']
 config = loaded_data['config']
 data_dict = loaded_data['data_dict']
 scalers = loaded_data['scalers']
 
-# Full DataFrame
+# Handle Global Models (Multi-station)
+# If dataset has 'station' column, filter for specific station
+if 'train' in data_dict and 'station' in data_dict['train'].columns:
+    train_df = data_dict['train']
+    available_stations = sorted(train_df['station'].unique())
+    
+    if len(available_stations) > 1:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🌍 Global Model")
+        target_station = st.sidebar.selectbox("Select Target Station", available_stations)
+        
+        # Filter DataFrames for the target station
+        data_dict_filtered = {}
+        for k, v in data_dict.items():
+            if isinstance(v, pd.DataFrame) and 'station' in v.columns:
+                data_dict_filtered[k] = v[v['station'] == target_station].copy()
+            else:
+                data_dict_filtered[k] = v
+        
+        data_dict = data_dict_filtered
+        
+        # Select correct scalers for this station
+        scalers_filtered = {}
+        for scaler_name in ['target_preprocessor', 'cov_preprocessor']:
+            s = scalers.get(scaler_name)
+            if isinstance(s, dict):
+                if target_station in s:
+                    scalers_filtered[scaler_name] = s[target_station]
+                else:
+                    st.warning(f"No specific scaler for {target_station}, using default.")
+                    scalers_filtered[scaler_name] = list(s.values())[0] if s else None
+            else:
+                scalers_filtered[scaler_name] = s
+        
+        scalers = scalers_filtered
+        st.sidebar.success(f"Predicting on: **{target_station}**")
+# Prepare dataframes - Correct data flow:
+# - PROCESSED (train/val/test): for predictions - already normalized, no scaling needed!
+# - RAW (train_raw/val_raw/test_raw): for display only
+#
+# The model was trained on PROCESSED data, so predictions must use PROCESSED data directly.
+# DO NOT apply scalers again - data is already normalized.
+
+# Full processed dataframe for predictions
 if 'full' in data_dict:
-    full_df = data_dict['full']
+    full_df_processed = data_dict['full']
 else:
-    full_df = pd.concat([data_dict['train'], data_dict['val'], data_dict['test']])
-full_df = full_df.sort_index()
+    full_df_processed = pd.concat([data_dict['train'], data_dict['val'], data_dict['test']])
+full_df_processed = full_df_processed.sort_index()
 
-test_df = data_dict['test'].sort_index()
-test_df_raw = data_dict.get('test_raw', test_df).sort_index()
+# Raw dataframe for display
+if 'train_raw' in data_dict and 'val_raw' in data_dict and 'test_raw' in data_dict:
+    full_df_raw = pd.concat([data_dict['train_raw'], data_dict['val_raw'], data_dict['test_raw']])
+else:
+    full_df_raw = full_df_processed  # Fallback if raw not available
+full_df_raw = full_df_raw.sort_index()
 
-# Parameters
+# Test sets
+test_df_processed = data_dict['test'].sort_index()
+test_df_raw = data_dict.get('test_raw', test_df_processed).sort_index()
+
+# Ensure indices match
+if not test_df_processed.index.equals(test_df_raw.index):
+    if len(test_df_processed) == len(test_df_raw):
+        test_df_raw = test_df_raw.copy()
+        test_df_raw.index = test_df_processed.index
+
+# Extract configuration
 model_horizon = getattr(model, 'output_chunk_length', 30)
 input_chunk = getattr(model, 'input_chunk_length', 30)
 target_col = config.columns['target']
@@ -76,43 +191,42 @@ covariate_cols = config.columns.get('covariates', [])
 use_covariates = config.use_covariates
 
 
-
 # =============================================================================
-# 2. INFO PANELS
+# INFO PANELS
 # =============================================================================
 col_data, col_model, col_metrics = st.columns(3)
 
 with col_data:
     st.markdown("### Dataset Info")
     st.markdown(f"""
-| Split | Size |
-|-------|--------|
-| Train | {len(data_dict['train']):,} |
-| Val | {len(data_dict['val']):,} |
-| Test | {len(data_dict['test']):,} |
-""")
+    | Split | Size |
+    |-------|--------|
+    | Train | {len(data_dict['train']):,} |
+    | Val | {len(data_dict['val']):,} |
+    | Test | {len(data_dict['test']):,} |
+    """)
 
 with col_model:
     st.markdown("### Model Info")
     st.markdown(f"""
-| Parameter | Value |
-|-----------|--------|
-| Type | **{config.model_name}** |
-| Input | {input_chunk} days |
-| Horizon | {model_horizon} days |
-| Covariates | {'✅ ' + str(len(covariate_cols)) if use_covariates else '❌'} |
-""")
+    | Parameter | Value |
+    |-----------|--------|
+    | Type | **{config.model_name}** |
+    | Input | {input_chunk} days |
+    | Horizon | {model_horizon} days |
+    | Covariates | {'✅ ' + str(len(covariate_cols)) if use_covariates else '❌'} |
+    """)
 
 with col_metrics:
     st.markdown("### Validation Metrics")
     if config.metrics:
+        # Show first 4 metrics
         cols = st.columns(2)
         for i, (name, value) in enumerate(list(config.metrics.items())[:4]):
             with cols[i % 2]:
                 if value is not None and not pd.isna(value):
                     st.metric(name, f"{value:.4f}")
 
-# Hyperparameters
 with st.expander("Hyperparameters"):
     if hasattr(config, 'hyperparams') and config.hyperparams:
         hp_cols = st.columns(4)
@@ -124,13 +238,14 @@ with st.expander("Hyperparameters"):
 
 st.markdown("---")
 
+
 # =============================================================================
-# 3. GLOBAL SLIDER - Window Position (works for all tabs)
+# GLOBAL SLIDER - Analysis Window
 # =============================================================================
 st.markdown("### Analysis Window")
 
 valid_start = input_chunk
-valid_end = len(test_df) - model_horizon
+valid_end = len(test_df_processed) - model_horizon
 
 if valid_start >= valid_end:
     st.error(f"Not enough test data. Minimum required: {input_chunk + model_horizon} days")
@@ -144,14 +259,15 @@ start_idx = st.slider(
     help=f"This window of {model_horizon} days is used for one-step predictions AND SHAP explanations"
 )
 
-window_start_date = test_df.index[start_idx]
-window_end_date = test_df.index[min(start_idx + model_horizon - 1, len(test_df) - 1)]
+window_start_date = test_df_processed.index[start_idx]
+window_end_date = test_df_processed.index[min(start_idx + model_horizon - 1, len(test_df_processed) - 1)]
 st.caption(f"Window: **{window_start_date.strftime('%Y-%m-%d')}** → **{window_end_date.strftime('%Y-%m-%d')}**")
 
 st.markdown("---")
 
+
 # =============================================================================
-# 4. PERSISTENT NAVIGATION
+# NAVIGATION
 # =============================================================================
 if 'forecasting_tab' not in st.session_state:
     st.session_state.forecasting_tab = "Predictions"
@@ -164,95 +280,87 @@ selected_tab = st.radio(
     index=["Predictions", "Explainability"].index(st.session_state.forecasting_tab),
     label_visibility="collapsed"
 )
-
-# Update state
 st.session_state.forecasting_tab = selected_tab
 
-# Cache keys for predictions (defined before navigation logic)
+# Cache keys
 full_pred_key = f"full_pred_{selected_model_info.model_path}"
 window_pred_key = f"window_pred_{selected_model_info.model_path}_{start_idx}"
 
-# Imports needed for both tabs
-from dashboard.utils.forecasting import generate_rolling_forecast
-from darts import concatenate
-from darts.metrics import mae, rmse, mape
 
 # =============================================================================
-# TAB: PREDICTIONS
+# GENERATE PREDICTIONS (Compute Logic)
 # =============================================================================
-# =========================================================================
-# GENERATE PREDICTIONS (Runs on every reload/slider change)
-# =========================================================================
 
-# 1. Autoregressive predictions on full test set
+# 1. Autoregressive Predictions on Full Test Set (Once per model load)
 if full_pred_key not in st.session_state:
     with st.spinner("Generating autoregressive predictions on test set..."):
         try:
-            from dashboard.utils.preprocessing import prepare_dataframe_for_darts
-            from darts.metrics import mae, rmse
-            
-            # Prepare series
-            full_series, covariates = prepare_dataframe_for_darts(
-                full_df, target_col, covariate_cols if use_covariates else []
+            # Prepare series using Darts - using PROCESSED data (already normalized)
+            full_series_processed, covariates_processed = prepare_dataframe_for_darts(
+                full_df_processed, target_col, covariate_cols if use_covariates else []
             )
             
-            # Scaling
+            # NO SCALING NEEDED - data is already normalized
+            # Get scalers only for inverse_transform (to get RAW output for display)
             target_preprocessor = scalers.get('target_preprocessor')
-            cov_preprocessor = scalers.get('cov_preprocessor')
             
-            full_series_scaled = full_series
-            covariates_scaled = covariates
-            
-            if target_preprocessor:
-                full_series_scaled = target_preprocessor.transform(full_series)
-            if cov_preprocessor and covariates is not None:
-                covariates_scaled = cov_preprocessor.transform(covariates)
-            
-            # Historical forecasts with stride=1 for one-step on full test
-            first_test_date = test_df.index[0]
-            
+            # Generate TRUE AUTOREGRESSIVE forecasts (multi-step ahead)
             forecast_kwargs = {
-                'series': full_series_scaled,
-                'start': first_test_date,
-                'forecast_horizon': 1,  # One-step each time
-                'stride': 1,
+                'series': full_series_processed,  # Already normalized
+                'start': test_df_processed.index[0],
+                'forecast_horizon': model_horizon,
+                'stride': model_horizon,
                 'retrain': False,
-                'last_points_only': True,
+                'last_points_only': False,
                 'verbose': False
             }
             
-            if covariates_scaled is not None and use_covariates:
+            if covariates_processed is not None and use_covariates:
                 if getattr(model, "uses_past_covariates", False):
-                    forecast_kwargs['past_covariates'] = covariates_scaled
+                    forecast_kwargs['past_covariates'] = covariates_processed
                 if getattr(model, "uses_future_covariates", False):
-                    forecast_kwargs['future_covariates'] = covariates_scaled
+                    forecast_kwargs['future_covariates'] = covariates_processed
             
-            forecasts_scaled = model.historical_forecasts(**forecast_kwargs)
+            forecasts_list = model.historical_forecasts(**forecast_kwargs)
             
-            # Inverse scaling
-            if target_preprocessor:
-                pred_auto_full = target_preprocessor.inverse_transform(forecasts_scaled)
+            # Concatenate the list of forecasts into a single series
+            from darts import concatenate
+            if isinstance(forecasts_list, list) and len(forecasts_list) > 0:
+                forecasts = concatenate(forecasts_list)
             else:
-                pred_auto_full = forecasts_scaled
+                forecasts = forecasts_list
             
-            # Real test series
-            test_series = full_series.slice(test_df.index[0], test_df.index[-1])
+            # Inverse Transform to get RAW predictions for display
+            # Metrics will be computed on NORMALIZED data (forecasts vs full_series_processed)
+            if target_preprocessor:
+                pred_auto_raw = target_preprocessor.inverse_transform(forecasts)
+            else:
+                pred_auto_raw = forecasts
             
-            # Align for metrics
-            common_start = max(pred_auto_full.start_time(), test_series.start_time())
-            common_end = min(pred_auto_full.end_time(), test_series.end_time())
+            # Align with ground truth for metrics - use PROCESSED data for metrics
+            test_series_processed = full_series_processed.slice(
+                test_df_processed.index[0], test_df_processed.index[-1]
+            )
             
-            pred_aligned = pred_auto_full.slice(common_start, common_end)
-            test_aligned = test_series.slice(common_start, common_end)
+            common_start = max(forecasts.start_time(), test_series_processed.start_time())
+            common_end = min(forecasts.end_time(), test_series_processed.end_time())
             
+            pred_aligned = forecasts.slice(common_start, common_end)
+            test_aligned = test_series_processed.slice(common_start, common_end)
+            
+            # Metrics on NORMALIZED data (same scale as training)
             metrics_full = {
                 'MAE': float(mae(test_aligned, pred_aligned)),
                 'RMSE': float(rmse(test_aligned, pred_aligned)),
+                'MAPE': float(mape(test_aligned, pred_aligned)),
+                'R²': float(r2_score(test_aligned, pred_aligned)),
             }
             
             st.session_state[full_pred_key] = {
-                'pred_auto': pred_auto_full, 
-                'target': test_series, 
+                'pred_auto': pred_auto_raw,  # RAW for display
+                'pred_auto_processed': forecasts,  # PROCESSED for SHAP
+                'target_raw': test_series_processed,  # Keep for backwards compat
+                'target_processed': test_series_processed,  # PROCESSED for SHAP
                 'metrics': metrics_full
             }
                 
@@ -262,29 +370,42 @@ if full_pred_key not in st.session_state:
             st.code(traceback.format_exc())
             st.session_state[full_pred_key] = None
 
-# 2. One-step predictions for selected window
+# 2. Window Predictions (When slider moves)
 if window_pred_key not in st.session_state:
-    with st.spinner("Generating one-step predictions for window..."):
+    with st.spinner("Generating predictions for window..."):
         try:
-            _, pred_onestep, target_window, metrics_window, _ = generate_single_window_forecast(
-                model=model, full_df=full_df, target_col=target_col,
+            # Generate forecast for the specific window using PROCESSED data
+            results = generate_single_window_forecast(
+                model=model, 
+                full_df=full_df_processed,  # PROCESSED data
+                target_col=target_col,
                 covariate_cols=covariate_cols if use_covariates else None,
                 preprocessing_config=config.preprocessing if hasattr(config, 'preprocessing') else {},
-                scalers=scalers, start_date=window_start_date, use_covariates=use_covariates
+                scalers=scalers, 
+                start_date=window_start_date, 
+                use_covariates=use_covariates,
+                already_processed=True  # Flag: data is already normalized, don't scale
             )
-            st.session_state[window_pred_key] = {'pred_onestep': pred_onestep, 'target': target_window, 'metrics': metrics_window}
+            # Unpack results: pred_auto, pred_onestep, target, metrics_auto, metrics_onestep, horizon
+            st.session_state[window_pred_key] = {
+                'pred_auto_window': results[0],
+                'pred_onestep': results[1],
+                'target': results[2],
+                'metrics_auto': results[3],
+                'metrics_onestep': results[4]
+            }
         except Exception as e:
             st.error(f"Window prediction error: {e}")
+            import traceback
+            st.code(traceback.format_exc())
             st.session_state[window_pred_key] = None
 
+
 # =============================================================================
-# TAB: PREDICTIONS
+# TAB 1: PREDICTIONS
 # =============================================================================
 if selected_tab == "Predictions":
     
-    # =========================================================================
-    # MAIN CHART: Full Test Set + Highlighted Window
-    # =========================================================================
     st.markdown("### Full Test Set with Window Highlight")
     
     if st.session_state.get(full_pred_key):
@@ -293,15 +414,15 @@ if selected_tab == "Predictions":
         
         fig = go.Figure()
         
-        # 1. Highlight zone for selected window
+        # 1. Highlight Window
         fig.add_vrect(
             x0=window_start_date, x1=window_end_date,
             fillcolor="rgba(255, 200, 0, 0.2)", 
             layer="below", line_width=0,
-            annotation_text="One-Step Window", annotation_position="top left"
+            annotation_text="Analysis Window", annotation_position="top left"
         )
         
-        # 2. Real data (full test)
+        # 2. Ground Truth
         fig.add_trace(go.Scatter(
             x=test_df_raw.index,
             y=test_df_raw[target_col].values,
@@ -310,28 +431,39 @@ if selected_tab == "Predictions":
             line=dict(color='#2E86AB', width=2)
         ))
         
-        # 3. Autoregressive prediction (full test)
+        # 3. Full One-Step Forecasts
+        pred_auto = cached_full['pred_auto']
+        gt_start = test_df_raw.index[0]
+        gt_end = test_df_raw.index[-1]
+        
+        try:
+            pred_auto_sliced = pred_auto.slice(gt_start, gt_end)
+        except:
+            pred_auto_sliced = pred_auto
+        
         fig.add_trace(go.Scatter(
-            x=cached_full['pred_auto'].time_index,
-            y=cached_full['pred_auto'].values().flatten(),
+            x=pred_auto_sliced.time_index,
+            y=pred_auto_sliced.values().flatten(),
             mode='lines',
-            name='Autoregressive Prediction',
-            line=dict(color='#F24236', width=2)
+            name='Historical Forecast (One-Step Rolling)',
+            line=dict(color='#F24236', width=1, dash='dot')
         ))
         
-        # 4. One-Step Prediction (window only)
-        if cached_window and cached_window.get('pred_onestep') is not None:
-            fig.add_trace(go.Scatter(
-                x=cached_window['pred_onestep'].time_index,
-                y=cached_window['pred_onestep'].values().flatten(),
-                mode='lines+markers',
-                name='One-Step Prediction (Window)',
-                line=dict(color='#28A745', width=3),
-                marker=dict(size=6)
-            ))
+        # 4. Window Specific Predictions: Only show One-Step Forecast for the selected window
+        if cached_window:
+            # One-Step Forecast (Window) - The main comparison metric
+            if cached_window.get('pred_onestep') is not None:
+                fig.add_trace(go.Scatter(
+                    x=cached_window['pred_onestep'].time_index,
+                    y=cached_window['pred_onestep'].values().flatten(),
+                    mode='lines+markers',
+                    name='One-Step Forecast (Window)',
+                    line=dict(color='#28A745', width=3),
+                    marker=dict(size=6)
+                ))
         
         fig.update_layout(
-            title=f"{target_col} - Full Test Set",
+            title=f"{target_col} - Test Set Analysis",
             xaxis_title="Date",
             yaxis_title=target_col,
             height=500,
@@ -341,13 +473,11 @@ if selected_tab == "Predictions":
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # =====================================================================
-        # METRICS
-        # =====================================================================
+        # Metrics Display
         col_full, col_window = st.columns(2)
         
         with col_full:
-            st.markdown("**Full Test Metrics (Autoregressive):**")
+            st.markdown("**Test Set Metrics (Autoregressive):**")
             m_cols = st.columns(3)
             for i, (name, value) in enumerate(cached_full['metrics'].items()):
                 with m_cols[i % 3]:
@@ -355,385 +485,336 @@ if selected_tab == "Predictions":
                         st.metric(name, f"{value:.4f}")
         
         with col_window:
-            if cached_window:
+            if cached_window and cached_window.get('pred_onestep') is not None and cached_window.get('target') is not None:
                 st.markdown("**Window Metrics (One-Step):**")
-                m_cols = st.columns(3)
-                for i, (name, value) in enumerate(cached_window['metrics'].items()):
-                    with m_cols[i % 3]:
-                        if value is not None and not pd.isna(value):
-                            st.metric(name, f"{value:.4f}")
-        
-        # =====================================================================
-        # EXPORT CSV
-        # =====================================================================
-        st.markdown("---")
-        st.markdown("### Export Predictions")
-        
-        try:
-            # Align series for export
-            pred_auto = cached_full['pred_auto']
-            target = cached_full['target']
-            
-            # Find temporal intersection
-            common_start = max(pred_auto.start_time(), target.start_time())
-            common_end = min(pred_auto.end_time(), target.end_time())
-            
-            pred_aligned = pred_auto.slice(common_start, common_end)
-            target_aligned = target.slice(common_start, common_end)
-            
-            # Check lengths match
-            pred_vals = pred_aligned.values().flatten()
-            target_vals = target_aligned.values().flatten()
-            dates = pred_aligned.time_index
-            
-            min_len = min(len(dates), len(pred_vals), len(target_vals))
-            
-            if min_len > 0:
-                export_df = pd.DataFrame({
-                    'date': dates[:min_len],
-                    'ground_truth': target_vals[:min_len],
-                    'prediction_autoregressive': pred_vals[:min_len]
-                })
-                
-                col_csv, col_info = st.columns(2)
-                with col_csv:
-                    csv_data = export_df.to_csv(index=False)
-                    st.download_button(
-                        label="Download Predictions (CSV)",
-                        data=csv_data,
-                        file_name=f"predictions_{selected_station}_{config.model_name}.csv",
-                        mime="text/csv",
-                        key="download_csv_predictions"
-                    )
-                
-                with col_info:
-                    st.success(f"{len(export_df)} points available")
+                try:
+                    # Compute metrics directly from cached predictions
+                    pred_os = cached_window['pred_onestep']
+                    target_w = cached_window['target']
+                    
+                    # Align lengths
+                    min_len = min(len(pred_os), len(target_w))
+                    if min_len > 0:
+                        pred_os_aligned = pred_os[:min_len]
+                        target_w_aligned = target_w[:min_len]
+                        
+                        metrics_w = {
+                            'MAE': float(mae(target_w_aligned, pred_os_aligned)),
+                            'RMSE': float(rmse(target_w_aligned, pred_os_aligned)),
+                            'MAPE': float(mape(target_w_aligned, pred_os_aligned)),
+                            'R²': float(r2_score(target_w_aligned, pred_os_aligned)),
+                        }
+                        
+                        m_cols = st.columns(4)
+                        for i, (name, value) in enumerate(metrics_w.items()):
+                            with m_cols[i % 4]:
+                                st.metric(name, f"{value:.4f}")
+                    else:
+                        st.warning("No overlapping data for metrics")
+                except Exception as e:
+                    st.warning(f"Could not compute window metrics: {e}")
             else:
-                st.warning("No data to export - series do not align.")
-                
-        except Exception as e:
-            st.error(f"Export error: {e}")
+                st.info("Window predictions not yet computed")
+    
+    # Export Section
+    st.markdown("---")
+    st.markdown("### Export Predictions")
+    
+    if st.session_state.get(full_pred_key):
+        pred_auto = st.session_state[full_pred_key]['pred_auto']
+        target = st.session_state[full_pred_key].get('target_raw') or st.session_state[full_pred_key].get('target_processed')
+        
+        common_start = max(pred_auto.start_time(), target.start_time())
+        common_end = min(pred_auto.end_time(), target.end_time())
+        pred_aligned = pred_auto.slice(common_start, common_end)
+        target_aligned = target.slice(common_start, common_end)
+        
+        min_len = min(len(pred_aligned), len(target_aligned))
+        
+        if min_len > 0:
+            export_df = pd.DataFrame({
+                'date': pred_aligned.time_index[:min_len],
+                'ground_truth': target_aligned.values().flatten()[:min_len],
+                'prediction_autoregressive': pred_aligned.values().flatten()[:min_len]
+            })
+            
+            col_csv, col_info = st.columns(2)
+            with col_csv:
+                st.download_button(
+                    label="Download Predictions (CSV)",
+                    data=export_df.to_csv(index=False),
+                    file_name=f"predictions_{selected_station}_{config.model_name}.csv",
+                    mime="text/csv"
+                )
+            with col_info:
+                st.success(f"{len(export_df)} points available for download.")
 
-else:  # selected_tab == "Explainability"
+# =============================================================================
+# TAB 2: EXPLAINABILITY (TimeSHAP)
+# =============================================================================
+else:
     st.markdown("### Model Interpretation")
     
-    from dashboard.utils.explainability import (
-        compute_correlation_importance,
-        compute_lag_importance,
-        compute_residual_analysis,
-        plot_feature_importance_bar,
-        plot_lag_importance,
-        plot_residual_histogram,
-        plot_residual_timeline
-    )
-    
-    # Sub-tabs with persistent state
     if 'explain_subtab' not in st.session_state:
-        st.session_state.explain_subtab = "Global Analysis"
+        st.session_state.explain_subtab = "Local Explanations"
         
     sub_tab = st.radio(
         "Sub-Navigation",
-        ["Global Analysis", "TimeSHAP", "Quality"],
+        ["Local Explanations", "Global Explanations"],
         horizontal=True,
-        key="explain_subtab_radio",
-        index=["Global Analysis", "TimeSHAP", "Quality"].index(st.session_state.explain_subtab),
+        index=["Local Explanations", "Global Explanations"].index(st.session_state.explain_subtab),
         label_visibility="collapsed"
     )
     st.session_state.explain_subtab = sub_tab
     
     st.markdown("---")
     
-    # =========================================================================
-    # GLOBAL ANALYSIS
-    # =========================================================================
-    if sub_tab == "Global Analysis":
-        # First show charts
-        st.markdown("#### Predictions Overview")
-        
-        if st.session_state.get(full_pred_key):
-            cached = st.session_state[full_pred_key]
-            try:
-                fig = go.Figure()
-                
-                # Ground Truth
-                fig.add_trace(go.Scatter(
-                    x=test_df_raw.index,
-                    y=test_df_raw[target_col].values,
-                    mode='lines', name='Ground Truth',
-                    line=dict(color='#2E86AB', width=2)
-                ))
-                
-                # Predicted (autoregressive)
-                pred_auto = cached['pred_auto']
-                fig.add_trace(go.Scatter(
-                    x=pred_auto.time_index,
-                    y=pred_auto.values().flatten(),
-                    mode='lines', name='Autoregressive',
-                    line=dict(color='#F24236', width=2)
-                ))
-                
-                fig.update_layout(
-                    title="Autoregressive Predictions on Test Set",
-                    height=350,
-                    hovermode='x unified',
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02)
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Erreur: {e}")
-        else:
-            st.info("Go back to Predictions tab to generate charts.")
-        
-        st.markdown("---")
-        
-        # Feature and Lag importance side-by-side
-        col_feat, col_lag = st.columns(2)
-        
-        with col_feat:
-            st.markdown("#### Feature Importance")
-            st.caption("Higher bar means stronger correlation with target.")
-            
-            if use_covariates and covariate_cols:
-                corr_importance = compute_correlation_importance(test_df_raw, target_col, covariate_cols)
-                if corr_importance:
-                    fig = plot_feature_importance_bar(corr_importance, "Correlation with Target")
-                    st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No covariates in this model.")
-        
-        with col_lag:
-            st.markdown("#### Lag Importance")
-            st.caption("Shows autocorrelation: high value at t-7 implies weekly pattern.")
-            
-            lag_importance = compute_lag_importance(test_df_raw, target_col, max_lag=input_chunk)
-            if lag_importance:
-                fig = plot_lag_importance(lag_importance, input_chunk)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Interpretation
-                peak_lag = max(lag_importance.keys(), key=lambda k: lag_importance[k])
-                if peak_lag <= 3:
-                    st.success(f"Model relies mostly on last **{peak_lag} days**")
-                elif peak_lag == 7:
-                    st.info("Weekly pattern detected (peak at t-7)")
-                else:
-                    st.info(f"Importance peak at **t-{peak_lag}**")
-    
-    # =========================================================================
-    # TIMESHAP TAB
-    # =========================================================================
-    # =========================================================================
-    # TIMESHAP TAB
-    # =========================================================================
-    elif sub_tab == "TimeSHAP":
+    # -------------------------------------------------------------------------
+    # SUB-TAB: LOCAL (Window)
+    # -------------------------------------------------------------------------
+    if sub_tab == "Local Explanations":
         st.markdown("#### Local SHAP Analysis")
-        st.caption("Use top slider to navigate between windows")
+        st.caption("Explains which features and past days influenced this specific prediction window.")
         
-        # Full chart with yellow window AND one-step inside
-        fig_full = go.Figure()
+        cached_window = st.session_state.get(window_pred_key)
         
-        # Ground Truth
-        fig_full.add_trace(go.Scatter(
-            x=test_df_raw.index,
-            y=test_df_raw[target_col].values,
-            mode='lines', name='Ground Truth',
-            line=dict(color='#2E86AB', width=1.5)
-        ))
+        # Prepare Context Data (Input Chunk)
+        display_start = window_start_date - timedelta(days=input_chunk)
+        display_end = window_end_date
         
-        # One-step predictions in window (if available)
-        window_pred_key_local = f"window_pred_{selected_model_info.model_path}_{start_idx}"
-        cached_window = st.session_state.get(window_pred_key_local)
-        if cached_window and cached_window.get('pred_onestep') is not None:
-            try:
-                pred_window = cached_window['pred_onestep']
-                fig_full.add_trace(go.Scatter(
-                    x=pred_window.time_index,
-                    y=pred_window.values().flatten(),
-                    mode='lines+markers', name='One-step',
-                    line=dict(color='#2ca02c', width=2.5),
-                    marker=dict(size=5)
+        window_mask = (test_df_raw.index >= display_start) & (test_df_raw.index <= display_end)
+        window_df = test_df_raw.loc[window_mask].copy()
+        
+        if len(window_df) > 0:
+            # 1. Context Chart
+            fig_target = go.Figure()
+            
+            # Highlight Prediction
+            fig_target.add_vrect(
+                x0=window_start_date, x1=window_end_date,
+                fillcolor="rgba(255, 200, 0, 0.15)", line_color="orange",
+                annotation_text="Prediction", annotation_position="top right"
+            )
+            fig_target.add_vline(x=window_start_date, line_dash="dash", line_color="orange")
+            
+            fig_target.add_trace(go.Scatter(
+                x=window_df.index,
+                y=window_df[target_col].values,
+                mode='lines+markers', name='Ground Truth',
+                line=dict(color='#2E86AB'), marker=dict(size=4)
+            ))
+            
+            if cached_window and cached_window.get('pred_onestep') is not None:
+                pred = cached_window['pred_onestep']
+                fig_target.add_trace(go.Scatter(
+                    x=pred.time_index, y=pred.values().flatten(),
+                    mode='lines+markers', name='One-Step Prediction',
+                    line=dict(color='#28A745'), marker=dict(size=6, symbol='diamond')
                 ))
-            except:
-                pass
-        
-        # Yellow window
-        fig_full.add_vrect(
-            x0=window_start_date, x1=window_end_date,
-            fillcolor="rgba(255, 200, 0, 0.2)", 
-            layer="below", line_width=2,
-            line_color="orange"
-        )
-        
-        fig_full.update_layout(
-            title="Global View - Analyzed Window (Yellow) with One-Step Predictions (Green)",
-            height=280,
-            margin=dict(l=10, r=10, t=40, b=20),
-            hovermode='x unified',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02)
-        )
-        st.plotly_chart(fig_full, use_container_width=True)
-        
-        # Message if no one-step
-        window_df = test_df_raw.loc[window_start_date:window_end_date]
-        window_pred_key_check = f"window_pred_{selected_model_info.model_path}_{start_idx}"
-        cached_check = st.session_state.get(window_pred_key_check)
-        # Warning removed as predictions are now auto-generated
+            
+            fig_target.update_layout(
+                title=f"📈 Context ({input_chunk}d) + Prediction Window",
+                height=300, margin=dict(l=10, r=10, t=40, b=20),
+                hovermode='x unified'
+            )
+            st.plotly_chart(fig_target, use_container_width=True)
+            
+            # 2. Covariates Display
+            # Filter standard computed features to avoid clutter
+            computed_patterns = ['day_of_week', 'month', 'sin', 'cos', 'weekday']
+            base_covariates = [
+                col for col in covariate_cols 
+                if col in window_df.columns and not any(p in col.lower() for p in computed_patterns)
+            ]
+            
+            if base_covariates:
+                st.markdown(f"##### 📊 Covariates ({len(base_covariates)})")
+                colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+                
+                for i, feat_col in enumerate(base_covariates):
+                    c1, c2 = st.columns([5, 1])
+                    with c1:
+                        fig_cov = go.Figure()
+                        fig_cov.add_trace(go.Scatter(
+                            x=window_df.index, y=window_df[feat_col].values,
+                            mode='lines', name=feat_col,
+                            line=dict(color=colors[i % len(colors)])
+                        ))
+                        fig_cov.update_layout(
+                            title=dict(text=feat_col, font=dict(size=12)),
+                            height=80, margin=dict(l=0, r=0, t=20, b=0),
+                            showlegend=False, xaxis=dict(showticklabels=False)
+                        )
+                        st.plotly_chart(fig_cov, use_container_width=True)
+                    with c2:
+                        vals = window_df[feat_col].values
+                        st.markdown(f"""
+                        <div style='font-size:10px; padding-top:20px;'>
+                        <b>Mean:</b> {vals.mean():.2f}<br>
+                        <b>Min/Max:</b> {vals.min():.2f} / {vals.max():.2f}
+                        </div>
+                        """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        st.info("""
-        **SHAP Analysis**: Which features and days influenced this prediction?
-        - Green = Positive contribution (increases prediction)
-        - Red = Negative contribution (decreases prediction)
-        """)
-        
-        # Auto-run SHAP analysis for the current window
+        # 3. SHAP Computation
         shap_cache_key = f"shap_{selected_model_info.model_path}_{start_idx}"
         
         if shap_cache_key not in st.session_state:
-            with st.spinner("Calculating SHAP contributions (this may take a few seconds)..."):
+            with st.spinner("Calculating local SHAP importance..."):
                 try:
-                    from dashboard.utils.timeshap_wrapper import (
-                        DartsModelWrapper,
-                        prepare_timeshap_data,
-                        compute_timeshap_simple,
-                        plot_timeshap_event,
-                        plot_timeshap_feature
-                    )
+                    from timeshap.explainer import local_report
                     
-                    # Create wrapper
+                    # Wrapper
                     model_wrapper = DartsModelWrapper(
                         model=model,
                         input_chunk_length=input_chunk,
                         forecast_horizon=1
                     )
                     
-                    # Prepare data
-                    window_data, feature_names = prepare_timeshap_data(
-                        test_df_raw,
-                        target_col,
-                        covariate_cols if use_covariates else [],
-                        window_start=start_idx,
-                        window_length=min(input_chunk, len(test_df_raw) - start_idx, 30)
+                    # Prepare Data for TimeSHAP
+                    feature_names = [target_col] + [c for c in covariate_cols if c in test_df.columns]
+                    
+                    window_length = min(input_chunk, len(test_df) - start_idx)
+                    window_shap_df = test_df.iloc[start_idx:start_idx + window_length]
+                    
+                    # Build rows explicitly
+                    rows = []
+                    actual_features = [f for f in feature_names if f in window_shap_df.columns]
+                    for t, (_, row) in enumerate(window_shap_df.iterrows()):
+                        data_row = {'entity': 'seq_0', 't': t}
+                        for f_name in actual_features:
+                            data_row[f_name] = float(row[f_name])
+                        rows.append(data_row)
+                    data_df = pd.DataFrame(rows)
+                    
+                    # Baseline (Mean)
+                    baseline_rows = []
+                    for t in range(window_length):
+                        b_row = {f: float(test_df[f].mean()) for f in actual_features}
+                        baseline_rows.append(b_row)
+                    baseline_df = pd.DataFrame(baseline_rows)
+                    
+                    # Config
+                    pruning_dict = {'tol': 0.025}
+                    event_dict = {'rs': 42, 'nsamples': 50}
+                    feature_dict = {
+                        'rs': 42, 
+                        'nsamples': 50,
+                        'plot_features': {f"Feature {i}": f for i, f in enumerate(actual_features)}
+                    }
+                    
+                    # Run TimeSHAP
+                    plot = local_report(
+                        f=model_wrapper,
+                        data=data_df,
+                        entity_uuid='seq_0',
+                        entity_col='entity',
+                        time_col='t',
+                        model_features=actual_features,
+                        baseline=baseline_df,
+                        pruning_dict=pruning_dict,
+                        event_dict=event_dict,
+                        feature_dict=feature_dict
                     )
                     
-                    # Compute SHAP
-                    result = compute_timeshap_simple(
-                        model_wrapper, 
-                        window_data, 
-                        feature_names,
-                        n_samples=50
-                    )
+                    st.session_state[shap_cache_key] = {'success': True, 'plot': plot}
                     
-                    if result['success']:
-                        st.session_state[shap_cache_key] = result
-                    else:
-                        st.error(f"Error: {result.get('error', 'Unknown')}")
-                        st.session_state[shap_cache_key] = None
-                        
                 except Exception as e:
-                    st.error(f"Error: {e}")
-                    import traceback
-                    with st.expander("Details"):
-                        st.code(traceback.format_exc())
-                    st.session_state[shap_cache_key] = None
-        
-        # Display results
-        if st.session_state.get(shap_cache_key):
-            result = st.session_state[shap_cache_key]
-            
-            if result.get('success'):
-                from dashboard.utils.timeshap_wrapper import plot_timeshap_event, plot_timeshap_feature
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("##### Important Past Days")
-                    fig = plot_timeshap_event(result['event_data'])
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    st.markdown("##### Influential Features")
-                    fig = plot_timeshap_feature(result['feat_data'], result['feature_names'])
-                    st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.markdown("👆 Click **Analyze this window** to see SHAP contributions")
-    
-    # =========================================================================
-    # PREDICTION QUALITY (RESIDUALS)
-    # =========================================================================
-    # =========================================================================
-    # PREDICTION QUALITY (RESIDUALS)
-    # =========================================================================
-    elif sub_tab == "Quality":
-        st.markdown("#### Prediction Quality")
-        
-        st.markdown("""
-        > **Residuals** = Model Error = Ground Truth - Predicted
-        > - Residuals > 0: Model under-estimates
-        > - Residuals < 0: Model over-estimates
-        > - Ideally, residuals are centered around 0 (no bias)
-        """)
-        
-        if st.session_state.get(full_pred_key):
-            cached = st.session_state[full_pred_key]
-            
+                    st.error(f"TimeSHAP Error: {e}")
+                    st.session_state[shap_cache_key] = {'success': False, 'error': str(e)}
+
+        # Display Result
+        result = st.session_state.get(shap_cache_key)
+        if result and result.get('success'):
+            st.markdown("###  TimeSHAP Report")
             try:
-                pred = cached['pred_auto']
-                target = cached['target']
-                
-                common_start = max(pred.start_time(), target.start_time())
-                common_end = min(pred.end_time(), target.end_time())
-                
-                pred_slice = pred.slice(common_start, common_end)
-                target_slice = target.slice(common_start, common_end)
-                
-                pred_vals = pred_slice.values().flatten()
-                target_vals = target_slice.values().flatten()
-                dates = pred_slice.time_index
-                
-                residuals = target_vals - pred_vals
-                
-                # Metrics
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    mean_res = np.mean(residuals)
-                    st.metric("Mean Bias", f"{mean_res:+.4f}", 
-                              delta="under-estimates" if mean_res > 0.01 else ("over-estimates" if mean_res < -0.01 else "OK"),
-                              delta_color="inverse" if abs(mean_res) > 0.01 else "off")
-                with col2:
-                    st.metric("Std Dev", f"{np.std(residuals):.4f}")
-                with col3:
-                    st.metric("Max Error", f"{np.max(np.abs(residuals)):.4f}")
-                with col4:
-                    # Proportion within ±1 std
-                    in_range = np.sum(np.abs(residuals) <= np.std(residuals)) / len(residuals) * 100
-                    st.metric("In ±1σ", f"{in_range:.0f}%")
-                
-                st.markdown("---")
-                
-                # Charts
-                col_hist, col_time = st.columns(2)
-                
-                with col_hist:
-                    st.markdown("##### Error Distribution")
-                    st.caption("Good models have errors centered around 0 (red line)")
-                    fig = plot_residual_histogram(residuals)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col_time:
-                    st.markdown("##### Errors over Time")
-                    st.caption("Check for patterns (model might be missing something)")
-                    fig = plot_residual_timeline(dates, residuals)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-
-                    
+                st.altair_chart(result['plot'], use_container_width=True)
             except Exception as e:
-                st.error(f"Erreur: {e}")
-        else:
-            st.info("Go back to **Predictions** tab to generate charts.")
+                st.warning(f"Error rendering chart: {e}")
+        elif result:
+            st.warning("SHAP calculation failed.")
+    
+    # -------------------------------------------------------------------------
+    # SUB-TAB: GLOBAL (Aggregated)
+    # -------------------------------------------------------------------------
+    elif sub_tab == "Global Explanations":
+        st.markdown("#### Global Feature Importance")
+        st.caption("Aggregated SHAP values across multiple windows.")
+        
+        global_shap_key = f"global_shap_{selected_model_info.model_path}"
+        
+        if st.button("🔍 Compute Global SHAP") or global_shap_key in st.session_state:
+             if global_shap_key not in st.session_state or st.session_state.get(global_shap_key, {}).get('success') is False:
+                with st.spinner("Computing global importance (sub-sampling)..."):
+                    try:
+                        from timeshap.explainer.global_methods import calc_global_explanations
+                        
+                        model_wrapper = DartsModelWrapper(
+                            model=model,
+                            input_chunk_length=input_chunk,
+                            forecast_horizon=1
+                        )
+                        
+                        feature_names = [target_col] + [c for c in covariate_cols if c in test_df.columns]
+                        actual_features = [f for f in feature_names if f in test_df.columns]
+                        
+                        # Sub-sample 5 windows for speed
+                        n_samples = 5
+                        max_start = len(test_df) - input_chunk - 1
+                        sample_positions = np.linspace(0, max_start, n_samples, dtype=int)
+                        
+                        # Build Data
+                        all_rows = []
+                        for seq_idx, s_idx in enumerate(sample_positions):
+                            window_shap_df = test_df.iloc[s_idx:s_idx + input_chunk]
+                            for t, (_, row) in enumerate(window_shap_df.iterrows()):
+                                data_row = {'entity': f'seq_{seq_idx}', 't': t}
+                                for f in actual_features:
+                                    data_row[f] = float(row[f])
+                                all_rows.append(data_row)
+                        data_df = pd.DataFrame(all_rows)
+                        
+                        # Baseline
+                        baseline_rows = [{f: float(test_df[f].mean()) for f in actual_features} for _ in range(input_chunk)]
+                        baseline_df = pd.DataFrame(baseline_rows)
+                        
+                        # Calculate
+                        _, _, feature_data = calc_global_explanations(
+                            f=model_wrapper,
+                            data=data_df,
+                            entity_col='entity',
+                            time_col='t',
+                            model_features=actual_features,
+                            baseline=baseline_df,
+                            pruning_dict={'tol': 0.025},
+                            event_dict={'rs': 42, 'nsamples': 50},
+                            feature_dict={'rs': 42, 'nsamples': 50},
+                            verbose=False
+                        )
+                        
+                        # Aggregate
+                        # Map generic Feature names back if needed, but assuming direct mapping for now
+                        if 'Feature' in feature_data.columns and feature_data['Feature'].str.startswith("Feature ").all():
+                             feature_map = {f"Feature {i}": name for i, name in enumerate(actual_features)}
+                             feature_data['Feature'] = feature_data['Feature'].map(feature_map)
+                        
+                        global_importance = feature_data.groupby('Feature')['Shapley Value'].apply(lambda x: x.abs().mean()).reset_index()
+                        
+                        # Chart
+                        chart = alt.Chart(global_importance).mark_bar().encode(
+                            x=alt.X('Shapley Value', title='Mean |Shapley Value|'),
+                            y=alt.Y('Feature', sort='-x'),
+                            tooltip=['Feature', 'Shapley Value']
+                        ).properties(title='Global Feature Importance').interactive()
+                        
+                        st.session_state[global_shap_key] = {'success': True, 'plot': chart}
+                        
+                    except Exception as e:
+                         st.error(f"Global SHAP error: {e}")
+                         st.session_state[global_shap_key] = {'success': False}
 
-# Footer
-st.markdown("---")
-st.caption("Use the top slider to explore different windows.")
+             # Display
+             res = st.session_state.get(global_shap_key)
+             if res and res.get('success'):
+                 st.altair_chart(res['plot'], use_container_width=True)
