@@ -1,4 +1,4 @@
-"""Model training page with extended Darts model support."""
+﻿"""Model training page with extended Darts model support."""
 
 import streamlit as st
 import pandas as pd
@@ -29,9 +29,9 @@ from dashboard.utils.callbacks import StreamlitProgressCallback
 from dashboard.utils.export import add_download_button
 
 
-st.set_page_config(page_title="Train Models", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Train Models", page_icon="", layout="wide")
 
-st.title("🎯 Train Models")
+st.title(" Train Models")
 st.markdown("Forecasting model training with configurable preprocessing.")
 st.markdown("---")
 
@@ -71,7 +71,7 @@ if prepared_datasets:
                 """)
             
             with col_load:
-                if st.button("📥 Load Dataset", type="primary"):
+                if st.button(" Load Dataset", type="primary"):
                     try:
                         df_loaded, config = dataset_registry.load_dataset(selected_dataset)
                         
@@ -93,16 +93,16 @@ if prepared_datasets:
                         st.session_state['training_preprocessing'] = selected_dataset.preprocessing
                         st.session_state['training_data_configured'] = True
                         
-                        st.success(f"✅ Dataset '{selected_dataset.name}' loaded!")
+                        st.success(f" Dataset '{selected_dataset.name}' loaded!")
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"❌ Error loading dataset: {e}")
+                        st.error(f" Error loading dataset: {e}")
 
 # Check if data is loaded
 if 'training_data_configured' not in st.session_state or not st.session_state['training_data_configured']:
-    st.warning("⚠️ No data loaded")
-    st.info("👉 Go back to **Dataset Preparation** to load a CSV file, or load a prepared dataset above")
+    st.warning(" No data loaded")
+    st.info(" Go back to **Dataset Preparation** to load a CSV file, or load a prepared dataset above")
     st.stop()
 
 # Get data
@@ -111,10 +111,10 @@ target_var = st.session_state['training_target_var']
 covariate_vars = st.session_state['training_covariate_vars']
 preprocessing_config = st.session_state['training_preprocessing']
 
-st.success(f"✅ Data loaded: **{st.session_state['training_filename']}**")
+st.success(f" Data loaded: **{st.session_state['training_filename']}**")
 
 # Show preprocessing summary
-with st.expander("📋 Configured Preprocessing Summary"):
+with st.expander(" Configured Preprocessing Summary"):
     st.markdown(get_preprocessing_summary(preprocessing_config))
 
 st.markdown("---")
@@ -123,7 +123,7 @@ st.markdown("---")
 # ============================================================================
 # DATA SELECTION
 # ============================================================================
-st.subheader("1️⃣ Data Selection")
+st.subheader(" Data Selection")
 
 if is_multistation:
     df_raw = st.session_state['training_data_raw']
@@ -138,7 +138,7 @@ if is_multistation:
         
         if select_all:
             selected_stations = stations
-            st.info(f"📍 All **{len(stations)} stations** selected for training")
+            st.info(f" All **{len(stations)} stations** selected for training")
         else:
             selected_stations = st.multiselect(
                 "Select stations to train",
@@ -148,7 +148,7 @@ if is_multistation:
             )
             
             if not selected_stations:
-                st.warning("⚠️ Please select at least one station")
+                st.warning(" Please select at least one station")
                 st.stop()
 
     with col2:
@@ -164,7 +164,7 @@ if is_multistation:
             )
             
             if "Global" in training_strategy:
-                st.info("🌍 Training one Global Model on all selected stations.")
+                st.info(" Training one Global Model on all selected stations.")
             else:
                 st.caption("Models will be trained successively")
         else:
@@ -175,7 +175,7 @@ else:
     filename = st.session_state.get('training_filename', 'station_data')
     station_name = Path(filename).stem
     selected_stations = [station_name]
-    st.info(f"📊 Single-station data detected: {station_name}")
+    st.info(f" Single-station data detected: {station_name}")
 
 st.markdown("---")
 
@@ -183,7 +183,7 @@ st.markdown("---")
 # ============================================================================
 # MODEL SELECTION
 # ============================================================================
-st.subheader("2️⃣ Model Selection")
+st.subheader(" Model Selection")
 
 col1, col2 = st.columns([1, 2])
 
@@ -221,11 +221,11 @@ with col2:
 
         capabilities = []
         if model_info['multivariate']:
-            capabilities.append("✅ Multivariate")
+            capabilities.append(" Multivariate")
         if model_info['supports_past_covariates']:
-            capabilities.append("✅ Past covariates")
+            capabilities.append(" Past covariates")
         if model_info['supports_future_covariates']:
-            capabilities.append("✅ Future covariates")
+            capabilities.append(" Future covariates")
 
         if capabilities:
             st.markdown("**Capabilities**: " + " | ".join(capabilities))
@@ -238,7 +238,7 @@ st.markdown("---")
 # ============================================================================
 # TRAINING CONFIGURATION
 # ============================================================================
-st.subheader("3️⃣ Training Configuration")
+st.subheader(" Training Configuration")
 
 col1, col2, col3 = st.columns(3)
 
@@ -278,7 +278,7 @@ with col3:
 # Model-Specific Hyperparameters
 st.markdown("##### Model-Specific Hyperparameters")
 
-with st.expander(f"⚙️ Configure {selected_model} hyperparameters"):
+with st.expander(f" Configure {selected_model} hyperparameters"):
     hyperparams = {
         'input_chunk_length': input_chunk,
         'output_chunk_length': output_chunk,
@@ -354,19 +354,19 @@ st.markdown("---")
 # ============================================================================
 # TRAINING MODE
 # ============================================================================
-st.subheader("4️⃣ Training Mode")
+st.subheader(" Training Mode")
 
 col_mode, col_options = st.columns([1, 2])
 
 with col_mode:
     training_mode = st.radio(
         "Mode",
-        options=["🎯 Manual", "🧪 Optuna"],
+        options=[" Manual", " Optuna"],
         help="**Manual**: You define hyperparameters. **Optuna**: Automatic optimization."
     )
 
 with col_options:
-    if training_mode == "🧪 Optuna":
+    if training_mode == " Optuna":
         st.markdown("##### Optuna Configuration")
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -376,7 +376,7 @@ with col_options:
         with c3:
             optuna_timeout = st.number_input("Timeout (min)", 5, 120, 30, help="Max time in minutes")
         
-        st.info("💡 Optuna will test different hyperparameter combinations to find the best one.")
+        st.info(" Optuna will test different hyperparameter combinations to find the best one.")
     
     # Early Stopping
     if ModelFactory.is_torch_model(selected_model):
@@ -399,14 +399,14 @@ st.markdown("---")
 # ============================================================================
 # START TRAINING
 # ============================================================================
-st.subheader("5️⃣ Start Training")
+st.subheader(" Start Training")
 
 # Validation checks
 if ModelFactory.is_torch_model(selected_model):
     normalization = preprocessing_config.get('normalization', 'None')
     if normalization == 'None':
         st.warning("""
-        ⚠️ **Warning**: No normalization selected for Deep Learning model.
+         **Warning**: No normalization selected for Deep Learning model.
         This strongly increases the risk of convergence failure (NaN loss).
         Recommend: StandardScaler or MinMax.
         """)
@@ -414,13 +414,13 @@ if ModelFactory.is_torch_model(selected_model):
         if not force_normalization:
             st.stop()
 
-button_label = "🧪 Start Optuna Optimization" if training_mode == "🧪 Optuna" else "🚀 Start Training"
+button_label = " Start Optuna Optimization" if training_mode == " Optuna" else " Start Training"
 
 if st.button(button_label, type="primary", use_container_width=True):
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    st.markdown("### 📈 Training Progress")
+    st.markdown("###  Training Progress")
     epoch_progress = st.progress(0)
     epoch_status = st.empty()
     epoch_metrics = st.empty()
@@ -443,7 +443,7 @@ if st.button(button_label, type="primary", use_container_width=True):
         }
 
         for idx, station_name in enumerate(selected_stations):
-            status_text.text(f"📊 Station {idx+1}/{len(selected_stations)}: {station_name}")
+            status_text.text(f" Station {idx+1}/{len(selected_stations)}: {station_name}")
             
             station_covariate_vars = list(covariate_vars)
 
@@ -473,7 +473,7 @@ if st.button(button_label, type="primary", use_container_width=True):
             # 3. Duplicates
             if df_station.index.duplicated().any():
                 n_dupes = df_station.index.duplicated().sum()
-                status_text.text(f"⚠️ {n_dupes} duplicates detected: aggregating by mean...")
+                status_text.text(f" {n_dupes} duplicates detected: aggregating by mean...")
                 df_station = df_station.groupby(df_station.index).mean()
             
             # 4. Time Features
@@ -490,7 +490,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                 
                 datetime_cols = ['day_of_week', 'month', 'day_sin', 'day_cos', 'month_sin', 'month_cos']
                 station_covariate_vars += datetime_cols
-                status_text.text(f"📅 Time features added ({len(datetime_cols)} cols)")
+                status_text.text(f" Time features added ({len(datetime_cols)} cols)")
             
             # 5. Lags
             lags = preprocessing_config.get('lags', [])
@@ -499,7 +499,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                     df_station[f'{target_var}_lag_{lag}'] = df_station[target_var].shift(lag)
                 df_station = df_station.dropna()
                 station_covariate_vars += [f'{target_var}_lag_{lag}' for lag in lags]
-                status_text.text(f"📊 Lags added: {lags}")
+                status_text.text(f" Lags added: {lags}")
             
             # 6. Darts Conversion - Ensure index is DatetimeIndex
             from darts import TimeSeries
@@ -524,7 +524,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                 train_cov_raw = val_cov_raw = test_cov_raw = None
 
             # 8. Normalization (Fit on Train)
-            status_text.text(f"⚙️ Normalization...")
+            status_text.text(f" Normalization...")
             target_preprocessor = TimeSeriesPreprocessor(preprocessing_config)
             train = target_preprocessor.fit_transform(train_raw)
             val = target_preprocessor.transform(val_raw)
@@ -543,7 +543,7 @@ if st.button(button_label, type="primary", use_container_width=True):
 
             # Check for NaNs
             if np.isnan(train.values()).any() or np.isnan(val.values()).any():
-                st.error("❌ NaN values detected after preprocessing! Use a different missing value strategy.")
+                st.error(" NaN values detected after preprocessing! Use a different missing value strategy.")
                 st.stop()
 
             # 9. Global Accumulation or training
@@ -581,8 +581,8 @@ if st.button(button_label, type="primary", use_container_width=True):
                 pl_trainer_kwargs = {'callbacks': callbacks_list}
 
             # OPTUNA
-            if training_mode == "🧪 Optuna":
-                status_text.text(f"🧪 Optuna optimization for {station_name}...")
+            if training_mode == " Optuna":
+                status_text.text(f" Optuna optimization for {station_name}...")
                 
                 # Optuna Logic Block
                 import optuna
@@ -637,7 +637,7 @@ if st.button(button_label, type="primary", use_container_width=True):
 
         # 11. Global Training Execution
         if is_global_mode and global_data['train']:
-            status_text.text(f"🌍 Training Global Model on {len(selected_stations)} stations...")
+            status_text.text(f" Training Global Model on {len(selected_stations)} stations...")
             
             callbacks_list = []
             pl_trainer_kwargs = None
@@ -676,11 +676,11 @@ if st.button(button_label, type="primary", use_container_width=True):
             results_all_stations["Global_Model"] = training_results
 
         progress_bar.progress(100)
-        status_text.text("✅ Training sequence completed!")
-        st.success("🎉 All training tasks finished.")
+        status_text.text(" Training sequence completed!")
+        st.success(" All training tasks finished.")
 
         # Display Results
-        st.markdown("### 📊 Results Summary")
+        st.markdown("###  Results Summary")
         
         def format_metric(value, fmt=".4f", suffix=""):
             """Safely format a metric that might be a list or scalar."""
@@ -697,7 +697,7 @@ if st.button(button_label, type="primary", use_container_width=True):
         summary_data = []
         for station, res in results_all_stations.items():
             metrics = res.get('metrics', {})
-            status = '✅ Success' if res['status'] == 'success' else '❌ Error'
+            status = ' Success' if res['status'] == 'success' else ' Error'
             summary_data.append({
                 'Station': station,
                 'Status': status,
@@ -706,7 +706,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                 'R²': format_metric(metrics.get('R2')),
                 'MAPE': format_metric(metrics.get('MAPE'), ".2f", "%"),
                 'sMAPE': format_metric(metrics.get('sMAPE'), ".2f", "%"),
-                'Saved': '✅' if 'saved_path' in res else '❌'
+                'Saved': '' if 'saved_path' in res else ''
             })
         
         st.dataframe(pd.DataFrame(summary_data), use_container_width=True, hide_index=True)
@@ -714,7 +714,7 @@ if st.button(button_label, type="primary", use_container_width=True):
         # Show errors if any
         for station, res in results_all_stations.items():
             if res['status'] == 'error' and 'error' in res:
-                with st.expander(f"❌ Error details for {station}", expanded=True):
+                with st.expander(f" Error details for {station}", expanded=True):
                     st.error(res.get('error', 'Unknown error'))
                     if 'traceback' in res:
                         st.code(res['traceback'])
@@ -728,9 +728,10 @@ if st.button(button_label, type="primary", use_container_width=True):
                     add_download_button(path.parent, key_suffix=f"dl_{station}")
 
     except Exception as e:
-        st.error(f"❌ Critical Error: {e}")
+        st.error(f" Critical Error: {e}")
         import traceback
         st.code(traceback.format_exc())
 
 # Footer
 st.markdown("---")
+

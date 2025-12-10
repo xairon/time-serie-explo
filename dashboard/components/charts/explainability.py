@@ -1,4 +1,4 @@
-"""Composants graphiques pour l'explicabilité."""
+﻿"""Composants graphiques pour l'explicabilité."""
 
 import streamlit as st
 import pandas as pd
@@ -35,9 +35,9 @@ def render_explainability_tabs(
     )
     
     tab_overview, tab_temporal, tab_local = st.tabs([
-        "📊 Vue d'ensemble",
+        " Vue d'ensemble",
         "⏱️ Temporel", 
-        "🎯 Analyse locale"
+        " Analyse locale"
     ])
     
     covariate_cols = config.columns.get('covariates', [])
@@ -70,14 +70,14 @@ def _render_overview_tab(model, series, past_covariates, covariate_cols):
         create_explanation_summary
     )
     
-    st.markdown("### 📊 Importance des Features")
+    st.markdown("###  Importance des Features")
     st.info("Analyse de l'importance globale des covariables par permutation.")
     
     if not covariate_cols or past_covariates is None:
         st.warning("Pas de covariables disponibles pour l'analyse.")
         return
     
-    if st.button("🔄 Calculer l'importance", key="calc_importance"):
+    if st.button(" Calculer l'importance", key="calc_importance"):
         with st.spinner("Calcul en cours (peut prendre quelques minutes)..."):
             try:
                 importance = compute_feature_importance_permutation(
@@ -104,7 +104,7 @@ def _render_temporal_tab(model, series, past_covariates, input_chunk):
     st.markdown("### ⏱️ Importance Temporelle")
     st.info("Quels jours passés influencent le plus la prédiction ?")
     
-    if st.button("🔄 Calculer l'importance temporelle", key="calc_temporal"):
+    if st.button(" Calculer l'importance temporelle", key="calc_temporal"):
         with st.spinner("Analyse temporelle en cours..."):
             try:
                 temporal_imp = compute_temporal_importance(
@@ -120,9 +120,9 @@ def _render_temporal_tab(model, series, past_covariates, input_chunk):
                     distant_imp = temporal_imp[7:].mean() if len(temporal_imp) > 7 else 0
                     
                     if recent_imp > distant_imp * 1.5:
-                        st.success("📈 Les jours récents sont les plus influents.")
+                        st.success(" Les jours récents sont les plus influents.")
                     else:
-                        st.info("📊 L'influence est répartie sur toute la fenêtre.")
+                        st.info(" L'influence est répartie sur toute la fenêtre.")
             except Exception as e:
                 st.error(f"Erreur: {e}")
 
@@ -134,7 +134,7 @@ def _render_local_tab(model, series, past_covariates, predictions_dates, covaria
         plot_waterfall_explanation
     )
     
-    st.markdown("### 🎯 Explication Locale")
+    st.markdown("###  Explication Locale")
     st.info("Analyse détaillée d'une prédiction spécifique.")
     
     if len(predictions_dates) == 0:
@@ -148,7 +148,7 @@ def _render_local_tab(model, series, past_covariates, predictions_dates, covaria
         key="local_date_select"
     )
     
-    if st.button("🔍 Analyser cette prédiction", key="calc_local"):
+    if st.button(" Analyser cette prédiction", key="calc_local"):
         with st.spinner("Analyse en cours..."):
             try:
                 local_exp = compute_local_explanation(
@@ -173,3 +173,4 @@ def _render_local_tab(model, series, past_covariates, predictions_dates, covaria
                         st.markdown(f"- **{feature}**: {sign}{contrib:.4f}")
             except Exception as e:
                 st.error(f"Erreur: {e}")
+

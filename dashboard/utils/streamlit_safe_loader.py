@@ -1,4 +1,4 @@
-"""
+﻿"""
 Solution ULTIME pour charger des modèles PyTorch dans Streamlit.
 
 Le problème: Streamlit patche object.__setattr__ et __setstate__ globalement,
@@ -285,14 +285,14 @@ def load_darts_model_streamlit_safe(model_path: Path, model_type: str) -> Any:
 
         # Si c'est l'erreur Streamlit __setstate__, essayer le subprocess
         if "__setstate__" in error_msg or "StreamlitAPIException" in str(type(e)):
-            print(f"⚠️ Streamlit conflict detected, trying subprocess loader...")
+            print(f" Streamlit conflict detected, trying subprocess loader...")
 
             # Méthode 3: Subprocess (ultime recours)
             try:
                 model, sub_error = load_model_in_subprocess(model_path, model_type)
 
                 if model is not None:
-                    print("✅ Model loaded successfully via subprocess!")
+                    print(" Model loaded successfully via subprocess!")
                     return model
                 else:
                     errors.append(f"subprocess failed: {sub_error}")
@@ -304,7 +304,8 @@ def load_darts_model_streamlit_safe(model_path: Path, model_type: str) -> Any:
     raise RuntimeError(
         f"Impossible de charger le modèle après 3 tentatives.\n\n"
         f"Erreurs rencontrées:\n{all_errors}\n\n"
-        f"✅ Solution: Supprimez le dossier du modèle et ré-entraînez:\n"
+        f" Solution: Supprimez le dossier du modèle et ré-entraînez:\n"
         f"   rm -rf {model_path.parent}\n"
         f"   Puis ré-entraînez sur la page Train Models"
     )
+

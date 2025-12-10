@@ -59,9 +59,68 @@ class ModelEntry:
     def display_name(self) -> str:
         """Human-readable name for UI display."""
         if self.model_type == "global":
-            return f"🌍 {self.model_name} (Global - {len(self.stations)} stations)"
+            return f"[Global] {self.model_name} ({len(self.stations)} stations)"
         else:
-            return f"🏠 {self.model_name} ({self.primary_station or 'Unknown'})"
+            return f"[Solo] {self.model_name} ({self.primary_station or 'Unknown'})"
+    
+    @property
+    def dataset_id(self) -> str:
+        """Generate dataset ID - use data source filename as primary identifier."""
+        if self.data_source:
+            # Use the actual data source filename (cleaned)
+            source = str(self.data_source)
+            # Remove extension
+            for ext in ['.csv', '.parquet', '.xlsx']:
+                source = source.replace(ext, '')
+            # Take just filename if it's a path
+            if '/' in source or '\\' in source:
+                source = source.split('/')[-1].split('\\')[-1]
+            return source
+        
+        # Fallback: use scaler type if no data_source
+        if self.preprocessing_config:
+            scaler = self.preprocessing_config.get("scaler_type") or self.preprocessing_config.get("normalization")
+            if scaler and scaler not in ("None", "none"):
+                return scaler
+        
+        return "default"
+    
+    @property
+    def dataset_display_name(self) -> str:
+        """Human-readable dataset name for UI."""
+        parts = []
+        
+        # Target variable from columns, or fallback to data_source filename
+        target = None
+        if self.preprocessing_config and 'columns' in self.preprocessing_config:
+            target = self.preprocessing_config['columns'].get('target')
+        
+        if target:
+            parts.append(target)
+        elif self.data_source:
+            # Use data source filename (without .csv) as fallback
+            source_name = str(self.data_source).replace('.csv', '').replace('.parquet', '')
+            # Take last part if it's a path
+            if '/' in source_name or '\\' in source_name:
+                source_name = source_name.split('/')[-1].split('\\')[-1]
+            parts.append(source_name)
+        
+        # Covariates
+        if self.preprocessing_config and 'columns' in self.preprocessing_config:
+            covariates = self.preprocessing_config['columns'].get('covariates', [])
+            if covariates:
+                parts.append(f"+ {len(covariates)} cov")
+        
+        # Scaler - always show this
+        scaler = None
+        if self.preprocessing_config:
+            scaler = self.preprocessing_config.get("scaler_type") or self.preprocessing_config.get("normalization")
+        if scaler and scaler not in ("None", "none"):
+            parts.append(f"({scaler})")
+        
+        if parts:
+            return " ".join(parts)
+        return "Default dataset"
     
     def __repr__(self) -> str:
         return f"ModelEntry({self.model_id}, type={self.model_type}, stations={self.stations})"
@@ -286,6 +345,63 @@ class ModelRegistry:
         for model_data in self._registry["models"].values():
             stations.update(model_data.get("stations", []))
         return sorted(list(stations))
+    
+    def get_datasets_for_station(self, station_id: str) -> Dict[str, str]:
+        """
+        Get unique datasets (preprocessing configs) available for a station.
+        
+        Args:
+            station_id: Station ID to filter by
+            
+        Returns:
+            Dict mapping dataset_id to dataset_display_name
+        """
+        datasets = {}
+        for model_data in self._registry["models"].values():
+            if station_id in model_data.get("stations", []):
+                entry = ModelEntry.from_dict(model_data)
+                if entry.dataset_id not in datasets:
+                    datasets[entry.dataset_id] = entry.dataset_display_name
+        return datasets
+    
+    def get_models_for_station_dataset(
+        self,
+        station_id: str,
+        dataset_id: str,
+        model_type: Optional[Literal["single", "global"]] = None
+    ) -> List[ModelEntry]:
+        """
+        Get models for a specific station AND dataset combination.
+        
+        Args:
+            station_id: Station ID to filter by
+            dataset_id: Dataset ID (from preprocessing config)
+            model_type: Optional filter for "single" or "global"
+            
+        Returns:
+            List of matching ModelEntry objects, sorted by date (newest first)
+        """
+        results = []
+        
+        for model_data in self._registry["models"].values():
+            # Check station
+            if station_id not in model_data.get("stations", []):
+                continue
+            
+            # Check dataset
+            entry = ModelEntry.from_dict(model_data)
+            if entry.dataset_id != dataset_id:
+                continue
+            
+            # Check model type if specified
+            if model_type and entry.model_type != model_type:
+                continue
+            
+            results.append(entry)
+        
+        # Sort by created_at descending (newest first)
+        results.sort(key=lambda x: x.created_at, reverse=True)
+        return results
     
     def delete_model(self, model_id: str, delete_files: bool = True) -> bool:
         """

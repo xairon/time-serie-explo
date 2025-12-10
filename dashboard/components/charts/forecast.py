@@ -1,4 +1,4 @@
-"""Composant graphique pour les prédictions."""
+﻿"""Composant graphique pour les prédictions."""
 
 import streamlit as st
 import plotly.graph_objects as go
@@ -58,7 +58,7 @@ def render_forecast_chart(
         ))
     
     fig.update_layout(
-        title=f"📈 Prédictions - {target_name}",
+        title=f" Prédictions - {target_name}",
         xaxis_title="Date",
         yaxis_title=target_name,
         height=height,
@@ -104,7 +104,7 @@ def render_residuals_chart(
     fig.add_hline(y=0, line_dash="dash", line_color="red")
     
     fig.update_layout(
-        title="📉 Résidus",
+        title=" Résidus",
         xaxis_title="Date",
         yaxis_title="Erreur",
         height=height,
@@ -112,3 +112,4 @@ def render_residuals_chart(
     )
     
     st.plotly_chart(fig, use_container_width=True)
+

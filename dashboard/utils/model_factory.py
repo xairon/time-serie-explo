@@ -1,4 +1,4 @@
-"""Factory pour instancier dynamiquement les modèles Darts.
+﻿"""Factory pour instancier dynamiquement les modèles Darts.
 
 Modèles supportés:
 - Deep Learning: Tous utilisent input_chunk_length/output_chunk_length
@@ -151,7 +151,7 @@ class ModelFactory:
         params['pl_trainer_kwargs']['enable_model_summary'] = False
         params['pl_trainer_kwargs']['enable_checkpointing'] = False
         
-        # ⚠️ Gradient clipping pour éviter l'explosion des gradients
+        #  Gradient clipping pour éviter l'explosion des gradients
         params['pl_trainer_kwargs']['gradient_clip_val'] = 1.0
         params['pl_trainer_kwargs']['gradient_clip_algorithm'] = 'norm'
 
@@ -252,3 +252,4 @@ def get_device_info() -> Dict[str, Any]:
     info['torch_version'] = torch.__version__
 
     return info
+

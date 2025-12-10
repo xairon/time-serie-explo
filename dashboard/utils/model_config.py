@@ -1,4 +1,4 @@
-"""
+﻿"""
 Gestion des configurations de modèles avec YAML.
 
 Chaque modèle sauvegardé a une config YAML qui contient :
@@ -217,7 +217,7 @@ def save_model_with_data(
     test_df.to_csv(test_path)
 
     # 3. Sauvegarder les données RAW (pour l'affichage)
-    # ⚠️ CRITICAL: Ensure raw DataFrames have SAME INDEX as processed ones
+    #  CRITICAL: Ensure raw DataFrames have SAME INDEX as processed ones
     if train_df_raw is not None:
         # Align index if needed
         if not train_df_raw.index.equals(train_df.index):
@@ -543,6 +543,7 @@ def migrate_old_model_to_yaml(model_dir: Path, target_var: str, covariate_vars: 
     config_path = model_dir / "model_config.yaml"
     config.save(config_path)
 
-    print(f"✅ Migrated {model_dir.name} to YAML format")
+    print(f" Migrated {model_dir.name} to YAML format")
 
     return config
+

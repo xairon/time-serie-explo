@@ -1,4 +1,4 @@
-"""Wrapper for using TimeSHAP with Darts forecasting models.
+﻿"""Wrapper for using TimeSHAP with Darts forecasting models.
 
 Creates a bridge between Darts TimeSeries models and TimeSHAP explainability.
 Uses official TimeSHAP API functions for proper explanations.
@@ -436,7 +436,7 @@ def plot_feature_importance(feat_data: pd.DataFrame) -> Any:
     ))
     
     fig.update_layout(
-        title="🎯 Feature Contributions",
+        title=" Feature Contributions",
         xaxis_title="Impact (positive = increases, negative = decreases)",
         yaxis_title="",
         height=max(300, len(features) * 35),
@@ -480,7 +480,7 @@ def plot_cell_heatmap(cell_data: pd.DataFrame, top_x_feats: int = 10) -> Any:
     ))
     
     fig.update_layout(
-        title="🔥 Detailed Impact (Feature × Time)",
+        title=" Detailed Impact (Feature × Time)",
         xaxis_title="Timestep",
         yaxis_title="Feature",
         height=max(400, len(y_labels) * 30)
@@ -634,3 +634,4 @@ def plot_cell_level_timeshap(cell_data, **kwargs):
 def plot_global_feat_timeshap(feat_data, **kwargs):
     """Legacy alias for plot_feature_importance."""
     return plot_feature_importance(feat_data)
+

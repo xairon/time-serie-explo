@@ -1,4 +1,4 @@
-"""
+﻿"""
 Solution robuste pour charger les modèles Darts dans Streamlit.
 
 Le problème principal est que Streamlit patche certaines méthodes Python globalement,
@@ -193,7 +193,7 @@ def load_darts_model_safe(model_path: Path, model_type: str) -> Any:
 
         # Tenter le chargement direct
         model = model_class.load(str(model_path))
-        print(f"✅ Modèle chargé avec succès (méthode directe)")
+        print(f" Modèle chargé avec succès (méthode directe)")
         return model
 
     except Exception as e:
@@ -201,13 +201,13 @@ def load_darts_model_safe(model_path: Path, model_type: str) -> Any:
 
         # Si c'est l'erreur Streamlit spécifique, essayer la méthode isolée
         if "__setstate__" in error_msg or "StreamlitAPIException" in error_msg:
-            print(f"⚠️ Conflit Streamlit détecté, utilisation du chargeur isolé...")
+            print(f" Conflit Streamlit détecté, utilisation du chargeur isolé...")
 
             # Méthode 2 : Chargement dans un processus isolé
             model, error = load_model_isolated(model_path, model_type)
 
             if model is not None:
-                print(f"✅ Modèle chargé avec succès (méthode isolée)")
+                print(f" Modèle chargé avec succès (méthode isolée)")
                 return model
             else:
                 # Si même la méthode isolée échoue, afficher les solutions

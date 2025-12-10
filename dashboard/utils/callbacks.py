@@ -1,4 +1,4 @@
-"""Callbacks personnalisés pour l'entraînement avec Streamlit."""
+﻿"""Callbacks personnalisés pour l'entraînement avec Streamlit."""
 
 import streamlit as st
 from pytorch_lightning.callbacks import Callback
@@ -45,7 +45,7 @@ class StreamlitProgressCallback(Callback):
         """Appelé au début de l'entraînement."""
         self.start_time = time.time()
         if self.status_text:
-            self.status_text.text(f"🚀 Starting training ({self.total_epochs} epochs)...")
+            self.status_text.text(f" Starting training ({self.total_epochs} epochs)...")
 
     def on_train_epoch_start(self, trainer, pl_module):
         """Appelé au début de chaque epoch."""
@@ -87,7 +87,7 @@ class StreamlitProgressCallback(Callback):
 
         # Mise à jour du texte de statut
         if self.status_text:
-            status_msg = f"📊 Epoch {self.current_epoch}/{self.total_epochs}"
+            status_msg = f" Epoch {self.current_epoch}/{self.total_epochs}"
             if train_loss is not None:
                 status_msg += f" | Train Loss: {train_loss:.4f}"
             if val_loss is not None:
@@ -154,7 +154,7 @@ class StreamlitProgressCallback(Callback):
 
         if self.status_text:
             self.status_text.text(
-                f"✅ Entraînement terminé en {int(total_time)}s "
+                f" Entraînement terminé en {int(total_time)}s "
                 f"({total_time/self.total_epochs:.1f}s/epoch)"
             )
 
@@ -187,3 +187,4 @@ class TrainingLogger:
         """Affiche tous les logs."""
         for log in self.logs:
             print(log)
+

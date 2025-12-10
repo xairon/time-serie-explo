@@ -1,4 +1,4 @@
-"""Composants de cartes pour afficher les métriques et informations."""
+﻿"""Composants de cartes pour afficher les métriques et informations."""
 
 import streamlit as st
 from typing import Dict, Any, Optional
@@ -37,7 +37,7 @@ def render_dataset_card(
         test_size: Taille du jeu de test
         total_size: Taille totale (optionnel)
     """
-    st.markdown("### 📊 Dataset")
+    st.markdown("###  Dataset")
     
     if total_size is None:
         total_size = train_size + val_size + test_size
@@ -76,7 +76,7 @@ def render_model_card(
 | Type | {model_name} |
 | Input | {input_chunk} jours |
 | Horizon | {output_chunk} jours |
-| Covariables | {'✅ ' + str(covariate_count) if use_covariates else '❌'} |
+| Covariables | {' ' + str(covariate_count) if use_covariates else ''} |
 """)
 
 
@@ -87,7 +87,7 @@ def render_training_metrics_card(metrics: Dict[str, float]):
     Args:
         metrics: Dict avec MAE, RMSE, R2, etc.
     """
-    st.markdown("### 📈 Métriques")
+    st.markdown("###  Métriques")
     
     col1, col2 = st.columns(2)
     
@@ -102,3 +102,4 @@ def render_training_metrics_card(metrics: Dict[str, float]):
             st.metric("RMSE", f"{metrics['RMSE']:.4f}")
         if 'R2' in metrics:
             st.metric("R²", f"{metrics['R2']:.4f}")
+

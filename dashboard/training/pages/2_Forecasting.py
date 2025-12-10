@@ -1,4 +1,4 @@
-"""Forecasting Page - Sliding Window on TEST data.
+﻿"""Forecasting Page - Sliding Window on TEST data.
 
 This page allows users to:
 1. Load a trained model.
@@ -51,7 +51,6 @@ from dashboard.config import CHECKPOINTS_DIR
 from dashboard.utils.model_registry import get_registry
 from dashboard.utils.model_config import load_model_with_config, load_scalers
 from dashboard.utils.forecasting import generate_single_window_forecast
-from dashboard.utils.timeshap_wrapper import DartsModelWrapper
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 from darts.metrics import mae, rmse, mape, smape, r2_score
 
@@ -79,7 +78,7 @@ def load_model_data(model_entry):
 
 
 # =============================================================================
-# SIDEBAR: MODEL SELECTION
+# SIDEBAR: MODEL SELECTION (Station → Dataset → Model)
 # =============================================================================
 st.sidebar.header("Model Selection")
 
@@ -94,37 +93,103 @@ if not all_models:
     st.info("Please train a model first on the **Train Models** page.")
     st.stop()
 
-# Get all unique stations across all models
+# 1. Select Station
+st.sidebar.markdown("### 1. Station")
 all_stations = registry.get_all_stations()
 
 if not all_stations:
     st.warning("No stations found in registered models.")
     st.stop()
 
-# Select station first
-selected_station = st.sidebar.selectbox("Station", sorted(all_stations))
+selected_station = st.sidebar.selectbox(
+    "Station", 
+    sorted(all_stations),
+    label_visibility="collapsed"
+)
 
-# Get models for this station (both single and global)
-station_models = registry.get_models_for_station(selected_station)
+# 2. Select Dataset (preprocessing config)
+st.sidebar.markdown("### 2. Dataset")
+datasets_dict = registry.get_datasets_for_station(selected_station)
 
-if not station_models:
-    st.warning(f"No models found for station {selected_station}")
+if not datasets_dict:
+    st.sidebar.warning(f"No datasets for station {selected_station}")
     st.stop()
 
-# Create model labels with type indicator
-def get_model_label(m):
-    type_icon = "🏠" if m.model_type == "single" else "🌍"
-    date_str = m.created_at[:10] if m.created_at else "unknown"
-    return f"{type_icon} {m.model_name} ({date_str})"
+# Simple dropdown with just dataset IDs
+dataset_ids = list(datasets_dict.keys())
+selected_dataset = st.sidebar.selectbox(
+    "Dataset",
+    dataset_ids,
+    label_visibility="collapsed"
+)
 
-model_labels = [get_model_label(m) for m in station_models]
+# Get dataset details from a model with this dataset
+dataset_models = registry.get_models_for_station_dataset(selected_station, selected_dataset)
+if dataset_models:
+    sample_model = dataset_models[0]
+    preproc = sample_model.preprocessing_config or {}
+    columns = preproc.get('columns', {})
+    
+    # Show details expander (we'll populate with actual config later)
+    with st.sidebar.expander("Dataset Details", expanded=False):
+        st.markdown(f"**Source:** {sample_model.data_source or 'N/A'}")
+        st.markdown(f"**Scaler:** {preproc.get('scaler_type', 'N/A')}")
+        if columns.get('target'):
+            st.markdown(f"**Target:** {columns.get('target')}")
+        if columns.get('covariates'):
+            st.markdown(f"**Covariates:** {', '.join(columns.get('covariates', []))}")
+
+# 3. Select Model Type and Model
+st.sidebar.markdown("### 3. Model")
+
+# Get models for this station+dataset
+global_models = registry.get_models_for_station_dataset(selected_station, selected_dataset, "global")
+solo_models = registry.get_models_for_station_dataset(selected_station, selected_dataset, "single")
+
+def get_model_label(m):
+    """Generate label with metrics if available."""
+    date_str = m.created_at[:10] if m.created_at else ""
+    r2 = m.metrics.get('R2', m.metrics.get('r2'))
+    if r2 is not None:
+        return f"{m.model_name} (R²={r2:.2f}) - {date_str}"
+    return f"{m.model_name} - {date_str}"
+
+# Create combined model list with type prefix
+all_station_models = []
+model_labels = []
+
+if global_models:
+    for m in global_models:
+        all_station_models.append(m)
+        model_labels.append(f"[Global] {get_model_label(m)}")
+
+if solo_models:
+    for m in solo_models:
+        all_station_models.append(m)
+        model_labels.append(f"[Solo] {get_model_label(m)}")
+
+if not all_station_models:
+    st.sidebar.warning("No models for this station + dataset combination.")
+    st.stop()
 
 selected_model_idx = st.sidebar.selectbox(
-    "Model", 
-    range(len(station_models)), 
-    format_func=lambda i: model_labels[i]
+    "Model",
+    range(len(all_station_models)),
+    format_func=lambda i: model_labels[i],
+    label_visibility="collapsed"
 )
-selected_model_info = station_models[selected_model_idx]
+selected_model_info = all_station_models[selected_model_idx]
+
+# 4. For global models: select target station to predict
+target_station = selected_station
+if selected_model_info.model_type == "global":
+    st.sidebar.markdown("### 4. Target Station")
+    target_station = st.sidebar.selectbox(
+        "Station to predict",
+        selected_model_info.stations,
+        index=selected_model_info.stations.index(selected_station) if selected_station in selected_model_info.stations else 0,
+        label_visibility="collapsed"
+    )
 
 # Load selected model
 with st.spinner("Loading model..."):
@@ -140,43 +205,43 @@ data_dict = loaded_data['data_dict']
 scalers = loaded_data['scalers']
 
 # Handle Global Models (Multi-station)
-# If dataset has 'station' column, filter for specific station
-is_global_model = False
-if 'train' in data_dict and 'station' in data_dict['train'].columns:
-    train_df = data_dict['train']
-    available_stations = sorted(train_df['station'].unique())
+# Filter data and scalers for the target station if this is a global model
+is_global_model = selected_model_info.model_type == "global"
 
-    if len(available_stations) > 1:
-        is_global_model = True
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("### 🌍 Global Model")
-        target_station = st.sidebar.selectbox("Select Target Station", available_stations)
-
-        # Filter DataFrames for the target station
-        data_dict_filtered = {}
+if is_global_model and 'train' in data_dict and 'station' in data_dict['train'].columns:
+    # Filter DataFrames for the target station
+    data_dict_filtered = {}
+    for k, v in data_dict.items():
+        if isinstance(v, pd.DataFrame) and 'station' in v.columns:
+            filtered = v[v['station'] == target_station].copy()
+            # Drop station column after filtering to avoid issues
+            filtered = filtered.drop(columns=['station'], errors='ignore')
+            data_dict_filtered[k] = filtered
+        else:
+            data_dict_filtered[k] = v
+    data_dict = data_dict_filtered
+    
+    # Debug info
+    with st.sidebar.expander("Debug: Station Filtering", expanded=False):
+        st.write(f"Target station: {target_station}")
         for k, v in data_dict.items():
-            if isinstance(v, pd.DataFrame) and 'station' in v.columns:
-                data_dict_filtered[k] = v[v['station'] == target_station].copy()
+            if isinstance(v, pd.DataFrame):
+                st.write(f"{k}: {len(v)} rows")
+
+
+    # Select correct scalers for this station (global models have per-station scalers)
+    scalers_filtered = {}
+    for scaler_name in ['target_preprocessor', 'cov_preprocessor']:
+        s = scalers.get(scaler_name)
+        if isinstance(s, dict):
+            if target_station in s:
+                scalers_filtered[scaler_name] = s[target_station]
             else:
-                data_dict_filtered[k] = v
-
-        data_dict = data_dict_filtered
-
-        # Select correct scalers for this station
-        scalers_filtered = {}
-        for scaler_name in ['target_preprocessor', 'cov_preprocessor']:
-            s = scalers.get(scaler_name)
-            if isinstance(s, dict):
-                if target_station in s:
-                    scalers_filtered[scaler_name] = s[target_station]
-                else:
-                    st.warning(f"No specific scaler for {target_station}, using default.")
-                    scalers_filtered[scaler_name] = list(s.values())[0] if s else None
-            else:
-                scalers_filtered[scaler_name] = s
-
-        scalers = scalers_filtered
-        st.sidebar.success(f"Predicting on: **{target_station}**")
+                st.warning(f"No specific scaler for {target_station}, using default.")
+                scalers_filtered[scaler_name] = list(s.values())[0] if s else None
+        else:
+            scalers_filtered[scaler_name] = s
+    scalers = scalers_filtered
 
 # Prepare dataframes - Correct data flow:
 # - PROCESSED (train/val/test): for predictions - already normalized, no scaling needed!
@@ -264,7 +329,7 @@ with col_model:
     | Type | **{config.model_name}** |
     | Input | {input_chunk} days |
     | Horizon | {model_horizon} days |
-    | Covariates | {'✅ ' + str(len(covariate_cols)) if use_covariates else '❌'} |
+    | Covariates | {' ' + str(len(covariate_cols)) if use_covariates else ''} |
     """)
 
 with col_metrics:
@@ -332,9 +397,9 @@ selected_tab = st.radio(
 )
 st.session_state.forecasting_tab = selected_tab
 
-# Cache keys
-full_pred_key = f"full_pred_{selected_model_info.model_id}"
-window_pred_key = f"window_pred_{selected_model_info.model_id}_{start_idx}"
+# Cache keys - MUST include target_station for global models!
+full_pred_key = f"full_pred_{selected_model_info.model_id}_{target_station}"
+window_pred_key = f"window_pred_{selected_model_info.model_id}_{target_station}_{start_idx}"
 
 
 # =============================================================================
@@ -694,7 +759,7 @@ else:
                 ))
             
             fig_target.update_layout(
-                title=f"📈 Context ({input_chunk}d) + Prediction Window",
+                title=f" Context ({input_chunk}d) + Prediction Window",
                 height=300, margin=dict(l=10, r=10, t=40, b=20),
                 hovermode='x unified'
             )
@@ -709,7 +774,7 @@ else:
             ]
             
             if base_covariates:
-                st.markdown(f"##### 📊 Covariates ({len(base_covariates)})")
+                st.markdown(f"#####  Covariates ({len(base_covariates)})")
                 colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
                 
                 for i, feat_col in enumerate(base_covariates):
@@ -738,164 +803,100 @@ else:
         
         st.markdown("---")
         
-        # 3. SHAP Computation
-        shap_cache_key = f"shap_{selected_model_info.model_id}_{start_idx}"
+        # 3. Feature Importance (Correlation-based - no external dependencies)
+        st.markdown("##### Feature Importance")
+        st.caption("Correlation-based importance (correlation with target variable)")
         
-        if shap_cache_key not in st.session_state:
-            with st.spinner("Calculating local SHAP importance..."):
-                try:
-                    from timeshap.explainer import local_report
-                    
-                    # Wrapper
-                    model_wrapper = DartsModelWrapper(
-                        model=model,
-                        input_chunk_length=input_chunk,
-                        forecast_horizon=1
-                    )
-                    
-                    # Prepare Data for TimeSHAP
-                    feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
-                    
-                    window_length = min(input_chunk, len(test_df_processed) - start_idx)
-                    window_shap_df = test_df_processed.iloc[start_idx:start_idx + window_length]
-                    
-                    # Build rows explicitly
-                    rows = []
-                    actual_features = [f for f in feature_names if f in window_shap_df.columns]
-                    for t, (_, row) in enumerate(window_shap_df.iterrows()):
-                        data_row = {'entity': 'seq_0', 't': t}
-                        for f_name in actual_features:
-                            data_row[f_name] = float(row[f_name])
-                        rows.append(data_row)
-                    data_df = pd.DataFrame(rows)
-                    
-                    # Baseline (Mean)
-                    baseline_rows = []
-                    for t in range(window_length):
-                        b_row = {f: float(test_df_processed[f].mean()) for f in actual_features}
-                        baseline_rows.append(b_row)
-                    baseline_df = pd.DataFrame(baseline_rows)
-                    
-                    # Config
-                    pruning_dict = {'tol': 0.025}
-                    event_dict = {'rs': 42, 'nsamples': 50}
-                    feature_dict = {
-                        'rs': 42, 
-                        'nsamples': 50,
-                        'plot_features': {f"Feature {i}": f for i, f in enumerate(actual_features)}
-                    }
-                    
-                    # Run TimeSHAP
-                    plot = local_report(
-                        f=model_wrapper,
-                        data=data_df,
-                        entity_uuid='seq_0',
-                        entity_col='entity',
-                        time_col='t',
-                        model_features=actual_features,
-                        baseline=baseline_df,
-                        pruning_dict=pruning_dict,
-                        event_dict=event_dict,
-                        feature_dict=feature_dict
-                    )
-                    
-                    st.session_state[shap_cache_key] = {'success': True, 'plot': plot}
-                    
-                except Exception as e:
-                    st.error(f"TimeSHAP Error: {e}")
-                    st.session_state[shap_cache_key] = {'success': False, 'error': str(e)}
-
-        # Display Result
-        result = st.session_state.get(shap_cache_key)
-        if result and result.get('success'):
-            st.markdown("###  TimeSHAP Report")
-            try:
-                st.altair_chart(result['plot'], use_container_width=True)
-            except Exception as e:
-                st.warning(f"Error rendering chart: {e}")
-        elif result:
-            st.warning("SHAP calculation failed.")
+        feature_cols = [target_col] + [c for c in covariate_cols if c in window_df.columns]
+        
+        if len(feature_cols) > 1:
+            # Calculate correlations with target
+            correlations = {}
+            target_values = window_df[target_col].values
+            
+            for col in feature_cols:
+                if col != target_col and col in window_df.columns:
+                    col_values = window_df[col].values
+                    if len(col_values) > 2:
+                        corr = np.corrcoef(target_values, col_values)[0, 1]
+                        if not np.isnan(corr):
+                            correlations[col] = abs(corr)
+            
+            if correlations:
+                # Sort by importance
+                sorted_corr = dict(sorted(correlations.items(), key=lambda x: x[1], reverse=True))
+                
+                # Create bar chart
+                importance_df = pd.DataFrame({
+                    'Feature': list(sorted_corr.keys()),
+                    'Importance': list(sorted_corr.values())
+                })
+                
+                fig_importance = go.Figure(go.Bar(
+                    x=importance_df['Importance'],
+                    y=importance_df['Feature'],
+                    orientation='h',
+                    marker_color='#2E86AB'
+                ))
+                fig_importance.update_layout(
+                    title="Feature Importance (|correlation| with target)",
+                    xaxis_title="Absolute Correlation",
+                    yaxis_title="Feature",
+                    height=max(200, len(sorted_corr) * 30),
+                    margin=dict(l=10, r=10, t=40, b=20),
+                    yaxis=dict(autorange="reversed")
+                )
+                st.plotly_chart(fig_importance, use_container_width=True)
+            else:
+                st.info("Not enough data to compute feature importance.")
+        else:
+            st.info("No covariates available for importance analysis.")
     
     # -------------------------------------------------------------------------
     # SUB-TAB: GLOBAL (Aggregated)
     # -------------------------------------------------------------------------
     elif sub_tab == "Global Explanations":
         st.markdown("#### Global Feature Importance")
-        st.caption("Aggregated SHAP values across multiple windows.")
+        st.caption("Correlation-based importance across the entire test set.")
         
-        global_shap_key = f"global_shap_{selected_model_info.model_id}"
-        
-        if st.button("🔍 Compute Global SHAP") or global_shap_key in st.session_state:
-             if global_shap_key not in st.session_state or st.session_state.get(global_shap_key, {}).get('success') is False:
-                with st.spinner("Computing global importance (sub-sampling)..."):
-                    try:
-                        from timeshap.explainer.global_methods import calc_global_explanations
+        if st.button("Compute Global Importance"):
+            with st.spinner("Computing..."):
+                feature_cols = [c for c in covariate_cols if c in test_df_processed.columns]
+                
+                if feature_cols:
+                    correlations = {}
+                    target_values = test_df_processed[target_col].values
+                    
+                    for col in feature_cols:
+                        col_values = test_df_processed[col].values
+                        if len(col_values) > 2:
+                            corr = np.corrcoef(target_values, col_values)[0, 1]
+                            if not np.isnan(corr):
+                                correlations[col] = abs(corr)
+                    
+                    if correlations:
+                        sorted_corr = dict(sorted(correlations.items(), key=lambda x: x[1], reverse=True))
                         
-                        model_wrapper = DartsModelWrapper(
-                            model=model,
-                            input_chunk_length=input_chunk,
-                            forecast_horizon=1
-                        )
+                        importance_df = pd.DataFrame({
+                            'Feature': list(sorted_corr.keys()),
+                            'Importance': list(sorted_corr.values())
+                        })
                         
-                        feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
-                        actual_features = [f for f in feature_names if f in test_df_processed.columns]
-                        
-                        # Sub-sample 5 windows for speed
-                        n_samples = 5
-                        max_start = len(test_df_processed) - input_chunk - 1
-                        sample_positions = np.linspace(0, max_start, n_samples, dtype=int)
-                        
-                        # Build Data
-                        all_rows = []
-                        for seq_idx, s_idx in enumerate(sample_positions):
-                            window_shap_df = test_df_processed.iloc[s_idx:s_idx + input_chunk]
-                            for t, (_, row) in enumerate(window_shap_df.iterrows()):
-                                data_row = {'entity': f'seq_{seq_idx}', 't': t}
-                                for f in actual_features:
-                                    data_row[f] = float(row[f])
-                                all_rows.append(data_row)
-                        data_df = pd.DataFrame(all_rows)
-                        
-                        # Baseline
-                        baseline_rows = [{f: float(test_df_processed[f].mean()) for f in actual_features} for _ in range(input_chunk)]
-                        baseline_df = pd.DataFrame(baseline_rows)
-                        
-                        # Calculate
-                        _, _, feature_data = calc_global_explanations(
-                            f=model_wrapper,
-                            data=data_df,
-                            entity_col='entity',
-                            time_col='t',
-                            model_features=actual_features,
-                            baseline=baseline_df,
-                            pruning_dict={'tol': 0.025},
-                            event_dict={'rs': 42, 'nsamples': 50},
-                            feature_dict={'rs': 42, 'nsamples': 50},
-                            verbose=False
-                        )
-                        
-                        # Aggregate
-                        # Map generic Feature names back if needed, but assuming direct mapping for now
-                        if 'Feature' in feature_data.columns and feature_data['Feature'].str.startswith("Feature ").all():
-                             feature_map = {f"Feature {i}": name for i, name in enumerate(actual_features)}
-                             feature_data['Feature'] = feature_data['Feature'].map(feature_map)
-                        
-                        global_importance = feature_data.groupby('Feature')['Shapley Value'].apply(lambda x: x.abs().mean()).reset_index()
-                        
-                        # Chart
-                        chart = alt.Chart(global_importance).mark_bar().encode(
-                            x=alt.X('Shapley Value', title='Mean |Shapley Value|'),
+                        chart = alt.Chart(importance_df).mark_bar().encode(
+                            x=alt.X('Importance', title='|Correlation| with Target'),
                             y=alt.Y('Feature', sort='-x'),
-                            tooltip=['Feature', 'Shapley Value']
-                        ).properties(title='Global Feature Importance').interactive()
+                            tooltip=['Feature', 'Importance']
+                        ).properties(
+                            title='Global Feature Importance',
+                            height=max(200, len(sorted_corr) * 25)
+                        ).interactive()
                         
-                        st.session_state[global_shap_key] = {'success': True, 'plot': chart}
+                        st.altair_chart(chart, use_container_width=True)
                         
-                    except Exception as e:
-                         st.error(f"Global SHAP error: {e}")
-                         st.session_state[global_shap_key] = {'success': False}
+                        # Show table
+                        st.dataframe(importance_df.style.format({'Importance': '{:.3f}'}), use_container_width=True)
+                    else:
+                        st.info("Could not compute correlations.")
+                else:
+                    st.info("No covariates available.")
 
-             # Display
-             res = st.session_state.get(global_shap_key)
-             if res and res.get('success'):
-                 st.altair_chart(res['plot'], use_container_width=True)

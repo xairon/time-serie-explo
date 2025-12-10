@@ -1,4 +1,4 @@
-"""Composant de sélection de modèle pour la sidebar."""
+﻿"""Composant de sélection de modèle pour la sidebar."""
 
 import streamlit as st
 from pathlib import Path
@@ -15,7 +15,7 @@ def render_model_selector() -> Optional[Tuple[Any, Any, Dict, Any, ModelInfo]]:
     Returns:
         Tuple (model, config, data_dict, scalers, model_info) ou None si erreur
     """
-    st.sidebar.header("🎯 Modèle")
+    st.sidebar.header(" Modèle")
     
     registry = get_registry()
     all_models = registry.scan_models()
@@ -79,3 +79,4 @@ def render_model_selector() -> Optional[Tuple[Any, Any, Dict, Any, ModelInfo]]:
         cached['scalers'],
         selected_model_info
     )
+

@@ -1,4 +1,4 @@
-"""Advanced explainability module for Darts time series models.
+﻿"""Advanced explainability module for Darts time series models.
 
 Integrates:
 - SHAP for global feature importance
@@ -473,19 +473,20 @@ def generate_explanation_summary(
         
         if recent_lags and distant_lags:
             if np.mean(recent_lags) > np.mean(distant_lags) * 1.3:
-                summary_parts.append("📊 The model relies mainly on **recent data**")
+                summary_parts.append(" The model relies mainly on **recent data**")
             elif np.mean(distant_lags) > np.mean(recent_lags) * 1.3:
-                summary_parts.append("📊 The model heavily uses **long-term history**")
+                summary_parts.append(" The model heavily uses **long-term history**")
     
     # Residual analysis
     if residual_analysis:
         if residual_analysis.get('is_biased', False):
             bias = residual_analysis['mean']
             if bias > 0:
-                summary_parts.append(f"⚠️ **Bias detected**: The model under-estimates by an average of {abs(bias):.3f}")
+                summary_parts.append(f" **Bias detected**: The model under-estimates by an average of {abs(bias):.3f}")
             else:
-                summary_parts.append(f"⚠️ **Bias detected**: The model over-estimates by an average of {abs(bias):.3f}")
+                summary_parts.append(f" **Bias detected**: The model over-estimates by an average of {abs(bias):.3f}")
         else:
-            summary_parts.append("✅ **Balanced residuals** - no systematic bias detected")
+            summary_parts.append(" **Balanced residuals** - no systematic bias detected")
     
     return "\n\n".join(summary_parts) if summary_parts else "Analysis not available."
+

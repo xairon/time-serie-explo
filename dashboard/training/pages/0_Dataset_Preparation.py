@@ -1,4 +1,4 @@
-"""Streamlit application for forecasting model training."""
+﻿"""Streamlit application for forecasting model training."""
 
 import streamlit as st
 import pandas as pd
@@ -7,27 +7,27 @@ from pathlib import Path
 # Configuration de la page
 st.set_page_config(
     page_title="Junon Model Training",
-    page_icon="🎯",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Sidebar
-st.sidebar.title("🧭 Navigation")
+st.sidebar.title(" Navigation")
 st.sidebar.markdown("""
 ### Available Pages
-- 🎯 **Train Models**: Train forecasting models
-- 🔮 **Forecasting**: Predict on new data
-- 📉 **Model Comparison**: Compare performance
+-  **Train Models**: Train forecasting models
+-  **Forecasting**: Predict on new data
+-  **Model Comparison**: Compare performance
 """)
 st.sidebar.markdown("---")
 
 # Show loaded data
 if 'training_data_configured' in st.session_state and st.session_state['training_data_configured']:
-    st.sidebar.success(f"✅ Data loaded: **{st.session_state['training_filename']}**")
-    st.sidebar.info(f"📊 {len(st.session_state['training_variables'])} variables")
+    st.sidebar.success(f" Data loaded: **{st.session_state['training_filename']}**")
+    st.sidebar.info(f" {len(st.session_state['training_variables'])} variables")
 
-    if st.sidebar.button("🔄 Load another file"):
+    if st.sidebar.button(" Load another file"):
         # Reset session state
         keys_to_remove = ['training_data', 'training_data_raw', 'training_variables',
                          'training_stations', 'training_date_col', 'training_station_col',
@@ -38,39 +38,39 @@ if 'training_data_configured' in st.session_state and st.session_state['training
                 del st.session_state[key]
         st.rerun()
 else:
-    st.sidebar.warning("⚠️ No data loaded")
+    st.sidebar.warning(" No data loaded")
 
 # Main Title
-st.title("📊 Dataset Preparation")
+st.title(" Dataset Preparation")
 st.markdown("**Prepare and configure your time series data for training**")
 st.markdown("---")
 
 # If data already loaded, show summary
 if 'training_data_configured' in st.session_state and st.session_state['training_data_configured']:
-    st.success("🎉 Data ready for training!")
+    st.success(" Data ready for training!")
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("📁 File", st.session_state['training_filename'])
+        st.metric(" File", st.session_state['training_filename'])
 
     with col2:
-        st.metric("📊 Variables", len(st.session_state['training_variables']))
+        st.metric(" Variables", len(st.session_state['training_variables']))
 
     with col3:
-        st.metric("🎯 Target", st.session_state['training_target_var'])
+        st.metric(" Target", st.session_state['training_target_var'])
 
     with col4:
         if st.session_state.get('training_is_multistation', False):
-            st.metric("🏢 Stations", len(st.session_state['training_stations']))
+            st.metric(" Stations", len(st.session_state['training_stations']))
         else:
             df = st.session_state['training_data']
             duration_years = (df.index[-1] - df.index[0]).days / 365.25
-            st.metric("📅 Duration", f"{duration_years:.1f} years")
+            st.metric(" Duration", f"{duration_years:.1f} years")
 
     # Save Dataset Button
     st.markdown("---")
-    st.subheader("💾 Save Prepared Dataset")
+    st.subheader(" Save Prepared Dataset")
     st.caption("Save this dataset configuration to quickly load it for training later.")
     
     col_save1, col_save2 = st.columns([2, 1])
@@ -83,7 +83,7 @@ if 'training_data_configured' in st.session_state and st.session_state['training
     
     with col_save2:
         st.markdown("<br>", unsafe_allow_html=True)  # Spacer
-        if st.button("💾 Save Dataset", type="primary"):
+        if st.button(" Save Dataset", type="primary"):
             try:
                 from dashboard.utils.dataset_registry import get_dataset_registry
                 
@@ -110,17 +110,17 @@ if 'training_data_configured' in st.session_state and st.session_state['training
                     preprocessing_config=st.session_state.get('training_preprocessing', {})
                 )
                 
-                st.success(f"✅ Dataset '{dataset_name}' saved successfully!")
+                st.success(f" Dataset '{dataset_name}' saved successfully!")
                 
             except Exception as e:
-                st.error(f"❌ Error saving dataset: {e}")
+                st.error(f" Error saving dataset: {e}")
 
     # Action Buttons
     st.markdown("---")
     col_act1, col_act2 = st.columns(2)
     
     with col_act1:
-        if st.button("🔄 Prepare Another Dataset (Reset)", use_container_width=True):
+        if st.button(" Prepare Another Dataset (Reset)", use_container_width=True):
              # Reset session state
             keys_to_remove = ['training_data', 'training_data_raw', 'training_variables',
                              'training_stations', 'training_date_col', 'training_station_col',
@@ -132,7 +132,7 @@ if 'training_data_configured' in st.session_state and st.session_state['training
             st.rerun()
 
     with col_act2:
-        st.info("👉 Use the sidebar to go to **Train Models** page with this data")
+        st.info(" Use the sidebar to go to **Train Models** page with this data")
     
     # Do NOT stop script execution here entirely, so sidebar remains active
     # but we obscure the upload form below
@@ -143,10 +143,10 @@ if 'training_data_configured' in st.session_state and st.session_state['training
 # If data is not configured, show the upload section
 def render_upload_section():
     # Upload CSV Section
-    st.subheader("📤 Upload your training data")
+    st.subheader(" Upload your training data")
 
     st.markdown("""
-    ### 📝 Expected Format
+    ###  Expected Format
 
     Your CSV file must contain:
     - **A time column** (date, time, timestamp, etc.)
@@ -158,7 +158,7 @@ def render_upload_section():
     """)
 
     # Downloadable example
-    with st.expander("📄 Download CSV example"):
+    with st.expander(" Download CSV example"):
         example_df = pd.DataFrame({
             'date': pd.date_range('2020-01-01', periods=365, freq='D'),
             'level': [10.5 + i*0.01 + (i%30)*0.2 for i in range(365)],
@@ -168,7 +168,7 @@ def render_upload_section():
         })
 
         st.download_button(
-            label="📥 Download example_training.csv",
+            label=" Download example_training.csv",
             data=example_df.to_csv(index=False),
             file_name="example_training_data.csv",
             mime="text/csv"
@@ -195,12 +195,12 @@ def render_upload_section():
                 uploaded_file.seek(0)  # Retour au début du fichier
                 df_raw = pd.read_csv(uploaded_file, encoding='latin1')
 
-            st.success(f"✅ File **{uploaded_file.name}** read successfully ({len(df_raw):,} rows)")
+            st.success(f" File **{uploaded_file.name}** read successfully ({len(df_raw):,} rows)")
 
-            st.markdown("### 🔧 Data Configuration")
+            st.markdown("###  Data Configuration")
 
             # Step 1: Time Column
-            st.markdown("#### 1️⃣ Time Column")
+            st.markdown("####  Time Column")
 
             potential_date_cols = []
             for col in df_raw.columns:
@@ -223,7 +223,7 @@ def render_upload_section():
             )
 
             # Step 2: Station Column (optional)
-            st.markdown("#### 2️⃣ Station Column (optional)")
+            st.markdown("####  Station Column (optional)")
 
             has_station_col = st.checkbox(
                 "CSV contains multiple stations identified by a column",
@@ -244,13 +244,13 @@ def render_upload_section():
                     )
 
                     stations_found = df_raw[station_col].unique()
-                    st.info(f"📍 **{len(stations_found)} stations** detected: {', '.join(map(str, stations_found[:5]))}" +
+                    st.info(f" **{len(stations_found)} stations** detected: {', '.join(map(str, stations_found[:5]))}" +
                            (f" (+ {len(stations_found)-5} others)" if len(stations_found) > 5 else ""))
                 else:
                     st.warning("No categorical column found")
 
             # Step 3: Variables
-            st.markdown("#### 3️⃣ Variables")
+            st.markdown("####  Variables")
 
             exclude_cols = [date_col]
             if station_col:
@@ -260,7 +260,7 @@ def render_upload_section():
             available_vars = [col for col in numeric_cols if col not in exclude_cols]
 
             if not available_vars:
-                st.error("❌ No numeric columns found!")
+                st.error(" No numeric columns found!")
                 st.stop()
 
             col1, col2 = st.columns(2)
@@ -282,9 +282,9 @@ def render_upload_section():
             all_selected_vars = [target_var] + covariate_vars
 
             # Step 4: Preprocessing
-            st.markdown("#### 4️⃣ Preprocessing Configuration")
+            st.markdown("####  Preprocessing Configuration")
 
-            with st.expander("⚙️ Preprocessing Options", expanded=True):
+            with st.expander(" Preprocessing Options", expanded=True):
                 col_prep1, col_prep2 = st.columns(2)
                 
                 with col_prep1:
@@ -308,14 +308,14 @@ def render_upload_section():
                 
                 with col_feat1:
                     use_datetime_features = st.checkbox(
-                        "📅 Time Features",
+                        " Time Features",
                         value=False,
                         help="Adds: day, month, season (cyclic)"
                     )
 
                 with col_feat2:
                     use_lags = st.checkbox(
-                        "📊 Target Lags",
+                        " Target Lags",
                         value=False,
                         help="Adds past values as covariates"
                     )
@@ -332,9 +332,9 @@ def render_upload_section():
 
             # Validation and preview
             st.markdown("---")
-            st.markdown("#### 5️⃣ Validation")
+            st.markdown("####  Validation")
 
-            if st.button("🔍 Preview preprocessed data", use_container_width=False):
+            if st.button(" Preview preprocessed data", use_container_width=False):
                 try:
                     # Preview process
                     df_preview = df_raw.copy()
@@ -362,7 +362,7 @@ def render_upload_section():
 
                     missing_after = df_preview.isnull().sum().sum()
 
-                    st.success(f"✅ Missing values: {missing_before} → {missing_after}")
+                    st.success(f" Missing values: {missing_before} → {missing_after}")
                     st.metric("Samples after preprocessing", len(df_preview))
 
                     # Show data
@@ -377,7 +377,7 @@ def render_upload_section():
 
             st.markdown("---")
 
-            if st.button("✅ Validate and load data", type="primary", use_container_width=True):
+            if st.button(" Validate and load data", type="primary", use_container_width=True):
                 try:
                     df_processed = df_raw.copy()
                     df_processed[date_col] = pd.to_datetime(df_processed[date_col])
@@ -417,16 +417,16 @@ def render_upload_section():
                     st.session_state['training_preprocessing'] = preprocessing_config
                     st.session_state['training_data_configured'] = True
 
-                    st.success("🎉 Data loaded successfully!")
+                    st.success(" Data loaded successfully!")
                     st.rerun()
 
                 except Exception as e:
-                    st.error(f"❌ Error: {e}")
+                    st.error(f" Error: {e}")
                     import traceback
                     st.code(traceback.format_exc())
 
         except Exception as e:
-            st.error(f"❌ Error reading file: {e}")
+            st.error(f" Error reading file: {e}")
             st.info("Check your CSV file format")
 
 # Call the function to render the upload section
@@ -434,4 +434,5 @@ render_upload_section()
 
 # Footer
 st.markdown("---")
-st.caption("⚡ Junon Model Training - Powered by Darts & PyTorch Lightning")
+st.caption(" Junon Model Training - Powered by Darts & PyTorch Lightning")
+

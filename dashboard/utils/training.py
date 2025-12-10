@@ -384,6 +384,11 @@ def run_training_pipeline(
             clean_station_name = station_name.split('/')[-1] if '/' in station_name else station_name
             is_global = isinstance(train, list) or isinstance(train, tuple)
             
+            # Initialize sizes with defaults to avoid UnboundLocalError
+            train_size = 0
+            val_size = 0
+            test_size = 0
+            
             if is_global:
                 # Reconstruct DataFrames WITH station column using all_stations mapping
                 # train, val, test are lists of SCALED TimeSeries
@@ -429,6 +434,11 @@ def run_training_pipeline(
                     test_df = pd.concat([t.to_dataframe() for t in test])
                 
                 full_df = pd.concat([train_df, val_df, test_df])
+                
+                # Calculate sizes for global models
+                train_size = len(train_df)
+                val_size = len(val_df)
+                test_size = len(test_df)
                 
                 # Raw data reconstruction via inverse transform
                 # For global models, generate raw data from normalized data using station-specific scalers
@@ -551,12 +561,14 @@ def run_training_pipeline(
             if preprocessing_config:
                 preproc = {
                     'fill_method': preprocessing_config.get('fill_method', 'Unknown'),
-                    'scaler_type': preprocessing_config.get('scaler_type', 'StandardScaler')
+                    'scaler_type': preprocessing_config.get('scaler_type', 'StandardScaler'),
+                    'columns': columns_config  # Include target and covariates for dataset identification
                 }
             else:
                 preproc = {
                     'fill_method': 'Unknown',
-                    'scaler_type': 'StandardScaler'
+                    'scaler_type': 'StandardScaler',
+                    'columns': columns_config
                 }
 
             from dashboard.utils.model_config import ModelConfig, save_model_with_data
