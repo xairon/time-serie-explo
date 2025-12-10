@@ -82,11 +82,12 @@ class TimeSeriesPreprocessor:
 
         if normalization == 'MinMax (0-1)':
             self.transformers.append(
-                ('scaler', Scaler(name='MinMax scaler'))
+                ('scaler', Scaler(name='MinMax scaler'))  # Default is MinMaxScaler
             )
         elif normalization == 'StandardScaler (z-score)':
+            from sklearn.preprocessing import StandardScaler as SklearnStandardScaler
             self.transformers.append(
-                ('scaler', Scaler(scaler=None, name='Standard scaler'))  # Default = StandardScaler
+                ('scaler', Scaler(scaler=SklearnStandardScaler(), name='Standard scaler'))
             )
         elif normalization == 'RobustScaler (médiane+IQR)':
             from sklearn.preprocessing import RobustScaler as SklearnRobustScaler

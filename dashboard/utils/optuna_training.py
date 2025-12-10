@@ -184,9 +184,9 @@ def create_optuna_objective(
             }
             
             if use_covariates and full_cov is not None:
-                if getattr(model, "uses_past_covariates", False):
+                if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
                     pred_kwargs['past_covariates'] = full_cov
-                if getattr(model, "uses_future_covariates", False):
+                if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
                     pred_kwargs['future_covariates'] = full_cov
             
             predictions = model.predict(**pred_kwargs)

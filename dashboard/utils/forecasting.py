@@ -101,9 +101,10 @@ def generate_single_window_forecast(
     }
 
     if cov_for_pred is not None:
-        if getattr(model, "uses_past_covariates", False):
+        # Check what model was TRAINED with, not just what it supports
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             predict_kwargs['past_covariates'] = cov_for_pred
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             predict_kwargs['future_covariates'] = cov_for_pred
 
     try:
@@ -139,9 +140,9 @@ def generate_single_window_forecast(
         }
 
         if cov_for_onestep is not None:
-            if getattr(model, "uses_past_covariates", False):
+            if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
                 onestep_kwargs['past_covariates'] = cov_for_onestep
-            if getattr(model, "uses_future_covariates", False):
+            if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
                 onestep_kwargs['future_covariates'] = cov_for_onestep
 
         onestep_forecasts = model.historical_forecasts(**onestep_kwargs)
@@ -294,9 +295,9 @@ def generate_global_forecast(
     }
     
     if covariates_scaled is not None:
-        if getattr(model, "uses_past_covariates", False):
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             predict_kwargs['past_covariates'] = covariates_scaled
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             predict_kwargs['future_covariates'] = covariates_scaled
 
     pred_series_scaled = model.predict(**predict_kwargs)
@@ -390,9 +391,9 @@ def generate_rolling_forecast(
     }
     
     if covariates_scaled is not None:
-        if getattr(model, "uses_past_covariates", False):
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             forecast_kwargs['past_covariates'] = covariates_scaled
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             forecast_kwargs['future_covariates'] = covariates_scaled
             
     forecasts_scaled = model.historical_forecasts(**forecast_kwargs)
@@ -474,9 +475,9 @@ def generate_comparison_forecast(
     }
     
     if covariates_scaled is not None:
-        if getattr(model, "uses_past_covariates", False):
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             predict_kwargs['past_covariates'] = covariates_scaled
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             predict_kwargs['future_covariates'] = covariates_scaled
             
     autoregressive_scaled = model.predict(**predict_kwargs)
@@ -496,9 +497,9 @@ def generate_comparison_forecast(
     }
     
     if covariates_scaled is not None:
-        if getattr(model, "uses_past_covariates", False):
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             hist_kwargs['past_covariates'] = covariates_scaled
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             hist_kwargs['future_covariates'] = covariates_scaled
             
     # Note: historical_forecasts will generate until the end of the series if not limited

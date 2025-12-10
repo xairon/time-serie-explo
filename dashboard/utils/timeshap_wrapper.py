@@ -117,9 +117,9 @@ class DartsModelWrapper:
         pred_kwargs = {'n': self.forecast_horizon, 'series': target_series}
         
         if covariates is not None:
-            if getattr(self.model, "uses_past_covariates", False):
+            if getattr(self.model, "_uses_past_covariates", False) or getattr(self.model, "uses_past_covariates", False):
                 pred_kwargs['past_covariates'] = covariates
-            if getattr(self.model, "uses_future_covariates", False):
+            if getattr(self.model, "_uses_future_covariates", False) or getattr(self.model, "uses_future_covariates", False):
                 pred_kwargs['future_covariates'] = covariates
         
         pred = self.model.predict(**pred_kwargs)

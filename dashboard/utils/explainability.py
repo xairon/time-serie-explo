@@ -72,9 +72,9 @@ def compute_permutation_importance_safe(
         # Baseline prediction
         predict_kwargs = {'n': output_chunk_length, 'series': series}
         
-        if getattr(model, "uses_past_covariates", False):
+        if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
             predict_kwargs['past_covariates'] = covariates
-        if getattr(model, "uses_future_covariates", False):
+        if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
             predict_kwargs['future_covariates'] = covariates
             
         baseline_pred = model.predict(**predict_kwargs)
@@ -100,9 +100,9 @@ def compute_permutation_importance_safe(
                     
                     # Predict with shuffled
                     perm_kwargs = {'n': output_chunk_length, 'series': series}
-                    if getattr(model, "uses_past_covariates", False):
+                    if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
                         perm_kwargs['past_covariates'] = cov_permuted_ts
-                    if getattr(model, "uses_future_covariates", False):
+                    if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
                         perm_kwargs['future_covariates'] = cov_permuted_ts
                         
                     permuted_pred = model.predict(**perm_kwargs)

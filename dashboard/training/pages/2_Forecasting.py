@@ -177,6 +177,7 @@ if 'train' in data_dict and 'station' in data_dict['train'].columns:
 
         scalers = scalers_filtered
         st.sidebar.success(f"Predicting on: **{target_station}**")
+
 # Prepare dataframes - Correct data flow:
 # - PROCESSED (train/val/test): for predictions - already normalized, no scaling needed!
 # - RAW (train_raw/val_raw/test_raw): for display only
@@ -185,22 +186,45 @@ if 'train' in data_dict and 'station' in data_dict['train'].columns:
 # DO NOT apply scalers again - data is already normalized.
 
 # Full processed dataframe for predictions
-if 'full' in data_dict:
-    full_df_processed = data_dict['full']
-else:
-    full_df_processed = pd.concat([data_dict['train'], data_dict['val'], data_dict['test']])
+# IMPORTANT: Always use train+val+test concatenation, NOT 'full' (full_data.csv)!
+# full_data.csv contains RAW data, while train/val/test.csv contain NORMALIZED data.
+full_df_processed = pd.concat([data_dict['train'], data_dict['val'], data_dict['test']])
 full_df_processed = full_df_processed.sort_index()
 
-# Raw dataframe for display
-if 'train_raw' in data_dict and 'val_raw' in data_dict and 'test_raw' in data_dict:
-    full_df_raw = pd.concat([data_dict['train_raw'], data_dict['val_raw'], data_dict['test_raw']])
-else:
-    full_df_raw = full_df_processed  # Fallback if raw not available
-full_df_raw = full_df_raw.sort_index()
-
-# Test sets
+# Test sets (processed)
 test_df_processed = data_dict['test'].sort_index()
-test_df_raw = data_dict.get('test_raw', test_df_processed).sort_index()
+
+# Extract configuration FIRST (needed for raw data generation)
+model_horizon = getattr(model, 'output_chunk_length', 30)
+input_chunk = getattr(model, 'input_chunk_length', 30)
+target_col = config.columns['target']
+covariate_cols = config.columns.get('covariates', [])
+use_covariates = config.use_covariates
+
+# Helper function to generate raw data from processed data via inverse_transform
+def generate_raw_from_processed(processed_df, scalers, target_col):
+    """Generate raw (de-normalized) data from processed (normalized) data."""
+    target_preprocessor = scalers.get('target_preprocessor')
+    if target_preprocessor is not None:
+        # Convert processed DataFrame to TimeSeries, inverse_transform, convert back
+        processed_series, _ = prepare_dataframe_for_darts(
+            processed_df, target_col, []
+        )
+        raw_series = target_preprocessor.inverse_transform(processed_series)
+        raw_df = raw_series.pd_dataframe()
+        raw_df.index = processed_df.index  # Ensure same index
+        return raw_df
+    else:
+        # No scaler = data wasn't normalized, processed is raw
+        return processed_df.copy()
+
+# Get raw test data - CRITICAL for correct ground truth display
+# If test_raw.csv wasn't saved, we need to generate it via inverse_transform
+if 'test_raw' in data_dict:
+    test_df_raw = data_dict['test_raw'].sort_index()
+else:
+    # Generate raw data via inverse_transform (same as predictions)
+    test_df_raw = generate_raw_from_processed(test_df_processed, scalers, target_col)
 
 # Ensure indices match
 if not test_df_processed.index.equals(test_df_raw.index):
@@ -208,12 +232,13 @@ if not test_df_processed.index.equals(test_df_raw.index):
         test_df_raw = test_df_raw.copy()
         test_df_raw.index = test_df_processed.index
 
-# Extract configuration
-model_horizon = getattr(model, 'output_chunk_length', 30)
-input_chunk = getattr(model, 'input_chunk_length', 30)
-target_col = config.columns['target']
-covariate_cols = config.columns.get('covariates', [])
-use_covariates = config.use_covariates
+# Raw dataframe for display - also generate via inverse_transform if not available
+if 'train_raw' in data_dict and 'val_raw' in data_dict and 'test_raw' in data_dict:
+    full_df_raw = pd.concat([data_dict['train_raw'], data_dict['val_raw'], data_dict['test_raw']])
+else:
+    # Generate raw data via inverse_transform
+    full_df_raw = generate_raw_from_processed(full_df_processed, scalers, target_col)
+full_df_raw = full_df_raw.sort_index()
 
 
 # =============================================================================
@@ -348,10 +373,14 @@ if full_pred_key not in st.session_state:
                 'verbose': False
             }
 
+            # Add covariates if available and model was TRAINED with them
+            model_uses_past = getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False)
+            model_uses_future = getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False)
+            
             if cov_for_pred is not None and use_covariates:
-                if getattr(model, "uses_past_covariates", False):
+                if model_uses_past:
                     forecast_kwargs['past_covariates'] = cov_for_pred
-                if getattr(model, "uses_future_covariates", False):
+                if model_uses_future:
                     forecast_kwargs['future_covariates'] = cov_for_pred
 
             forecasts_list = model.historical_forecasts(**forecast_kwargs)
@@ -455,6 +484,12 @@ if selected_tab == "Predictions":
         cached_full = st.session_state[full_pred_key]
         cached_window = st.session_state.get(window_pred_key)
         
+        # 2. Ground Truth - Use RAW data directly for display
+        # test_df_raw already contains the raw (non-normalized) values
+        test_series_raw_display, _ = prepare_dataframe_for_darts(
+            test_df_raw, target_col, []
+        )
+        
         fig = go.Figure()
         
         # 1. Highlight Window
@@ -463,12 +498,6 @@ if selected_tab == "Predictions":
             fillcolor="rgba(255, 200, 0, 0.2)", 
             layer="below", line_width=0,
             annotation_text="Analysis Window", annotation_position="top left"
-        )
-        
-        # 2. Ground Truth - Use RAW data directly for display
-        # test_df_raw already contains the raw (non-normalized) values
-        test_series_raw_display, _ = prepare_dataframe_for_darts(
-            test_df_raw, target_col, []
         )
 
         fig.add_trace(go.Scatter(
