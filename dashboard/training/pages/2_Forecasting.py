@@ -439,14 +439,12 @@ if full_pred_key not in st.session_state:
             }
 
             # Add covariates if available and model was TRAINED with them
+            # Only use past_covariates to avoid prediction bias
             model_uses_past = getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False)
-            model_uses_future = getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False)
             
             if cov_for_pred is not None and use_covariates:
                 if model_uses_past:
                     forecast_kwargs['past_covariates'] = cov_for_pred
-                if model_uses_future:
-                    forecast_kwargs['future_covariates'] = cov_for_pred
 
             forecasts_list = model.historical_forecasts(**forecast_kwargs)
             

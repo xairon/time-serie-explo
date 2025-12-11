@@ -512,7 +512,9 @@ if st.button(button_label, type="primary", use_container_width=True):
             if use_covariates_flag and station_covariate_vars:
                 covariates_series = TimeSeries.from_dataframe(df_station, value_cols=station_covariate_vars, freq=freq, fill_missing_dates=True)
 
-            progress_bar.progress(10 + idx * 10)
+            # Progress: 10-90% for data prep, reserve last 10% for training
+            progress_pct = min(10 + int((idx + 1) / len(selected_stations) * 80), 90)
+            progress_bar.progress(progress_pct)
 
             # 7. Split Train/Val/Test (Raw)
             status_text.text(f"✂️ Splitting data...")

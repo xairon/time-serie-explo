@@ -14,7 +14,7 @@ DL_MODELS = {
         'class': 'TFTModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Transformer with attention, interpretable, excellent for complex time series',
         'hyperparams': {
@@ -30,7 +30,7 @@ DL_MODELS = {
         'class': 'TransformerModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Classic Transformer architecture for time series',
         'hyperparams': {
@@ -81,7 +81,7 @@ DL_MODELS = {
         'class': 'RNNModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Long Short-Term Memory, classic baseline for time series',
         'hyperparams': {
@@ -95,7 +95,7 @@ DL_MODELS = {
         'class': 'RNNModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Gated Recurrent Unit, faster than LSTM',
         'hyperparams': {
@@ -126,7 +126,7 @@ DL_MODELS = {
         'class': 'TCNModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Causal convolutions, fast and performant',
         'hyperparams': {
@@ -142,7 +142,7 @@ DL_MODELS = {
         'class': 'TiDEModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Time-series Dense Encoder, efficient MLP architecture',
         'hyperparams': {
@@ -162,7 +162,7 @@ DL_MODELS = {
         'class': 'DLinearModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Decomposition + Linear, very simple but effective',
         'hyperparams': {
@@ -175,7 +175,7 @@ DL_MODELS = {
         'class': 'NLinearModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'Normalization + Linear, baseline for long-term forecasting',
         'hyperparams': {
@@ -190,7 +190,7 @@ DL_MODELS = {
         'class': 'TSMixerModel',
         'supports_covariates': True,
         'supports_past_covariates': True,
-        'supports_future_covariates': True,
+        'supports_future_covariates': False,  # Disabled to avoid prediction bias
         'multivariate': True,
         'description': 'MLP-Mixer for time series, State-of-the-art 2023',
         'hyperparams': {

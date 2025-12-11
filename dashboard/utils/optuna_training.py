@@ -146,23 +146,17 @@ def create_optuna_objective(
                 pl_trainer_kwargs_override=trainer_kwargs
             )
             
-            # Préparer les covariables selon ce que le modèle supporte
+            # Préparer les covariables selon ce que le modèle supporte (only past_covariates)
             train_past_cov = None
             val_past_cov = None
-            train_future_cov = None
-            val_future_cov = None
             
             if use_covariates and train_cov is not None:
-                # Vérifier quel type de covariables le modèle supporte
+                # Only use past_covariates to avoid prediction bias
                 supports_past = getattr(model, "supports_past_covariates", False)
-                supports_future = getattr(model, "supports_future_covariates", False)
                 
                 if supports_past:
                     train_past_cov = train_cov
                     val_past_cov = val_cov
-                elif supports_future:
-                    train_future_cov = train_cov
-                    val_future_cov = val_cov
             
             # Entraîner
             model = train_model(
@@ -171,8 +165,6 @@ def create_optuna_objective(
                 val_series=val,
                 train_past_covariates=train_past_cov,
                 val_past_covariates=val_past_cov,
-                train_future_covariates=train_future_cov,
-                val_future_covariates=val_future_cov,
                 verbose=False
             )
             
@@ -184,10 +176,9 @@ def create_optuna_objective(
             }
             
             if use_covariates and full_cov is not None:
+                # Only use past_covariates to avoid prediction bias
                 if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
                     pred_kwargs['past_covariates'] = full_cov
-                if getattr(model, "_uses_future_covariates", False) or getattr(model, "uses_future_covariates", False):
-                    pred_kwargs['future_covariates'] = full_cov
             
             predictions = model.predict(**pred_kwargs)
             

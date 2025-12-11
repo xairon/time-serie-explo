@@ -17,8 +17,6 @@ def train_model(
     val_series: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     train_past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     val_past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
-    train_future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
-    val_future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     verbose: bool = True
 ) -> ForecastingModel:
     """
@@ -30,8 +28,6 @@ def train_model(
         val_series: Validation series (optional)
         train_past_covariates: Past covariates for training
         val_past_covariates: Past covariates for validation
-        train_future_covariates: Future covariates for training
-        val_future_covariates: Future covariates for validation
         verbose: Whether to print logs
 
     Returns:
@@ -47,20 +43,13 @@ def train_model(
     if val_series is not None:
         fit_kwargs['val_series'] = val_series
 
-    # Add covariates for training
+    # Add past covariates for training (no future covariates to avoid bias)
     if train_past_covariates is not None:
         fit_kwargs['past_covariates'] = train_past_covariates
 
         # If validation is provided, validation covariates are required
         if val_series is not None and val_past_covariates is not None:
             fit_kwargs['val_past_covariates'] = val_past_covariates
-
-    if train_future_covariates is not None:
-        fit_kwargs['future_covariates'] = train_future_covariates
-
-        # If validation is provided, validation covariates are required
-        if val_series is not None and val_future_covariates is not None:
-            fit_kwargs['val_future_covariates'] = val_future_covariates
 
     # Train
     model.fit(**fit_kwargs)
@@ -74,7 +63,6 @@ def evaluate_model(
     test_series: Union[TimeSeries, Sequence[TimeSeries]],
     horizon: int,
     past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
-    future_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
     num_samples: int = 1
 ) -> Tuple[Union[TimeSeries, Sequence[TimeSeries]], Dict[str, float]]:
     """
@@ -86,7 +74,6 @@ def evaluate_model(
         test_series: Test series
         horizon: Forecast horizon
         past_covariates: Past covariates (FULL dataset)
-        future_covariates: Future covariates (FULL dataset)
         num_samples: Number of samples for probabilistic prediction
 
     Returns:
@@ -106,12 +93,9 @@ def evaluate_model(
         'num_samples': num_samples
     }
 
-    # Covariates must cover the FULL range (train + test)
+    # Only use past covariates to avoid prediction bias
     if past_covariates is not None:
         pred_kwargs['past_covariates'] = past_covariates
-
-    if future_covariates is not None:
-        pred_kwargs['future_covariates'] = future_covariates
 
     predictions = model.predict(**pred_kwargs)
 
@@ -317,22 +301,16 @@ def run_training_pipeline(
             pl_trainer_kwargs_override=pl_trainer_kwargs
         )
 
-        # 2. Prepare covariates based on model support
+        # 2. Prepare covariates based on model support (only past_covariates to avoid bias)
         train_past_cov = None
         val_past_cov = None
-        train_future_cov = None
-        val_future_cov = None
 
         if use_covariates and train_cov is not None:
             supports_past = getattr(model, "supports_past_covariates", False)
-            supports_future = getattr(model, "supports_future_covariates", False)
             
             if supports_past:
                 train_past_cov = train_cov
                 val_past_cov = val_cov
-            elif supports_future:
-                train_future_cov = train_cov
-                val_future_cov = val_cov
 
         # 3. Train
         model = train_model(
@@ -341,8 +319,6 @@ def run_training_pipeline(
             val_series=val,
             train_past_covariates=train_past_cov,
             val_past_covariates=val_past_cov,
-            train_future_covariates=train_future_cov,
-            val_future_covariates=val_future_cov,
             verbose=verbose
         )
 
@@ -357,14 +333,11 @@ def run_training_pipeline(
         else:
              full_train = train.append(val)
 
-        # Full covariates for prediction
+        # Full covariates for prediction (only past_covariates)
         full_past_cov = None
-        full_future_cov = None
         if use_covariates and full_cov is not None:
             if getattr(model, "supports_past_covariates", False):
                 full_past_cov = full_cov
-            elif getattr(model, "supports_future_covariates", False):
-                full_future_cov = full_cov
 
         predictions, metrics = evaluate_model(
             model=model,
@@ -372,7 +345,6 @@ def run_training_pipeline(
             test_series=test,
             horizon=min(output_chunk, len(test)),
             past_covariates=full_past_cov,
-            future_covariates=full_future_cov,
             num_samples=1
         )
 
