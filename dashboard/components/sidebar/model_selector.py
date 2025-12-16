@@ -4,11 +4,11 @@ import streamlit as st
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 
-from dashboard.utils.model_registry import get_registry, ModelInfo
+from dashboard.utils.model_registry import get_registry, ModelEntry
 from dashboard.utils.model_config import load_model_with_config, load_scalers
 
 
-def render_model_selector() -> Optional[Tuple[Any, Any, Dict, Any, ModelInfo]]:
+def render_model_selector() -> Optional[Tuple[Any, Any, Dict, Any, ModelEntry]]:
     """
     Affiche le sélecteur de modèle dans la sidebar.
     

@@ -27,6 +27,8 @@ from dashboard.utils.dataset_registry import get_dataset_registry
 from dashboard.utils.training import run_training_pipeline
 from dashboard.utils.callbacks import StreamlitProgressCallback
 from dashboard.utils.export import add_download_button
+from dashboard.components.live_log import LiveLogManager, create_progress_section, TrainingProgressTracker
+import time
 
 
 st.set_page_config(page_title="Train Models", page_icon="", layout="wide")
@@ -417,14 +419,24 @@ if ModelFactory.is_torch_model(selected_model):
 button_label = " Start Optuna Optimization" if training_mode == " Optuna" else " Start Training"
 
 if st.button(button_label, type="primary", use_container_width=True):
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    # Initialize Live Log Manager
+    log_manager = LiveLogManager(max_entries=200, session_key="training_log")
+    log_manager.clear()  # Clear previous logs
     
-    st.markdown("###  Training Progress")
-    epoch_progress = st.progress(0)
-    epoch_status = st.empty()
-    epoch_metrics = st.empty()
-    loss_chart = st.empty()
+    # Create progress section
+    progress_elements = create_progress_section()
+    
+    # Create log placeholder
+    st.markdown("---")
+    log_placeholder = st.empty()
+    
+    # Legacy placeholders for backwards compatibility with callback
+    progress_bar = progress_elements['station_progress']
+    status_text = progress_elements['current_operation']
+    epoch_progress = progress_elements['epoch_progress']
+    epoch_status = progress_elements['epoch_counter']
+    epoch_metrics = progress_elements['metrics_row']
+    loss_chart = progress_elements['loss_chart']
 
     try:
         results_all_stations = {}
@@ -441,9 +453,23 @@ if st.button(button_label, type="primary", use_container_width=True):
             'target_scalers': {},
             'cov_scalers': {}
         }
+        
+        # Log start
+        log_manager.info(f"Starting training with {len(selected_stations)} station(s)")
+        log_manager.info(f"Model: {selected_model} | Mode: {'Global' if is_global_mode else 'Independent'}")
+        log_manager.render_inline(log_placeholder)
 
         for idx, station_name in enumerate(selected_stations):
-            status_text.text(f" Station {idx+1}/{len(selected_stations)}: {station_name}")
+            station_start_time = time.time()
+            
+            # Update station progress
+            station_pct = (idx) / len(selected_stations)
+            progress_elements['station_progress'].progress(station_pct, text=f"Preparing station {idx+1}/{len(selected_stations)}")
+            progress_elements['station_counter'].metric("Stations", f"{idx+1}/{len(selected_stations)}")
+            status_text.info(f"📍 Processing: **{station_name}**")
+            
+            log_manager.station(f"[{idx+1}/{len(selected_stations)}] Preparing station: {station_name}")
+            log_manager.render_inline(log_placeholder)
             
             station_covariate_vars = list(covariate_vars)
 
@@ -459,8 +485,12 @@ if st.button(button_label, type="primary", use_container_width=True):
                 available_cols = [target_var] + [c for c in covariate_vars if c in df_station.columns]
                 df_station = df_station[available_cols]
 
+            initial_rows = len(df_station)
+            log_manager.info(f"  → Loaded {initial_rows:,} rows")
+
             # 2. Missing Values
             fill_method = preprocessing_config.get('fill_method', 'Drop rows')
+            missing_before = df_station.isna().sum().sum()
             if fill_method == 'Drop rows':
                 df_station = df_station.dropna()
             elif fill_method == 'Linear Interpolation':
@@ -469,11 +499,14 @@ if st.button(button_label, type="primary", use_container_width=True):
                 df_station = df_station.ffill()
             elif fill_method == 'Backward fill':
                 df_station = df_station.bfill()
+            
+            if missing_before > 0:
+                log_manager.info(f"  → Handled {missing_before} missing values ({fill_method})")
 
             # 3. Duplicates
             if df_station.index.duplicated().any():
                 n_dupes = df_station.index.duplicated().sum()
-                status_text.text(f" {n_dupes} duplicates detected: aggregating by mean...")
+                log_manager.warning(f"  → {n_dupes} duplicates detected, aggregating by mean")
                 df_station = df_station.groupby(df_station.index).mean()
             
             # 4. Time Features
@@ -490,7 +523,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                 
                 datetime_cols = ['day_of_week', 'month', 'day_sin', 'day_cos', 'month_sin', 'month_cos']
                 station_covariate_vars += datetime_cols
-                status_text.text(f" Time features added ({len(datetime_cols)} cols)")
+                log_manager.info(f"  → Added {len(datetime_cols)} time features")
             
             # 5. Lags
             lags = preprocessing_config.get('lags', [])
@@ -499,7 +532,7 @@ if st.button(button_label, type="primary", use_container_width=True):
                     df_station[f'{target_var}_lag_{lag}'] = df_station[target_var].shift(lag)
                 df_station = df_station.dropna()
                 station_covariate_vars += [f'{target_var}_lag_{lag}' for lag in lags]
-                status_text.text(f" Lags added: {lags}")
+                log_manager.info(f"  → Added {len(lags)} lag features")
             
             # 6. Darts Conversion - Ensure index is DatetimeIndex
             from darts import TimeSeries
@@ -513,12 +546,12 @@ if st.button(button_label, type="primary", use_container_width=True):
                 covariates_series = TimeSeries.from_dataframe(df_station, value_cols=station_covariate_vars, freq=freq, fill_missing_dates=True)
 
             # Progress: 10-90% for data prep, reserve last 10% for training
-            progress_pct = min(10 + int((idx + 1) / len(selected_stations) * 80), 90)
-            progress_bar.progress(progress_pct)
+            progress_pct = (idx + 1) / len(selected_stations)
+            progress_elements['station_progress'].progress(progress_pct, text=f"Preparing station {idx+1}/{len(selected_stations)}")
 
             # 7. Split Train/Val/Test (Raw)
-            status_text.text(f"✂️ Splitting data...")
             train_raw, val_raw, test_raw = split_train_val_test(target_series, train_ratio, val_ratio, test_ratio)
+            log_manager.info(f"  → Split: train={len(train_raw)}, val={len(val_raw)}, test={len(test_raw)}")
             
             if covariates_series:
                 train_cov_raw, val_cov_raw, test_cov_raw = split_train_val_test(covariates_series, train_ratio, val_ratio, test_ratio)
@@ -526,7 +559,6 @@ if st.button(button_label, type="primary", use_container_width=True):
                 train_cov_raw = val_cov_raw = test_cov_raw = None
 
             # 8. Normalization (Fit on Train)
-            status_text.text(f" Normalization...")
             target_preprocessor = TimeSeriesPreprocessor(preprocessing_config)
             train = target_preprocessor.fit_transform(train_raw)
             val = target_preprocessor.transform(val_raw)
@@ -542,11 +574,19 @@ if st.button(button_label, type="primary", use_container_width=True):
                 val_cov = cov_preprocessor.transform(val_cov_raw)
                 test_cov = cov_preprocessor.transform(test_cov_raw)
                 covariates_scaled = cov_preprocessor.transform(covariates_series)
+            
+            log_manager.info(f"  → Normalized (fit on train, transform val/test)")
 
             # Check for NaNs
             if np.isnan(train.values()).any() or np.isnan(val.values()).any():
+                log_manager.error(f"  → NaN values detected after preprocessing!")
                 st.error(" NaN values detected after preprocessing! Use a different missing value strategy.")
                 st.stop()
+
+            # Station preparation complete
+            station_duration = time.time() - station_start_time
+            log_manager.success(f"  ✓ Station prepared in {station_duration:.1f}s")
+            log_manager.render_inline(log_placeholder)
 
             # 9. Global Accumulation or training
             col_mapping = {'target_var': target_var, 'covariate_vars': station_covariate_vars}
@@ -568,10 +608,12 @@ if st.button(button_label, type="primary", use_container_width=True):
                 if cov_preprocessor:
                     global_metadata['cov_scalers'][station_name] = cov_preprocessor
 
-                status_text.text(f"📦 Prepared {station_name} for Global Model")
                 continue
 
             # 10. Independent Training
+            log_manager.training(f"Starting independent training for {station_name}...")
+            log_manager.render_inline(log_placeholder)
+            
             callbacks_list = []
             pl_trainer_kwargs = None
             if ModelFactory.is_torch_model(selected_model):
@@ -584,7 +626,8 @@ if st.button(button_label, type="primary", use_container_width=True):
 
             # OPTUNA
             if training_mode == " Optuna":
-                status_text.text(f" Optuna optimization for {station_name}...")
+                log_manager.info(f"Running Optuna optimization ({n_trials} trials)...")
+                log_manager.render_inline(log_placeholder)
                 
                 # Optuna Logic Block
                 import optuna
@@ -594,6 +637,8 @@ if st.button(button_label, type="primary", use_container_width=True):
                 
                 def optuna_callback(study, trial):
                     optuna_status.text(f"Trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
+                    log_manager.progress(f"  Optuna trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
+                    log_manager.render_inline(log_placeholder)
 
                 objective = create_optuna_objective(
                     model_name=selected_model,
@@ -607,11 +652,14 @@ if st.button(button_label, type="primary", use_container_width=True):
                 study = optuna.create_study(direction='minimize', sampler=optuna.samplers.TPESampler(seed=42))
                 study.optimize(objective, n_trials=n_trials, timeout=optuna_timeout*60, callbacks=[optuna_callback])
                 
+                log_manager.success(f"Best params found: {study.best_params}")
                 st.success(f"Best params found: {study.best_params}")
                 hyperparams.update(study.best_params)
             
             # FINAL TRAINING
-            status_text.text(f"🧠 Training final model for {station_name}...")
+            log_manager.training(f"Training final model ({n_epochs} epochs)...")
+            log_manager.render_inline(log_placeholder)
+            status_text.success(f"🧠 **Training model for {station_name}...**")
 
             training_results = run_training_pipeline(
                 model_name=selected_model,
@@ -633,13 +681,33 @@ if st.button(button_label, type="primary", use_container_width=True):
                 all_stations=[station_name]  # Single station model
             )
             
+            # Log training results
+            if training_results.get('status') == 'success':
+                metrics = training_results.get('metrics', {})
+                metrics_str = ", ".join(f"{k}={v:.4f}" for k, v in metrics.items() if v is not None and not isinstance(v, list))
+                log_manager.success(f"Training complete for {station_name}: {metrics_str}")
+            else:
+                log_manager.error(f"Training failed for {station_name}: {training_results.get('error', 'Unknown error')}")
+            log_manager.render_inline(log_placeholder)
+            
             results_all_stations[station_name] = training_results
         
         # End Loop
 
         # 11. Global Training Execution
         if is_global_mode and global_data['train']:
-            status_text.text(f" Training Global Model on {len(selected_stations)} stations...")
+            # Mark station preparation complete
+            progress_elements['station_progress'].progress(1.0, text="✅ All stations prepared")
+            
+            log_manager.info(f"")
+            log_manager.training(f"═══ STARTING GLOBAL MODEL TRAINING ═══")
+            log_manager.info(f"Training global model on {len(selected_stations)} stations")
+            total_train_samples = sum(len(t) for t in global_data['train'])
+            total_val_samples = sum(len(v) for v in global_data['val'])
+            log_manager.info(f"Total samples: train={total_train_samples:,}, val={total_val_samples:,}")
+            log_manager.render_inline(log_placeholder)
+            
+            status_text.success(f"🚀 **Training Global Model on {len(selected_stations)} stations...**")
             
             callbacks_list = []
             pl_trainer_kwargs = None
@@ -675,10 +743,21 @@ if st.button(button_label, type="primary", use_container_width=True):
                 preprocessing_config=preprocessing_config,
                 all_stations=selected_stations  # All stations for global model
             )
+            
+            # Log results
+            if training_results.get('status') == 'success':
+                metrics = training_results.get('metrics', {})
+                log_manager.success(f"Global model training complete!")
+                log_manager.info(f"Saved to: {training_results.get('saved_path', 'N/A')}")
+            else:
+                log_manager.error(f"Global training failed: {training_results.get('error', 'Unknown error')}")
+            log_manager.render_inline(log_placeholder)
+            
             results_all_stations["Global_Model"] = training_results
 
-        progress_bar.progress(100)
-        status_text.text(" Training sequence completed!")
+        # Final status
+        progress_elements['epoch_progress'].progress(1.0, text="✅ Training complete!")
+        status_text.success(" **Training sequence completed!**")
         st.success(" All training tasks finished.")
 
         # Display Results
@@ -729,7 +808,14 @@ if st.button(button_label, type="primary", use_container_width=True):
                     st.markdown(f"**📦 {station}**")
                     add_download_button(path.parent, key_suffix=f"dl_{station}")
 
+        # Final log render with expander
+        log_manager.render(expanded=True)
+
     except Exception as e:
+        # Log the error
+        log_manager.error(f"CRITICAL ERROR: {e}")
+        log_manager.render_inline(log_placeholder)
+        
         st.error(f" Critical Error: {e}")
         import traceback
         st.code(traceback.format_exc())
