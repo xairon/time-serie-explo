@@ -25,3 +25,7 @@ shap>=0.42.0
 timeshap>=1.0.0
 optuna>=3.0.0
 tqdm>=4.65.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
