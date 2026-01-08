@@ -1,0 +1,37 @@
+# Backend Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY backend/pyproject.toml ./
+RUN pip install --no-cache-dir .
+
+# Install additional ML dependencies
+RUN pip install --no-cache-dir \
+    darts>=0.27.0 \
+    torch>=2.1.0 \
+    numpy>=1.24.0 \
+    pandas>=2.0.0 \
+    scikit-learn>=1.3.0 \
+    plotly>=5.17.0
+
+# Copy application code
+COPY backend/app ./app
+COPY core ./core
+
+# Copy legacy dashboard for gradual migration
+# (mounted as volume in development)
+
+# Expose port
+EXPOSE 8000
+
+# Default command (overridden in docker-compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

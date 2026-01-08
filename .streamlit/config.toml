@@ -1,7 +1,7 @@
 [server]
 # Optimisations serveur
-maxUploadSize = 200
-maxMessageSize = 200
+maxUploadSize = 2000
+maxMessageSize = 2000
 enableCORS = true
 enableXsrfProtection = true
 enableWebsocketCompression = true

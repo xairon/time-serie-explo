@@ -1,0 +1,182 @@
+INFO:     Will watch for changes in these directories: ['E:\\junon-time-series\\backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [42656] using StatReload
+E:\junon-time-series\backend\app\schemas\source.py:27: UserWarning: Field name "schema" in "TableInfo" shadows an attribute in parent "BaseModel"
+  class TableInfo(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:47: UserWarning: Field name "schema" in "TableSchemaResponse" shadows an attribute in parent "BaseModel"
+  class TableSchemaResponse(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:58: UserWarning: Field name "schema" in "DataQueryRequest" shadows an attribute in parent "BaseModel"
+  class DataQueryRequest(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:88: UserWarning: Field name "schema" in "StationSummaryRequest" shadows an attribute in parent "BaseModel"
+  class StationSummaryRequest(BaseModel):
+The StatsForecast module could not be imported. To enable support for the AutoARIMA, AutoETS and Croston models, please consider installing it.
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+INFO:     Backend Reloaded
+ERROR:    Error loading ASGI app. Attribute "app" not found in module "app.main".
+WARNING:  StatReload detected changes in 'app\main.py'. Reloading...
+ E:\junon-time-series\backend\app\schemas\source.py:27: UserWarning: Field name "schema" in "TableInfo" shadows an attribute in parent "BaseModel"
+  class TableInfo(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:47: UserWarning: Field name "schema" in "TableSchemaResponse" shadows an attribute in parent "BaseModel"
+  class TableSchemaResponse(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:58: UserWarning: Field name "schema" in "DataQueryRequest" shadows an attribute in parent "BaseModel"
+  class DataQueryRequest(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:88: UserWarning: Field name "schema" in "StationSummaryRequest" shadows an attribute in parent "BaseModel"
+  class StationSummaryRequest(BaseModel):
+The StatsForecast module could not be imported. To enable support for the AutoARIMA, AutoETS and Croston models, please consider installing it.
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+INFO:     Backend Reloaded
+INFO:     Started server process [25076]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+DEBUG: Processing connection request: localhost:5433
+2026-01-08 17:22:24,452 [INFO] app.api.v1.endpoints.sources: Connecting to DB: localhost:5433/postgres as postgres
+DEBUG: Calling create_connection in threadpool
+INFO:     127.0.0.1:21920 - "POST /api/v1/sources/db/connect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21924 - "GET /api/v1/sources/db/tables?host=localhost&port=5433&database=postgres&user=postgres&password=postgres_default_pass_2024&schema=staging HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21928 - "GET /api/v1/sources/db/tables?host=localhost&port=5433&database=postgres&user=postgres&password=postgres_default_pass_2024&schema=staging HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21933 - "GET /api/v1/sources/db/tables?host=localhost&port=5433&database=postgres&user=postgres&password=postgres_default_pass_2024&schema=hubeau HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21940 - "POST /api/v1/sources/db/query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21948 - "POST /api/v1/sources/db/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:21999 - "POST /api/v1/training/start HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:22002 - "GET /ws/training/728b655b-2f3a-4c21-9d41-c9ce99a09635 HTTP/1.1" 404 Not Found
+2026-01-08 17:25:23,082 [ERROR] app.api.v1.endpoints.training: Training job 728b655b-2f3a-4c21-9d41-c9ce99a09635 failed: "TrainingJobStatus" object has no field "error"
+2026-01-08 17:25:23,082 [ERROR] asyncio: Task exception was never retrieved
+future: <Task finished name='Task-17' coro=<_run_training_background() done, defined at E:\junon-time-series\backend\app\api\v1\endpoints\training.py:68> exception=ValueError('"TrainingJobStatus" object has no field "error"')>
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 95, in _run_training_background
+    _jobs[job_id].error = results.get('error', 'Unknown error')
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 100, in _run_training_background
+    _jobs[job_id].error = str(e)
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+WARNING:  StatReload detected changes in 'app\schemas\training.py'. Reloading...
+ INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [25076]
+E:\junon-time-series\backend\app\schemas\source.py:27: UserWarning: Field name "schema" in "TableInfo" shadows an attribute in parent "BaseModel"
+  class TableInfo(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:47: UserWarning: Field name "schema" in "TableSchemaResponse" shadows an attribute in parent "BaseModel"
+  class TableSchemaResponse(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:58: UserWarning: Field name "schema" in "DataQueryRequest" shadows an attribute in parent "BaseModel"
+  class DataQueryRequest(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:88: UserWarning: Field name "schema" in "StationSummaryRequest" shadows an attribute in parent "BaseModel"
+  class StationSummaryRequest(BaseModel):
+The StatsForecast module could not be imported. To enable support for the AutoARIMA, AutoETS and Croston models, please consider installing it.
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+INFO:     Backend Reloaded
+INFO:     Started server process [34864]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app\api\v1\endpoints\forecasting.py'. Reloading...
+ INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34864]
+E:\junon-time-series\backend\app\schemas\source.py:27: UserWarning: Field name "schema" in "TableInfo" shadows an attribute in parent "BaseModel"
+  class TableInfo(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:47: UserWarning: Field name "schema" in "TableSchemaResponse" shadows an attribute in parent "BaseModel"
+  class TableSchemaResponse(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:58: UserWarning: Field name "schema" in "DataQueryRequest" shadows an attribute in parent "BaseModel"
+  class DataQueryRequest(BaseModel):
+E:\junon-time-series\backend\app\schemas\source.py:88: UserWarning: Field name "schema" in "StationSummaryRequest" shadows an attribute in parent "BaseModel"
+  class StationSummaryRequest(BaseModel):
+The StatsForecast module could not be imported. To enable support for the AutoARIMA, AutoETS and Croston models, please consider installing it.
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+The `XGBoost` module could not be imported. To enable XGBoost support in Darts, follow the detailed instructions in the installation guide: https://github.com/unit8co/darts/blob/master/INSTALL.md
+INFO:     Backend Reloaded
+INFO:     Started server process [36088]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:19131 - "POST /api/v1/training/start HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:19134 - "GET /ws/training/aa9df5e4-ab1d-4e86-86fc-3d689666b02f HTTP/1.1" 404 Not Found
+2026-01-08 17:32:59,200 [ERROR] app.api.v1.endpoints.training: Training job aa9df5e4-ab1d-4e86-86fc-3d689666b02f failed: "TrainingJobStatus" object has no field "error"
+2026-01-08 17:32:59,200 [ERROR] asyncio: Task exception was never retrieved
+future: <Task finished name='Task-5' coro=<_run_training_background() done, defined at E:\junon-time-series\backend\app\api\v1\endpoints\training.py:68> exception=ValueError('"TrainingJobStatus" object has no field "error"')>
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 95, in _run_training_background
+    _jobs[job_id].error = results.get('error', 'Unknown error')
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 100, in _run_training_background
+    _jobs[job_id].error = str(e)
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+INFO:     127.0.0.1:19192 - "POST /api/v1/training/start HTTP/1.1" 200 OK
+2026-01-08 17:35:01,658 [ERROR] app.api.v1.endpoints.training: Training job 7cc75510-202e-4513-8631-3ffa4adcb4ca failed: "TrainingJobStatus" object has no field "error"
+2026-01-08 17:35:01,658 [ERROR] asyncio: Task exception was never retrieved
+future: <Task finished name='Task-10' coro=<_run_training_background() done, defined at E:\junon-time-series\backend\app\api\v1\endpoints\training.py:68> exception=ValueError('"TrainingJobStatus" object has no field "error"')>
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 95, in _run_training_background
+    _jobs[job_id].error = results.get('error', 'Unknown error')
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\junon-time-series\backend\app\api\v1\endpoints\training.py", line 100, in _run_training_background
+    _jobs[job_id].error = str(e)
+    ^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1032, in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\junon-time-series\venv\Lib\site-packages\pydantic\main.py", line 1079, in _setattr_handler
+    raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+ValueError: "TrainingJobStatus" object has no field "error"
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:19195 - "GET /ws/training/7cc75510-202e-4513-8631-3ffa4adcb4ca HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:19205 - "GET /api/v1/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19208 - "GET /api/v1/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19217 - "GET /api/v1/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19220 - "GET /api/v1/models HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19224 - "GET /api/v1/sources/db/tables?host=localhost&port=5433&database=postgres&user=postgres&password=postgres_default_pass_2024&schema=staging HTTP/1.1" 200 OK
+INFO:     127.0.0.1:19228 - "GET /api/v1/sources/db/tables?host=localhost&port=5433&database=postgres&user=postgres&password=postgres_default_pass_2024&schema=staging HTTP/1.1" 200 OK
+forrtl: error (200): program aborting due to window-CLOSE event
+Image              PC                Routine            Line        Source             
+KERNELBASE.dll     00007FFCFB65B99D  Unknown               Unknown  Unknown
+KERNEL32.dll       00007FFCFC35E8D7  Unknown               Unknown  Unknown
+ntdll.dll          00007FFCFE34C53C  Unknown               Unknown  Unknown

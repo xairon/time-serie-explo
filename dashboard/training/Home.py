@@ -22,36 +22,28 @@ st.markdown("---")
 # Workflow Overview with visual cards
 st.subheader("Workflow")
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("""
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; color: white; height: 180px;">
-        <h3 style="margin:0; font-size: 1.2rem;">1. Database Import</h3>
-        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Connect to PostgreSQL, explore data, select columns and filters</p>
+        <h3 style="margin:0; font-size: 1.2rem;">1. Dataset Preparation</h3>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Load data from CSV or PostgreSQL, explore, configure target & preprocessing</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 1.5rem; border-radius: 10px; color: white; height: 180px;">
-        <h3 style="margin:0; font-size: 1.2rem;">2. Dataset Preparation</h3>
-        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Configure target, covariates, preprocessing options</p>
+    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1.5rem; border-radius: 10px; color: white; height: 180px;">
+        <h3 style="margin:0; font-size: 1.2rem;">2. Train Models</h3>
+        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Select model architecture, tune hyperparameters, train</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1.5rem; border-radius: 10px; color: white; height: 180px;">
-        <h3 style="margin:0; font-size: 1.2rem;">3. Train Models</h3>
-        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Select model architecture, tune hyperparameters, train</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    st.markdown("""
     <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 1.5rem; border-radius: 10px; color: white; height: 180px;">
-        <h3 style="margin:0; font-size: 1.2rem;">4. Forecasting</h3>
+        <h3 style="margin:0; font-size: 1.2rem;">3. Forecasting</h3>
         <p style="font-size: 0.9rem; margin-top: 0.5rem;">Generate predictions, analyze results, explain model</p>
     </div>
     """, unsafe_allow_html=True)
@@ -76,7 +68,7 @@ with col_status1:
             st.caption(f"{len(df):,} rows | {len(df.columns)} columns")
     else:
         st.info("No data loaded")
-        st.caption("Go to Database Import or Dataset Preparation")
+        st.caption("Go to Dataset Preparation")
 
 with col_status2:
     st.markdown("##### Saved Datasets")
@@ -121,16 +113,19 @@ st.subheader("Quick Actions")
 col_act1, col_act2, col_act3 = st.columns(3)
 
 with col_act1:
-    st.page_link("pages/1_Database_Import.py", label="Connect to Database", icon="🔌")
+    st.page_link("pages/1_Dataset_Preparation.py", label="📊 Prepare Dataset", icon="📊")
     
 with col_act2:
-    st.page_link("pages/2_Dataset_Preparation.py", label="Upload CSV File", icon="📁")
+    if st.session_state.get('training_data_configured'):
+        st.page_link("pages/2_Train_Models.py", label="🚀 Train a Model", icon="🚀")
+    else:
+        st.info("Load data first to train")
 
 with col_act3:
     if st.session_state.get('training_data_configured'):
-        st.page_link("pages/3_Train_Models.py", label="Train a Model", icon="🚀")
+        st.page_link("pages/3_Forecasting.py", label="📈 Make Predictions", icon="📈")
     else:
-        st.info("Load data first to train")
+        st.info("Train a model first")
 
 st.markdown("---")
 

@@ -317,6 +317,64 @@ def detect_dimension_columns(
     return dimensions
 
 
+def get_station_summary(
+    engine: Engine,
+    table_name: str,
+    station_column: str,
+    date_column: Optional[str] = None,
+    lat_column: Optional[str] = None,
+    lon_column: Optional[str] = None,
+    schema: str = "public",
+    limit: int = 5000
+) -> pd.DataFrame:
+    """
+    Get summary of stations with row counts and optional date/coordinate info.
+    
+    This is a fast aggregation query that avoids loading all data.
+    
+    Args:
+        engine: SQLAlchemy Engine
+        table_name: Name of the table
+        station_column: Column containing station identifiers
+        date_column: Optional date column for date range info
+        lat_column: Optional latitude column
+        lon_column: Optional longitude column
+        schema: Schema name
+        limit: Maximum number of stations to return
+        
+    Returns:
+        DataFrame with station, row_count, and optional metadata
+    """
+    select_parts = [
+        f'"{station_column}" as station',
+        'COUNT(*) as row_count'
+    ]
+    
+    if date_column:
+        select_parts.extend([
+            f'MIN("{date_column}")::text as min_date',
+            f'MAX("{date_column}")::text as max_date'
+        ])
+        
+    if lat_column and lon_column:
+        select_parts.extend([
+            f'MIN("{lat_column}") as latitude',
+            f'MIN("{lon_column}") as longitude'
+        ])
+    
+    query = f'''
+        SELECT {", ".join(select_parts)}
+        FROM "{schema}"."{table_name}"
+        WHERE "{station_column}" IS NOT NULL
+        GROUP BY "{station_column}"
+        ORDER BY "{station_column}"
+        LIMIT {limit}
+    '''
+    
+    with engine.connect() as conn:
+        return pd.read_sql(text(query), conn)
+
+
 def fetch_data(
     engine: Engine,
     table_name: str,

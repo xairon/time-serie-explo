@@ -63,7 +63,8 @@ def evaluate_model(
     test_series: Union[TimeSeries, Sequence[TimeSeries]],
     horizon: int,
     past_covariates: Optional[Union[TimeSeries, Sequence[TimeSeries]]] = None,
-    num_samples: int = 1
+    num_samples: int = 1,
+    target_scaler: Optional[Any] = None
 ) -> Tuple[Union[TimeSeries, Sequence[TimeSeries]], Dict[str, float]]:
     """
     Evaluates a model on the test set.
@@ -75,6 +76,7 @@ def evaluate_model(
         horizon: Forecast horizon
         past_covariates: Past covariates (FULL dataset)
         num_samples: Number of samples for probabilistic prediction
+        target_scaler: Scaler(s) to inverse transform predictions (optional)
 
     Returns:
         Tuple (predictions, metrics)
@@ -98,6 +100,23 @@ def evaluate_model(
         pred_kwargs['past_covariates'] = past_covariates
 
     predictions = model.predict(**pred_kwargs)
+    
+    # INVERSE TRANSFORM (Metric Calculation on Original Scale)
+    if target_scaler:
+        if is_list:
+            # Global/Multi-series: target_scaler should be a list or a single scaler
+            if isinstance(target_scaler, list):
+                # Apply each scaler to corresponding series
+                predictions = [scaler.inverse_transform(p) for scaler, p in zip(target_scaler, predictions)]
+                test_series = [scaler.inverse_transform(t) for scaler, t in zip(target_scaler, test_series)]
+            else:
+                # Apply single scaler to all
+                predictions = target_scaler.inverse_transform(predictions)
+                test_series = target_scaler.inverse_transform(test_series)
+        else:
+            # Single series
+            predictions = target_scaler.inverse_transform(predictions)
+            test_series = target_scaler.inverse_transform(test_series)
 
     # Calculate metrics
     metrics = calculate_metrics(test_series, predictions)
@@ -134,7 +153,7 @@ def calculate_metrics(
         for act, pred in zip(actual, predicted):
              inter = act.slice_intersect(pred)
              actual_aligned.append(inter)
-             predicted_aligned.append(pred)
+             predicted_aligned.append(pred.slice_intersect(act))
     else:
         actual_aligned = actual.slice_intersect(predicted)
         predicted_aligned = predicted
@@ -324,7 +343,7 @@ def run_training_pipeline(
 
         results['model'] = model
 
-        # 4. Evaluate on test
+        # 4. Evaluate on test (Original Scale)
         output_chunk = hyperparams.get('output_chunk_length', 7)
 
         # For prediction, we need the series up containing the test set
@@ -339,13 +358,33 @@ def run_training_pipeline(
             if getattr(model, "supports_past_covariates", False):
                 full_past_cov = full_cov
 
+        # Prepare scalers for evaluation
+        eval_scaler = None
+        if target_preprocessor:
+            if isinstance(train, list): # Global model
+                if isinstance(target_preprocessor, dict):
+                    # Map station index to scaler
+                    # all_stations is required here to map index -> station_name -> scaler
+                    if all_stations:
+                        eval_scaler = [target_preprocessor.get(s) for s in all_stations]
+                    else:
+                        # Fallback: repeat first scaler if no station list (risky but better than crash)
+                        first_scaler = list(target_preprocessor.values())[0]
+                        eval_scaler = [first_scaler] * len(train)
+                else:
+                    # Single scaler for all series (unlikely for global but possible)
+                    eval_scaler = target_preprocessor
+            else: # Single model
+                eval_scaler = target_preprocessor
+
         predictions, metrics = evaluate_model(
             model=model,
             train_series=full_train,
             test_series=test,
             horizon=min(output_chunk, len(test)),
             past_covariates=full_past_cov,
-            num_samples=1
+            num_samples=1,
+            target_scaler=eval_scaler
         )
 
         results['predictions'] = predictions
