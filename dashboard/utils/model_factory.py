@@ -115,7 +115,12 @@ class ModelFactory:
         # MODÈLES PYTORCH (Deep Learning)
         # =====================================================================
         if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            if hasattr(torch, 'xpu') and torch.xpu.is_available():
+                device = 'xpu'
+            elif torch.cuda.is_available():
+                device = 'cuda'
+            else:
+                device = 'cpu'
 
         # Extraire les paramètres optimiseur
         learning_rate = params.pop('learning_rate', 1e-3)
@@ -141,10 +146,15 @@ class ModelFactory:
         if 'pl_trainer_kwargs' not in params:
             params['pl_trainer_kwargs'] = {}
 
-        params['pl_trainer_kwargs']['accelerator'] = 'gpu' if device == 'cuda' else 'cpu'
-
-        if device == 'cuda' and torch.cuda.is_available():
-            params['pl_trainer_kwargs']['devices'] = [0]  # GPU 0
+        if device == 'xpu':
+            params['pl_trainer_kwargs']['accelerator'] = 'xpu'
+            params['pl_trainer_kwargs']['devices'] = 1
+        elif device == 'cuda':
+            params['pl_trainer_kwargs']['accelerator'] = 'gpu'
+            if torch.cuda.is_available():
+                params['pl_trainer_kwargs']['devices'] = [0]  # GPU 0
+        else:
+            params['pl_trainer_kwargs']['accelerator'] = 'cpu'
 
         # Désactiver certains logs et la progress bar pour compatibilité Streamlit
         params['pl_trainer_kwargs']['enable_progress_bar'] = False
@@ -232,6 +242,8 @@ class ModelFactory:
 
 def get_device() -> str:
     """Détecte le device disponible."""
+    if hasattr(torch, 'xpu') and torch.xpu.is_available():
+        return 'xpu'
     if torch.cuda.is_available():
         return 'cuda'
     return 'cpu'
@@ -241,10 +253,19 @@ def get_device_info() -> Dict[str, Any]:
     """Retourne des informations sur le device."""
     info = {
         'cuda_available': torch.cuda.is_available(),
-        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+        'xpu_available': hasattr(torch, 'xpu') and torch.xpu.is_available(),
+        'device': get_device(),
     }
 
-    if torch.cuda.is_available():
+    if info['xpu_available']:
+        info['gpu_count'] = torch.xpu.device_count()
+        try:
+            info['gpu_name'] = torch.xpu.get_device_name(0)
+        except:
+            info['gpu_name'] = "Intel Arc GPU"
+        info['xpu_version'] = getattr(torch.version, 'xpu', 'Unknown')
+
+    elif info['cuda_available']:
         info['gpu_count'] = torch.cuda.device_count()
         info['gpu_name'] = torch.cuda.get_device_name(0)
         info['cuda_version'] = torch.version.cuda

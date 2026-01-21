@@ -17,6 +17,39 @@ st.set_page_config(
 st.title("Junon Time Series")
 st.markdown("**Time Series Forecasting Platform**")
 
+# System Checks
+import torch
+import sys
+
+with st.expander("System Status", expanded=False):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Python", sys.version.split()[0])
+    with c2:
+        st.metric("Torch", torch.__version__)
+    with c3:
+        cuda_avail = torch.cuda.is_available()
+        xpu_avail = hasattr(torch, 'xpu') and torch.xpu.is_available()
+        
+        if xpu_avail:
+            st.metric("XPU Available", "True", delta="OK", delta_color="normal")
+        elif cuda_avail:
+            st.metric("CUDA Available", "True", delta="OK", delta_color="normal")
+        else:
+            st.metric("GPU Available", "False", delta="Off", delta_color="off")
+    
+    if xpu_avail:
+        try:
+            device_name = torch.xpu.get_device_name(0)
+        except:
+            device_name = "Intel Arc GPU"
+        st.success(f"🚀 Intel XPU detected: {device_name}")
+    elif cuda_avail:
+        st.success(f"🚀 CUDA GPU detected: {torch.cuda.get_device_name(0)}")
+    else:
+        st.warning("⚠️ No GPU detected. Training will be slow on CPU.")
+
+
 st.markdown("---")
 
 # Workflow Overview with visual cards

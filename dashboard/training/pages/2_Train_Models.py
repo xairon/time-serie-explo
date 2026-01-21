@@ -794,7 +794,6 @@ if st.button(button_label, type="primary", use_container_width=True):
                 'Status': status,
                 'MAE': format_metric(metrics.get('MAE')),
                 'RMSE': format_metric(metrics.get('RMSE')),
-                'R²': format_metric(metrics.get('R2')),
                 'MAPE': format_metric(metrics.get('MAPE'), ".2f", "%"),
                 'sMAPE': format_metric(metrics.get('sMAPE'), ".2f", "%"),
                 'Saved': '' if 'saved_path' in res else ''

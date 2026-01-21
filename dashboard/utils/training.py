@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Dict, Any, Optional, Tuple, List, Union, Sequence
 from pathlib import Path
 from darts import TimeSeries
-from darts.metrics import mae, rmse, mape, r2_score, smape
+from darts.metrics import mae, rmse, mape, smape
 from darts.models.forecasting.forecasting_model import ForecastingModel
 
 from dashboard.utils.model_factory import ModelFactory
@@ -141,7 +141,7 @@ def calculate_metrics(
         Dictionary with metrics
     """
     if metrics_list is None:
-        metrics_list = ['MAE', 'RMSE', 'MAPE', 'R2', 'sMAPE']
+        metrics_list = ['MAE', 'RMSE', 'MAPE', 'sMAPE']
 
     results = {}
 
@@ -176,11 +176,7 @@ def calculate_metrics(
     except Exception:
         results['MAPE'] = np.nan
 
-    try:
-        if 'R2' in metrics_list:
-            results['R2'] = r2_score(actual_aligned, predicted_aligned)
-    except Exception:
-        results['R2'] = np.nan
+
 
     try:
         if 'sMAPE' in metrics_list:

@@ -2,7 +2,7 @@
 
 This page allows users to:
 1. Load a trained model.
-2. Visualize predictions on the test set (Autoregressive & One-Step).
+2. Visualize one-step predictions on the test set.
 3. Analyze model explainability locally and globally using TimeSHAP.
 """
 
@@ -52,7 +52,81 @@ from dashboard.utils.model_registry import get_registry
 from dashboard.utils.model_config import load_model_with_config, load_scalers
 from dashboard.utils.forecasting import generate_single_window_forecast
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
-from darts.metrics import mae, rmse, mape, smape, r2_score
+from darts.metrics import mae, rmse, mape, smape
+
+# Nash-Sutcliffe Efficiency (NSE) - standard metric for hydrology
+def nash_sutcliffe_efficiency(actual, predicted):
+    """Calculate Nash-Sutcliffe Efficiency (NSE) - standard hydrology metric.
+    
+    NSE = 1 means perfect prediction
+    NSE = 0 means prediction is as good as using the mean
+    NSE < 0 means prediction is worse than using the mean
+    """
+    import numpy as np
+    actual_vals = actual.values().flatten()
+    pred_vals = predicted.values().flatten()
+    
+    min_len = min(len(actual_vals), len(pred_vals))
+    actual_vals = actual_vals[:min_len]
+    pred_vals = pred_vals[:min_len]
+    
+    mean_obs = np.mean(actual_vals)
+    ss_res = np.sum((actual_vals - pred_vals) ** 2)
+    ss_tot = np.sum((actual_vals - mean_obs) ** 2)
+    
+    if ss_tot == 0:
+        return 1.0 if ss_res == 0 else -np.inf
+    
+    return 1 - (ss_res / ss_tot)
+
+
+# Kling-Gupta Efficiency (KGE) - improved hydrology metric
+def kling_gupta_efficiency(actual, predicted):
+    """Calculate Kling-Gupta Efficiency (KGE) - improved hydrology metric.
+    
+    KGE decomposes the error into:
+    - Correlation (r)
+    - Bias ratio (beta)  
+    - Variability ratio (gamma)
+    
+    KGE = 1 means perfect prediction
+    KGE > -0.41 is considered useful (better than mean)
+    """
+    import numpy as np
+    actual_vals = actual.values().flatten()
+    pred_vals = predicted.values().flatten()
+    
+    min_len = min(len(actual_vals), len(pred_vals))
+    actual_vals = actual_vals[:min_len]
+    pred_vals = pred_vals[:min_len]
+    
+    # Correlation coefficient
+    if np.std(actual_vals) == 0 or np.std(pred_vals) == 0:
+        r = 0.0
+    else:
+        r = np.corrcoef(actual_vals, pred_vals)[0, 1]
+    
+    # Bias ratio (mean ratio)
+    mean_obs = np.mean(actual_vals)
+    mean_pred = np.mean(pred_vals)
+    if mean_obs == 0:
+        beta = 1.0 if mean_pred == 0 else np.inf
+    else:
+        beta = mean_pred / mean_obs
+    
+    # Variability ratio (std ratio)
+    std_obs = np.std(actual_vals)
+    std_pred = np.std(pred_vals)
+    if std_obs == 0:
+        gamma = 1.0 if std_pred == 0 else np.inf
+    else:
+        gamma = std_pred / std_obs
+    
+    # KGE formula
+    kge = 1 - np.sqrt((r - 1)**2 + (beta - 1)**2 + (gamma - 1)**2)
+    
+    return kge
+
 
 st.set_page_config(layout="wide", page_title="Forecasting")
 
@@ -93,16 +167,38 @@ if not all_models:
     st.info("Please train a model first on the **Train Models** page.")
     st.stop()
 
-# 1. Select Station
-st.sidebar.markdown("### 1. Station")
+# Helper function to detect if a station name is a real BSS code or just a filename
+def is_real_station_code(station_name: str) -> bool:
+    """
+    Detect if the station name is a real BSS code (format like 00104X0054/P1)
+    or just a derived filename (like 'piezo3' from 'piezo3.csv').
+    """
+    import re
+    # BSS code pattern: digits + letter + digits + / + alphanumeric
+    # Examples: 00104X0054/P1, 01234Y5678/F2
+    bss_pattern = r'^\d{5}[A-Z]\d{4}/[A-Z0-9]+$'
+    return bool(re.match(bss_pattern, station_name))
+
+# 1. Select Data Source / Station
 all_stations = registry.get_all_stations()
 
 if not all_stations:
     st.warning("No stations found in registered models.")
     st.stop()
 
+# Check if any station is a real BSS code
+has_real_stations = any(is_real_station_code(s) for s in all_stations)
+
+# Determine label based on whether we have real station codes
+if has_real_stations:
+    st.sidebar.markdown("### 1. Station")
+    station_label = "Station"
+else:
+    st.sidebar.markdown("### 1. Source de données")
+    station_label = "Source"
+
 selected_station = st.sidebar.selectbox(
-    "Station", 
+    station_label, 
     sorted(all_stations),
     label_visibility="collapsed"
 )
@@ -149,9 +245,9 @@ solo_models = registry.get_models_for_station_dataset(selected_station, selected
 def get_model_label(m):
     """Generate label with metrics if available."""
     date_str = m.created_at[:10] if m.created_at else ""
-    r2 = m.metrics.get('R2', m.metrics.get('r2'))
-    if r2 is not None:
-        return f"{m.model_name} (R²={r2:.2f}) - {date_str}"
+    rmse_val = m.metrics.get('RMSE', m.metrics.get('rmse'))
+    if rmse_val is not None:
+        return f"{m.model_name} (RMSE={rmse_val:.4f}) - {date_str}"
     return f"{m.model_name} - {date_str}"
 
 # Create combined model list with type prefix
@@ -169,7 +265,8 @@ if solo_models:
         model_labels.append(f"[Solo] {get_model_label(m)}")
 
 if not all_station_models:
-    st.sidebar.warning("No models for this station + dataset combination.")
+    source_label = "station" if has_real_stations else "source"
+    st.sidebar.warning(f"No models for this {source_label} + dataset combination.")
     st.stop()
 
 selected_model_idx = st.sidebar.selectbox(
@@ -183,9 +280,11 @@ selected_model_info = all_station_models[selected_model_idx]
 # 4. For global models: select target station to predict
 target_station = selected_station
 if selected_model_info.model_type == "global":
-    st.sidebar.markdown("### 4. Target Station")
+    # Use appropriate label based on whether we have real station codes
+    target_label = "Target Station" if has_real_stations else "Target Source"
+    st.sidebar.markdown(f"### 4. {target_label}")
     target_station = st.sidebar.selectbox(
-        "Station to predict",
+        target_label,
         selected_model_info.stations,
         index=selected_model_info.stations.index(selected_station) if selected_station in selected_model_info.stations else 0,
         label_visibility="collapsed"
@@ -335,10 +434,14 @@ with col_model:
 with col_metrics:
     st.markdown("### Validation Metrics")
     if config.metrics:
-        # Show first 4 metrics
         cols = st.columns(2)
-        for i, (name, value) in enumerate(list(config.metrics.items())[:4]):
-            with cols[i % 2]:
+        # Show first 4 metrics
+        for i, (name, value) in enumerate(list(config.metrics.items())[:6]):
+             # Skip R2 if present (legacy models)
+             if name.upper() in ['R2', 'R SQUARED']:
+                 continue
+                 
+             with cols[i % 2]:
                 if value is not None and not pd.isna(value):
                     st.metric(name, f"{value:.4f}")
 
@@ -355,28 +458,33 @@ st.markdown("---")
 
 
 # =============================================================================
-# GLOBAL SLIDER - Analysis Window
+# SLIDING WINDOW - Test Set Only
 # =============================================================================
-st.markdown("### Analysis Window")
+st.markdown("### Sliding Window on Test Set")
 
-valid_start = input_chunk
-valid_end = len(test_df_processed) - model_horizon
+# Calculate valid range over the TEST set only
+test_len = len(test_df_processed)
+valid_start = input_chunk  # Need at least input_chunk days before for context
+valid_end = test_len - model_horizon  # Need room for prediction
 
 if valid_start >= valid_end:
-    st.error(f"Not enough test data. Minimum required: {input_chunk + model_horizon} days")
+    st.error(f"Test set too small. Need at least {input_chunk + model_horizon} days, have {test_len}.")
     st.stop()
 
+# Slider over test set
 start_idx = st.slider(
-    "Move slider to explore different windows (Predictions & Explanations)",
+    f"Slide window on test set ({model_horizon} days prediction)",
     min_value=valid_start,
     max_value=valid_end,
     value=valid_start,
-    help=f"This window of {model_horizon} days is used for one-step predictions AND SHAP explanations"
+    help=f"Input: {input_chunk} days of context | Prediction: {model_horizon} days ahead"
 )
 
+# Calculate window dates (relative to TEST data)
 window_start_date = test_df_processed.index[start_idx]
-window_end_date = test_df_processed.index[min(start_idx + model_horizon - 1, len(test_df_processed) - 1)]
-st.caption(f"Window: **{window_start_date.strftime('%Y-%m-%d')}** → **{window_end_date.strftime('%Y-%m-%d')}**")
+window_end_date = test_df_processed.index[min(start_idx + model_horizon - 1, test_len - 1)]
+
+st.caption(f"**Prediction window:** {window_start_date.strftime('%Y-%m-%d')} → {window_end_date.strftime('%Y-%m-%d')} ({model_horizon} days)")
 
 st.markdown("---")
 
@@ -397,318 +505,149 @@ selected_tab = st.radio(
 )
 st.session_state.forecasting_tab = selected_tab
 
-# Cache keys - MUST include target_station for global models!
-full_pred_key = f"full_pred_{selected_model_info.model_id}_{target_station}"
+# Cache key for window predictions
 window_pred_key = f"window_pred_{selected_model_info.model_id}_{target_station}_{start_idx}"
 
 
 # =============================================================================
-# GENERATE PREDICTIONS (Compute Logic)
+# GENERATE WINDOW PREDICTION (Only when slider moves)
 # =============================================================================
-
-# 1. Autoregressive Predictions on Full Test Set (Once per model load)
-if full_pred_key not in st.session_state:
-    with st.spinner("Generating autoregressive predictions on test set..."):
-        try:
-            # IMPORTANT: Use ONLY test data to avoid data leakage from train/val
-            # The model should only see test set data for both context and prediction
-            test_series_processed, covariates_processed = prepare_dataframe_for_darts(
-                test_df_processed, target_col, covariate_cols if use_covariates else []
-            )
-            
-            # NO SCALING NEEDED - data is already normalized
-            # Get scalers only for inverse_transform (to get RAW output for display)
-            target_preprocessor = scalers.get('target_preprocessor')
-            
-            # Generate TRUE AUTOREGRESSIVE forecasts (multi-step ahead)
-            # For global models, wrap single station data in lists
-            if is_global_model:
-                series_for_pred = [test_series_processed]
-                cov_for_pred = [covariates_processed] if covariates_processed else None
-            else:
-                series_for_pred = test_series_processed
-                cov_for_pred = covariates_processed
-
-            # Autoregressive predictions must start AFTER input_chunk days
-            # because the model needs input_chunk days of context for its first prediction
-            auto_start_idx = input_chunk
-            if auto_start_idx >= len(test_df_processed):
-                raise ValueError(f"Test set too small: {len(test_df_processed)} days, need at least {input_chunk + 1}")
-            
-            forecast_kwargs = {
-                'series': series_for_pred,  # ONLY test data
-                'start': test_df_processed.index[auto_start_idx],  # Start after input window
-                'forecast_horizon': model_horizon,
-                'stride': model_horizon,
-                'retrain': False,
-                'last_points_only': False,
-                'verbose': False
-            }
-
-            # Add covariates if available and model was TRAINED with them
-            # Only use past_covariates to avoid prediction bias
-            model_uses_past = getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False)
-            
-            if cov_for_pred is not None and use_covariates:
-                if model_uses_past:
-                    forecast_kwargs['past_covariates'] = cov_for_pred
-
-            forecasts_list = model.historical_forecasts(**forecast_kwargs)
-            
-            # Handle results from global models (which return lists of lists)
-            from darts import concatenate
-            if is_global_model and isinstance(forecasts_list, list) and len(forecasts_list) > 0:
-                # For global models, we get a list with one element (our station)
-                if isinstance(forecasts_list[0], list):
-                    # List of lists case
-                    forecasts = concatenate(forecasts_list[0])
-                else:
-                    # Single list case
-                    forecasts = forecasts_list[0]
-            elif isinstance(forecasts_list, list) and len(forecasts_list) > 0:
-                # Single model case - concatenate list of forecast windows
-                forecasts = concatenate(forecasts_list)
-            else:
-                forecasts = forecasts_list
-            
-            # Inverse Transform to get RAW predictions for display
-            if target_preprocessor:
-                pred_auto_raw = target_preprocessor.inverse_transform(forecasts)
-            else:
-                pred_auto_raw = forecasts
-            
-            # Align with ground truth for metrics - use test_series_processed
-            common_start = max(forecasts.start_time(), test_series_processed.start_time())
-            common_end = min(forecasts.end_time(), test_series_processed.end_time())
-            
-            pred_aligned = forecasts.slice(common_start, common_end)
-            test_aligned = test_series_processed.slice(common_start, common_end)
-            
-            # Metrics on NORMALIZED data (same scale as training)
-            metrics_full = {
-                'MAE': float(mae(test_aligned, pred_aligned)),
-                'RMSE': float(rmse(test_aligned, pred_aligned)),
-                'MAPE': float(mape(test_aligned, pred_aligned)),
-                'R²': float(r2_score(test_aligned, pred_aligned)),
-            }
-            
-            st.session_state[full_pred_key] = {
-                'pred_auto': pred_auto_raw,  # RAW for display
-                'pred_auto_processed': forecasts,  # PROCESSED for SHAP
-                'target_raw': test_series_processed,  # Keep for backwards compat
-                'target_processed': test_series_processed,  # PROCESSED for SHAP
-                'metrics': metrics_full
-            }
-                
-        except Exception as e:
-            st.error(f"Prediction error: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-            st.session_state[full_pred_key] = None
-
-
-# 2. Window Predictions (When slider moves)
 if window_pred_key not in st.session_state:
-    with st.spinner("Generating predictions for window..."):
+    with st.spinner("Generating prediction for window..."):
         try:
             # Generate forecast for the specific window using PROCESSED data
             results = generate_single_window_forecast(
                 model=model,
-                full_df=full_df_processed,  # PROCESSED data
+                full_df=full_df_processed,
                 target_col=target_col,
                 covariate_cols=covariate_cols if use_covariates else None,
                 preprocessing_config=config.preprocessing if hasattr(config, 'preprocessing') else {},
                 scalers=scalers,
                 start_date=window_start_date,
                 use_covariates=use_covariates,
-                already_processed=True,  # Flag: data is already normalized, don't scale
-                is_global_model=is_global_model  # Pass global model flag
+                already_processed=True,
+                is_global_model=is_global_model
             )
-            # Unpack results: pred_auto, pred_onestep, target, metrics_auto, metrics_onestep, horizon
+            # results: pred_auto, pred_onestep, target, metrics_auto, metrics_onestep, horizon
             st.session_state[window_pred_key] = {
-                'pred_auto_window': results[0],
-                'pred_onestep': results[1],
-                'target': results[2],
-                'metrics_auto': results[3],
-                'metrics_onestep': results[4]
+                'prediction': results[1],  # One-step prediction (RAW)
+                'target': results[2],      # Ground truth (RAW)
             }
         except Exception as e:
-            st.error(f"Window prediction error: {e}")
+            st.error(f"Prediction error: {e}")
             import traceback
             st.code(traceback.format_exc())
             st.session_state[window_pred_key] = None
 
 
 # =============================================================================
-# TAB 1: PREDICTIONS
+# TAB 1: PREDICTIONS - Test Set with Sliding Window
 # =============================================================================
 if selected_tab == "Predictions":
     
-    st.markdown("### Full Test Set with Window Highlight")
+    cached_window = st.session_state.get(window_pred_key)
     
-    if st.session_state.get(full_pred_key):
-        cached_full = st.session_state[full_pred_key]
-        cached_window = st.session_state.get(window_pred_key)
-        
-        # 2. Ground Truth - Use RAW data directly for display
-        # test_df_raw already contains the raw (non-normalized) values
-        test_series_raw_display, _ = prepare_dataframe_for_darts(
-            test_df_raw, target_col, []
-        )
-        
-        fig = go.Figure()
-        
-        # 1. Highlight Input Window (context used for the current Analysis Window prediction)
-        # This window moves with the slider - shows the input_chunk days BEFORE the analysis window
-        input_window_end = window_start_date - timedelta(days=1)
-        input_window_start = window_start_date - timedelta(days=input_chunk)
-        # Clamp to test set bounds
-        if input_window_start < test_df_raw.index[0]:
-            input_window_start = test_df_raw.index[0]
-        fig.add_vrect(
-            x0=input_window_start, x1=input_window_end,
-            fillcolor="rgba(100, 149, 237, 0.15)",  # Light blue
-            layer="below", line_width=0,
-            annotation_text=f"Input ({input_chunk}d)", annotation_position="bottom left"
-        )
-        
-        # 2. Highlight Analysis Window (current slider selection)
-        fig.add_vrect(
-            x0=window_start_date, x1=window_end_date,
-            fillcolor="rgba(255, 200, 0, 0.2)", 
-            layer="below", line_width=0,
-            annotation_text="Prediction", annotation_position="top right"
-        )
-
-        fig.add_trace(go.Scatter(
-            x=test_series_raw_display.time_index,
-            y=test_series_raw_display.values().flatten(),
-            mode='lines',
-            name='Ground Truth',
-            line=dict(color='#2E86AB', width=2)
-        ))
-        
-        # 3. Full One-Step Forecasts
-        pred_auto = cached_full['pred_auto']
-        gt_start = test_series_raw_display.start_time()
-        gt_end = test_series_raw_display.end_time()
-        
-        try:
-            pred_auto_sliced = pred_auto.slice(gt_start, gt_end)
-        except:
-            pred_auto_sliced = pred_auto
-        
-        fig.add_trace(go.Scatter(
-            x=pred_auto_sliced.time_index,
-            y=pred_auto_sliced.values().flatten(),
-            mode='lines',
-            name='Historical Forecast (One-Step Rolling)',
-            line=dict(color='#F24236', width=1, dash='dot')
-        ))
-        
-        # 4. Window Specific Predictions: Only show One-Step Forecast for the selected window
-        if cached_window:
-            # One-Step Forecast (Window) - The main comparison metric
-            if cached_window.get('pred_onestep') is not None:
-                fig.add_trace(go.Scatter(
-                    x=cached_window['pred_onestep'].time_index,
-                    y=cached_window['pred_onestep'].values().flatten(),
-                    mode='lines+markers',
-                    name='One-Step Forecast (Window)',
-                    line=dict(color='#28A745', width=3),
-                    marker=dict(size=6)
-                ))
-        
-        fig.update_layout(
-            title=f"{target_col} - Test Set Analysis",
-            xaxis_title="Date",
-            yaxis_title=target_col,
-            height=500,
-            hovermode='x unified',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Metrics Display
-        col_full, col_window = st.columns(2)
-        
-        with col_full:
-            st.markdown("**Test Set Metrics (Autoregressive):**")
-            m_cols = st.columns(3)
-            for i, (name, value) in enumerate(cached_full['metrics'].items()):
-                with m_cols[i % 3]:
-                    if value is not None and not pd.isna(value):
-                        st.metric(name, f"{value:.4f}")
-        
-        with col_window:
-            if cached_window and cached_window.get('pred_onestep') is not None and cached_window.get('target') is not None:
-                st.markdown("**Window Metrics (One-Step):**")
-                try:
-                    # Compute metrics directly from cached predictions
-                    pred_os = cached_window['pred_onestep']
-                    target_w = cached_window['target']
-                    
-                    # Align lengths
-                    min_len = min(len(pred_os), len(target_w))
-                    if min_len > 0:
-                        pred_os_aligned = pred_os[:min_len]
-                        target_w_aligned = target_w[:min_len]
-                        
-                        metrics_w = {
-                            'MAE': float(mae(target_w_aligned, pred_os_aligned)),
-                            'RMSE': float(rmse(target_w_aligned, pred_os_aligned)),
-                            'MAPE': float(mape(target_w_aligned, pred_os_aligned)),
-                            'R²': float(r2_score(target_w_aligned, pred_os_aligned)),
-                        }
-                        
-                        m_cols = st.columns(4)
-                        for i, (name, value) in enumerate(metrics_w.items()):
-                            with m_cols[i % 4]:
-                                st.metric(name, f"{value:.4f}")
-                    else:
-                        st.warning("No overlapping data for metrics")
-                except Exception as e:
-                    st.warning(f"Could not compute window metrics: {e}")
-            else:
-                st.info("Window predictions not yet computed")
+    # Prepare TEST set for display (RAW values)
+    test_series_raw, _ = prepare_dataframe_for_darts(test_df_raw, target_col, [])
     
-    # Export Section
-    st.markdown("---")
-    st.markdown("### Export Predictions")
+    fig = go.Figure()
+    
+    # 1. Highlight the input window (context)
+    input_start_date = window_start_date - pd.Timedelta(days=input_chunk)
+    fig.add_vrect(
+        x0=input_start_date, x1=window_start_date,
+        fillcolor="rgba(46, 134, 171, 0.15)",
+        layer="below", line_width=1,
+        line=dict(color="rgba(46, 134, 171, 0.4)"),
+        annotation_text=f"Input ({input_chunk}d)", annotation_position="bottom left"
+    )
+    
+    # 2. Highlight the prediction window
+    fig.add_vrect(
+        x0=window_start_date, x1=window_end_date,
+        fillcolor="rgba(255, 200, 0, 0.25)",
+        layer="below", line_width=1,
+        line=dict(color="rgba(255, 200, 0, 0.6)"),
+        annotation_text=f"Prediction ({model_horizon}d)", annotation_position="top right"
+    )
 
-    if st.session_state.get(full_pred_key):
-        pred_auto = st.session_state[full_pred_key]['pred_auto']  # This is RAW (for display)
-        # Create ground truth from RAW data for export
-        test_series_raw_export, _ = prepare_dataframe_for_darts(
-            test_df_raw, target_col, []
-        )
-        target = test_series_raw_export
-
-        common_start = max(pred_auto.start_time(), target.start_time())
-        common_end = min(pred_auto.end_time(), target.end_time())
-        pred_aligned = pred_auto.slice(common_start, common_end)
-        target_aligned = target.slice(common_start, common_end)
+    # 2. Ground Truth - Test set only
+    fig.add_trace(go.Scatter(
+        x=test_series_raw.time_index,
+        y=test_series_raw.values().flatten(),
+        mode='lines',
+        name='Ground Truth',
+        line=dict(color='#2E86AB', width=2)
+    ))
+    
+    # 3. Window Forecast (if available)
+    if cached_window and cached_window.get('prediction') is not None:
+        fig.add_trace(go.Scatter(
+            x=cached_window['prediction'].time_index,
+            y=cached_window['prediction'].values().flatten(),
+            mode='lines+markers',
+            name='Prediction',
+            line=dict(color='#E91E63', width=3),
+            marker=dict(size=6)
+        ))
+    
+    fig.update_layout(
+        title=f"{target_col} - Test Set",
+        xaxis_title="Date",
+        yaxis_title=target_col,
+        height=450,
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Metrics Display
+    st.markdown("### Window Metrics")
+    
+    if cached_window and cached_window.get('prediction') is not None and cached_window.get('target') is not None:
+        pred = cached_window['prediction']
+        target = cached_window['target']
         
-        min_len = min(len(pred_aligned), len(target_aligned))
-        
+        min_len = min(len(pred), len(target))
         if min_len > 0:
-            export_df = pd.DataFrame({
-                'date': pred_aligned.time_index[:min_len],
-                'ground_truth': target_aligned.values().flatten()[:min_len],
-                'prediction_autoregressive': pred_aligned.values().flatten()[:min_len]
-            })
+            pred_aligned = pred[:min_len]
+            target_aligned = target[:min_len]
             
-            col_csv, col_info = st.columns(2)
-            with col_csv:
-                st.download_button(
-                    label="Download Predictions (CSV)",
-                    data=export_df.to_csv(index=False),
-                    file_name=f"predictions_{selected_station}_{config.model_name}.csv",
-                    mime="text/csv"
-                )
-            with col_info:
-                st.success(f"{len(export_df)} points available for download.")
+            # Hydrology metrics
+            metrics = {
+                'MAE': float(mae(target_aligned, pred_aligned)),
+                'RMSE': float(rmse(target_aligned, pred_aligned)),
+                'NSE': nash_sutcliffe_efficiency(target_aligned, pred_aligned),
+                'KGE': kling_gupta_efficiency(target_aligned, pred_aligned),
+            }
+            
+            m_cols = st.columns(4)
+            for i, (name, value) in enumerate(metrics.items()):
+                with m_cols[i]:
+                    st.metric(name, f"{value:.4f}")
+    else:
+        st.info("Déplacez le slider pour générer une prédiction.")
+    
+    # Export
+    st.markdown("---")
+    if cached_window and cached_window.get('prediction') is not None:
+        pred = cached_window['prediction']
+        target = cached_window['target']
+        min_len = min(len(pred), len(target))
+        
+        export_df = pd.DataFrame({
+            'date': pred.time_index[:min_len],
+            'ground_truth': target.values().flatten()[:min_len],
+            'prediction': pred.values().flatten()[:min_len]
+        })
+        
+        st.download_button(
+            label="📥 Export CSV",
+            data=export_df.to_csv(index=False),
+            file_name=f"prediction_{window_start_date.strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
 
 # =============================================================================
 # TAB 2: EXPLAINABILITY (TimeSHAP)

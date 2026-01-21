@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Dict, Any, Optional, Tuple, List
 from darts import TimeSeries
 from darts.models.forecasting.forecasting_model import ForecastingModel
-from darts.metrics import mae, rmse, mape, r2_score, smape
+from darts.metrics import mae, rmse, mape, smape
 from darts import concatenate
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
@@ -194,7 +194,6 @@ def generate_single_window_forecast(
             'MAE': float(mae(target, pred)),
             'RMSE': float(rmse(target, pred)),
             'MAPE': float(mape(target, pred)),
-            'R2': float(r2_score(target, pred)),
             'sMAPE': float(smape(target, pred))
         }
 
@@ -314,7 +313,6 @@ def generate_global_forecast(
         'MAE': float(mae(target_series, pred_series)),
         'RMSE': float(rmse(target_series, pred_series)),
         'MAPE': float(mape(target_series, pred_series)),
-        'R2': float(r2_score(target_series, pred_series)),
         'sMAPE': float(smape(target_series, pred_series))
     }
     
@@ -518,7 +516,7 @@ def generate_comparison_forecast(
             'MAE': float(mae(true, pred)),
             'RMSE': float(rmse(true, pred)),
             'MAPE': float(mape(true, pred)),
-            'R2': float(r2_score(true, pred))
+
         }
         
     metrics_auto = calc_metrics(target_slice, autoregressive)

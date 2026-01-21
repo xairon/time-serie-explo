@@ -95,6 +95,11 @@ METRICS_INFO = {
 import os
 
 # Configuration GPU
+try:
+    import intel_extension_for_pytorch as ipex
+except ImportError:
+    pass
+
 if torch.cuda.is_available():
     # Force utilisation GPU 0
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -103,6 +108,14 @@ if torch.cuda.is_available():
     try:
         # Test simple pour vérifier que le GPU fonctionne
         test_tensor = torch.tensor([1.0]).cuda()
+        del test_tensor
+    except:
+        DEVICE = 'cpu'
+elif hasattr(torch, 'xpu') and torch.xpu.is_available():
+    DEVICE = 'xpu'
+    try:
+        # Test simple pour vérifier que le XPU fonctionne
+        test_tensor = torch.tensor([1.0]).to(DEVICE)
         del test_tensor
     except:
         DEVICE = 'cpu'
