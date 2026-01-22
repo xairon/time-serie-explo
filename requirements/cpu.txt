@@ -1,0 +1,8 @@
+-r base.txt
+# PyTorch CPU
+# Note: Install PyTorch separately with:
+# pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cpu
+# Or use setup_env.py which handles this automatically
+torch>=2.0.0
+torchaudio>=2.0.0
+torchvision>=0.15.0

@@ -1,56 +1,46 @@
-[project]
+[tool.poetry]
 name = "time-serie-explo"
 version = "0.1.0"
-description = "Time series forecasting dashboard for piezometric data"
-requires-python = ">=3.10,<3.13"
+description = "Exploration of time series forecasting with Intel Arc XPU support"
+authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-authors = [
-    { name = "Nicolas Ringuet", email = "nicolas.ringuet@univ-tours.fr" }
-]
+packages = [{include = "dashboard"}]
 
-dependencies = [
-    "numpy>=1.24.0",
-    "pandas>=2.0.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
-    "scikit-learn>=1.3.0",
-    "scipy>=1.10.0",
-    "tqdm>=4.65.0",
-    "codecarbon>=2.3.0",
-    "einops>=0.7.0",
-    "pyyaml>=6.0",  # For YAML config files
-    
-    # Dashboard & Viz
-    "streamlit>=1.28.0",
-    "plotly>=5.17.0",
-    
-    # Forecasting & ML
-    "darts>=0.32.0",
-    "pytorch-lightning>=2.0.0",
-    "tensorboard>=2.13.0",
-    "statsmodels>=0.14.0",
-    "shap>=0.42.0,<0.43.0",  # TimeSHAP requires SHAP <0.43.0
-    "timeshap>=1.0.0",
-    "optuna>=3.0.0",
-    "optuna-dashboard>=0.13.0",
-    
-    # Torch (CPU by default, user should install CUDA version manually if needed)
-    "torch>=2.0.0",
-]
+[[tool.poetry.source]]
+name = "pytorch-xpu"
+url = "https://download.pytorch.org/whl/test/xpu"
+priority = "explicit"
 
-[project.optional-dependencies]
-dev = [
-    "ipykernel>=6.0.0",
-    "jupyter>=1.0.0",
-    "jupyterlab>=4.0.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "pytest>=7.0.0",
-]
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = ">=1.24.0"
+pandas = ">=2.0.0"
+scipy = ">=1.10.0"
+scikit-learn = ">=1.3.0"
+pyyaml = ">=6.0"
+matplotlib = ">=3.7.0"
+seaborn = ">=0.12.0"
+plotly = ">=5.17.0"
+streamlit = ">=1.28.0"
+pytorch-lightning = ">=2.0.0"
+einops = ">=0.7.0"
+darts = ">=0.32.0"
+statsmodels = ">=0.14.0"
+shap = ">=0.42.0"
+timeshap = ">=1.0.0"
+optuna = ">=3.0.0"
+tqdm = ">=4.65.0"
+sqlalchemy = ">=2.0.0"
+psycopg2-binary = ">=2.9.0"
+codecarbon = ">=2.3.0"
+tensorboard = ">=2.13.0"
+optuna-dashboard = ">=0.13.0"
+
+# PyTorch XPU (Intel Arc) - Explicit Source
+torch = { version = "2.10.0+xpu", source = "pytorch-xpu" }
+torchaudio = { version = "2.10.0+xpu", source = "pytorch-xpu" }
+torchvision = { version = "0.25.0+xpu", source = "pytorch-xpu" }
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["dashboard"]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

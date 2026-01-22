@@ -12,9 +12,27 @@ Or with custom port:
 import subprocess
 import sys
 import os
+import argparse
 from pathlib import Path
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Launch Junon Time Series Streamlit application",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python run_app.py
+  python run_app.py --port 8502
+  python run_app.py --port 8501 --host 0.0.0.0
+        """
+    )
+    parser.add_argument("--port", type=int, default=8501,
+                       help="Port to run Streamlit on (default: 8501)")
+    parser.add_argument("--host", type=str, default="localhost",
+                       help="Host to bind to (default: localhost)")
+    
+    args = parser.parse_args()
+    
     # Ensure we're in the project root
     project_root = Path(__file__).parent.absolute()
     os.chdir(project_root)
@@ -24,30 +42,36 @@ def main():
     pythonpath = env.get('PYTHONPATH', '')
     env['PYTHONPATH'] = str(project_root) + (os.pathsep + pythonpath if pythonpath else '')
     
-    # Parse arguments
-    port = "8501"
-    for i, arg in enumerate(sys.argv[1:]):
-        if arg == "--port" and i + 2 < len(sys.argv):
-            port = sys.argv[i + 2]
-    
     # Launch Streamlit
+    app_path = project_root / "dashboard" / "training" / "Home.py"
+    
+    if not app_path.exists():
+        print(f"Error: Application file not found at {app_path}")
+        sys.exit(1)
+    
     cmd = [
         sys.executable, "-m", "streamlit", "run",
-        str(project_root / "dashboard" / "training" / "Home.py"),
-        "--server.port", port,
+        str(app_path),
+        "--server.port", str(args.port),
+        "--server.address", args.host,
         "--browser.gatherUsageStats", "false"
     ]
     
-    print(f"Starting Junon Time Series on http://localhost:{port}")
+    print("=" * 60)
+    print("Junon Time Series - Starting Application")
+    print("=" * 60)
     print(f"Project root: {project_root}")
-    print("-" * 50)
+    print(f"Application: {app_path}")
+    print(f"URL: http://{args.host}:{args.port}")
+    print("=" * 60)
+    print("\nPress Ctrl+C to stop the server\n")
     
     try:
         subprocess.run(cmd, env=env, check=True)
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("\n\nShutting down...")
     except subprocess.CalledProcessError as e:
-        print(f"Error starting app: {e}")
+        print(f"\nError starting app: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

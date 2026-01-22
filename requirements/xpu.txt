@@ -1,0 +1,8 @@
+-r base.txt
+# PyTorch XPU (Intel Arc)
+# Note: Install PyTorch separately with:
+# pip install torch==2.10.0+xpu torchaudio==2.10.0+xpu torchvision==0.25.0+xpu --index-url https://download.pytorch.org/whl/test/xpu
+# Or use setup_env.py which handles this automatically
+torch==2.10.0+xpu
+torchaudio==2.10.0+xpu
+torchvision==0.25.0+xpu

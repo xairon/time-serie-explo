@@ -32,22 +32,64 @@ A Streamlit-based dashboard for training and evaluating deep learning models on 
 
 ## Quick Start
 
+> 💡 **Pour un guide détaillé de déploiement**, consultez [DEPLOYMENT.md](DEPLOYMENT.md)
+
 ### Local Development
 
-```bash
-# Clone the repository
-git clone <repo-url>
-cd junon-time-series
+1. **Clone the repository**
+   ```bash
+   git clone <repo-url>
+   cd junon-time-series
+   ```
 
-# Install dependencies with uv (recommended)
-uv sync
+2. **Setup Environment** (Automated)
+   
+   Run the setup script to create a virtual environment and install dependencies optimized for your hardware (CPU, NVIDIA CUDA, or Intel Arc XPU).
 
-# Or with pip
-pip install -e .
+   ```bash
+   # Interactive mode (recommended)
+   python setup_env.py
 
-# Run the app
-streamlit run dashboard/training/app.py
-```
+   # Or specify target directly:
+   python setup_env.py --device cpu   # For standard CPU
+   python setup_env.py --device cuda  # For NVIDIA GPUs
+   python setup_env.py --device xpu   # For Intel Arc GPUs
+   
+   # With custom venv name:
+   python setup_env.py --device xpu --venv venv_arc
+   ```
+
+   The script will:
+   - Create a virtual environment
+   - Install PyTorch with the appropriate index-url for your device
+   - Install all base dependencies
+   - Verify the installation
+
+3. **Verify Installation** (Optional)
+   
+   ```bash
+   python verify_installation.py --venv venv --device cpu
+   ```
+
+4. **Activate Environment**
+   
+   - Windows: `venv\Scripts\activate` (or `venv_arc\Scripts\activate` for XPU)
+   - Linux/Mac: `source venv/bin/activate`
+
+5. **Run the app**
+   
+   ```bash
+   # Using the run script (recommended)
+   python run_app.py
+   
+   # Or directly with Streamlit
+   streamlit run dashboard/training/Home.py
+   
+   # With custom port
+   python run_app.py --port 8502
+   ```
+   
+   The app will be available at `http://localhost:8501` (or your custom port).
 
 ### Docker Deployment
 
@@ -109,18 +151,26 @@ date,water_level,temperature,precipitation
 ```
 ├── dashboard/
 │   ├── training/           # Training app
-│   │   ├── app.py          # Main entry point
+│   │   ├── Home.py        # Main entry point
 │   │   └── pages/
-│   │       ├── 1_Train_Models.py
-│   │       └── 2_Forecasting.py
+│   │       ├── 1_Dataset_Preparation.py
+│   │       ├── 2_Train_Models.py
+│   │       └── 3_Forecasting.py
 │   ├── explorer/           # Data exploration app (optional)
 │   ├── utils/              # Shared utilities
 │   │   ├── model_factory.py
 │   │   ├── preprocessing.py
 │   │   ├── timeshap_wrapper.py
 │   │   └── ...
-│   └── models_config.py    # Model definitions
-├── checkpoints/            # Saved models
+│   └── config.py           # Configuration
+├── requirements/           # Dependency files
+│   ├── base.txt           # Base dependencies
+│   ├── cpu.txt            # CPU-specific (PyTorch CPU)
+│   ├── cuda.txt           # CUDA-specific (PyTorch CUDA)
+│   └── xpu.txt            # XPU-specific (PyTorch XPU)
+├── setup_env.py           # Automated environment setup
+├── verify_installation.py # Installation verification
+├── run_app.py             # Streamlit launcher
 ├── Dockerfile
 ├── docker-compose.yml
 └── pyproject.toml
@@ -143,8 +193,53 @@ Edit `.streamlit/config.toml` to customize theme, server settings, etc.
 ## Requirements
 
 - Python 3.10 - 3.12
-- PyTorch 2.0+
-- CUDA (optional, for GPU acceleration)
+- PyTorch 2.0+ (CPU, CUDA 11.8, or Intel XPU)
+- Virtual environment (created automatically by `setup_env.py`)
+
+### Architecture-Specific Requirements
+
+- **CPU**: No additional requirements
+- **CUDA**: NVIDIA GPU with CUDA 11.8 support
+- **XPU**: Intel Arc GPU with Intel oneAPI Base Toolkit
+
+## Troubleshooting
+
+### Installation Issues
+
+If you encounter issues during installation:
+
+1. **Verify your Python version**:
+   ```bash
+   python --version  # Should be 3.10, 3.11, or 3.12
+   ```
+
+2. **Check virtual environment**:
+   ```bash
+   python verify_installation.py --venv venv
+   ```
+
+3. **Recreate environment**:
+   ```bash
+   # Remove old venv
+   rm -rf venv  # Linux/Mac
+   rmdir /s venv  # Windows
+   
+   # Recreate
+   python setup_env.py --device cpu
+   ```
+
+### PyTorch Installation Issues
+
+- **CPU**: Should work automatically
+- **CUDA**: Ensure you have NVIDIA drivers and CUDA 11.8 installed
+- **XPU**: Requires Intel Arc GPU and Intel oneAPI Base Toolkit
+
+### Streamlit Issues
+
+If Streamlit fails to start:
+- Check that the virtual environment is activated
+- Verify installation: `python verify_installation.py`
+- Try running directly: `streamlit run dashboard/training/Home.py`
 
 ---
 
