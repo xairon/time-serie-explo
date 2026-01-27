@@ -269,8 +269,8 @@ def run_training_pipeline(
     save_dir: Optional[Path] = None,
     station_name: str = 'default',
     verbose: bool = True,
-    progress_callback: Optional[Any] = None,
-    pl_trainer_kwargs: Optional[Dict[str, Any]] = None,
+    progress_callback: Optional[Any] = None,  # DEPRECATED: Use metrics_file instead
+    pl_trainer_kwargs: Optional[Dict[str, Any]] = None,  # DEPRECATED: Use metrics_file and early_stopping_patience instead
     station_data_df: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
     station_data_df_raw: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
     column_mapping: Optional[Dict[str, str]] = None,
@@ -279,7 +279,9 @@ def run_training_pipeline(
     original_filename: Optional[str] = None,
     preprocessing_config: Optional[Dict[str, Any]] = None,
     all_stations: Optional[List[str]] = None,  # For global models: list of all station IDs
-    early_stopping_patience: Optional[int] = None
+    early_stopping_patience: Optional[int] = None,
+    metrics_file: Optional[Path] = None,  # NEW: Path to JSON file for metrics (replaces Streamlit callbacks)
+    n_epochs: Optional[int] = None  # NEW: Total epochs for metrics callback
 ) -> Dict[str, Any]:
     """
     Complete training pipeline with split saving.
@@ -299,9 +301,13 @@ def run_training_pipeline(
     try:
         # 0. Configure Trainer (GPU & Callbacks)
         import torch
-        from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+        from core.callbacks import create_training_callbacks
 
-        trainer_kwargs = pl_trainer_kwargs or {}
+        trainer_kwargs = {}
+        
+        # Merge avec pl_trainer_kwargs si fourni (pour compatibilité)
+        if pl_trainer_kwargs:
+            trainer_kwargs.update(pl_trainer_kwargs)
         
         # Auto-detect GPU
         if torch.cuda.is_available():
@@ -314,20 +320,28 @@ def run_training_pipeline(
             if verbose:
                 print("⚠️ GPU not available, using CPU")
 
-        # Configure Callbacks
-        callbacks = trainer_kwargs.get('callbacks', [])
-        if early_stopping_patience is not None and early_stopping_patience > 0:
-            es = EarlyStopping(
-                monitor="val_loss",
-                patience=early_stopping_patience,
-                mode="min",
-                verbose=verbose
-            )
-            callbacks.append(es)
-            if verbose:
-                print(f"🛑 Early Stopping enabled (patience={early_stopping_patience})")
+        # Configure Callbacks - NOUVELLE APPROCHE STANDARD
+        # On utilise uniquement des callbacks standards qui n'ont pas de dépendances Streamlit
+        callbacks = create_training_callbacks(
+            metrics_file=metrics_file,
+            total_epochs=n_epochs or hyperparams.get('n_epochs'),
+            early_stopping_patience=early_stopping_patience,
+            early_stopping_monitor="val_loss",
+            early_stopping_mode="min"
+        )
         
-        trainer_kwargs['callbacks'] = callbacks
+        # Si pl_trainer_kwargs contient des callbacks (ancien code), on les ignore
+        # pour éviter les problèmes de sérialisation
+        if 'callbacks' in trainer_kwargs:
+            if verbose:
+                print("⚠️ Warning: Callbacks from pl_trainer_kwargs are ignored. Use metrics_file instead.")
+            # On garde seulement les callbacks standards qu'on vient de créer
+            trainer_kwargs['callbacks'] = callbacks
+        else:
+            trainer_kwargs['callbacks'] = callbacks
+        
+        if verbose and metrics_file:
+            print(f"📊 Metrics will be written to: {metrics_file}")
 
         # 1. Create model
         model = ModelFactory.create_model(

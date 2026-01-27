@@ -178,6 +178,14 @@ date,water_level,temperature,precipitation
 
 ---
 
+## Documentation
+
+- **[Rapport pipeline d'entraînement](docs/RAPPORT_PIPELINE_ENTRAINEMENT.md)** — Guide pédagogique complet : de la donnée brute aux métriques (split, normalisation, train/val/test, Independent vs Global, Optuna, évaluation).
+- [DEPLOYMENT.md](DEPLOYMENT.md) — Déploiement et lancement.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Architecture du projet.
+
+---
+
 ## Configuration
 
 ### Port

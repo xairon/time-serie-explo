@@ -1,4 +1,4 @@
-﻿"""
+"""
 Gestion des configurations de modèles avec YAML.
 
 Chaque modèle sauvegardé a une config YAML qui contient :
@@ -44,7 +44,8 @@ class ModelConfig:
         original_station_id: Optional[str] = None,
         creation_date: Optional[str] = None,
         use_covariates: bool = True,
-        data_files: Optional[Dict[str, str]] = None
+        data_files: Optional[Dict[str, str]] = None,
+        metrics_sliding: Optional[Dict[str, float]] = None,
     ):
         self.model_name = model_name
         self.station = station
@@ -67,6 +68,7 @@ class ModelConfig:
         self.hyperparams = hyperparams
         self.metrics = metrics
         self.use_covariates = use_covariates
+        self.metrics_sliding = metrics_sliding or {}
 
         # Fichiers de données sauvegardés (chemins relatifs au dossier du modèle)
         self.data_files = data_files or {
@@ -78,7 +80,7 @@ class ModelConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convertit la config en dictionnaire pour YAML."""
-        return {
+        d = {
             'model_name': self.model_name,
             'station': self.station,
             'original_station_id': self.original_station_id,
@@ -92,6 +94,9 @@ class ModelConfig:
             'metrics': self.metrics,
             'use_covariates': self.use_covariates
         }
+        if self.metrics_sliding:
+            d['metrics_sliding'] = self.metrics_sliding
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ModelConfig':
@@ -113,7 +118,8 @@ class ModelConfig:
                 'val': 'val.csv',
                 'test': 'test.csv',
                 'full': 'full_data.csv'
-            })
+            }),
+            metrics_sliding=data.get('metrics_sliding'),
         )
 
     def save(self, config_path: Path):

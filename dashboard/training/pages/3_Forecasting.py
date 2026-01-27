@@ -1,4 +1,4 @@
-﻿"""Forecasting Page - Sliding Window on TEST data.
+"""Forecasting Page - Sliding Window on TEST data.
 
 This page allows users to:
 1. Load a trained model.
@@ -158,13 +158,44 @@ st.sidebar.header("Model Selection")
 
 # Get registry and scan for any unregistered models
 registry = get_registry(CHECKPOINTS_DIR.parent)  # checkpoints/ is parent
-registry.scan_existing_checkpoints()  # Auto-register legacy models
+
+# Scan for unregistered models
+newly_registered = registry.scan_existing_checkpoints()
+if newly_registered > 0:
+    st.sidebar.info(f"📦 Found and registered {newly_registered} new model(s)")
 
 all_models = registry.list_all_models()
 
 if not all_models:
     st.warning("No trained models available.")
     st.info("Please train a model first on the **Train Models** page.")
+    
+    # Debug info
+    with st.expander("🔍 Debug Info"):
+        st.write(f"CHECKPOINTS_DIR: {CHECKPOINTS_DIR}")
+        st.write(f"CHECKPOINTS_DIR.parent: {CHECKPOINTS_DIR.parent}")
+        st.write(f"Registry checkpoints_dir: {registry.checkpoints_dir}")
+        
+        # Check if directory exists
+        if CHECKPOINTS_DIR.exists():
+            st.write(f"✅ CHECKPOINTS_DIR exists")
+            # List subdirectories
+            subdirs = [d.name for d in CHECKPOINTS_DIR.iterdir() if d.is_dir()]
+            st.write(f"Subdirectories: {subdirs[:10]}")  # Show first 10
+        else:
+            st.write(f"❌ CHECKPOINTS_DIR does not exist")
+        
+        # Check registry file
+        registry_file = registry.checkpoints_dir / "model_registry.json"
+        if registry_file.exists():
+            st.write(f"✅ Registry file exists: {registry_file}")
+            import json
+            with open(registry_file, 'r') as f:
+                reg_data = json.load(f)
+                st.write(f"Registered models: {len(reg_data.get('models', {}))}")
+        else:
+            st.write(f"❌ Registry file does not exist: {registry_file}")
+    
     st.stop()
 
 # Helper function to detect if a station name is a real BSS code or just a filename
@@ -432,16 +463,24 @@ with col_model:
     """)
 
 with col_metrics:
-    st.markdown("### Validation Metrics")
+    st.markdown("### Test Metrics")
     if config.metrics:
+        st.caption("**Test (1 fenêtre)** — une prédiction au début du test")
         cols = st.columns(2)
-        # Show first 4 metrics
         for i, (name, value) in enumerate(list(config.metrics.items())[:6]):
-             # Skip R2 if present (legacy models)
-             if name.upper() in ['R2', 'R SQUARED']:
-                 continue
-                 
-             with cols[i % 2]:
+            if name.upper() in ['R2', 'R SQUARED']:
+                continue
+            with cols[i % 2]:
+                if value is not None and not pd.isna(value):
+                    st.metric(name, f"{value:.4f}")
+    ms = getattr(config, 'metrics_sliding', None) or {}
+    if ms:
+        st.caption("**Test (fenêtré)** — sliding window sur tout le test (standard)")
+        cols = st.columns(2)
+        for i, (name, value) in enumerate(list(ms.items())[:6]):
+            if name.upper() in ['R2', 'R SQUARED']:
+                continue
+            with cols[i % 2]:
                 if value is not None and not pd.isna(value):
                     st.metric(name, f"{value:.4f}")
 

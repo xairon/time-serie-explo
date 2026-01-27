@@ -298,16 +298,16 @@ def split_train_val_test(
     test_ratio: float = 0.15
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries]:
     """
-    Splits a time series into train/val/test.
+    Split temporel strict train/val/test (aucun shuffle, ordre chronologique conservé).
 
     Args:
-        series: TimeSeries to split
-        train_ratio: Train ratio
-        val_ratio: Validation ratio
-        test_ratio: Test ratio
+        series: TimeSeries à découper
+        train_ratio: Part train (ex. 0.7)
+        val_ratio: Part validation (ex. 0.15)
+        test_ratio: Part test (ex. 0.15)
 
     Returns:
-        Tuple (train, val, test)
+        (train, val, test) — tranches contiguës dans le temps
     """
     assert train_ratio + val_ratio + test_ratio == 1.0, "Ratios must sum to 1.0"
 
@@ -319,6 +319,11 @@ def split_train_val_test(
     val = series[train_end:val_end]
     test = series[val_end:]
 
+    if len(train) == 0 or len(val) == 0 or len(test) == 0:
+        raise ValueError(
+            "Split produced an empty train, val or test slice. "
+            "Use larger ratios or more data; ensure train_ratio, val_ratio, test_ratio > 0."
+        )
     return train, val, test
 
 

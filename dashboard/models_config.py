@@ -8,7 +8,7 @@ the same interface (input_chunk_length, output_chunk_length).
 # DEEP LEARNING MODELS (Only supported models)
 # =============================================================================
 DL_MODELS = {
-    # Transformer-based
+    # Transformer-based (defaults tuned for better out-of-box performance)
     'TFT': {
         'name': 'Temporal Fusion Transformer',
         'class': 'TFTModel',
@@ -18,11 +18,11 @@ DL_MODELS = {
         'multivariate': True,
         'description': 'Transformer with attention, interpretable, excellent for complex time series',
         'hyperparams': {
-            'hidden_size': (16, 128, 64),
-            'lstm_layers': (1, 3, 1),
+            'hidden_size': (16, 256, 128),
+            'lstm_layers': (1, 4, 2),
             'num_attention_heads': (1, 8, 4),
             'dropout': (0.0, 0.3, 0.1),
-            'hidden_continuous_size': (8, 32, 16)
+            'hidden_continuous_size': (8, 64, 32)
         }
     },
     'Transformer': {
@@ -86,7 +86,7 @@ DL_MODELS = {
         'description': 'Long Short-Term Memory, classic baseline for time series',
         'hyperparams': {
             'hidden_dim': (32, 256, 128),
-            'n_rnn_layers': (1, 3, 2),
+            'n_rnn_layers': (1, 4, 2),
             'dropout': (0.0, 0.3, 0.1)
         }
     },
@@ -100,7 +100,7 @@ DL_MODELS = {
         'description': 'Gated Recurrent Unit, faster than LSTM',
         'hyperparams': {
             'hidden_dim': (32, 256, 128),
-            'n_rnn_layers': (1, 3, 2),
+            'n_rnn_layers': (1, 4, 2),
             'dropout': (0.0, 0.3, 0.1)
         }
     },
@@ -131,8 +131,8 @@ DL_MODELS = {
         'description': 'Causal convolutions, fast and performant',
         'hyperparams': {
             'num_filters': (16, 128, 64),
-            'kernel_size': (2, 7, 3),
-            'num_layers': (2, 6, 3),
+            'kernel_size': (2, 7, 5),
+            'num_layers': (2, 6, 4),
             'dilation_base': (2, 4, 2),
             'dropout': (0.0, 0.3, 0.1)
         }
@@ -184,7 +184,7 @@ DL_MODELS = {
         }
     },
     
-    # MLP-Mixer based (State-of-the-art 2023)
+    # MLP-Mixer based (State-of-the-art 2023; defaults tuned for better OOB performance)
     'TSMixer': {
         'name': 'TSMixer',
         'class': 'TSMixerModel',
@@ -194,9 +194,9 @@ DL_MODELS = {
         'multivariate': True,
         'description': 'MLP-Mixer for time series, State-of-the-art 2023',
         'hyperparams': {
-            'hidden_size': (32, 256, 64),
-            'ff_size': (64, 512, 128),
-            'num_blocks': (1, 4, 2),
+            'hidden_size': (32, 256, 128),
+            'ff_size': (64, 512, 256),
+            'num_blocks': (1, 4, 3),
             'dropout': (0.0, 0.3, 0.1)
         }
     },

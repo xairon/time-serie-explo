@@ -1,9 +1,14 @@
 """
 Chargeur robuste de modèles Darts optimisé pour Streamlit.
 
-Ce module gère le chargement des modèles PyTorch/Darts en contournant les interférences
-connues de Streamlit et les incompatibilités de versions Numpy (BitGenerator).
-Plus de sous-processus, juste un patch intelligent au moment du chargement.
+⚠️ DEPRECATED: Ce module est conservé pour la compatibilité avec les anciens modèles
+qui contiennent des références Streamlit. Les nouveaux modèles ne devraient plus
+nécessiter ce patch.
+
+Pour les nouveaux modèles, utilisez le chargement standard de Darts :
+    model = ModelClass.load(model_path)
+
+Voir ARCHITECTURE.md pour les bonnes pratiques et la migration.
 """
 
 import sys
@@ -88,6 +93,15 @@ def _make_fake_class(name: str):
             if attr == "wrapper":
                 return lambda func: func
             return self
+
+        def __getitem__(self, key):
+            return _FakeCallable()
+
+        def __iter__(self):
+            return iter([])
+
+        def __len__(self):
+            return 0
 
         def __setstate__(self, state):
             pass

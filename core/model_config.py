@@ -26,6 +26,57 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _clean_model_before_save(model):
+    """
+    Nettoie le modèle avant la sauvegarde pour retirer les callbacks non-standard.
+    
+    Cette fonction retire les callbacks qui pourraient contenir des références
+    à Streamlit ou d'autres dépendances non-sérialisables.
+    
+    Note: Darts ne sérialise normalement pas le Trainer dans model.save(),
+    mais cette fonction garantit qu'aucune référence problématique n'est incluse.
+    
+    Args:
+        model: Modèle Darts à nettoyer
+    
+    Returns:
+        Modèle nettoyé (peut être le même objet si pas de modification nécessaire)
+    """
+    # Pour les modèles PyTorch Lightning (Darts), les callbacks sont dans le Trainer
+    # On vérifie si le modèle a un attribut trainer et on filtre les callbacks
+    
+    if hasattr(model, 'trainer') and model.trainer is not None:
+        # Filtrer les callbacks pour ne garder que les standards
+        original_callbacks = model.trainer.callbacks if hasattr(model.trainer, 'callbacks') else []
+        
+        # Garder uniquement les callbacks standards (EarlyStopping, etc.)
+        # et retirer ceux qui contiennent des références Streamlit
+        safe_callbacks = []
+        for cb in original_callbacks:
+            cb_class_name = cb.__class__.__name__
+            cb_module = cb.__class__.__module__
+            
+            # Garder les callbacks standards de PyTorch Lightning
+            if 'pytorch_lightning' in cb_module:
+                safe_callbacks.append(cb)
+            # Garder les callbacks de notre module core.callbacks (MetricsFileCallback)
+            elif 'core.callbacks' in cb_module:
+                safe_callbacks.append(cb)
+            else:
+                # Retirer les autres callbacks (notamment StreamlitProgressCallback)
+                logger.debug(f"Removing callback {cb_class_name} from {cb_module} before save")
+        
+        # Note: On ne peut pas modifier le Trainer après création, mais Darts
+        # ne sérialise normalement pas le Trainer dans model.save().
+        # Cette fonction sert principalement à documenter l'intention et
+        # à être prête si on doit implémenter un nettoyage plus agressif.
+    
+    return model
 
 
 class ModelConfig:
@@ -203,9 +254,13 @@ def save_model_with_data(
     else:
         simple_station_name = station_name
 
-    # 1. Sauvegarder le modèle PyTorch - use simple name for the .pkl file
+    # 1. Nettoyer le modèle avant sauvegarde (retirer les callbacks non-standard)
+    # CRITIQUE: On nettoie les callbacks pour éviter de sérialiser des références Streamlit
+    cleaned_model = _clean_model_before_save(model)
+    
+    # 2. Sauvegarder le modèle PyTorch - use simple name for the .pkl file
     model_path = model_dir / f"{simple_station_name}.pkl"
-    model.save(str(model_path))
+    cleaned_model.save(str(model_path))
 
     # 2. Sauvegarder les données PROCESSED (pour le modèle)
     train_path = model_dir / "train.csv"

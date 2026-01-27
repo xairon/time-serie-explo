@@ -24,12 +24,10 @@ def get_hyperparam_search_space(model_name: str, trial: optuna.Trial, base_hyper
     Returns:
         Dict des hyperparamètres suggérés
     """
-    # On garde les params de base
+    # On garde les params de base (input/output chunk length fixés par l'utilisateur, pas optimisés par Optuna)
     hyperparams = base_hyperparams.copy()
     
-    # Hyperparamètres communs à optimiser
-    hyperparams['input_chunk_length'] = trial.suggest_categorical('input_chunk_length', [14, 30, 60, 90, 180])
-    hyperparams['output_chunk_length'] = trial.suggest_categorical('output_chunk_length', [7, 14, 30])
+    # Hyperparamètres communs à optimiser (sans input/output chunk length)
     hyperparams['batch_size'] = trial.suggest_categorical('batch_size', [16, 32, 64])
     hyperparams['learning_rate'] = trial.suggest_float('learning_rate', 1e-5, 1e-2, log=True)
     
@@ -96,7 +94,9 @@ def create_optuna_objective(
     n_epochs: int = 30,
     early_stopping: bool = True,
     early_stopping_patience: int = 5,
-    pl_trainer_kwargs: Optional[Dict] = None
+    pl_trainer_kwargs: Optional[Dict] = None,
+    input_chunk_length: int = 30,
+    output_chunk_length: int = 7,
 ):
     """
     Crée la fonction objective pour Optuna.
@@ -111,16 +111,20 @@ def create_optuna_objective(
         early_stopping: Activer early stopping
         early_stopping_patience: Patience pour early stopping
         pl_trainer_kwargs: Arguments PyTorch Lightning
+        input_chunk_length: Input chunk fixé (non optimisé par Optuna)
+        output_chunk_length: Output chunk fixé (non optimisé par Optuna)
     """
     
     def objective(trial: optuna.Trial) -> float:
-        # Base hyperparams
+        # Base hyperparams (input/output chunk fixés par l'UI, pas dans l'espace Optuna)
         base_params = {
             'n_epochs': n_epochs,
-            'loss_fn': 'MAE'
+            'loss_fn': 'MAE',
+            'input_chunk_length': input_chunk_length,
+            'output_chunk_length': output_chunk_length,
         }
         
-        # Suggérer les hyperparamètres
+        # Suggérer les hyperparamètres (sans input/output_chunk_length)
         hyperparams = get_hyperparam_search_space(model_name, trial, base_params)
         
         try:
@@ -176,8 +180,7 @@ def create_optuna_objective(
             }
             
             if use_covariates and full_cov is not None:
-                # Only use past_covariates to avoid prediction bias
-                if getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False):
+                if getattr(model, "supports_past_covariates", False):
                     pred_kwargs['past_covariates'] = full_cov
             
             predictions = model.predict(**pred_kwargs)

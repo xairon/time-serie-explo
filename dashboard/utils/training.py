@@ -1,10 +1,30 @@
-"""Training module for Darts models."""
+"""Training module for Darts models.
+
+Protocol d'entraînement (standard type article de recherche):
+
+- Split temporel strict train/val/test (aucun shuffle).
+- Scalers (normalisation) fit uniquement sur train, transform sur val/test.
+- Entraînement sur train; validation sur val (early stopping uniquement).
+- Test jamais utilisé avant l'évaluation finale.
+- Covariables: past_covariates uniquement (pas de future → pas de fuite).
+- Métriques calculées sur l'échelle originale (inverse transform).
+
+Checklist (aucun effet de bord, pas de fuite):
+- split_train_val_test: tranches contiguës, pas de shuffle.
+- fit_transform sur train uniquement; transform sur val/test (preprocessing).
+- model.fit(series=train, val_series=val, past_covariates only).
+- full_train = concatenate([train, val]) : nouvelle série, train/val inchangés.
+- evaluate_model : inverse_transform crée de nouvelles séries; test du callant non modifié.
+- calculate_metrics : slice_intersect renvoie de nouveaux objets; actual/predicted inchangés.
+- horizon : min(output_chunk, len(test)) single, min sur len(ts) pour list (global).
+- Préconditions : train_ratio, val_ratio, test_ratio > 0 ; test non vide ; output_chunk_length >= 1.
+"""
 
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Optional, Tuple, List, Union, Sequence
 from pathlib import Path
-from darts import TimeSeries
+from darts import TimeSeries, concatenate
 from darts.metrics import mae, rmse, mape, smape
 from darts.models.forecasting.forecasting_model import ForecastingModel
 
@@ -69,6 +89,9 @@ def evaluate_model(
     """
     Evaluates a model on the test set.
 
+    Ne modifie pas test_series du callant : inverse_transform renvoie de nouvelles
+    séries ; on ne fait que rebind des variables locales.
+
     Args:
         model: Trained model
         train_series: Training series (required for some models)
@@ -124,6 +147,81 @@ def evaluate_model(
     return predictions, metrics
 
 
+def evaluate_model_sliding(
+    model: ForecastingModel,
+    full_train: TimeSeries,
+    test: TimeSeries,
+    horizon: int,
+    past_covariates: Optional[TimeSeries] = None,
+    target_scaler: Optional[Any] = None,
+    stride: Optional[int] = None,
+) -> Dict[str, float]:
+    """
+    Évalue le modèle sur le test via fenêtrage glissant (sliding window).
+    Standard pour séries temporelles : plusieurs fenêtres non chevauchantes,
+    métriques agrégées (moyenne MAE, RMSE, etc.).
+
+    Utilise historical_forecasts sur full_series = train+val+test, start = début test,
+    stride = horizon (fenêtres non chevauchantes). Uniquement série unique (pas global).
+
+    Returns:
+        Métriques agrégées (moyenne sur les fenêtres), ou dict vide si échec.
+    """
+    stride = stride or horizon
+    full_series = concatenate([full_train, test], axis=0)
+    start = test.start_time()
+
+    pred_kwargs = {
+        'series': full_series,
+        'start': start,
+        'forecast_horizon': horizon,
+        'stride': stride,
+        'last_points_only': False,
+        'verbose': False,
+    }
+    if past_covariates is not None and getattr(model, 'supports_past_covariates', False):
+        pred_kwargs['past_covariates'] = past_covariates
+
+    try:
+        raw = model.historical_forecasts(**pred_kwargs)
+    except Exception:
+        return {}
+
+    if isinstance(raw, TimeSeries):
+        raw = [raw]
+
+    mlist = ['MAE', 'RMSE', 'MAPE', 'sMAPE']
+    agg: Dict[str, List[float]] = {k: [] for k in mlist}
+    dir_accs: List[float] = []
+
+    for fc in raw:
+        actual_slice = test.slice_intersect(fc)
+        if len(actual_slice) == 0:
+            continue
+        pred_slice = fc.slice_intersect(actual_slice)
+        if len(pred_slice) == 0:
+            continue
+        if target_scaler is not None:
+            actual_slice = target_scaler.inverse_transform(actual_slice)
+            pred_slice = target_scaler.inverse_transform(pred_slice)
+        m = calculate_metrics(actual_slice, pred_slice, metrics_list=mlist + ['Dir_Acc'])
+        for k in mlist:
+            v = m.get(k)
+            if v is not None and not (isinstance(v, float) and np.isnan(v)):
+                agg[k].append(float(v))
+        da = m.get('Dir_Acc')
+        if da is not None and not (isinstance(da, float) and np.isnan(da)):
+            dir_accs.append(float(da))
+
+    out: Dict[str, float] = {}
+    for k in mlist:
+        if agg[k]:
+            out[k] = float(np.nanmean(agg[k]))
+    if dir_accs:
+        out['Dir_Acc'] = float(np.nanmean(dir_accs))
+    return out
+
+
 def calculate_metrics(
     actual: TimeSeries,
     predicted: TimeSeries,
@@ -151,12 +249,11 @@ def calculate_metrics(
         actual_aligned = []
         predicted_aligned = []
         for act, pred in zip(actual, predicted):
-             inter = act.slice_intersect(pred)
-             actual_aligned.append(inter)
-             predicted_aligned.append(pred.slice_intersect(act))
+            actual_aligned.append(act.slice_intersect(pred))
+            predicted_aligned.append(pred.slice_intersect(act))
     else:
         actual_aligned = actual.slice_intersect(predicted)
-        predicted_aligned = predicted
+        predicted_aligned = predicted.slice_intersect(actual)
 
     try:
         if 'MAE' in metrics_list:
@@ -265,8 +362,8 @@ def run_training_pipeline(
     save_dir: Optional[Path] = None,
     station_name: str = 'default',
     verbose: bool = True,
-    progress_callback: Optional[Any] = None,
-    pl_trainer_kwargs: Optional[Dict[str, Any]] = None,
+    progress_callback: Optional[Any] = None,  # DEPRECATED: Use metrics_file instead
+    pl_trainer_kwargs: Optional[Dict[str, Any]] = None,  # DEPRECATED: Use metrics_file and early_stopping_patience instead
     station_data_df: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
     station_data_df_raw: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None,
     column_mapping: Optional[Dict[str, str]] = None,
@@ -274,15 +371,21 @@ def run_training_pipeline(
     cov_preprocessor: Optional[Any] = None,
     original_filename: Optional[str] = None,
     preprocessing_config: Optional[Dict[str, Any]] = None,
-    all_stations: Optional[List[str]] = None  # For global models: list of all station IDs
+    all_stations: Optional[List[str]] = None,  # For global models: list of all station IDs
+    early_stopping_patience: Optional[int] = None,
+    metrics_file: Optional[Path] = None,  # NEW: Path to JSON file for metrics (replaces Streamlit callbacks)
+    n_epochs: Optional[int] = None  # NEW: Total epochs for metrics callback
 ) -> Dict[str, Any]:
     """
     Complete training pipeline with split saving.
 
+    Protocol (standard type article): split temporel → fit scalers on train only →
+    train on train, early-stop on val → evaluate on test only; past_covariates only.
+
     Args:
         model_name: Model name
         hyperparams: Hyperparameters
-        train, val, test: Train/Val/Test Darts TimeSeries
+        train, val, test: Train/Val/Test Darts TimeSeries (split temporel strict)
         train_cov, val_cov, test_cov: Split covariates
         full_cov: Full covariates (train+val+test) for prediction
         use_covariates: Whether to use covariates
@@ -309,14 +412,64 @@ def run_training_pipeline(
     }
 
     try:
-        # 1. Create model
+        # 0. Reproducibilité (graines fixes)
+        import torch
+        import pytorch_lightning as pl
+        try:
+            from dashboard.config import RANDOM_SEED
+        except Exception:
+            RANDOM_SEED = 42
+        pl.seed_everything(RANDOM_SEED, workers=True)
+
+        # 1. Configure Trainer (GPU & Callbacks)
+        from core.callbacks import create_training_callbacks
+
+        trainer_kwargs = {}
+        
+        # Merge avec pl_trainer_kwargs si fourni (pour compatibilité)
+        if pl_trainer_kwargs:
+            trainer_kwargs.update(pl_trainer_kwargs)
+        
+        # Auto-detect GPU
+        if torch.cuda.is_available():
+            trainer_kwargs['accelerator'] = 'gpu'
+            trainer_kwargs['devices'] = 1
+            if verbose:
+                print(f"🚀 Using GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            trainer_kwargs['accelerator'] = 'cpu'
+            if verbose:
+                print("⚠️ GPU not available, using CPU")
+
+        # Configure Callbacks - NOUVELLE APPROCHE STANDARD
+        # On utilise uniquement des callbacks standards qui n'ont pas de dépendances Streamlit
+        callbacks = create_training_callbacks(
+            metrics_file=metrics_file,
+            total_epochs=n_epochs or hyperparams.get('n_epochs'),
+            early_stopping_patience=early_stopping_patience,
+            early_stopping_monitor="val_loss",
+            early_stopping_mode="min"
+        )
+        
+        # Si pl_trainer_kwargs contient des callbacks (ancien code), on les ignore
+        if 'callbacks' in trainer_kwargs:
+            if verbose:
+                print("⚠️ Warning: Callbacks from pl_trainer_kwargs are ignored. Use metrics_file instead.")
+            trainer_kwargs['callbacks'] = callbacks
+        else:
+            trainer_kwargs['callbacks'] = callbacks
+        
+        if verbose and metrics_file:
+            print(f"📊 Metrics will be written to: {metrics_file}")
+
+        # 2. Create model
         model = ModelFactory.create_model(
             model_name,
             hyperparams,
-            pl_trainer_kwargs_override=pl_trainer_kwargs
+            pl_trainer_kwargs_override=trainer_kwargs
         )
 
-        # 2. Prepare covariates based on model support (only past_covariates to avoid bias)
+        # 3. Prepare covariates (past_covariates only — no future, no leakage)
         train_past_cov = None
         val_past_cov = None
 
@@ -327,7 +480,7 @@ def run_training_pipeline(
                 train_past_cov = train_cov
                 val_past_cov = val_cov
 
-        # 3. Train
+        # 4. Train (train only; val for early stopping only)
         model = train_model(
             model=model,
             train_series=train,
@@ -339,14 +492,26 @@ def run_training_pipeline(
 
         results['model'] = model
 
-        # 4. Evaluate on test (Original Scale)
+        # 5. Evaluate on test only (original scale via inverse transform)
         output_chunk = hyperparams.get('output_chunk_length', 7)
 
-        # For prediction, we need the series up containing the test set
+        # Historique = train + val (sans muter train/val; concatenate retourne une nouvelle série)
         if isinstance(train, list) and isinstance(val, list):
-             full_train = [t.append(v) for t, v in zip(train, val)]
+            full_train = [concatenate([t, v], axis=0) for t, v in zip(train, val)]
         else:
-             full_train = train.append(val)
+            full_train = concatenate([train, val], axis=0)
+
+        # Longueur test: single → n_timesteps; global (list) → n_timesteps de chaque série
+        if isinstance(test, (list, tuple)):
+            _test_len = min(len(ts) for ts in test)
+        else:
+            _test_len = len(test)
+        _horizon = min(output_chunk, _test_len)
+        if _horizon <= 0:
+            raise ValueError(
+                "Test set too short or output_chunk_length too small for evaluation. "
+                "Ensure test_ratio > 0 and output_chunk_length >= 1."
+            )
 
         # Full covariates for prediction (only past_covariates)
         full_past_cov = None
@@ -377,7 +542,7 @@ def run_training_pipeline(
             model=model,
             train_series=full_train,
             test_series=test,
-            horizon=min(output_chunk, len(test)),
+            horizon=_horizon,
             past_covariates=full_past_cov,
             num_samples=1,
             target_scaler=eval_scaler
@@ -386,8 +551,25 @@ def run_training_pipeline(
         results['predictions'] = predictions
         results['metrics'] = metrics
 
-        # 5. Save if requested (NEW SYSTEM with splits)
+        # 5b. Sliding-window evaluation on test (single-series only; standard pratique)
+        metrics_sliding: Dict[str, float] = {}
+        if not isinstance(train, (list, tuple)):
+            _full_cov = full_past_cov if isinstance(full_past_cov, TimeSeries) else None
+            metrics_sliding = evaluate_model_sliding(
+                model=model,
+                full_train=full_train,
+                test=test,
+                horizon=_horizon,
+                past_covariates=_full_cov,
+                target_scaler=eval_scaler,
+                stride=_horizon,
+            )
+        results['metrics_sliding'] = metrics_sliding
+
+        # 6. Save if requested (model + config + splits)
         if save_dir and station_data_df is not None:
+            save_dir = Path(save_dir)
+            save_dir.mkdir(parents=True, exist_ok=True)
             clean_station_name = station_name.split('/')[-1] if '/' in station_name else station_name
             is_global = isinstance(train, list) or isinstance(train, tuple)
             
@@ -565,6 +747,14 @@ def run_training_pipeline(
                     'covariates': ['PRELIQ_Q', 'T_Q', 'ETP_Q']
                 }
 
+            # Fallback pour Source/Dataset "unknown": utiliser target + covariables
+            _src = (original_filename or '').strip()
+            if not _src or _src.lower() == 'unknown':
+                _t = columns_config.get('target', 'target')
+                _c = columns_config.get('covariates') or []
+                _cov = '+'.join(str(x) for x in _c[:5])
+                _src = f"{_t}" + (f"+{_cov}" if _cov else "")
+
             if preprocessing_config:
                 preproc = {
                     'fill_method': preprocessing_config.get('fill_method', 'Unknown'),
@@ -590,6 +780,9 @@ def run_training_pipeline(
                 except:
                     return None
 
+            _sliding = results.get('metrics_sliding') or {}
+            _sliding_safe = {k: _safe_metric(v) for k, v in _sliding.items() if _safe_metric(v) is not None}
+
             config = ModelConfig(
                 model_name=model_name,
                 station=clean_station_name,
@@ -597,7 +790,7 @@ def run_training_pipeline(
                 columns=columns_config,
                 data_source={
                     'type': 'embedded',
-                    'original_file': original_filename or 'unknown'
+                    'original_file': _src
                 },
                 splits={
                     'train_size': train_size,
@@ -607,7 +800,8 @@ def run_training_pipeline(
                 preprocessing=preproc,
                 hyperparams={k: str(v) for k, v in hyperparams.items()},
                 metrics={k: _safe_metric(v) for k, v in metrics.items()},
-                use_covariates=use_covariates
+                use_covariates=use_covariates,
+                metrics_sliding=_sliding_safe if _sliding_safe else None
             )
 
             # Determine model type and stations list
