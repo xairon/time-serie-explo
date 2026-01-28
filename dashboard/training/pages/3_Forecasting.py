@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from dashboard.config import CHECKPOINTS_DIR
 from dashboard.utils.model_registry import get_registry
-from dashboard.utils.model_config import load_model_with_config, load_scalers
+# from dashboard.utils.model_config import load_model_with_config, load_scalers # Removed (Legacy)
 from dashboard.utils.forecasting import generate_single_window_forecast
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 from darts.metrics import mae, rmse, mape, smape
@@ -135,13 +135,33 @@ def load_model_data(model_entry):
     """Loads model, config, data, and scalers with caching."""
     cache_key = f"model_{model_entry.model_id}"
     if cache_key not in st.session_state:
-        # Get full model path
-        registry = get_registry(CHECKPOINTS_DIR.parent)  # checkpoints/
-        model_dir = registry.checkpoints_dir / model_entry.path
+        # Get registry
+        registry = get_registry(CHECKPOINTS_DIR.parent)
         
-        # Load fresh if not in cache
-        model, config, data_dict = load_model_with_config(model_dir)
-        scalers = load_scalers(model_dir)
+        # Load via registry
+        model = registry.load_model(model_entry)
+        scalers = registry.load_scalers(model_entry)
+        
+        # Load datasets
+        data_dict = {}
+        for split in ['train', 'val', 'test']:
+            data_dict[split] = registry.load_data(model_entry, split)
+            # Also try to load raw if available, otherwise it will be generated later
+            try:
+                data_dict[f'{split}_raw'] = registry.load_data(model_entry, f'{split}_raw')
+            except:
+                pass
+
+        # Reconstruct config object for compatibility
+        config = type('Config', (), {})()
+        config.model_name = model_entry.model_name
+        config.hyperparams = model_entry.hyperparams
+        config.metrics = model_entry.metrics
+        config.preprocessing = model_entry.preprocessing_config
+        # Add columns info to config from preprocessing if available
+        config.columns = model_entry.preprocessing_config.get('columns', {})
+        config.use_covariates = bool(config.columns.get('covariates'))
+        
         st.session_state[cache_key] = {
             'model': model,
             'config': config,
@@ -156,13 +176,13 @@ def load_model_data(model_entry):
 # =============================================================================
 st.sidebar.header("Model Selection")
 
-# Get registry and scan for any unregistered models
+# Get registry
 registry = get_registry(CHECKPOINTS_DIR.parent)  # checkpoints/ is parent
 
-# Scan for unregistered models
-newly_registered = registry.scan_existing_checkpoints()
-if newly_registered > 0:
-    st.sidebar.info(f"📦 Found and registered {newly_registered} new model(s)")
+# Scan for unregistered models - REMOVED (MLflow handles this automatically)
+# newly_registered = registry.scan_existing_checkpoints()
+# if newly_registered > 0:
+#     st.sidebar.info(f"📦 Found and registered {newly_registered} new model(s)")
 
 all_models = registry.list_all_models()
 
@@ -185,16 +205,11 @@ if not all_models:
         else:
             st.write(f"❌ CHECKPOINTS_DIR does not exist")
         
-        # Check registry file
-        registry_file = registry.checkpoints_dir / "model_registry.json"
-        if registry_file.exists():
-            st.write(f"✅ Registry file exists: {registry_file}")
-            import json
-            with open(registry_file, 'r') as f:
-                reg_data = json.load(f)
-                st.write(f"Registered models: {len(reg_data.get('models', {}))}")
+        # Check registry connection
+        if registry.mlflow_manager.experiment:
+             st.write(f"✅ MLflow Experiment: {registry.mlflow_manager.experiment_name}")
         else:
-            st.write(f"❌ Registry file does not exist: {registry_file}")
+             st.write(f"❌ MLflow Experiment not found")
     
     st.stop()
 

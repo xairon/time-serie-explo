@@ -1,46 +1,56 @@
-[tool.poetry]
+[project]
 name = "time-serie-explo"
 version = "0.1.0"
 description = "Exploration of time series forecasting with Intel Arc XPU support"
-authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "dashboard"}]
+authors = [
+    { name = "Your Name", email = "you@example.com" }
+]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy>=1.24.0,<2.0.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "pyyaml>=6.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "plotly>=5.17.0",
+    "streamlit>=1.28.0",
+    "pytorch-lightning>=2.0.0",
+    "einops>=0.7.0",
+    "darts>=0.32.0",
+    "statsmodels>=0.14.0",
+    "shap>=0.42.0",
+    "timeshap>=1.0.0",
+    "optuna>=3.0.0",
+    "tqdm>=4.65.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "codecarbon>=2.3.0",
+    "tensorboard>=2.13.0",
+    "optuna-dashboard>=0.13.0",
+    "mlflow>=2.0.0",
+    "sqlparse>=0.4.0",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+    "torchvision>=0.15.0",
+    "numba>=0.57.0",
+]
 
-[[tool.poetry.source]]
-name = "pytorch-xpu"
-url = "https://download.pytorch.org/whl/test/xpu"
-priority = "explicit"
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-numpy = ">=1.24.0"
-pandas = ">=2.0.0"
-scipy = ">=1.10.0"
-scikit-learn = ">=1.3.0"
-pyyaml = ">=6.0"
-matplotlib = ">=3.7.0"
-seaborn = ">=0.12.0"
-plotly = ">=5.17.0"
-streamlit = ">=1.28.0"
-pytorch-lightning = ">=2.0.0"
-einops = ">=0.7.0"
-darts = ">=0.32.0"
-statsmodels = ">=0.14.0"
-shap = ">=0.42.0"
-timeshap = ">=1.0.0"
-optuna = ">=3.0.0"
-tqdm = ">=4.65.0"
-sqlalchemy = ">=2.0.0"
-psycopg2-binary = ">=2.9.0"
-codecarbon = ">=2.3.0"
-tensorboard = ">=2.13.0"
-optuna-dashboard = ">=0.13.0"
-
-# PyTorch XPU (Intel Arc) - Explicit Source
-torch = { version = "2.10.0+xpu", source = "pytorch-xpu" }
-torchaudio = { version = "2.10.0+xpu", source = "pytorch-xpu" }
-torchvision = { version = "0.25.0+xpu", source = "pytorch-xpu" }
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu118" }]
+torchaudio = [{ index = "pytorch-cu118" }]
+torchvision = [{ index = "pytorch-cu118" }]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dashboard"]

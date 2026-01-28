@@ -19,95 +19,39 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis for Celery broker and cache
-  redis:
-    image: redis:7-alpine
-    container_name: junon-redis
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: junon-mlflow
     ports:
-      - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "5000:5000"
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: mlflow ui --host 0.0.0.0 --backend-store-uri sqlite:///mlruns.db --default-artifact-root ./mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=sqlite:///mlruns.db
 
-  # FastAPI Backend
-  backend:
+  # Streamlit Dashboard
+  streamlit:
     build:
       context: .
-      dockerfile: docker/Dockerfile.backend
-    container_name: junon-backend
+      dockerfile: docker/Dockerfile
+    container_name: junon-streamlit
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-junon}
       - POSTGRES_USER=${POSTGRES_USER:-junon}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-junon}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
-      - ./data:/app/data
-      - ./checkpoints:/app/checkpoints
-      - ./uploads:/app/uploads
-      # Mount legacy dashboard for gradual migration
-      - ./dashboard:/app/dashboard:ro
-      - ./core:/app/core:ro
+      - .:/app
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${STREAMLIT_PORT:-8501}:8501"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Celery Worker for training jobs
-  celery-worker:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.backend
-    container_name: junon-celery-worker
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-junon}
-      - POSTGRES_USER=${POSTGRES_USER:-junon}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-junon}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    volumes:
-      - ./data:/app/data
-      - ./checkpoints:/app/checkpoints
-      - ./uploads:/app/uploads
-      - ./dashboard:/app/dashboard:ro
-      - ./core:/app/core:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1
-
-  # React Frontend (for development)
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.frontend
-    container_name: junon-frontend
-    environment:
-      - VITE_API_URL=http://localhost:${API_PORT:-8000}
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    depends_on:
-      - backend
-    command: npm run dev -- --host 0.0.0.0
+    command: python run_app.py --host 0.0.0.0
 
 volumes:
   postgres_data:
-  redis_data:

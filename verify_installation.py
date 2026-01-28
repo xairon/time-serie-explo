@@ -90,11 +90,11 @@ def main():
     
     python_cmd = get_venv_python(venv_dir)
     if not python_cmd:
-        print(f"✗ Virtual environment not found at '{venv_dir}'")
+        print(f"[ERROR] Virtual environment not found at '{venv_dir}'")
         print(f"  Run: python setup_env.py --device {device_type}")
         sys.exit(1)
     
-    print(f"✓ Virtual environment found: {python_cmd}\n")
+    print(f"[OK] Virtual environment found: {python_cmd}\n")
     
     # Critical packages to check
     packages = [
@@ -116,11 +116,11 @@ def main():
         success, version = check_import(python_cmd, package, version_attr)
         if success:
             if version:
-                print(f"✓ {package:20s} {version}")
+                print(f"[OK] {package:20s} {version}")
             else:
-                print(f"✓ {package:20s} imported")
+                print(f"[OK] {package:20s} imported")
         else:
-            print(f"✗ {package:20s} NOT FOUND")
+            print(f"[ERROR] {package:20s} NOT FOUND")
             all_ok = False
     
     print("\n" + "-" * 60)
@@ -129,9 +129,9 @@ def main():
     
     success, info = check_torch_device(python_cmd, device_type)
     if success:
-        print(f"✓ {info}")
+        print(f"[OK] {info}")
     else:
-        print(f"⚠ {info}")
+        print(f"[WARNING] {info}")
         if device_type in ['cuda', 'xpu']:
             print(f"  Note: {device_type.upper()} may not be available on this system")
     
@@ -148,10 +148,10 @@ def main():
             timeout=10
         )
         if result.returncode == 0:
-            print(f"✓ Streamlit CLI available")
+            print(f"[OK] Streamlit CLI available")
             print(f"  {result.stdout.strip()}")
         else:
-            print(f"✗ Streamlit CLI error")
+            print(f"[ERROR] Streamlit CLI error")
             all_ok = False
     except Exception as e:
         print(f"✗ Streamlit test failed: {e}")
@@ -171,19 +171,19 @@ def main():
     
     for path in required_paths:
         if Path(path).exists():
-            print(f"✓ {path}")
+            print(f"[OK] {path}")
         else:
-            print(f"✗ {path} NOT FOUND")
+            print(f"[ERROR] {path} NOT FOUND")
             all_ok = False
     
     print("\n" + "="*60)
     if all_ok:
-        print("✓ All checks passed! Installation is ready.")
+        print("All checks passed! Installation is ready.")
         print("\nTo run the app:")
         print(f"  python run_app.py")
         sys.exit(0)
     else:
-        print("✗ Some checks failed. Please review the errors above.")
+        print("Some checks failed. Please review the errors above.")
         sys.exit(1)
 
 if __name__ == "__main__":
