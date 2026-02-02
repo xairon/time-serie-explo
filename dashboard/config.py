@@ -6,6 +6,9 @@ import torch
 # Chemins
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / 'data' / 'piezos'
+# MLflow : base SQLite au même niveau que le projet (run_app.py et mlflow ui utilisent ce chemin)
+MLFLOW_DB_PATH = BASE_DIR / "mlflow.db"
+MLFLOW_TRACKING_URI = f"sqlite:///{MLFLOW_DB_PATH.as_posix()}"
 RESULTS_DIR = BASE_DIR / 'results'
 FIGS_DIR = BASE_DIR / 'figs'
 CHECKPOINTS_DIR = BASE_DIR / 'checkpoints' / 'darts'
@@ -78,13 +81,13 @@ OPTUNA_CONFIG = {
 }
 
 # Métriques
-METRICS = ['MAE', 'RMSE', 'MAPE', 'R2', 'sMAPE', 'NRMSE', 'Dir_Acc', 'NSE', 'KGE']
+METRICS = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'Dir_Acc', 'NSE', 'KGE']
 METRICS_INFO = {
     'MAE': {'name': 'Mean Absolute Error', 'unit': 'm', 'lower_is_better': True},
     'RMSE': {'name': 'Root Mean Square Error', 'unit': 'm', 'lower_is_better': True},
     'MAPE': {'name': 'Mean Absolute Percentage Error', 'unit': '%', 'lower_is_better': True},
-    'R2': {'name': 'Coefficient of Determination', 'unit': '0-1', 'lower_is_better': False},
     'sMAPE': {'name': 'Symmetric MAPE', 'unit': '%', 'lower_is_better': True},
+    'WAPE': {'name': 'Weighted Absolute Percentage Error', 'unit': '%', 'lower_is_better': True},
     'NRMSE': {'name': 'Normalized RMSE', 'unit': '0-1', 'lower_is_better': True},
     'Dir_Acc': {'name': 'Directional Accuracy', 'unit': '%', 'lower_is_better': False},
     'NSE': {'name': 'Nash-Sutcliffe Efficiency', 'unit': '-', 'lower_is_better': False},

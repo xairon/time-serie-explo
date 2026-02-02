@@ -1,4 +1,9 @@
-"""Preprocessing module for time series with Darts."""
+"""Preprocessing module for time series with Darts.
+
+MLflow Tracing:
+- Key functions are traced via @trace_training_step for visibility
+- Traces appear in MLflow UI under the Traces tab
+"""
 
 import pandas as pd
 import numpy as np
@@ -12,6 +17,8 @@ from darts.dataprocessing.transformers import (
 )
 from darts.dataprocessing.transformers.boxcox import BoxCox
 from darts.dataprocessing.transformers.diff import Diff
+
+from dashboard.utils.mlflow_client import trace_training_step
 
 
 class TimeSeriesPreprocessor:
@@ -104,7 +111,25 @@ class TimeSeriesPreprocessor:
 
         Returns:
             Transformed TimeSeries
+
+        Raises:
+            ValueError: If series is empty or contains only NaN values
         """
+        # Validate input
+        if len(series) == 0:
+            raise ValueError("Cannot fit_transform on empty series")
+
+        values = series.values()
+        if np.isnan(values).all():
+            raise ValueError("Series contains only NaN values - cannot fit transformers")
+
+        nan_count = np.isnan(values).sum()
+        if nan_count > 0:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Series contains {nan_count} NaN values before preprocessing"
+            )
+
         transformed = series
 
         for name, transformer in self.transformers:
@@ -115,6 +140,15 @@ class TimeSeriesPreprocessor:
             else:
                 # No fitting needed, just transform
                 transformed = transformer.transform(transformed)
+
+        # Validate output
+        out_values = transformed.values()
+        if np.isnan(out_values).any():
+            import logging
+            nan_after = np.isnan(out_values).sum()
+            logging.getLogger(__name__).warning(
+                f"Preprocessing produced {nan_after} NaN values"
+            )
 
         self.fitted = True
         return transformed
@@ -291,11 +325,15 @@ def add_lag_features(
     return lag_series
 
 
+@trace_training_step("split_data")
 def split_train_val_test(
     series: TimeSeries,
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
-    test_ratio: float = 0.15
+    test_ratio: float = 0.15,
+    min_train_size: int = 10,
+    min_val_size: int = 2,
+    min_test_size: int = 1
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries]:
     """
     Split temporel strict train/val/test (aucun shuffle, ordre chronologique conservé).
@@ -305,13 +343,34 @@ def split_train_val_test(
         train_ratio: Part train (ex. 0.7)
         val_ratio: Part validation (ex. 0.15)
         test_ratio: Part test (ex. 0.15)
+        min_train_size: Minimum number of samples in train set
+        min_val_size: Minimum number of samples in validation set
+        min_test_size: Minimum number of samples in test set
 
     Returns:
         (train, val, test) — tranches contiguës dans le temps
+
+    Raises:
+        ValueError: If ratios don't sum to 1.0 or splits are too small
     """
-    assert train_ratio + val_ratio + test_ratio == 1.0, "Ratios must sum to 1.0"
+    # Validate ratios
+    ratio_sum = train_ratio + val_ratio + test_ratio
+    if not (0.99 <= ratio_sum <= 1.01):  # Allow small floating point errors
+        raise ValueError(f"Ratios must sum to 1.0, got {ratio_sum:.4f}")
+
+    if train_ratio <= 0 or val_ratio <= 0 or test_ratio <= 0:
+        raise ValueError("All ratios must be positive")
 
     n = len(series)
+
+    # Pre-validate that we have enough data
+    min_required = min_train_size + min_val_size + min_test_size
+    if n < min_required:
+        raise ValueError(
+            f"Series too short ({n} samples) for split. "
+            f"Minimum required: {min_required} (train={min_train_size}, val={min_val_size}, test={min_test_size})"
+        )
+
     train_end = int(n * train_ratio)
     val_end = int(n * (train_ratio + val_ratio))
 
@@ -319,11 +378,23 @@ def split_train_val_test(
     val = series[train_end:val_end]
     test = series[val_end:]
 
-    if len(train) == 0 or len(val) == 0 or len(test) == 0:
+    # Validate split sizes
+    if len(train) < min_train_size:
         raise ValueError(
-            "Split produced an empty train, val or test slice. "
-            "Use larger ratios or more data; ensure train_ratio, val_ratio, test_ratio > 0."
+            f"Train split too small ({len(train)} < {min_train_size}). "
+            f"Increase data or adjust ratios."
         )
+    if len(val) < min_val_size:
+        raise ValueError(
+            f"Validation split too small ({len(val)} < {min_val_size}). "
+            f"Increase data or adjust ratios."
+        )
+    if len(test) < min_test_size:
+        raise ValueError(
+            f"Test split too small ({len(test)} < {min_test_size}). "
+            f"Increase data or adjust ratios."
+        )
+
     return train, val, test
 
 

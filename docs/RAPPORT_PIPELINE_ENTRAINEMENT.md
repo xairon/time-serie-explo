@@ -561,7 +561,8 @@ df_raw
 - **Prétraitement** : `dashboard/utils/preprocessing.py` (split, `TimeSeriesPreprocessor`)
 - **Entraînement / évaluation** : `dashboard/utils/training.py` (`run_training_pipeline`, `train_model`, `evaluate_model`, `calculate_metrics`)
 - **Optuna** : `dashboard/utils/optuna_training.py`
-- **Modèles** : `dashboard/utils/model_factory.py`, `core/callbacks.py`
+- **Modèles** : `dashboard/utils/model_factory.py`
+- **Callbacks** : `dashboard/utils/callbacks.py`
 
 ### B. Préconditions et garde-fous
 

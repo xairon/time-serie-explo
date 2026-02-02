@@ -15,8 +15,6 @@ from dashboard.models_config import ALL_MODELS, MODEL_CATEGORIES, RECOMMENDED_MO
 from dashboard.utils.preprocessing import (
     TimeSeriesPreprocessor,
     prepare_dataframe_for_darts,
-    add_datetime_features,
-    add_lag_features,
     split_train_val_test,
     compute_data_statistics,
     get_preprocessing_summary
@@ -30,6 +28,9 @@ import threading
 from dashboard.utils.export import add_download_button
 from dashboard.components.live_log import LiveLogManager, create_progress_section, TrainingProgressTracker
 import time
+
+# Thread lock for training state updates to prevent race conditions
+_training_lock = threading.Lock()
 
 
 st.set_page_config(page_title="Train Models", page_icon="", layout="wide")
@@ -93,6 +94,7 @@ if prepared_datasets:
                         st.session_state['training_target_var'] = selected_dataset.target_column
                         st.session_state['training_covariate_vars'] = selected_dataset.covariate_columns
                         st.session_state['training_filename'] = selected_dataset.source_file
+                        st.session_state['training_dataset_name'] = selected_dataset.name
                         st.session_state['training_preprocessing'] = selected_dataset.preprocessing
                         st.session_state['training_data_configured'] = True
                         
@@ -115,6 +117,12 @@ covariate_vars = st.session_state['training_covariate_vars']
 preprocessing_config = st.session_state['training_preprocessing']
 
 st.success(f" Data loaded: **{st.session_state['training_filename']}**")
+
+# Ensure dataset identifiers are set (avoid "unknown" in MLflow/Forecasting)
+if not st.session_state.get('training_filename'):
+    st.session_state['training_filename'] = st.session_state.get('training_dataset_name') or "session_dataset"
+if not st.session_state.get('training_dataset_name'):
+    st.session_state['training_dataset_name'] = st.session_state.get('training_filename')
 
 # Show preprocessing summary
 with st.expander(" Configured Preprocessing Summary"):
@@ -228,8 +236,6 @@ with col2:
             capabilities.append(" Multivariate")
         if model_info['supports_past_covariates']:
             capabilities.append(" Past covariates")
-        if model_info['supports_future_covariates']:
-            capabilities.append(" Future covariates")
 
         if capabilities:
             st.markdown("**Capabilities**: " + " | ".join(capabilities))
@@ -335,17 +341,11 @@ else:
     st.info("ℹ️ Loss function selection is only available for Deep Learning models")
 
 # Covariates
-# Covariates
 use_covariates_flag = False
-has_datetime = preprocessing_config.get('datetime_features', False)
-has_lags = len(preprocessing_config.get('lags', [])) > 0
-total_covars = len(covariate_vars) + (6 if has_datetime else 0) + len(preprocessing_config.get('lags', []))
+total_covars = len(covariate_vars)
 
-if total_covars > 0 and (model_info['supports_past_covariates'] or model_info['supports_future_covariates']):
+if total_covars > 0 and model_info['supports_past_covariates']:
     covar_desc = [c for c in covariate_vars]
-    if has_datetime: covar_desc.append("Time Features")
-    if has_lags: covar_desc.append("Lags")
-    
     use_covariates_flag = st.checkbox(
         f"Use covariates ({total_covars} features)",
         value=True,
@@ -487,12 +487,49 @@ if st.session_state.get('training_started', False):
             'cov_scalers': {}
         }
         
-        # Log start
-        log_manager.info(f"Starting training with {len(selected_stations)} station(s)")
-        log_manager.info(f"Model: {selected_model} | Mode: {'Global' if is_global_mode else 'Independent'}")
-        log_manager.render_inline(log_placeholder)
+        # Log start (avoid duplicate logs during reruns while training is in progress)
+        has_active_training = any(
+            st.session_state.get(f"training_{s}", {}).get("in_progress", False)
+            for s in selected_stations
+        )
+        if not has_active_training:
+            log_manager.info(f"Starting training with {len(selected_stations)} station(s)")
+            log_manager.info(f"Model: {selected_model} | Mode: {'Global' if is_global_mode else 'Independent'}")
+            log_manager.render_inline(log_placeholder)
 
         for idx, station_name in enumerate(selected_stations):
+            training_key = f'training_{station_name}'
+            if training_key not in st.session_state:
+                st.session_state[training_key] = {
+                    'in_progress': False,
+                    'result': None,
+                    'thread': None,
+                    'metrics_file': None,
+                    'completed': False
+                }
+            training_state = st.session_state[training_key]
+
+            # If training is already running, skip data prep/log spam and show monitor only
+            if training_state.get('in_progress'):
+                status_text.info(f"🧠 Training in progress for **{station_name}**...")
+                metrics_file_path = training_state.get('metrics_file')
+                if metrics_file_path:
+                    metrics_file = Path(metrics_file_path)
+                    monitor_key = f'monitor_{station_name}'
+                    if monitor_key not in st.session_state:
+                        monitor_fragment = create_training_monitor_fragment(
+                            metrics_file=metrics_file,
+                            progress_bar=epoch_progress,
+                            status_text=epoch_status,
+                            metrics_placeholder=epoch_metrics,
+                            chart_placeholder=loss_chart,
+                            rerun_on_complete=True
+                        )
+                        st.session_state[monitor_key] = monitor_fragment
+                    st.session_state[monitor_key]()
+                log_manager.render_inline(log_placeholder)
+                st.stop()
+
             station_start_time = time.time()
             
             # Update station progress
@@ -509,12 +546,16 @@ if st.session_state.get('training_started', False):
             # 1. Prepare data
             if is_multistation:
                 df_station = df_raw[df_raw[station_col] == station_name].copy()
-                df_station = df_station.set_index(date_col).sort_index()
+                # Date may be a column (fresh load) or already the index (e.g. loaded from prepared dataset)
+                if date_col in df_station.columns:
+                    df_station = df_station.set_index(date_col).sort_index()
+                else:
+                    df_station = df_station.sort_index()
                 available_cols = [target_var] + [c for c in covariate_vars if c in df_station.columns]
                 df_station = df_station[available_cols]
             else:
                 df_station = df_raw.copy()
-                # Filter variables for single station too
+                # Filter variables for single station too (index already set from load/prepared dataset)
                 available_cols = [target_var] + [c for c in covariate_vars if c in df_station.columns]
                 df_station = df_station[available_cols]
 
@@ -551,32 +592,7 @@ if st.session_state.get('training_started', False):
                 log_manager.warning(f"  → {n_dupes} duplicates detected, aggregating by mean")
                 df_station = df_station.groupby(df_station.index).mean()
             
-            # 4. Time Features
-            if preprocessing_config.get('datetime_features', False):
-                if not isinstance(df_station.index, pd.DatetimeIndex):
-                    df_station.index = pd.to_datetime(df_station.index)
-                
-                df_station['day_of_week'] = df_station.index.dayofweek
-                df_station['month'] = df_station.index.month
-                df_station['day_sin'] = np.sin(2 * np.pi * df_station.index.dayofyear / 365.25)
-                df_station['day_cos'] = np.cos(2 * np.pi * df_station.index.dayofyear / 365.25)
-                df_station['month_sin'] = np.sin(2 * np.pi * df_station.index.month / 12)
-                df_station['month_cos'] = np.cos(2 * np.pi * df_station.index.month / 12)
-                
-                datetime_cols = ['day_of_week', 'month', 'day_sin', 'day_cos', 'month_sin', 'month_cos']
-                station_covariate_vars += datetime_cols
-                log_manager.info(f"  → Added {len(datetime_cols)} time features")
-            
-            # 5. Lags
-            lags = preprocessing_config.get('lags', [])
-            if lags:
-                for lag in lags:
-                    df_station[f'{target_var}_lag_{lag}'] = df_station[target_var].shift(lag)
-                df_station = df_station.dropna()
-                station_covariate_vars += [f'{target_var}_lag_{lag}' for lag in lags]
-                log_manager.info(f"  → Added {len(lags)} lag features")
-            
-            # 6. Darts Conversion - Ensure index is DatetimeIndex
+            # 4. Darts Conversion - Ensure index is DatetimeIndex
             from darts import TimeSeries
             if not isinstance(df_station.index, pd.DatetimeIndex):
                 df_station.index = pd.to_datetime(df_station.index)
@@ -656,87 +672,93 @@ if st.session_state.get('training_started', False):
             log_manager.training(f"Starting independent training for {station_name}...")
             log_manager.render_inline(log_placeholder)
             
-            # NOUVEAU SYSTÈME: Utiliser un fichier JSON pour les métriques au lieu de callbacks Streamlit
-            import tempfile
-            import json
-            metrics_file = Path(tempfile.gettempdir()) / f"training_metrics_{station_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            
-            # Nettoyer le fichier s'il existe déjà
-            if metrics_file.exists():
-                metrics_file.unlink()
-            
-            # Créer le fichier JSON initial pour que le monitoring puisse le lire immédiatement
-            metrics_file.parent.mkdir(parents=True, exist_ok=True)
-            initial_metrics = {
-                'status': 'initializing',
-                'start_time': None,
-                'current_epoch': 0,
-                'total_epochs': n_epochs,
-                'train_losses': [],
-                'val_losses': [],
-                'epochs': [],
-                'last_update': None
-            }
-            with open(metrics_file, 'w') as f:
-                json.dump(initial_metrics, f, indent=2)
-
             # OPTUNA
             if training_mode == " Optuna":
-                log_manager.info(f"Running Optuna optimization ({n_trials} trials)...")
-                log_manager.render_inline(log_placeholder)
-                
-                # Optuna Logic Block
-                import optuna
-                from optuna.visualization import plot_optimization_history, plot_param_importances
-                from dashboard.utils.optuna_training import create_optuna_objective
-                
-                optuna_status = st.empty()
-                
-                def optuna_callback(study, trial):
-                    optuna_status.text(f"Trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
-                    log_manager.progress(f"  Optuna trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
+                optuna_key = f"optuna_{station_name}"
+                if optuna_key not in st.session_state:
+                    st.session_state[optuna_key] = {
+                        "in_progress": False,
+                        "completed": False,
+                        "best_params": None,
+                    }
+                optuna_state = st.session_state[optuna_key]
+
+                if optuna_state.get("in_progress"):
+                    status_text.info(f"🔄 Optuna en cours pour **{station_name}**...")
                     log_manager.render_inline(log_placeholder)
+                    st.stop()
 
-                objective = create_optuna_objective(
-                    model_name=selected_model,
-                    train=train, val=val,
-                    train_cov=train_cov, val_cov=val_cov, full_cov=covariates_scaled,
-                    use_covariates=use_covariates_flag and (train_cov is not None),
-                    metric=optuna_metric,
-                    n_epochs=15, early_stopping=True, early_stopping_patience=5,
-                    input_chunk_length=int(input_chunk),
-                    output_chunk_length=int(output_chunk),
-                )
+                if optuna_state.get("completed") and optuna_state.get("best_params"):
+                    log_manager.info(f"  → Optuna déjà terminé, params réutilisés: {optuna_state['best_params']}")
+                    hyperparams.update(optuna_state["best_params"])
+                    study = optuna_state.get("study")
+                else:
+                    log_manager.info(f"Running Optuna optimization ({n_trials} trials)...")
+                    log_manager.render_inline(log_placeholder)
+                    optuna_state["in_progress"] = True
+                    st.session_state[optuna_key] = optuna_state
+                    
+                    # Optuna Logic Block
+                    import optuna
+                    from optuna.visualization import plot_optimization_history, plot_param_importances
+                    from dashboard.utils.optuna_training import create_optuna_objective
+                    
+                    optuna_status = st.empty()
+                    
+                    def optuna_callback(study, trial):
+                        optuna_status.text(f"Trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
+                        log_manager.progress(f"  Optuna trial {len(study.trials)}/{n_trials} - Best: {study.best_value:.4f}")
+                        log_manager.render_inline(log_placeholder)
 
-                study = optuna.create_study(direction='minimize', sampler=optuna.samplers.TPESampler(seed=42))
-                study.optimize(objective, n_trials=n_trials, timeout=optuna_timeout*60, callbacks=[optuna_callback])
-                
-                log_manager.success(f"Best params found: {study.best_params}")
-                st.success(f"Best params found: {study.best_params}")
-                hyperparams.update(study.best_params)
+                    objective = create_optuna_objective(
+                        model_name=selected_model,
+                        train=train, val=val,
+                        train_cov=train_cov, val_cov=val_cov, full_cov=covariates_scaled,
+                        use_covariates=use_covariates_flag and (train_cov is not None),
+                        metric=optuna_metric,
+                        n_epochs=15, early_stopping=True, early_stopping_patience=5,
+                        input_chunk_length=int(input_chunk),
+                        output_chunk_length=int(output_chunk),
+                    )
+
+                    study = optuna.create_study(direction='minimize', sampler=optuna.samplers.TPESampler(seed=42))
+                    study.optimize(objective, n_trials=n_trials, timeout=optuna_timeout*60, callbacks=[optuna_callback])
+                    
+                    log_manager.success(f"Best params found: {study.best_params}")
+                    st.success(f"Best params found: {study.best_params}")
+                    hyperparams.update(study.best_params)
+                    optuna_state["best_params"] = study.best_params
+                    optuna_state["completed"] = True
+                    optuna_state["in_progress"] = False
+                    optuna_state["study"] = study
+                    st.session_state[optuna_key] = optuna_state
                 
                 # Graphiques Optuna (historique + importance des paramètres)
-                with st.expander("📊 Optuna – Historique et importance des paramètres", expanded=True):
-                    col_hist, col_imp = st.columns(2)
-                    with col_hist:
-                        try:
-                            fig_hist = plot_optimization_history(study)
-                            fig_hist.update_layout(template='plotly_white', height=350, margin=dict(l=50, r=50, t=40, b=50))
-                            st.plotly_chart(fig_hist, use_container_width=True)
-                        except Exception as e:
-                            st.warning(f"Impossible de tracer l'historique : {e}")
-                    with col_imp:
-                        try:
-                            fig_imp = plot_param_importances(study)
-                            if fig_imp is not None:
-                                fig_imp.update_layout(template='plotly_white', height=350, margin=dict(l=50, r=50, t=40, b=50))
-                                st.plotly_chart(fig_imp, use_container_width=True)
-                            else:
-                                st.info("Importance des paramètres non disponible (trop peu de trials).")
-                        except Exception as e:
-                            st.warning(f"Impossible de tracer l'importance : {e}")
-                    with st.expander("Voir le détail des trials"):
-                        st.dataframe(study.trials_dataframe(), use_container_width=True, hide_index=True)
+                if study is not None:
+                    from optuna.visualization import plot_optimization_history, plot_param_importances
+                    with st.expander("📊 Optuna – Historique et importance des paramètres", expanded=True):
+                        col_hist, col_imp = st.columns(2)
+                        with col_hist:
+                            try:
+                                fig_hist = plot_optimization_history(study)
+                                fig_hist.update_layout(template='plotly_white', height=350, margin=dict(l=50, r=50, t=40, b=50))
+                                st.plotly_chart(fig_hist, use_container_width=True)
+                            except Exception as e:
+                                st.warning(f"Impossible de tracer l'historique : {e}")
+                        with col_imp:
+                            try:
+                                fig_imp = plot_param_importances(study)
+                                if fig_imp is not None:
+                                    fig_imp.update_layout(template='plotly_white', height=350, margin=dict(l=50, r=50, t=40, b=50))
+                                    st.plotly_chart(fig_imp, use_container_width=True)
+                                else:
+                                    st.info("Importance des paramètres non disponible (trop peu de trials).")
+                            except Exception as e:
+                                st.warning(f"Impossible de tracer l'importance : {e}")
+                        with st.expander("Voir le détail des trials"):
+                            st.dataframe(study.trials_dataframe(), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Historique Optuna indisponible (session expirée).")
             
             # FINAL TRAINING
             log_manager.training(f"Training final model ({n_epochs} epochs)...")
@@ -744,25 +766,80 @@ if st.session_state.get('training_started', False):
             status_text.success(f"🧠 **Training model for {station_name}...**")
 
             # MONITORING EN TEMPS RÉEL avec thread
-            # Initialiser l'état de l'entraînement dans session_state
-            training_key = f'training_{station_name}'
-            if training_key not in st.session_state:
-                st.session_state[training_key] = {
-                    'in_progress': False,
-                    'result': None,
-                    'thread': None
-                }
             
-            training_state = st.session_state[training_key]
+            # Si déjà complété (succès ou erreur), skip (évite les boucles de rerun)
+            if training_state.get('completed', False):
+                if training_state.get('result'):
+                    log_manager.info(f"  → Training already completed for {station_name}, skipping...")
+                    results_all_stations[station_name] = training_state['result']
+                continue
+            
+            # NOUVEAU SYSTÈME: Utiliser un fichier JSON persistant pour les métriques
+            import tempfile
+            import json
+            metrics_file_path = training_state.get('metrics_file')
+            if metrics_file_path:
+                metrics_file = Path(metrics_file_path)
+            else:
+                safe_station_name = station_name.replace('/', '_').replace('\\', '_')
+                metrics_file = Path(tempfile.gettempdir()) / f"training_metrics_{safe_station_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                # Nettoyer le fichier s'il existe déjà
+                if metrics_file.exists():
+                    metrics_file.unlink()
+                # Créer le fichier JSON initial pour que le monitoring puisse le lire immédiatement
+                metrics_file.parent.mkdir(parents=True, exist_ok=True)
+                initial_metrics = {
+                    'status': 'initializing',
+                    'start_time': None,
+                    'current_epoch': 0,
+                    'total_epochs': n_epochs,
+                    'train_losses': [],
+                    'val_losses': [],
+                    'epochs': [],
+                    'last_update': None
+                }
+                with open(metrics_file, 'w') as f:
+                    json.dump(initial_metrics, f, indent=2)
+                training_state['metrics_file'] = str(metrics_file)
+                log_manager.info(f"  → Metrics file: {metrics_file}")
             
             # Si l'entraînement n'a pas encore démarré, le lancer dans un thread
-            if not training_state['in_progress'] and training_state['thread'] is None:
-                training_state['in_progress'] = True
-                training_state['result'] = None
-                
+            # Use lock to prevent race conditions with st.rerun()
+            dataset_name = (
+                st.session_state.get('training_dataset_name')
+                or st.session_state.get('training_filename')
+                or station_name
+            )
+            original_filename = st.session_state.get('training_filename') or dataset_name
+            should_start_thread = False
+            with _training_lock:
+                if not training_state['in_progress'] and training_state['thread'] is None and not training_state.get('completed', False):
+                    training_state['in_progress'] = True
+                    training_state['result'] = None
+                    should_start_thread = True
+
+            if should_start_thread:
                 def train_in_thread():
                     """Lance l'entraînement dans un thread séparé."""
                     try:
+                        # Mettre à jour le fichier de métriques pour signaler le démarrage
+                        try:
+                            metrics_file.parent.mkdir(parents=True, exist_ok=True)
+                            with open(metrics_file, 'r') as f:
+                                metrics_payload = json.load(f)
+                        except Exception:
+                            metrics_payload = {}
+                        metrics_payload.update({
+                            'status': 'training',
+                            'start_time': datetime.now().isoformat(),
+                            'last_update': datetime.now().isoformat()
+                        })
+                        try:
+                            with open(metrics_file, 'w') as f:
+                                json.dump(metrics_payload, f, indent=2)
+                        except Exception:
+                            pass
+
                         result = run_training_pipeline(
                             model_name=selected_model,
                             hyperparams=hyperparams,
@@ -772,25 +849,44 @@ if st.session_state.get('training_started', False):
                             save_dir=CHECKPOINTS_DIR,
                             station_name=station_name,
                             verbose=False,
-                            # NOUVEAU: Utiliser metrics_file au lieu de pl_trainer_kwargs avec callbacks Streamlit
                             metrics_file=metrics_file,
                             n_epochs=n_epochs,
                             early_stopping_patience=early_stopping_patience if use_early_stopping else None,
                             station_data_df=df_station,
-                            station_data_df_raw=None,  # Let run_training_pipeline generate raw data via inverse transform
+                            station_data_df_raw=None,
                             column_mapping=col_mapping,
                             target_preprocessor=target_preprocessor,
                             cov_preprocessor=cov_preprocessor,
-                            original_filename=st.session_state.get('training_filename', 'unknown'),
+                            original_filename=original_filename,
+                            dataset_name=dataset_name,
                             preprocessing_config=preprocessing_config,
-                            all_stations=[station_name]  # Single station model
+                            all_stations=[station_name]
                         )
                         training_state['result'] = result
                     except Exception as e:
                         training_state['result'] = {'status': 'error', 'error': str(e)}
+                        try:
+                            with open(metrics_file, 'r') as f:
+                                metrics_payload = json.load(f)
+                        except Exception:
+                            metrics_payload = {}
+                        metrics_payload.update({
+                            'status': 'error',
+                            'error': str(e),
+                            'last_update': datetime.now().isoformat()
+                        })
+                        try:
+                            with open(metrics_file, 'w') as f:
+                                json.dump(metrics_payload, f, indent=2)
+                        except Exception:
+                            pass
                     finally:
-                        training_state['in_progress'] = False
-                
+                        # IMPORTANT: Use lock and set completed=True BEFORE in_progress=False
+                        # This prevents race conditions with st.rerun()
+                        with _training_lock:
+                            training_state['completed'] = True
+                            training_state['in_progress'] = False
+
                 # Lancer le thread
                 thread = threading.Thread(target=train_in_thread, daemon=True)
                 thread.start()
@@ -832,6 +928,9 @@ if st.session_state.get('training_started', False):
                     metrics_file.unlink()
                 except Exception:
                     pass
+                training_state['metrics_file'] = None
+                if monitor_key in st.session_state:
+                    del st.session_state[monitor_key]
             
             if training_results.get('status') == 'success':
                 metrics = training_results.get('metrics', {})
@@ -839,8 +938,12 @@ if st.session_state.get('training_started', False):
                 log_manager.success(f"Training complete for {station_name}: {metrics_str}")
                 if training_results.get('saved_path'):
                     log_manager.info(f"Model saved to: {training_results['saved_path']}")
+                # Mark as completed to prevent re-training on rerun
+                training_state['completed'] = True
             else:
                 log_manager.error(f"Training failed for {station_name}: {training_results.get('error', 'Unknown error')}")
+                # Also mark as completed (with error) to prevent infinite retry loops
+                training_state['completed'] = True
             log_manager.render_inline(log_placeholder)
             
             results_all_stations[station_name] = training_results
@@ -892,100 +995,122 @@ if st.session_state.get('training_started', False):
                 st.session_state[training_key_global] = {
                     'in_progress': False,
                     'result': None,
-                    'thread': None
+                    'thread': None,
+                    'completed': False  # Flag pour éviter de relancer après complétion
                 }
             
             training_state_global = st.session_state[training_key_global]
             
-            # Si l'entraînement n'a pas encore démarré, le lancer dans un thread
-            if not training_state_global['in_progress'] and training_state_global['thread'] is None:
-                training_state_global['in_progress'] = True
-                training_state_global['result'] = None
+            # Si déjà complété, skip (évite les boucles de rerun)
+            if training_state_global.get('completed', False) and training_state_global.get('result'):
+                log_manager.info(f"  → Global training already completed, skipping...")
+                results_all_stations["Global_Model"] = training_state_global['result']
+            else:
+                # Si l'entraînement n'a pas encore démarré, le lancer dans un thread
+                # Use lock to prevent race conditions with st.rerun()
+                dataset_name = (
+                    st.session_state.get('training_dataset_name')
+                    or st.session_state.get('training_filename')
+                    or "global_dataset"
+                )
+                should_start_global_thread = False
+                with _training_lock:
+                    if not training_state_global['in_progress'] and training_state_global['thread'] is None and not training_state_global.get('completed', False):
+                        training_state_global['in_progress'] = True
+                        training_state_global['result'] = None
+                        should_start_global_thread = True
+
+                if should_start_global_thread:
+                    def train_global_in_thread():
+                        """Lance l'entraînement global dans un thread séparé."""
+                        try:
+                            result = run_training_pipeline(
+                                model_name=selected_model,
+                                hyperparams=hyperparams,
+                                train=global_data['train'],
+                                val=global_data['val'],
+                                test=global_data['test'],
+                                train_cov=global_data['train_cov'] if global_data['train_cov'] else None,
+                                val_cov=global_data['val_cov'] if global_data['val_cov'] else None,
+                                test_cov=global_data['test_cov'] if global_data['test_cov'] else None,
+                                full_cov=global_data['full_cov'] if global_data['full_cov'] else None,
+                                use_covariates=use_covariates_flag and (len(global_data['train_cov']) > 0),
+                                save_dir=CHECKPOINTS_DIR,
+                                station_name=f"Global_All_{len(selected_stations)}st",
+                                verbose=False,
+                                metrics_file=metrics_file,
+                                n_epochs=n_epochs,
+                                early_stopping_patience=early_stopping_patience if use_early_stopping else None,
+                                station_data_df=global_metadata['station_data_map'],
+                                station_data_df_raw=None,
+                                column_mapping=col_mapping,
+                                target_preprocessor=global_metadata['target_scalers'],
+                                cov_preprocessor=global_metadata['cov_scalers'] if global_metadata['cov_scalers'] else None,
+                                original_filename="Multi-Station Global",
+                                dataset_name=dataset_name,
+                                preprocessing_config=preprocessing_config,
+                                all_stations=selected_stations
+                            )
+                            training_state_global['result'] = result
+                        except Exception as e:
+                            training_state_global['result'] = {'status': 'error', 'error': str(e)}
+                        finally:
+                            # IMPORTANT: Use lock and set completed=True BEFORE in_progress=False
+                            with _training_lock:
+                                training_state_global['completed'] = True
+                                training_state_global['in_progress'] = False
+
+                    # Lancer le thread
+                    thread = threading.Thread(target=train_global_in_thread, daemon=True)
+                    thread.start()
+                    training_state_global['thread'] = thread
                 
-                def train_global_in_thread():
-                    """Lance l'entraînement global dans un thread séparé."""
-                    try:
-                        result = run_training_pipeline(
-                            model_name=selected_model,
-                            hyperparams=hyperparams,
-                            train=global_data['train'],
-                            val=global_data['val'],
-                            test=global_data['test'],
-                            train_cov=global_data['train_cov'] if global_data['train_cov'] else None,
-                            val_cov=global_data['val_cov'] if global_data['val_cov'] else None,
-                            test_cov=global_data['test_cov'] if global_data['test_cov'] else None,
-                            full_cov=global_data['full_cov'] if global_data['full_cov'] else None,
-                            use_covariates=use_covariates_flag and (len(global_data['train_cov']) > 0),
-                            save_dir=CHECKPOINTS_DIR,
-                            station_name=f"Global_All_{len(selected_stations)}st",
-                            verbose=False,
-                            # NOUVEAU: Utiliser metrics_file au lieu de pl_trainer_kwargs avec callbacks Streamlit
+                # Fragment de monitoring global (affiché uniquement pendant l'entraînement)
+                monitor_key_global = 'monitor_global'
+                
+                if training_state_global['in_progress']:
+                    if monitor_key_global not in st.session_state:
+                        monitor_fragment_global = create_training_monitor_fragment(
                             metrics_file=metrics_file,
-                            n_epochs=n_epochs,
-                            early_stopping_patience=early_stopping_patience if use_early_stopping else None,
-                            station_data_df=global_metadata['station_data_map'],
-                            station_data_df_raw=None,  # Let run_training_pipeline generate raw data via inverse transform
-                            column_mapping=col_mapping, # Uses last col_mapping (assumes homogeneous)
-                            target_preprocessor=global_metadata['target_scalers'],
-                            cov_preprocessor=global_metadata['cov_scalers'] if global_metadata['cov_scalers'] else None,
-                            original_filename="Multi-Station Global",
-                            preprocessing_config=preprocessing_config,
-                            all_stations=selected_stations  # All stations for global model
+                            progress_bar=epoch_progress,
+                            status_text=epoch_status,
+                            metrics_placeholder=epoch_metrics,
+                            chart_placeholder=loss_chart,
+                            rerun_on_complete=True
                         )
-                        training_state_global['result'] = result
-                    except Exception as e:
-                        training_state_global['result'] = {'status': 'error', 'error': str(e)}
-                    finally:
-                        training_state_global['in_progress'] = False
+                        st.session_state[monitor_key_global] = monitor_fragment_global
+                    st.session_state[monitor_key_global]()
+                    log_manager.render_inline(log_placeholder)
+                    st.stop()
                 
-                # Lancer le thread
-                thread = threading.Thread(target=train_global_in_thread, daemon=True)
-                thread.start()
-                training_state_global['thread'] = thread
-            
-            # Fragment de monitoring global (affiché uniquement pendant l'entraînement)
-            monitor_key_global = 'monitor_global'
-            
-            if training_state_global['in_progress']:
-                if monitor_key_global not in st.session_state:
-                    monitor_fragment_global = create_training_monitor_fragment(
-                        metrics_file=metrics_file,
+                # Entraînement global terminé : traiter les résultats
+                training_results = training_state_global['result']
+                training_state_global['thread'] = None
+                
+                if metrics_file.exists():
+                    TrainingMonitor(metrics_file).display_progress(
                         progress_bar=epoch_progress,
                         status_text=epoch_status,
                         metrics_placeholder=epoch_metrics,
                         chart_placeholder=loss_chart,
-                        rerun_on_complete=True
+                        rerun_on_complete=False
                     )
-                    st.session_state[monitor_key_global] = monitor_fragment_global
-                st.session_state[monitor_key_global]()
+                    try:
+                        metrics_file.unlink()
+                    except Exception:
+                        pass
+                
+                if training_results and training_results.get('status') == 'success':
+                    log_manager.success(f"Global model training complete!")
+                    log_manager.info(f"Saved to: {training_results.get('saved_path', 'N/A')}")
+                    training_state_global['completed'] = True
+                elif training_results:
+                    log_manager.error(f"Global training failed: {training_results.get('error', 'Unknown error')}")
+                    training_state_global['completed'] = True
                 log_manager.render_inline(log_placeholder)
-                st.stop()
-            
-            # Entraînement global terminé : traiter les résultats
-            training_results = training_state_global['result']
-            training_state_global['thread'] = None
-            
-            if metrics_file.exists():
-                TrainingMonitor(metrics_file).display_progress(
-                    progress_bar=epoch_progress,
-                    status_text=epoch_status,
-                    metrics_placeholder=epoch_metrics,
-                    chart_placeholder=loss_chart,
-                    rerun_on_complete=False
-                )
-                try:
-                    metrics_file.unlink()
-                except Exception:
-                    pass
-            
-            if training_results.get('status') == 'success':
-                log_manager.success(f"Global model training complete!")
-                log_manager.info(f"Saved to: {training_results.get('saved_path', 'N/A')}")
-            else:
-                log_manager.error(f"Global training failed: {training_results.get('error', 'Unknown error')}")
-            log_manager.render_inline(log_placeholder)
-            
-            results_all_stations["Global_Model"] = training_results
+                
+                if training_results:
+                    results_all_stations["Global_Model"] = training_results
 
         # Vérifier si tous les entraînements sont terminés avant d'afficher les résultats
         all_training_complete = True
@@ -1085,7 +1210,8 @@ if st.session_state.get('training_started', False):
             try:
                 from dashboard.utils.model_registry import get_registry
                 registry = get_registry(CHECKPOINTS_DIR.parent)
-                registry.scan_existing_checkpoints()  # Re-scan pour détecter les nouveaux modèles
+                if hasattr(registry, "scan_existing_checkpoints"):
+                    registry.scan_existing_checkpoints()  # Re-scan pour détecter les nouveaux modèles
                 log_manager.info(f"✅ Registry refreshed. {len(registry.list_all_models())} model(s) available.")
                 log_manager.render_inline(log_placeholder)
             except Exception as e:

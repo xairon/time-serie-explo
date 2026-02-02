@@ -18,30 +18,43 @@ import shap
 
 # --- SHAP COMPATIBILITY PATCH FOR TIMESHAP ---
 # TimeSHAP requires `shap.explainers._kernel.Kernel`, which was moved/renamed in SHAP >=0.43.0.
-try:
-    from shap import KernelExplainer
-    import sys
-    import types
+# This patch provides compatibility across SHAP versions.
+import types
+import logging
 
-    # 1. Try to get existing module or create new one
+_shap_patch_logger = logging.getLogger(__name__)
+
+def _apply_shap_patch():
+    """Apply SHAP compatibility patch for TimeSHAP. Returns True if successful."""
     try:
-        from shap.explainers import _kernel
-    except ImportError:
-        _kernel = types.ModuleType("shap.explainers._kernel")
-        sys.modules["shap.explainers._kernel"] = _kernel
-        if hasattr(shap, "explainers"):
-            shap.explainers._kernel = _kernel
+        from shap import KernelExplainer
 
-    # 2. Inject Kernel attribute
-    if not hasattr(_kernel, "Kernel"):
-        _kernel.Kernel = KernelExplainer
-        
-    # 3. Double check sys.modules entry
-    if "shap.explainers._kernel" not in sys.modules:
-        sys.modules["shap.explainers._kernel"] = _kernel
-        
-except Exception as e:
-    print(f"Warning: Failed to patch SHAP for TimeSHAP compatibility: {e}")
+        # 1. Try to get existing module or create new one
+        try:
+            from shap.explainers import _kernel
+        except ImportError:
+            _kernel = types.ModuleType("shap.explainers._kernel")
+            sys.modules["shap.explainers._kernel"] = _kernel
+            if hasattr(shap, "explainers"):
+                shap.explainers._kernel = _kernel
+
+        # 2. Inject Kernel attribute if missing
+        if not hasattr(_kernel, "Kernel"):
+            _kernel.Kernel = KernelExplainer
+
+        # 3. Ensure sys.modules entry exists
+        if "shap.explainers._kernel" not in sys.modules:
+            sys.modules["shap.explainers._kernel"] = _kernel
+
+        return True
+    except ImportError as e:
+        _shap_patch_logger.warning(f"SHAP not available for patching: {e}")
+        return False
+    except Exception as e:
+        _shap_patch_logger.warning(f"Failed to patch SHAP for TimeSHAP compatibility: {e}")
+        return False
+
+_SHAP_PATCHED = _apply_shap_patch()
 # ---------------------------------------------
 
 # Add project root to path
@@ -141,6 +154,7 @@ def load_model_data(model_entry):
         # Load via registry
         model = registry.load_model(model_entry)
         scalers = registry.load_scalers(model_entry)
+        model_config = registry.load_model_config(model_entry)
         
         # Load datasets
         data_dict = {}
@@ -152,6 +166,13 @@ def load_model_data(model_entry):
             except:
                 pass
 
+        # Load covariates if available
+        for split in ['train_cov', 'val_cov', 'test_cov']:
+            try:
+                data_dict[split] = registry.load_data(model_entry, split)
+            except Exception:
+                pass
+
         # Reconstruct config object for compatibility
         config = type('Config', (), {})()
         config.model_name = model_entry.model_name
@@ -161,6 +182,14 @@ def load_model_data(model_entry):
         # Add columns info to config from preprocessing if available
         config.columns = model_entry.preprocessing_config.get('columns', {})
         config.use_covariates = bool(config.columns.get('covariates'))
+
+        # Override from model_config.json if available (authoritative for metrics/columns)
+        if model_config:
+            config.metrics = model_config.get('metrics', config.metrics)
+            config.metrics_sliding = model_config.get('metrics_sliding', getattr(config, 'metrics_sliding', {}))
+            config.preprocessing = model_config.get('preprocessing', config.preprocessing)
+            config.columns = model_config.get('columns', config.columns)
+            config.use_covariates = bool(config.columns.get('covariates'))
         
         st.session_state[cache_key] = {
             'model': model,
@@ -275,7 +304,8 @@ if dataset_models:
     # Show details expander (we'll populate with actual config later)
     with st.sidebar.expander("Dataset Details", expanded=False):
         st.markdown(f"**Source:** {sample_model.data_source or 'N/A'}")
-        st.markdown(f"**Scaler:** {preproc.get('scaler_type', 'N/A')}")
+        scaler_label = preproc.get('scaler_type') or preproc.get('normalization') or "N/A"
+        st.markdown(f"**Scaler:** {scaler_label}")
         if columns.get('target'):
             st.markdown(f"**Target:** {columns.get('target')}")
         if columns.get('covariates'):
@@ -395,6 +425,44 @@ if is_global_model and 'train' in data_dict and 'station' in data_dict['train'].
 # The model was trained on PROCESSED data, so predictions must use PROCESSED data directly.
 # DO NOT apply scalers again - data is already normalized.
 
+# Extract configuration FIRST (needed for raw data generation)
+model_horizon = getattr(model, 'output_chunk_length', 30)
+input_chunk = getattr(model, 'input_chunk_length', 30)
+
+# Safely get target column with fallback
+if not hasattr(config, 'columns') or not config.columns:
+    st.error("Model configuration missing 'columns' info. Please retrain the model.")
+    st.stop()
+
+target_col = config.columns.get('target')
+if not target_col:
+    # Try to infer from data columns
+    non_cov_cols = [c for c in data_dict['train'].columns if not c.startswith('lag_') and not c.endswith('_sin') and not c.endswith('_cos')]
+    if non_cov_cols:
+        target_col = non_cov_cols[0]
+        st.warning(f"Target column not found in config, using '{target_col}'")
+    else:
+        st.error("Cannot determine target column from model configuration or data.")
+        st.stop()
+
+covariate_cols = config.columns.get('covariates', [])
+use_covariates = getattr(config, 'use_covariates', bool(covariate_cols))
+
+# Merge covariates into processed data if available
+def _merge_covariates(data_dict_in: dict) -> dict:
+    data_dict_out = data_dict_in.copy()
+    for split in ['train', 'val', 'test']:
+        cov_key = f"{split}_cov"
+        base_df = data_dict_out.get(split)
+        cov_df = data_dict_out.get(cov_key)
+        if isinstance(base_df, pd.DataFrame) and isinstance(cov_df, pd.DataFrame):
+            cov_df = cov_df.drop(columns=['station'], errors='ignore')
+            data_dict_out[split] = base_df.join(cov_df, how='left')
+    return data_dict_out
+
+if use_covariates:
+    data_dict = _merge_covariates(data_dict)
+
 # Full processed dataframe for predictions
 # IMPORTANT: Always use train+val+test concatenation, NOT 'full' (full_data.csv)!
 # full_data.csv contains RAW data, while train/val/test.csv contain NORMALIZED data.
@@ -404,12 +472,15 @@ full_df_processed = full_df_processed.sort_index()
 # Test sets (processed)
 test_df_processed = data_dict['test'].sort_index()
 
-# Extract configuration FIRST (needed for raw data generation)
-model_horizon = getattr(model, 'output_chunk_length', 30)
-input_chunk = getattr(model, 'input_chunk_length', 30)
-target_col = config.columns['target']
-covariate_cols = config.columns.get('covariates', [])
-use_covariates = config.use_covariates
+# Validate covariates availability
+missing_covariates = [c for c in covariate_cols if c not in full_df_processed.columns]
+if use_covariates and missing_covariates:
+    st.error(
+        "Covariates missing in loaded artifacts. "
+        f"Missing columns: {missing_covariates}. "
+        "Please retrain the model so covariates are saved to MLflow."
+    )
+    st.stop()
 
 # Helper function to generate raw data from processed data via inverse_transform
 def generate_raw_from_processed(processed_df, scalers, target_col):
@@ -450,6 +521,21 @@ else:
     full_df_raw = generate_raw_from_processed(full_df_processed, scalers, target_col)
 full_df_raw = full_df_raw.sort_index()
 
+# Derive scale statistics for actionnable thresholds
+target_series_raw_vals = test_df_raw[target_col].values.astype(float) if target_col in test_df_raw.columns else None
+scale_stats = {}
+if target_series_raw_vals is not None and len(target_series_raw_vals) > 0:
+    q25 = float(np.percentile(target_series_raw_vals, 25))
+    q75 = float(np.percentile(target_series_raw_vals, 75))
+    iqr = float(q75 - q25)
+    mean_abs = float(np.mean(np.abs(target_series_raw_vals)))
+    std = float(np.std(target_series_raw_vals))
+    scale_stats = {
+        "mean_abs": mean_abs,
+        "std": std,
+        "iqr": iqr,
+    }
+
 
 # =============================================================================
 # INFO PANELS
@@ -482,12 +568,19 @@ with col_metrics:
     if config.metrics:
         st.caption("**Test (1 fenêtre)** — une prédiction au début du test")
         cols = st.columns(2)
-        for i, (name, value) in enumerate(list(config.metrics.items())[:6]):
-            if name.upper() in ['R2', 'R SQUARED']:
-                continue
+        display_order = ["MAE", "RMSE", "NRMSE", "MAPE", "sMAPE", "WAPE", "NSE", "KGE", "Dir_Acc"]
+        percent_metrics = {"MAPE", "sMAPE", "WAPE", "NRMSE", "Dir_Acc"}
+        filtered_metrics = {
+            str(name): value for name, value in config.metrics.items()
+            if not str(name).startswith("system/") and not str(name).startswith("system.")
+            and str(name) not in {"train_loss", "val_loss"}
+        }
+        metrics_list = [(k, filtered_metrics[k]) for k in display_order if k in filtered_metrics]
+        for i, (name, value) in enumerate(metrics_list[:8]):
             with cols[i % 2]:
                 if value is not None and not pd.isna(value):
-                    st.metric(name, f"{value:.4f}")
+                    suffix = " %" if name in percent_metrics else ""
+                    st.metric(name, f"{value:.4f}{suffix}")
     ms = getattr(config, 'metrics_sliding', None) or {}
     if ms:
         st.caption("**Test (fenêtré)** — sliding window sur tout le test (standard)")
@@ -498,6 +591,73 @@ with col_metrics:
             with cols[i % 2]:
                 if value is not None and not pd.isna(value):
                     st.metric(name, f"{value:.4f}")
+
+with st.expander("🔎 Comprendre les métriques", expanded=False):
+    normalization = None
+    try:
+        normalization = config.preprocessing.get('normalization')
+    except Exception:
+        normalization = None
+
+    norm_note = ""
+    if normalization:
+        norm_note = f"\n**Normalisation**: `{normalization}`. Les métriques sont calculées sur l’échelle *originale* (après inverse‑transform).\n"
+
+    st.markdown("""
+**Lecture rapide**
+- **MAE / RMSE** : erreurs absolue / quadratique (plus petit = mieux). RMSE pénalise plus les grosses erreurs.
+- **MAPE / sMAPE / WAPE** : erreurs en % (plus petit = mieux). WAPE est plus stable que MAPE si la série passe près de 0.
+- **NRMSE** : RMSE normalisée par l’amplitude (plus petit = mieux).
+- **NSE** : 1 = parfait, 0 = équivalent à la moyenne, < 0 = pire que la moyenne.
+- **KGE** : 1 = parfait, 0 = moyen, < 0 = mauvais.
+- **Dir_Acc** : % de directions correctement prédites (plus grand = mieux).
+
+**Effet de la taille de fenêtre (output horizon)**
+- Plus l’horizon est long, **plus les métriques se dégradent** (erreur cumulée).
+- **MAPE / sMAPE** peuvent varier fortement si la cible est proche de 0 sur une partie de la fenêtre.
+- **NSE / KGE** deviennent plus sensibles aux erreurs de tendance sur des fenêtres longues.
+- Compare toujours des modèles **avec le même horizon**.
+    """)
+
+    st.markdown("""
+**Seuils indicatifs (à adapter au domaine)**
+- **MAPE / sMAPE / WAPE / NRMSE** :  
+  `≤ 10%` bon · `10–20%` moyen · `> 20%` faible
+- **NSE** :  
+  `> 0.75` bon · `0.5–0.75` moyen · `0–0.5` faible · `< 0` mauvais
+- **KGE** :  
+  `> 0.75` bon · `0.5–0.75` moyen · `0–0.5` faible · `< 0` mauvais
+    """)
+
+    if norm_note:
+        st.caption(norm_note)
+
+    if scale_stats:
+        scale_ref = scale_stats["iqr"] if scale_stats["iqr"] > 0 else scale_stats["std"]
+        if scale_ref == 0:
+            scale_ref = scale_stats["mean_abs"] if scale_stats["mean_abs"] > 0 else None
+        if scale_ref:
+            st.markdown(f"""
+**Seuils automatiques (basés sur la série test)**
+- Échelle de référence ≈ `{scale_ref:.4f}` (IQR ou écart‑type)
+- **MAE/RMSE** en % de l’échelle :  
+  `≤ 10%` bon · `10–20%` moyen · `> 20%` faible
+            """)
+        else:
+            st.markdown("**Seuils automatiques**: non calculables (variance trop faible).")
+
+    # Actionnable: quick suggestions based on horizon/covariates
+    suggestions = []
+    if model_horizon and model_horizon >= 30:
+        suggestions.append("Réduire l’horizon si l’erreur est trop élevée.")
+    if not use_covariates and len(covariate_cols) > 0:
+        suggestions.append("Activer les covariables pour améliorer la stabilité.")
+    if input_chunk and model_horizon and input_chunk < model_horizon * 2:
+        suggestions.append("Augmenter l’input chunk pour plus de contexte.")
+    if suggestions:
+        st.markdown("**Actions suggérées**")
+        for s in suggestions:
+            st.write(f"- {s}")
 
 with st.expander("Hyperparameters"):
     if hasattr(config, 'hyperparams') and config.hyperparams:
@@ -668,18 +828,43 @@ if selected_tab == "Predictions":
             pred_aligned = pred[:min_len]
             target_aligned = target[:min_len]
             
-            # Hydrology metrics
+            # Window metrics
             metrics = {
                 'MAE': float(mae(target_aligned, pred_aligned)),
                 'RMSE': float(rmse(target_aligned, pred_aligned)),
+                'MAPE': float(mape(target_aligned, pred_aligned)),
+                'sMAPE': float(smape(target_aligned, pred_aligned)),
+                'WAPE': float(np.sum(np.abs(target_aligned.values().flatten() - pred_aligned.values().flatten()))
+                              / np.sum(np.abs(target_aligned.values().flatten())) * 100.0) if np.sum(np.abs(target_aligned.values().flatten())) != 0 else np.nan,
+                'NRMSE': float(np.sqrt(np.mean((target_aligned.values().flatten() - pred_aligned.values().flatten()) ** 2))
+                               / (np.max(target_aligned.values().flatten()) - np.min(target_aligned.values().flatten())) * 100.0)
+                if (np.max(target_aligned.values().flatten()) - np.min(target_aligned.values().flatten())) != 0 else np.nan,
                 'NSE': nash_sutcliffe_efficiency(target_aligned, pred_aligned),
                 'KGE': kling_gupta_efficiency(target_aligned, pred_aligned),
             }
-            
+
+            display_order = ["MAE", "RMSE", "NRMSE", "MAPE", "sMAPE", "WAPE", "NSE", "KGE"]
+            percent_metrics = {"MAPE", "sMAPE", "WAPE", "NRMSE"}
             m_cols = st.columns(4)
-            for i, (name, value) in enumerate(metrics.items()):
-                with m_cols[i]:
-                    st.metric(name, f"{value:.4f}")
+            for i, name in enumerate(display_order):
+                value = metrics.get(name)
+                with m_cols[i % 4]:
+                    if value is not None and not pd.isna(value):
+                        suffix = " %" if name in percent_metrics else ""
+                        st.metric(name, f"{value:.4f}{suffix}")
+
+            if scale_stats:
+                scale_ref = scale_stats["iqr"] if scale_stats["iqr"] > 0 else scale_stats["std"]
+                if scale_ref == 0:
+                    scale_ref = scale_stats["mean_abs"] if scale_stats["mean_abs"] > 0 else None
+                if scale_ref:
+                    rel_mae = float(metrics["MAE"] / scale_ref * 100.0) if metrics.get("MAE") is not None else None
+                    rel_rmse = float(metrics["RMSE"] / scale_ref * 100.0) if metrics.get("RMSE") is not None else None
+                    st.caption(
+                        f"MAE ≈ {rel_mae:.1f}% et RMSE ≈ {rel_rmse:.1f}% de l’échelle (IQR/σ)."
+                        if rel_mae is not None and rel_rmse is not None else
+                        "MAE/RMSE relatifs non disponibles."
+                    )
     else:
         st.info("Déplacez le slider pour générer une prédiction.")
     

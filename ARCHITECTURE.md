@@ -1,94 +1,114 @@
-# Architecture PyTorch + Streamlit - Guide des Bonnes Pratiques
-
-## Problème Résolu
-
-Ce projet a été refactorisé pour éliminer les workarounds et patchs nécessaires pour charger les modèles PyTorch entraînés avec Streamlit. Le problème venait du fait que les callbacks Streamlit étaient sérialisés dans les fichiers de modèles, causant des erreurs au chargement.
+# Architecture PyTorch + Streamlit
 
 ## Architecture Standard
 
-### Séparation des Responsabilités
+### Separation des Responsabilites
 
-L'architecture suit le principe de **séparation stricte** entre :
-1. **Code d'entraînement** : Indépendant de toute interface graphique
-2. **Code d'interface** : Lit les métriques depuis des fichiers partagés
+L'architecture suit le principe de **separation stricte** entre :
+1. **Code d'entrainement** : Independant de toute interface graphique
+2. **Code d'interface** : Lit les metriques depuis des fichiers partages
 
 ### Composants Principaux
 
-#### 1. Callbacks Standards (`core/callbacks.py`)
+#### 1. Callbacks Standards (`dashboard/utils/callbacks.py`)
 
-Les callbacks PyTorch Lightning sont **complètement indépendants** de Streamlit :
+Les callbacks PyTorch Lightning sont **completement independants** de Streamlit :
 
-- **`MetricsFileCallback`** : Écrit les métriques dans un fichier JSON
-- **`create_training_callbacks()`** : Factory pour créer des callbacks standards
+- **`MetricsFileCallback`** : Ecrit les metriques dans un fichier JSON
+- **`create_training_callbacks()`** : Factory pour creer des callbacks standards
 
-**Caractéristiques** :
-- ✅ Aucune dépendance à Streamlit
-- ✅ Peut être utilisé dans n'importe quel contexte (CLI, backend, notebooks)
-- ✅ Métriques écrites dans un format JSON standard
-- ✅ Compatible avec tous les environnements Python
+**Caracteristiques** :
+- Aucune dependance a Streamlit
+- Peut etre utilise dans n'importe quel contexte (CLI, backend, notebooks)
+- Metriques ecrites dans un format JSON standard
+- Compatible avec tous les environnements Python
 
 #### 2. Moniteur Streamlit (`dashboard/utils/training_monitor.py`)
 
-Le moniteur lit les métriques depuis le fichier JSON et les affiche dans Streamlit :
+Le moniteur lit les metriques depuis le fichier JSON et les affiche dans Streamlit :
 
 - **`TrainingMonitor`** : Lit et parse le fichier JSON
-- **`monitor_training_in_streamlit()`** : Helper pour l'intégration Streamlit
+- **`monitor_training_in_streamlit()`** : Helper pour l'integration Streamlit
 
-**Caractéristiques** :
-- ✅ Séparé du processus d'entraînement
-- ✅ Peut être utilisé pour monitorer n'importe quel entraînement
-- ✅ Mise à jour en temps réel via lecture du fichier
+**Caracteristiques** :
+- Separe du processus d'entrainement
+- Mise a jour en temps reel via lecture du fichier
 
-#### 3. Pipeline d'Entraînement (`core/training.py`)
+#### 3. Pipeline d'Entrainement (`dashboard/utils/training.py`)
 
-La fonction `run_training_pipeline()` utilise uniquement des callbacks standards :
+La fonction `run_training_pipeline()` utilise des callbacks standards et le parametre `metrics_file` pour le suivi.
 
-```python
-# NOUVEAU: Utiliser metrics_file au lieu de callbacks Streamlit
-training_results = run_training_pipeline(
-    model_name=selected_model,
-    hyperparams=hyperparams,
-    # ...
-    metrics_file=metrics_file,  # Fichier JSON pour les métriques
-    n_epochs=n_epochs,
-    early_stopping_patience=early_stopping_patience,
-    # ...
-)
+#### 4. Factory de Modeles (`dashboard/utils/model_factory.py`)
+
+La classe `ModelFactory` permet d'instancier dynamiquement les modeles Darts avec validation des hyperparametres.
+
+## Structure du Projet
+
+```
+time-serie-explo/
+├── dashboard/
+│   ├── training/              # Application Streamlit principale
+│   │   ├── Home.py           # Point d'entree
+│   │   └── pages/
+│   │       ├── 1_Dataset_Preparation.py
+│   │       ├── 2_Train_Models.py
+│   │       └── 3_Forecasting.py
+│   │
+│   ├── utils/                 # Modules utilitaires
+│   │   ├── callbacks.py       # Callbacks PyTorch Lightning
+│   │   ├── training.py        # Pipeline d'entrainement
+│   │   ├── training_monitor.py # Monitoring Streamlit
+│   │   ├── model_factory.py   # Factory de modeles
+│   │   ├── preprocessing.py   # Preprocessing des donnees
+│   │   ├── optuna_training.py # Integration Optuna
+│   │   ├── mlflow_client.py   # Client MLflow
+│   │   ├── model_registry.py  # Registre des modeles
+│   │   ├── robust_loader.py   # Chargement robuste des modeles
+│   │   ├── data_loader.py     # Chargement des donnees
+│   │   ├── forecasting.py     # Fonctions de prediction
+│   │   ├── explainability.py  # TimeSHAP et explications
+│   │   └── ...
+│   │
+│   ├── components/            # Composants UI reutilisables
+│   │   ├── cards/            # Cartes de metriques
+│   │   ├── charts/           # Graphiques
+│   │   └── sidebar/          # Elements de sidebar
+│   │
+│   └── config.py             # Configuration globale
+│
+├── requirements/             # Dependances par architecture
+│   ├── base.txt
+│   ├── cpu.txt
+│   ├── cuda.txt
+│   └── xpu.txt
+│
+├── docs/                     # Documentation
+│   └── RAPPORT_PIPELINE_ENTRAINEMENT.md
+│
+├── scripts/                  # Scripts utilitaires
+│   └── reset_mlflow_db.ps1
+│
+├── run_app.py               # Lanceur de l'application
+├── setup_env.py             # Setup automatique de l'environnement
+├── verify_installation.py   # Verification de l'installation
+├── pyproject.toml           # Configuration du projet (uv)
+├── docker-compose.yml       # Deploiement Docker
+└── Dockerfile
 ```
 
-**Caractéristiques** :
-- ✅ N'accepte plus de callbacks Streamlit via `pl_trainer_kwargs`
-- ✅ Utilise uniquement des callbacks standards
-- ✅ Nettoyage automatique des callbacks avant sauvegarde
-
-#### 4. Sauvegarde Propre (`core/model_config.py`)
-
-La fonction `save_model_with_data()` nettoie le modèle avant sauvegarde :
-
-```python
-# Nettoyer le modèle avant sauvegarde
-cleaned_model = _clean_model_before_save(model)
-cleaned_model.save(str(model_path))
-```
-
-**Caractéristiques** :
-- ✅ Retire les callbacks non-standard avant sauvegarde
-- ✅ Garantit qu'aucune référence Streamlit n'est sérialisée
-- ✅ Modèles sauvegardés sont portables et robustes
-
-## Flux de Données
+## Flux de Donnees
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PROCESSUS D'ENTRAÎNEMENT                 │
+│                    PROCESSUS D'ENTRAINEMENT                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  PyTorch Lightning Trainer                                  │
-│  ├── MetricsFileCallback → Écrit dans metrics.json         │
+│  ├── MetricsFileCallback → Ecrit dans metrics.json         │
 │  ├── EarlyStopping (standard)                              │
 │  └── Autres callbacks standards                             │
 │                                                              │
-│  Modèle entraîné → Sauvegarde (sans références Streamlit)  │
+│  Modele entraine → Sauvegarde (sans references Streamlit)  │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -100,10 +120,10 @@ cleaned_model.save(str(model_path))
 │                                                              │
 │  TrainingMonitor                                             │
 │  ├── Lit metrics.json                                        │
-│  ├── Parse les métriques                                     │
+│  ├── Parse les metriques                                     │
 │  └── Affiche dans Streamlit                                 │
 │                                                              │
-│  Affichage en temps réel (barres, graphiques, métriques)    │
+│  Affichage en temps reel (barres, graphiques, metriques)    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -127,120 +147,17 @@ Le fichier `metrics.json` contient :
 }
 ```
 
-## Migration des Modèles Existants
-
-Pour nettoyer les modèles existants qui contiennent des références Streamlit :
-
-```bash
-# Dry run (vérifier ce qui sera fait)
-python scripts/migrate_models.py --checkpoints-dir checkpoints --dry-run
-
-# Migration réelle
-python scripts/migrate_models.py --checkpoints-dir checkpoints
-
-# Migrer seulement un type de modèle
-python scripts/migrate_models.py --checkpoints-dir checkpoints --model-type TFT
-```
-
-**Note** : La migration peut nécessiter une réentraînement si les callbacks sont profondément intégrés. Le script tente de nettoyer ce qui est possible.
-
 ## Bonnes Pratiques
 
-### ✅ À FAIRE
+### A FAIRE
 
 1. **Utiliser uniquement des callbacks standards** dans `run_training_pipeline()`
 2. **Passer `metrics_file`** au lieu de callbacks Streamlit
 3. **Utiliser `TrainingMonitor`** pour afficher la progression dans Streamlit
-4. **Nettoyer les modèles** avant sauvegarde (fait automatiquement)
+4. **Nettoyer les modeles** avant sauvegarde (fait automatiquement)
 
-### ❌ À ÉVITER
+### A EVITER
 
 1. **Ne jamais passer de callbacks Streamlit** directement au Trainer
-2. **Ne pas référencer Streamlit** dans le code d'entraînement
-3. **Ne pas sérialiser des objets Streamlit** dans les modèles
-4. **Ne pas utiliser `pl_trainer_kwargs` avec des callbacks personnalisés** (utiliser `metrics_file` à la place)
-
-## Compatibilité
-
-### Anciens Modèles
-
-Les modèles existants qui contiennent des références Streamlit peuvent toujours être chargés via `robust_loader.py`, mais cette solution est **dépréciée** et devrait être remplacée par :
-
-1. Migration des modèles (script fourni)
-2. Réentraînement avec la nouvelle architecture
-
-### Nouveaux Modèles
-
-Tous les nouveaux modèles entraînés avec cette architecture sont :
-- ✅ Portables (pas de dépendances Streamlit)
-- ✅ Chargement standard (pas besoin de patchs)
-- ✅ Compatibles avec tous les environnements Python
-- ✅ Robustes et maintenables
-
-## Exemple d'Utilisation
-
-### Dans Streamlit
-
-```python
-import tempfile
-from pathlib import Path
-from dashboard.utils.training_monitor import TrainingMonitor
-
-# Créer un fichier temporaire pour les métriques
-metrics_file = Path(tempfile.gettempdir()) / "training_metrics.json"
-
-# Lancer l'entraînement
-training_results = run_training_pipeline(
-    model_name="TFT",
-    hyperparams={"n_epochs": 50},
-    # ...
-    metrics_file=metrics_file,
-    n_epochs=50,
-    early_stopping_patience=10
-)
-
-# Monitorer la progression
-monitor = TrainingMonitor(metrics_file)
-monitor.display_progress(
-    progress_bar=st.progress(0),
-    status_text=st.empty(),
-    metrics_placeholder=st.container(),
-    chart_placeholder=st.empty()
-)
-```
-
-### Dans un Script CLI
-
-```python
-from core.callbacks import create_training_callbacks
-from core.training import run_training_pipeline
-
-# Créer les callbacks standards
-metrics_file = Path("training_metrics.json")
-callbacks = create_training_callbacks(
-    metrics_file=metrics_file,
-    total_epochs=50,
-    early_stopping_patience=10
-)
-
-# Lancer l'entraînement (sans Streamlit)
-results = run_training_pipeline(
-    model_name="TFT",
-    hyperparams={"n_epochs": 50},
-    # ...
-    metrics_file=metrics_file,
-    n_epochs=50
-)
-```
-
-## Conclusion
-
-Cette architecture suit les **pratiques standards** de l'industrie pour PyTorch + Streamlit :
-
-- ✅ Séparation claire des responsabilités
-- ✅ Pas de dépendances circulaires
-- ✅ Code d'entraînement réutilisable
-- ✅ Modèles portables et robustes
-- ✅ Monitoring flexible et extensible
-
-Plus besoin de workarounds ou de patchs ! 🎉
+2. **Ne pas referencer Streamlit** dans le code d'entrainement
+3. **Ne pas serialiser des objets Streamlit** dans les modeles

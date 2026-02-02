@@ -168,26 +168,26 @@ def _restore_streamlit_modules(saved_modules):
 
 class StreamlitSafeUnpickler(pickle.Unpickler):
     """
-    Unpickler qui remplace à la volée les classes problématiques.
+    Unpickler qui remplace à la volée les classes problématiques et délègue
+    le chargement PyTorch (storage) pour éviter "no persistent_load function".
     """
     def find_class(self, module, name):
+        # 0. PyTorch storage (évite "no persistent_load function")
+        if module == "torch.storage" and name == "_load_from_bytes":
+            import io
+            return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
         # 1. Intercepter les générateurs Numpy qui plantent
-        if 'BitGenerator' in name and 'numpy' in module:
+        if "BitGenerator" in name and "numpy" in module:
             return SafeBitGenerator
-            
         # 2. Gérer les renommages internes de Numpy (1.x vs 2.x)
-        if module == 'numpy._core.multiarray':
-            module = 'numpy.core.multiarray'
-        elif module == 'numpy.core.multiarray' and 'numpy._core' in sys.modules:
-            module = 'numpy._core.multiarray'
-            
+        if module == "numpy._core.multiarray":
+            module = "numpy.core.multiarray"
+        elif module == "numpy.core.multiarray" and "numpy._core" in sys.modules:
+            module = "numpy._core.multiarray"
         # 3. Fallback standard
         try:
             return super().find_class(module, name)
         except (ImportError, AttributeError):
-            # En dernier recours, si une classe n'est pas trouvée (ex: module déplacé),
-            # on renvoie un objet vide pour éviter le crash complet si ce n'est pas critique.
-            # (Attention: un peu risqué, mais souvent mieux que rien pour des métadonnées)
             class Dummy:
                 def __setstate__(self, state): pass
                 def __init__(self, *args, **kwargs): pass

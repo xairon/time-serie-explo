@@ -1,4 +1,4 @@
-﻿"""Dataset Preparation - Unified data loading, exploration, and preprocessing.
+"""Dataset Preparation - Unified data loading, exploration, and preprocessing.
 
 This page provides a unified workflow for:
 1. Loading data from CSV upload, PostgreSQL database, or saved datasets
@@ -113,7 +113,7 @@ if st.session_state.get('training_data_configured'):
         with col_p2:
             st.write(f"**Normalization:** {prep.get('normalization', 'N/A')}")
         with col_p3:
-            st.write(f"**Time Features:** {'Yes' if prep.get('datetime_features') else 'No'}")
+            st.write("**Features:** None")
     
     st.markdown("---")
     st.subheader("💾 Save Prepared Dataset")
@@ -519,34 +519,6 @@ def render_configuration_ui(df, source_name):
             key="config_norm"
         )
     
-    col_feat1, col_feat2 = st.columns(2)
-    
-    with col_feat1:
-        use_datetime_features = st.checkbox(
-            "🕐 Add Time Features",
-            value=False,
-            help="Adds: day of week, month, season (cyclic)",
-            key="config_time_features"
-        )
-    
-    with col_feat2:
-        use_lags = st.checkbox(
-            "📉 Add Target Lags",
-            value=False,
-            help="Add past values of target as features",
-            key="config_lags"
-        )
-    
-    lags_list = []
-    if use_lags:
-        lag_values = st.text_input(
-            "Lag values (comma separated)",
-            value="1,7,30",
-            help="E.g., 1,7,30 = values from 1, 7, and 30 time steps ago",
-            key="config_lag_values"
-        )
-        lags_list = [int(x.strip()) for x in lag_values.split(',') if x.strip().isdigit()]
-    
     # Preview & Validate
     st.markdown("---")
     col_action1, col_action2 = st.columns(2)
@@ -616,9 +588,7 @@ def render_configuration_ui(df, source_name):
                 
                 preprocessing_config = {
                     'fill_method': fill_method,
-                    'normalization': normalization,
-                    'datetime_features': use_datetime_features,
-                    'lags': lags_list
+                    'normalization': normalization
                 }
                 
                 if station_col:
@@ -643,6 +613,7 @@ def render_configuration_ui(df, source_name):
                     st.session_state['training_is_multistation'] = False
                 
                 st.session_state['training_filename'] = source_name
+                st.session_state['training_dataset_name'] = source_name
                 st.session_state['training_preprocessing'] = preprocessing_config
                 st.session_state['training_data_configured'] = True
                 
@@ -964,34 +935,36 @@ with tab_saved:
         else:
             st.success(f"**{len(datasets)}** saved dataset(s) available")
             
-            for name, meta in datasets.items():
-                with st.expander(f"📦 **{name}**"):
+            for dataset in datasets:
+                with st.expander(f"📦 **{dataset.name}**"):
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
-                        st.write(f"**Source:** {meta.get('source_file', 'N/A')}")
-                        st.write(f"**Target:** {meta.get('target_column', 'N/A')}")
+                        st.write(f"**Source:** {dataset.source_file or 'N/A'}")
+                        st.write(f"**Target:** {dataset.target_column or 'N/A'}")
                     with col_m2:
-                        st.write(f"**Stations:** {len(meta.get('stations', []))}")
-                        st.write(f"**Covariates:** {len(meta.get('covariate_columns', []))}")
+                        st.write(f"**Stations:** {len(dataset.stations or [])}")
+                        st.write(f"**Covariates:** {len(dataset.covariate_columns or [])}")
                     
-                    if st.button(f"📥 Load '{name}'", key=f"load_{name}"):
+                    if st.button(f"📥 Load '{dataset.name}'", key=f"load_{dataset.name}"):
                         try:
-                            loaded = registry.load_dataset(name)
+                            loaded_df, loaded_config = registry.load_dataset(dataset)
                             
-                            st.session_state['training_data'] = loaded['df']
-                            st.session_state['training_variables'] = [loaded['target_column']] + loaded.get('covariate_columns', [])
-                            st.session_state['training_target_var'] = loaded['target_column']
-                            st.session_state['training_covariate_vars'] = loaded.get('covariate_columns', [])
-                            st.session_state['training_is_multistation'] = len(loaded.get('stations', [])) > 0
-                            st.session_state['training_filename'] = name
-                            st.session_state['training_preprocessing'] = loaded.get('preprocessing_config', {})
+                            st.session_state['training_data'] = loaded_df
+                            st.session_state['training_variables'] = [loaded_config['target_column']] + loaded_config.get('covariate_columns', [])
+                            st.session_state['training_target_var'] = loaded_config['target_column']
+                            st.session_state['training_covariate_vars'] = loaded_config.get('covariate_columns', [])
+                            st.session_state['training_is_multistation'] = len(loaded_config.get('stations', [])) > 0
+                            source_file = loaded_config.get('source_file') or dataset.source_file or dataset.name
+                            st.session_state['training_filename'] = source_file
+                            st.session_state['training_dataset_name'] = dataset.name
+                            st.session_state['training_preprocessing'] = loaded_config.get('preprocessing', {})
                             st.session_state['training_data_configured'] = True
                             
-                            if loaded.get('stations'):
-                                st.session_state['training_stations'] = loaded['stations']
-                                st.session_state['training_station_col'] = loaded.get('station_column')
+                            if loaded_config.get('stations'):
+                                st.session_state['training_stations'] = loaded_config['stations']
+                                st.session_state['training_station_col'] = loaded_config.get('station_column')
                             
-                            st.success(f"✅ Loaded '{name}'!")
+                            st.success(f"✅ Loaded '{dataset.name}'!")
                             st.rerun()
                             
                         except Exception as e:

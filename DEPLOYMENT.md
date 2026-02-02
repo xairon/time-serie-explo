@@ -2,7 +2,55 @@
 
 Ce guide explique comment déployer facilement le projet Streamlit sur différentes architectures.
 
-## 🚀 Déploiement Rapide
+## 🚀 Déploiement Rapide avec UV (Recommandé)
+
+### Prérequis
+
+- Python 3.10, 3.11 ou 3.12
+- [uv](https://docs.astral.sh/uv/) (gestionnaire de paquets moderne)
+- Git
+
+### Installation avec UV
+
+```bash
+# 1. Installer uv (si pas déjà installé)
+# Windows (PowerShell):
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Linux/Mac:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Cloner le projet et installer les dépendances
+git clone <repository-url>
+cd time-serie-explo
+uv sync
+
+# 3. Lancer l'application
+uv run python run_app.py
+```
+
+C'est tout ! UV gère automatiquement l'environnement virtuel et toutes les dépendances.
+
+### URLs de l'Application
+
+- **Streamlit** : `http://localhost:8501`
+- **MLflow UI** : `http://localhost:5000` (lancée automatiquement)
+
+### Options de lancement
+
+```bash
+# Sans MLflow UI
+uv run python run_app.py --no-mlflow
+
+# Port personnalisé
+uv run python run_app.py --port 8502
+
+# Accessible depuis le réseau
+uv run python run_app.py --host 0.0.0.0
+```
+
+---
+
+## 📋 Installation Alternative (venv + pip)
 
 ### Étape 1 : Prérequis
 
@@ -46,11 +94,15 @@ venv\Scripts\activate
 # Linux/Mac:
 source venv/bin/activate
 
-# Lancer l'application
+# Lancer l'application (Streamlit + MLflow UI par défaut)
 python run_app.py
+
+# Sans l'interface MLflow
+python run_app.py --no-mlflow
 ```
 
-L'application sera accessible sur `http://localhost:8501`
+- **Streamlit** : `http://localhost:8501`
+- **MLflow UI** (expériences, modèles) : `http://localhost:5000` — lancée automatiquement avec la même base `mlflow.db` que l'app.
 
 ---
 

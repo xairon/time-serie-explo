@@ -3,13 +3,16 @@
 import optuna
 from optuna.visualization import plot_optimization_history, plot_param_importances
 import numpy as np
+import logging
 from typing import Dict, Any, Optional, Tuple
-from darts import TimeSeries
+from darts import TimeSeries, concatenate
 from darts.metrics import mae, rmse, mape, r2_score
 from pathlib import Path
 
 from dashboard.utils.model_factory import ModelFactory
 from dashboard.utils.training import train_model, calculate_metrics
+
+logger = logging.getLogger(__name__)
 
 
 def get_hyperparam_search_space(model_name: str, trial: optuna.Trial, base_hyperparams: Dict[str, Any]) -> Dict[str, Any]:
@@ -134,7 +137,7 @@ def create_optuna_objective(
             if early_stopping:
                 from pytorch_lightning.callbacks import EarlyStopping
                 es_callback = EarlyStopping(
-                    monitor='val_loss',
+                    monitor='val_loss',  # Must be val_loss, not train_loss
                     patience=early_stopping_patience,
                     mode='min',
                     verbose=False
@@ -179,28 +182,35 @@ def create_optuna_objective(
                 'series': train
             }
             
-            if use_covariates and full_cov is not None:
+            if use_covariates and train_cov is not None and val_cov is not None:
                 if getattr(model, "supports_past_covariates", False):
-                    pred_kwargs['past_covariates'] = full_cov
+                    pred_kwargs['past_covariates'] = concatenate([train_cov, val_cov], axis=0)
             
             predictions = model.predict(**pred_kwargs)
-            
-            # Calculer la métrique
-            val_trimmed = val[:len(predictions)]
-            
+
+            # Calculer la métrique avec alignement temporel correct
+            # Les prédictions commencent à la fin de train, donc on aligne avec le début de val
+            # Utiliser slice_intersect pour un alignement temporel propre
+            val_aligned = val.slice_intersect(predictions)
+            pred_aligned = predictions.slice_intersect(val)
+
+            if len(val_aligned) == 0 or len(pred_aligned) == 0:
+                logger.warning(f"Trial {trial.number}: No overlap between predictions and validation")
+                return float('inf')
+
             if metric == 'MAE':
-                score = float(mae(val_trimmed, predictions))
+                score = float(mae(val_aligned, pred_aligned))
             elif metric == 'RMSE':
-                score = float(rmse(val_trimmed, predictions))
+                score = float(rmse(val_aligned, pred_aligned))
             elif metric == 'MAPE':
-                score = float(mape(val_trimmed, predictions))
+                score = float(mape(val_aligned, pred_aligned))
             else:
-                score = float(mae(val_trimmed, predictions))
-            
+                score = float(mae(val_aligned, pred_aligned))
+
             return score
-            
+
         except Exception as e:
-            print(f"Trial {trial.number} failed: {e}")
+            logger.error(f"Trial {trial.number} failed: {e}", exc_info=True)
             return float('inf')
     
     return objective
@@ -252,18 +262,18 @@ def run_optuna_study(
 def get_early_stopping_callback(patience: int = 10, min_delta: float = 0.0):
     """
     Crée un callback EarlyStopping pour PyTorch Lightning.
-    
+
     Args:
         patience: Nombre d'epochs sans amélioration avant d'arrêter
         min_delta: Amélioration minimale pour considérer une amélioration
-    
+
     Returns:
         EarlyStopping callback
     """
     from pytorch_lightning.callbacks import EarlyStopping
-    
+
     return EarlyStopping(
-        monitor='val_loss',
+        monitor='val_loss',  # Must be val_loss, not train_loss
         patience=patience,
         min_delta=min_delta,
         mode='min',

@@ -18,10 +18,18 @@ Checklist (aucun effet de bord, pas de fuite):
 - calculate_metrics : slice_intersect renvoie de nouveaux objets; actual/predicted inchangés.
 - horizon : min(output_chunk, len(test)) single, min sur len(ts) pour list (global).
 - Préconditions : train_ratio, val_ratio, test_ratio > 0 ; test non vide ; output_chunk_length >= 1.
+
+MLflow Integration:
+- Tracing enabled for key functions via @trace_training_step
+- Dataset lineage tracking
+- System metrics (CPU/GPU/memory) during training
 """
 
+import json
 import numpy as np
 import pandas as pd
+import logging
+from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List, Union, Sequence
 from pathlib import Path
 from darts import TimeSeries, concatenate
@@ -29,8 +37,12 @@ from darts.metrics import mae, rmse, mape, smape
 from darts.models.forecasting.forecasting_model import ForecastingModel
 
 from dashboard.utils.model_factory import ModelFactory
+from dashboard.utils.mlflow_client import trace_training_step
+
+logger = logging.getLogger(__name__)
 
 
+@trace_training_step("model_fit")
 def train_model(
     model: ForecastingModel,
     train_series: Union[TimeSeries, Sequence[TimeSeries]],
@@ -71,12 +83,17 @@ def train_model(
         if val_series is not None and val_past_covariates is not None:
             fit_kwargs['val_past_covariates'] = val_past_covariates
 
+    # Safety: never pass future covariates during training
+    if getattr(model, "supports_future_covariates", False):
+        logger.info("Future covariates are not used in training to avoid leakage.")
+
     # Train
     model.fit(**fit_kwargs)
 
     return model
 
 
+@trace_training_step("model_evaluation")
 def evaluate_model(
     model: ForecastingModel,
     train_series: Union[TimeSeries, Sequence[TimeSeries]],
@@ -184,13 +201,14 @@ def evaluate_model_sliding(
 
     try:
         raw = model.historical_forecasts(**pred_kwargs)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Sliding window evaluation failed: {e}")
         return {}
 
     if isinstance(raw, TimeSeries):
         raw = [raw]
 
-    mlist = ['MAE', 'RMSE', 'MAPE', 'sMAPE']
+    mlist = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
     agg: Dict[str, List[float]] = {k: [] for k in mlist}
     dir_accs: List[float] = []
 
@@ -222,6 +240,54 @@ def evaluate_model_sliding(
     return out
 
 
+def _to_numpy(series: TimeSeries) -> np.ndarray:
+    return series.values().flatten()
+
+
+def _wape(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
+    denom = np.sum(np.abs(actual_vals))
+    if denom == 0:
+        return np.nan
+    return float(np.sum(np.abs(actual_vals - pred_vals)) / denom * 100.0)
+
+
+def _nrmse(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
+    denom = np.max(actual_vals) - np.min(actual_vals)
+    if denom == 0:
+        return np.nan
+    return float(np.sqrt(np.mean((actual_vals - pred_vals) ** 2)) / denom * 100.0)
+
+
+def _nse(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
+    mean_obs = np.mean(actual_vals)
+    ss_res = np.sum((actual_vals - pred_vals) ** 2)
+    ss_tot = np.sum((actual_vals - mean_obs) ** 2)
+    if ss_tot == 0:
+        return 1.0 if ss_res == 0 else -np.inf
+    return float(1 - (ss_res / ss_tot))
+
+
+def _kge(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
+    if np.std(actual_vals) == 0 or np.std(pred_vals) == 0:
+        r = 0.0
+    else:
+        r = np.corrcoef(actual_vals, pred_vals)[0, 1]
+    mean_obs = np.mean(actual_vals)
+    mean_pred = np.mean(pred_vals)
+    if mean_obs == 0:
+        beta = 1.0 if mean_pred == 0 else np.inf
+    else:
+        beta = mean_pred / mean_obs
+    std_obs = np.std(actual_vals)
+    std_pred = np.std(pred_vals)
+    if std_obs == 0:
+        gamma = 1.0 if std_pred == 0 else np.inf
+    else:
+        gamma = std_pred / std_obs
+    return float(1 - np.sqrt((r - 1) ** 2 + (beta - 1) ** 2 + (gamma - 1) ** 2))
+
+
+@trace_training_step("calculate_metrics")
 def calculate_metrics(
     actual: TimeSeries,
     predicted: TimeSeries,
@@ -239,7 +305,7 @@ def calculate_metrics(
         Dictionary with metrics
     """
     if metrics_list is None:
-        metrics_list = ['MAE', 'RMSE', 'MAPE', 'sMAPE']
+        metrics_list = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
 
     results = {}
 
@@ -255,49 +321,86 @@ def calculate_metrics(
         actual_aligned = actual.slice_intersect(predicted)
         predicted_aligned = predicted.slice_intersect(actual)
 
+    def _compute_scalar_metrics(act, pred):
+        a = _to_numpy(act)
+        p = _to_numpy(pred)
+        out = {}
+        if 'WAPE' in metrics_list:
+            out['WAPE'] = _wape(a, p)
+        if 'NRMSE' in metrics_list:
+            out['NRMSE'] = _nrmse(a, p)
+        if 'NSE' in metrics_list:
+            out['NSE'] = _nse(a, p)
+        if 'KGE' in metrics_list:
+            out['KGE'] = _kge(a, p)
+        return out
+
     try:
         if 'MAE' in metrics_list:
             results['MAE'] = mae(actual_aligned, predicted_aligned)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"MAE calculation failed: {e}")
         results['MAE'] = np.nan
 
     try:
         if 'RMSE' in metrics_list:
             results['RMSE'] = rmse(actual_aligned, predicted_aligned)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"RMSE calculation failed: {e}")
         results['RMSE'] = np.nan
 
     try:
         if 'MAPE' in metrics_list:
             results['MAPE'] = mape(actual_aligned, predicted_aligned)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"MAPE calculation failed: {e}")
         results['MAPE'] = np.nan
-
-
 
     try:
         if 'sMAPE' in metrics_list:
             results['sMAPE'] = smape(actual_aligned, predicted_aligned)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"sMAPE calculation failed: {e}")
         results['sMAPE'] = np.nan
+
+    try:
+        if is_list:
+            agg = {k: [] for k in ['WAPE', 'NRMSE', 'NSE', 'KGE']}
+            for act, pred in zip(actual_aligned, predicted_aligned):
+                scalar_metrics = _compute_scalar_metrics(act, pred)
+                for k, v in scalar_metrics.items():
+                    if v is not None and not (isinstance(v, float) and np.isnan(v)):
+                        agg[k].append(v)
+            for k, vals in agg.items():
+                if vals:
+                    results[k] = float(np.nanmean(vals))
+        else:
+            results.update(_compute_scalar_metrics(actual_aligned, predicted_aligned))
+    except Exception as e:
+        logger.warning(f"Scalar metrics calculation failed: {e}")
 
     # Direction accuracy
     try:
-        if is_list:
-             accs = []
-             for act, pred in zip(actual_aligned, predicted_aligned):
-                 actual_diff = np.diff(act.values().flatten())
-                 pred_diff = np.diff(pred.values().flatten())
-                 if len(actual_diff) > 0:
-                     correct = np.sum((actual_diff > 0) == (pred_diff > 0))
-                     accs.append(correct / len(actual_diff) * 100)
-             results['Dir_Acc'] = np.mean(accs) if accs else np.nan
-        else:
-            actual_diff = np.diff(actual_aligned.values().flatten())
-            pred_diff = np.diff(predicted_aligned.values().flatten())
-            correct_direction = np.sum((actual_diff > 0) == (pred_diff > 0))
-            results['Dir_Acc'] = correct_direction / len(actual_diff) * 100
-    except Exception:
+        if 'Dir_Acc' in metrics_list:
+            if is_list:
+                accs = []
+                for act, pred in zip(actual_aligned, predicted_aligned):
+                    actual_diff = np.diff(act.values().flatten())
+                    pred_diff = np.diff(pred.values().flatten())
+                    if len(actual_diff) > 0:
+                        correct = np.sum((actual_diff > 0) == (pred_diff > 0))
+                        accs.append(correct / len(actual_diff) * 100)
+                results['Dir_Acc'] = np.mean(accs) if accs else np.nan
+            else:
+                actual_diff = np.diff(actual_aligned.values().flatten())
+                pred_diff = np.diff(predicted_aligned.values().flatten())
+                if len(actual_diff) > 0:
+                    correct_direction = np.sum((actual_diff > 0) == (pred_diff > 0))
+                    results['Dir_Acc'] = correct_direction / len(actual_diff) * 100
+                else:
+                    results['Dir_Acc'] = np.nan
+    except Exception as e:
+        logger.warning(f"Dir_Acc calculation failed: {e}")
         results['Dir_Acc'] = np.nan
 
     return results
@@ -370,6 +473,7 @@ def run_training_pipeline(
     target_preprocessor: Optional[Any] = None,
     cov_preprocessor: Optional[Any] = None,
     original_filename: Optional[str] = None,
+    dataset_name: Optional[str] = None,
     preprocessing_config: Optional[Dict[str, Any]] = None,
     all_stations: Optional[List[str]] = None,  # For global models: list of all station IDs
     early_stopping_patience: Optional[int] = None,
@@ -415,6 +519,9 @@ def run_training_pipeline(
     from dashboard.utils.mlflow_client import get_mlflow_manager
     mlflow_manager = get_mlflow_manager()
     
+    # Normalize dataset name (for UI/registry)
+    dataset_name = dataset_name or original_filename or "unknown"
+
     # Generate run name and tags
     run_name = f"{model_name}_{station_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     tags = {
@@ -427,24 +534,75 @@ def run_training_pipeline(
     if isinstance(train, list) or isinstance(train, tuple):
         tags['model_type'] = 'global'
         tags['station_count'] = str(len(train))
+        # Log all station names for global models
+        if all_stations:
+            tags['stations'] = json.dumps(all_stations)
     else:
         tags['model_type'] = 'single'
         tags['station_count'] = "1"
+        tags['stations'] = json.dumps([station_name])
 
-    # START MLFLOW RUN
-    with mlflow_manager.start_run(run_name=run_name, tags=tags) as run:
-        # Log Hyperparams & Config
-        mlflow_manager.log_params(hyperparams, prefix="hp_")
-        if preprocessing_config:
-            mlflow_manager.log_params(preprocessing_config, prefix="preproc_")
-        
-        mlflow_manager.log_params({
-            'original_filename': original_filename or 'unknown',
-            'train_size': len(train) if not isinstance(train, list) else sum(len(t) for t in train),
-            # val/test sizes...
-        })
+    # START MLFLOW RUN (avec system metrics: CPU/GPU/memory)
+    with mlflow_manager.start_run(run_name=run_name, tags=tags, log_system_metrics=True) as run:
+        fallback_run = None
+        import mlflow
+        if mlflow.active_run() is None:
+            logger.error("MLflow run missing after start_run. Starting fallback run for logging.")
+            fallback_run = mlflow_manager.start_run(
+                run_name=f"{run_name}_fallback",
+                tags={**tags, "run_status": "fallback_log"}
+            )
+            fallback_run.__enter__()
+            try:
+                mlflow.set_tag("fallback_used", "true")
+            except Exception as e:
+                logger.warning(f"Failed to set fallback_used tag: {e}")
 
         try:
+            # Log Hyperparams & Config
+            mlflow_manager.log_params(hyperparams, prefix="hp_")
+            if preprocessing_config:
+                mlflow_manager.log_params(preprocessing_config, prefix="preproc_")
+            
+            # Compute dataset sizes
+            train_size = len(train) if not isinstance(train, list) else sum(len(t) for t in train)
+            val_size = len(val) if not isinstance(val, list) else sum(len(v) for v in val)
+            test_size = len(test) if not isinstance(test, list) else sum(len(t) for t in test)
+            
+            mlflow_manager.log_params({
+                'original_filename': original_filename or 'unknown',
+                'dataset_name': dataset_name,
+                'train_size': train_size,
+                'val_size': val_size,
+                'test_size': test_size,
+            })
+
+            # Log column mapping for Forecasting page compatibility
+            if column_mapping:
+                mlflow_manager.log_params({
+                    'columns_target': column_mapping.get('target_var', ''),
+                    'columns_covariates': json.dumps(column_mapping.get('covariate_vars', [])),
+                })
+
+            # Log input datasets for lineage tracking
+            if station_data_df is not None:
+                try:
+                    if isinstance(station_data_df, dict):
+                        # Global model: log all stations
+                        mlflow_manager.log_input_dataset(
+                            station_data_df,
+                            name="input_data",
+                            context="training"
+                        )
+                    elif hasattr(station_data_df, 'head'):
+                        mlflow_manager.log_input_dataset(
+                            station_data_df,
+                            name=f"input_{station_name}",
+                            context="training"
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to log input dataset: {e}")
+
             # 0. Reproducibilité (graines fixes)
             import torch
             import pytorch_lightning as pl
@@ -472,13 +630,16 @@ def run_training_pipeline(
                     print(f"⚠️ GPU not available, using CPU")
 
             # Create callbacks with MLflow enabled
+            # IMPORTANT: Monitor val_loss for early stopping (not train_loss!)
+            # This prevents overfitting by stopping when validation loss stops improving
             callbacks = create_training_callbacks(
                 metrics_file=metrics_file,
                 total_epochs=n_epochs or hyperparams.get('n_epochs'),
                 early_stopping_patience=early_stopping_patience,
-                early_stopping_monitor="val_loss",
+                early_stopping_monitor="val_loss",  # Must be val_loss, not train_loss
                 early_stopping_mode="min",
-                use_mlflow=True  # Enable MLflow callback
+                use_mlflow=True,  # Enable MLflow callback
+                enable_lr_monitor=False
             )
             
             if 'callbacks' in trainer_kwargs:
@@ -506,6 +667,47 @@ def run_training_pipeline(
                     train_past_cov = train_cov
                     val_past_cov = val_cov
 
+            # 4. DEBUG: Verify train/val are different (helps detect data leakage)
+            def _debug_series_stats(series, name):
+                """Log series statistics for debugging."""
+                if isinstance(series, (list, tuple)):
+                    for i, s in enumerate(series):
+                        vals = s.values().flatten()
+                        logger.info(f"  {name}[{i}]: len={len(s)}, mean={vals.mean():.4f}, std={vals.std():.4f}, min={vals.min():.4f}, max={vals.max():.4f}")
+                else:
+                    vals = series.values().flatten()
+                    logger.info(f"  {name}: len={len(series)}, mean={vals.mean():.4f}, std={vals.std():.4f}, min={vals.min():.4f}, max={vals.max():.4f}")
+
+            logger.info("=== DATA VERIFICATION (train vs val) ===")
+            _debug_series_stats(train, "train")
+            _debug_series_stats(val, "val")
+
+            # Check for low variance (potential issue for loss calculation)
+            if not isinstance(train, (list, tuple)):
+                train_vals = train.values().flatten()
+                val_vals = val.values().flatten()
+                if train_vals.std() < 1e-6:
+                    logger.warning(f"LOW VARIANCE WARNING: train has std={train_vals.std():.6f} - model may learn constant!")
+                if val_vals.std() < 1e-6:
+                    logger.warning(f"LOW VARIANCE WARNING: val has std={val_vals.std():.6f} - val_loss may be artificially low!")
+
+                # Check if val is essentially the same as train (hash check)
+                train_hash = hash(tuple(train_vals[:100].round(6)))
+                val_hash = hash(tuple(val_vals[:min(100, len(val_vals))].round(6)))
+                if train_hash == val_hash:
+                    logger.error("DATA LEAKAGE DETECTED: train and val have identical values!")
+
+            # Verify train and val don't overlap
+            if not isinstance(train, (list, tuple)):
+                train_end = train.time_index[-1]
+                val_start = val.time_index[0]
+                if train_end >= val_start:
+                    logger.warning(f"POTENTIAL DATA LEAKAGE: train ends at {train_end}, val starts at {val_start}")
+                else:
+                    logger.info(f"  Split OK: train ends at {train_end}, val starts at {val_start}")
+
+            logger.info("=========================================")
+
             # 4. Train
             model = train_model(
                 model=model,
@@ -517,6 +719,22 @@ def run_training_pipeline(
             )
 
             results['model'] = model
+
+            # 4b. Log train/val loss curves to MLflow (per-epoch)
+            if metrics_file and Path(metrics_file).exists():
+                try:
+                    with open(metrics_file, "r", encoding="utf-8") as f:
+                        metrics_payload = json.load(f)
+                    epochs = metrics_payload.get("epochs", [])
+                    train_losses = metrics_payload.get("train_losses", [])
+                    val_losses = metrics_payload.get("val_losses", [])
+                    for idx, epoch in enumerate(epochs):
+                        if idx < len(train_losses) and train_losses[idx] is not None:
+                            mlflow.log_metric("train_loss", float(train_losses[idx]), step=int(epoch))
+                        if idx < len(val_losses) and val_losses[idx] is not None:
+                            mlflow.log_metric("val_loss", float(val_losses[idx]), step=int(epoch))
+                except Exception as e:
+                    logger.warning(f"Failed to log loss curves to MLflow: {e}")
 
             # 5. Evaluate
             output_chunk = hyperparams.get('output_chunk_length', 7)
@@ -531,10 +749,12 @@ def run_training_pipeline(
             else:
                 _test_len = len(test)
             _horizon = min(output_chunk, _test_len)
-            
+
             if _horizon <= 0:
-                 # fallback or warn
-                 pass
+                raise ValueError(
+                    f"Invalid horizon ({_horizon}): output_chunk_length={output_chunk}, "
+                    f"test_length={_test_len}. Ensure test set is non-empty and output_chunk_length >= 1."
+                )
 
             full_past_cov = None
             if use_covariates and full_cov is not None:
@@ -543,16 +763,26 @@ def run_training_pipeline(
 
             eval_scaler = None
             if target_preprocessor:
-                if isinstance(train, list): # Global
+                if isinstance(train, list):  # Global
                     if isinstance(target_preprocessor, dict):
                         if all_stations:
-                            eval_scaler = [target_preprocessor.get(s) for s in all_stations]
+                            # Validate that we have a scaler for each station
+                            missing_scalers = [s for s in all_stations if s not in target_preprocessor]
+                            if missing_scalers:
+                                logger.warning(f"Missing scalers for stations: {missing_scalers}. Using first scaler as fallback.")
+                            eval_scaler = [target_preprocessor.get(s, list(target_preprocessor.values())[0]) for s in all_stations]
                         else:
-                            first_scaler = list(target_preprocessor.values())[0]
-                            eval_scaler = [first_scaler] * len(train)
+                            # No station list provided - use scalers in order they were added
+                            logger.warning("No all_stations list provided for global model. Using scalers in dict order.")
+                            eval_scaler = list(target_preprocessor.values())
+                            # Ensure we have enough scalers
+                            if len(eval_scaler) < len(train):
+                                logger.error(f"Not enough scalers ({len(eval_scaler)}) for stations ({len(train)})")
+                                raise ValueError(f"Scaler count ({len(eval_scaler)}) doesn't match station count ({len(train)})")
                     else:
+                        # Single scaler for all - this is valid if all stations share same scale
                         eval_scaler = target_preprocessor
-                else: # Single
+                else:  # Single
                     eval_scaler = target_preprocessor
 
             predictions, metrics = evaluate_model(
@@ -624,24 +854,67 @@ def run_training_pipeline(
             custom_artifacts['train.csv'] = _to_df(train, _stations)
             custom_artifacts['val.csv'] = _to_df(val, _stations)
             custom_artifacts['test.csv'] = _to_df(test, _stations)
+
+            # Save covariates (processed) when available
+            if train_cov is not None:
+                custom_artifacts['train_cov.csv'] = _to_df(train_cov, _stations)
+            if val_cov is not None:
+                custom_artifacts['val_cov.csv'] = _to_df(val_cov, _stations)
+            if test_cov is not None:
+                custom_artifacts['test_cov.csv'] = _to_df(test_cov, _stations)
             
             if full_cov: # Save covariates if available? Usually redundant if embedded in TS but good for reference
                  pass # Skip for now to save space, assuming reproducible from source + code
             
             # Save config/metadata
+            # Include columns info in preprocessing for Forecasting page compatibility
+            preprocessing_with_columns = preprocessing_config.copy() if preprocessing_config else {}
+            if column_mapping:
+                preprocessing_with_columns['columns'] = {
+                    'target': column_mapping.get('target_var'),
+                    'covariates': column_mapping.get('covariate_vars', [])
+                }
+
             config_dict = {
                 'model_name': model_name,
                 'station': station_name,
                 'hyperparams': hyperparams,
                 'metrics': metrics,
+                'metrics_sliding': metrics_sliding,
                 'original_filename': original_filename,
-                'preprocessing': preprocessing_config,
+                'dataset_name': dataset_name,
+                'preprocessing': preprocessing_with_columns,
+                'columns': {
+                    'target': column_mapping.get('target_var') if column_mapping else None,
+                    'covariates': column_mapping.get('covariate_vars', []) if column_mapping else []
+                },
                 'type': 'global' if isinstance(train, list) else 'single'
             }
             custom_artifacts['model_config.json'] = config_dict
             
-            # Log Model + Artifacts
-            mlflow_manager.log_model(model, artifact_path="model", custom_artifacts=custom_artifacts)
+            # Log Model + Artifacts (with model signature/info)
+            # Robustness: ensure there's an active MLflow run before logging
+            import mlflow
+            if mlflow.active_run() is None:
+                logger.error("No active MLflow run before model logging. Starting fallback run.")
+                with mlflow_manager.start_run(
+                    run_name=f"{run_name}_fallback",
+                    tags={**tags, "run_status": "fallback_log"}
+                ):
+                    mlflow_manager.log_model_with_signature(
+                        model,
+                        artifact_path="model",
+                        custom_artifacts=custom_artifacts
+                    )
+            else:
+                mlflow_manager.log_model_with_signature(
+                    model,
+                    artifact_path="model",
+                    custom_artifacts=custom_artifacts
+                )
+
+            # NOTE: We intentionally do NOT register models in MLflow Registry.
+            # Runs are the source of truth; promotion to Registry is manual.
             
             # Legacy save logic removed (replaced by MLflow)
 
@@ -649,6 +922,9 @@ def run_training_pipeline(
             # Log error
             # mlflow.end_run(status='FAILED') # handled by context manager if exception propagates
             raise e
+        finally:
+            if fallback_run is not None:
+                fallback_run.__exit__(None, None, None)
             
     return results
 

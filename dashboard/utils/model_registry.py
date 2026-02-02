@@ -86,7 +86,10 @@ class ModelRegistry:
         else:
             try:
                 stations = json.loads(stations_str)
-            except:
+                if not isinstance(stations, list):
+                    stations = [str(stations)]
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse stations JSON '{stations_str}': {e}")
                 stations = [tags.get("station", "unknown")]
 
         # Preprocessing config reconstruction (partial)
@@ -94,6 +97,21 @@ class ModelRegistry:
         for k, v in params.items():
             if k.startswith("preproc_"):
                  preproc[k.replace("preproc_", "")] = v
+
+        # Add columns info to preprocessing config
+        columns_target = params.get("columns_target")
+        columns_covariates_str = params.get("columns_covariates")
+        if columns_target or columns_covariates_str:
+            try:
+                covariates = json.loads(columns_covariates_str) if columns_covariates_str else []
+            except (json.JSONDecodeError, TypeError):
+                covariates = []
+            preproc['columns'] = {
+                'target': columns_target,
+                'covariates': covariates
+            }
+
+        data_source = params.get("dataset_name") or params.get("original_filename") or "unknown"
 
         return ModelEntry(
             model_id=run.info.run_id,
@@ -105,7 +123,7 @@ class ModelRegistry:
             created_at=datetime.fromtimestamp(run.info.start_time/1000).isoformat(),
             metrics=metrics,
             hyperparams={k.replace("hp_", ""): v for k,v in params.items() if k.startswith("hp_")},
-            data_source=params.get("original_filename"),
+            data_source=data_source,
             preprocessing_config=preproc
         )
 
@@ -115,59 +133,80 @@ class ModelRegistry:
         model_name: Optional[str] = None
     ) -> List[ModelEntry]:
         """List models from MLflow."""
-        runs = self.mlflow_manager.search_runs()
-        entries = []
-        for index, run in runs.iterrows():
-             # Convert pandas row to object-like for compatibility or fetch standard object
-             # mlflow.search_runs returns pandas DataFrame by default
-             # Better to use search_runs returning objects?
-             # manager.search_runs returns simple list if we implemented it that way?
-             # My manager wrapper calls standard mlflow.search_runs which returns DataFrame.
-             # I should probably change wrapper or handle DF here.
-             pass
-        
-        # Let's use native client for objects
-        client = mlflow.MlflowClient()
-        experiment = client.get_experiment_by_name(self.mlflow_manager.experiment_name)
-        if not experiment:
-             return []
-             
-        runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            order_by=["start_time DESC"]
-        )
-        
-        for run in runs:
-            if run.info.status != "FINISHED":
-                continue
-                
-            entry = self._run_to_entry(run)
-            
-            if model_type and entry.model_type != model_type:
-                continue
-            if model_name and entry.model_name != model_name:
-                continue
-                
-            entries.append(entry)
-            
-        return entries
+        try:
+            # Use native MLflow client for proper Run objects
+            client = mlflow.MlflowClient()
+            experiment = client.get_experiment_by_name(self.mlflow_manager.experiment_name)
+            if not experiment:
+                logger.warning(f"Experiment '{self.mlflow_manager.experiment_name}' not found")
+                return []
+
+            runs = client.search_runs(
+                experiment_ids=[experiment.experiment_id],
+                order_by=["start_time DESC"]
+            )
+
+            entries = []
+            for run in runs:
+                if run.info.status != "FINISHED":
+                    continue
+
+                try:
+                    entry = self._run_to_entry(run)
+
+                    if model_type and entry.model_type != model_type:
+                        continue
+                    if model_name and entry.model_name != model_name:
+                        continue
+
+                    entries.append(entry)
+                except Exception as e:
+                    logger.warning(f"Failed to convert run {run.info.run_id} to ModelEntry: {e}")
+                    continue
+
+            return entries
+        except Exception as e:
+            logger.error(f"Failed to list models from MLflow: {e}")
+            return []
 
     def get_model(self, model_id: str) -> Optional[ModelEntry]:
         """Get model by Run ID."""
         try:
             run = mlflow.get_run(model_id)
             return self._run_to_entry(run)
-        except:
+        except mlflow.exceptions.MlflowException as e:
+            logger.warning(f"MLflow run not found: {model_id} - {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get model {model_id}: {e}")
             return None
 
     def load_model(self, model_entry: ModelEntry) -> Any:
-        """Load Darts model from artifacts."""
-        local_path = mlflow.artifacts.download_artifacts(
-            run_id=model_entry.run_id, 
-            artifact_path="model/model.pkl"
+        """Load Darts model from MLflow artifacts (robust loader for PyTorch pickle)."""
+        local_dir = mlflow.artifacts.download_artifacts(
+            run_id=model_entry.run_id,
+            artifact_path="model",
         )
-        from darts.models.forecasting.forecasting_model import ForecastingModel
-        return ForecastingModel.load(local_path)
+        from pathlib import Path
+        p = Path(local_dir)
+        ckpt_path = p / "model.pkl.ckpt"
+        if p.is_dir():
+            p = p / "model.pkl"
+        if not p.exists():
+            raise FileNotFoundError(f"Model artifact not found: {p}")
+        try:
+            from dashboard.utils.robust_loader import load_model_safe
+            model = load_model_safe(p, model_entry.model_name)
+            if ckpt_path.exists() and getattr(model, "_fit_called", False) is False:
+                model._fit_called = True
+            return model
+        except Exception as e:
+            logger.warning(f"Robust load failed ({e}), trying ForecastingModel.load")
+            from darts.models.forecasting.forecasting_model import ForecastingModel
+            model = ForecastingModel.load(str(p))
+            if ckpt_path.exists() and getattr(model, "_fit_called", False) is False:
+                model._fit_called = True
+            return model
 
     def load_scalers(self, model_entry: ModelEntry) -> Dict[str, Any]:
         """Load scalers from artifacts."""
@@ -179,7 +218,27 @@ class ModelRegistry:
             import pickle
             with open(local_path, 'rb') as f:
                 return pickle.load(f)
-        except:
+        except FileNotFoundError:
+            logger.info(f"No scalers found for model {model_entry.model_id}")
+            return {}
+        except Exception as e:
+            logger.warning(f"Failed to load scalers for model {model_entry.model_id}: {e}")
+            return {}
+
+    def load_model_config(self, model_entry: ModelEntry) -> Dict[str, Any]:
+        """Load model_config.json from artifacts."""
+        try:
+            local_path = mlflow.artifacts.download_artifacts(
+                run_id=model_entry.run_id,
+                artifact_path="model/model_config.json"
+            )
+            with open(local_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            logger.info(f"No model_config.json found for model {model_entry.model_id}")
+            return {}
+        except Exception as e:
+            logger.warning(f"Failed to load model_config.json for model {model_entry.model_id}: {e}")
             return {}
 
     def load_data(self, model_entry: ModelEntry, split: str = "train") -> Optional[Any]:
@@ -187,7 +246,7 @@ class ModelRegistry:
         Load dataset split (train/val/test) from artifacts.
         Returns pandas DataFrame.
         """
-        valid_splits = ["train", "val", "test"]
+        valid_splits = ["train", "val", "test", "train_cov", "val_cov", "test_cov"]
         if split not in valid_splits:
             raise ValueError(f"Invalid split '{split}'. Must be one of {valid_splits}")
             

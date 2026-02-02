@@ -33,3 +33,4 @@ psycopg2-binary>=2.9.0
 codecarbon>=2.3.0
 tensorboard>=2.13.0
 optuna-dashboard>=0.13.0
+mlflow>=3.9.0
