@@ -183,6 +183,12 @@ class ModelRegistry:
 
     def load_model(self, model_entry: ModelEntry) -> Any:
         """Load Darts model from MLflow artifacts (robust loader for PyTorch pickle)."""
+        # Ensure tracking URI is set before downloading artifacts
+        tracking_uri = mlflow.get_tracking_uri()
+        if not tracking_uri or tracking_uri == "":
+            from dashboard.config import MLFLOW_TRACKING_URI
+            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
         local_dir = mlflow.artifacts.download_artifacts(
             run_id=model_entry.run_id,
             artifact_path="model",

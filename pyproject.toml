@@ -25,6 +25,7 @@ dependencies = [
     "statsmodels>=0.14.0",
     "shap>=0.42.0",
     "timeshap>=1.0.0",
+    "captum>=0.7.0",
     "optuna>=3.0.0",
     "tqdm>=4.65.0",
     "sqlalchemy>=2.0.0",

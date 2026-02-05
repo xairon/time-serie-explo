@@ -755,67 +755,70 @@ if window_pred_key not in st.session_state:
 
 
 # =============================================================================
-# TAB 1: PREDICTIONS - Test Set with Sliding Window
+# PREDICTION CHART - Always visible (both tabs)
+# =============================================================================
+cached_window = st.session_state.get(window_pred_key)
+
+# Prepare TEST set for display (RAW values)
+test_series_raw, _ = prepare_dataframe_for_darts(test_df_raw, target_col, [])
+
+fig = go.Figure()
+
+# 1. Highlight the input window (context)
+input_start_date = window_start_date - pd.Timedelta(days=input_chunk)
+fig.add_vrect(
+    x0=input_start_date, x1=window_start_date,
+    fillcolor="rgba(46, 134, 171, 0.15)",
+    layer="below", line_width=1,
+    line=dict(color="rgba(46, 134, 171, 0.4)"),
+    annotation_text=f"Input ({input_chunk}d)", annotation_position="bottom left"
+)
+
+# 2. Highlight the prediction window
+fig.add_vrect(
+    x0=window_start_date, x1=window_end_date,
+    fillcolor="rgba(255, 200, 0, 0.25)",
+    layer="below", line_width=1,
+    line=dict(color="rgba(255, 200, 0, 0.6)"),
+    annotation_text=f"Prediction ({model_horizon}d)", annotation_position="top right"
+)
+
+# 3. Ground Truth - Test set only
+fig.add_trace(go.Scatter(
+    x=test_series_raw.time_index,
+    y=test_series_raw.values().flatten(),
+    mode='lines',
+    name='Ground Truth',
+    line=dict(color='#2E86AB', width=2)
+))
+
+# 4. Window Forecast (if available)
+if cached_window and cached_window.get('prediction') is not None:
+    fig.add_trace(go.Scatter(
+        x=cached_window['prediction'].time_index,
+        y=cached_window['prediction'].values().flatten(),
+        mode='lines+markers',
+        name='Prediction',
+        line=dict(color='#E91E63', width=3),
+        marker=dict(size=6)
+    ))
+
+fig.update_layout(
+    title=f"{target_col} - Test Set",
+    xaxis_title="Date",
+    yaxis_title=target_col,
+    height=400,
+    hovermode='x unified',
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# =============================================================================
+# TAB 1: PREDICTIONS - Metrics and Export
 # =============================================================================
 if selected_tab == "Predictions":
-    
-    cached_window = st.session_state.get(window_pred_key)
-    
-    # Prepare TEST set for display (RAW values)
-    test_series_raw, _ = prepare_dataframe_for_darts(test_df_raw, target_col, [])
-    
-    fig = go.Figure()
-    
-    # 1. Highlight the input window (context)
-    input_start_date = window_start_date - pd.Timedelta(days=input_chunk)
-    fig.add_vrect(
-        x0=input_start_date, x1=window_start_date,
-        fillcolor="rgba(46, 134, 171, 0.15)",
-        layer="below", line_width=1,
-        line=dict(color="rgba(46, 134, 171, 0.4)"),
-        annotation_text=f"Input ({input_chunk}d)", annotation_position="bottom left"
-    )
-    
-    # 2. Highlight the prediction window
-    fig.add_vrect(
-        x0=window_start_date, x1=window_end_date,
-        fillcolor="rgba(255, 200, 0, 0.25)",
-        layer="below", line_width=1,
-        line=dict(color="rgba(255, 200, 0, 0.6)"),
-        annotation_text=f"Prediction ({model_horizon}d)", annotation_position="top right"
-    )
 
-    # 2. Ground Truth - Test set only
-    fig.add_trace(go.Scatter(
-        x=test_series_raw.time_index,
-        y=test_series_raw.values().flatten(),
-        mode='lines',
-        name='Ground Truth',
-        line=dict(color='#2E86AB', width=2)
-    ))
-    
-    # 3. Window Forecast (if available)
-    if cached_window and cached_window.get('prediction') is not None:
-        fig.add_trace(go.Scatter(
-            x=cached_window['prediction'].time_index,
-            y=cached_window['prediction'].values().flatten(),
-            mode='lines+markers',
-            name='Prediction',
-            line=dict(color='#E91E63', width=3),
-            marker=dict(size=6)
-        ))
-    
-    fig.update_layout(
-        title=f"{target_col} - Test Set",
-        xaxis_title="Date",
-        yaxis_title=target_col,
-        height=450,
-        hovermode='x unified',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
     # Metrics Display
     st.markdown("### Window Metrics")
     
@@ -889,207 +892,674 @@ if selected_tab == "Predictions":
         )
 
 # =============================================================================
-# TAB 2: EXPLAINABILITY (TimeSHAP)
+# TAB 2: EXPLAINABILITY (Enhanced with 6 tabs - State Managed)
 # =============================================================================
 else:
     st.markdown("### Model Interpretation")
-    
-    if 'explain_subtab' not in st.session_state:
-        st.session_state.explain_subtab = "Local Explanations"
-        
-    sub_tab = st.radio(
-        "Sub-Navigation",
-        ["Local Explanations", "Global Explanations"],
-        horizontal=True,
-        index=["Local Explanations", "Global Explanations"].index(st.session_state.explain_subtab),
-        label_visibility="collapsed"
+
+    # Import explainability modules
+    from dashboard.utils.explainability import (
+        ModelExplainerFactory,
+        ModelType,
+        compute_correlation_importance,
+        compute_permutation_importance_safe,
+        compute_lag_importance,
+        compute_residual_analysis,
+        detect_seasonality_patterns,
+        analyze_prediction_decomposition,
+        plot_feature_importance_bar,
+        plot_lag_importance,
+        plot_temporal_saliency_heatmap,
+        plot_shap_waterfall,
+        plot_decomposition_comparison,
+        plot_seasonality_patterns,
+        plot_residual_analysis,
     )
-    st.session_state.explain_subtab = sub_tab
-    
+
+    # Get model type and available methods
+    model_type = ModelType.from_model(model)
+    explainer = ModelExplainerFactory.get_explainer(model, input_chunk, model_horizon)
+    available_methods = explainer.get_available_methods()
+
+    # Model-specific info
+    model_type_display = {
+        ModelType.TFT: "TFT (Attention + Variable Selection)",
+        ModelType.TSMIXER: "TSMixer (Gradient-based)",
+        ModelType.NHITS: "NHiTS (Multi-scale)",
+        ModelType.NBEATS: "NBEATS (Interpretable)",
+        ModelType.LSTM: "LSTM/GRU (Temporal)",
+        ModelType.TRANSFORMER: "Transformer (Attention)",
+    }.get(model_type, "Generic")
+
+    st.caption(f"**Model Type:** {model_type_display} | **Available methods:** {', '.join(available_methods)}")
+
+    # State-managed tab navigation (persists across reruns)
+    EXPLAIN_TABS = [
+        "Overview",
+        "Feature Importance",
+        "Temporal Analysis",
+        "Seasonality & Trends",
+        "Model Internals",
+        "Local Explanation"
+    ]
+
+    if 'explain_tab_index' not in st.session_state:
+        st.session_state.explain_tab_index = 0
+
+    # Tab navigation using columns of buttons for better UX
+    tab_cols = st.columns(len(EXPLAIN_TABS))
+    for i, (col, tab_name) in enumerate(zip(tab_cols, EXPLAIN_TABS)):
+        with col:
+            # Use button styling to show active tab
+            button_type = "primary" if st.session_state.explain_tab_index == i else "secondary"
+            if st.button(tab_name, key=f"explain_tab_{i}", type=button_type, use_container_width=True):
+                st.session_state.explain_tab_index = i
+                st.rerun()
+
     st.markdown("---")
-    
-    # -------------------------------------------------------------------------
-    # SUB-TAB: LOCAL (Window)
-    # -------------------------------------------------------------------------
-    if sub_tab == "Local Explanations":
-        st.markdown("#### Local SHAP Analysis")
-        st.caption("Explains which features and past days influenced this specific prediction window.")
-        
-        cached_window = st.session_state.get(window_pred_key)
-        
-        # Prepare Context Data (Input Chunk)
-        display_start = window_start_date - timedelta(days=input_chunk)
-        display_end = window_end_date
-        
-        window_mask = (test_df_raw.index >= display_start) & (test_df_raw.index <= display_end)
-        window_df = test_df_raw.loc[window_mask].copy()
-        
+
+    # Get current tab
+    current_explain_tab = EXPLAIN_TABS[st.session_state.explain_tab_index]
+
+    # Prepare common data
+    cached_window = st.session_state.get(window_pred_key)
+    display_start = window_start_date - timedelta(days=input_chunk)
+    display_end = window_end_date
+    window_mask = (test_df_raw.index >= display_start) & (test_df_raw.index <= display_end)
+    window_df = test_df_raw.loc[window_mask].copy()
+
+    # Filter computed features for cleaner display
+    computed_patterns = ['day_of_week', 'month', 'sin', 'cos', 'weekday', '_lag_']
+    base_covariates = [
+        col for col in covariate_cols
+        if col in window_df.columns and not any(p in col.lower() for p in computed_patterns)
+    ]
+
+    # =========================================================================
+    # TAB 1: OVERVIEW - Summary + Top 5 Features
+    # =========================================================================
+    if current_explain_tab == "Overview":
+        st.markdown("#### Explainability Overview")
+        st.info("Quick summary of model explainability with top contributing features.")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            # Top 5 features (correlation-based - always available)
+            if len(window_df) > 0 and len(base_covariates) > 0:
+                correlations = compute_correlation_importance(
+                    window_df, target_col, base_covariates
+                )
+
+                if correlations:
+                    top_5 = dict(sorted(correlations.items(), key=lambda x: x[1], reverse=True)[:5])
+                    fig = plot_feature_importance_bar(top_5, title="Top 5 Features (Correlation)", top_k=5)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Not enough data for feature importance.")
+            else:
+                st.info("No covariates available.")
+
+        with col2:
+            st.markdown("##### Quick Insights")
+
+            # Summary statistics
+            if correlations:
+                top_feature = list(correlations.keys())[0] if correlations else "N/A"
+                top_score = list(correlations.values())[0] if correlations else 0
+                st.metric("Top Feature", top_feature, f"r={top_score:.2f}")
+
+            # Lag analysis preview
+            if len(window_df) > 5:
+                lag_imp = compute_lag_importance(window_df, target_col, max_lag=min(14, len(window_df) // 2))
+                if lag_imp:
+                    peak_lag = max(lag_imp.keys(), key=lambda k: lag_imp[k])
+                    st.metric("Most Important Lag", f"t-{peak_lag}", f"r={lag_imp[peak_lag]:.2f}")
+
+            # Model capabilities
+            st.markdown("##### Model Capabilities")
+            caps = []
+            if "attention" in available_methods:
+                caps.append("Attention")
+            if "integrated_gradients" in available_methods:
+                caps.append("Gradients")
+            if "shap" in available_methods:
+                caps.append("SHAP")
+            st.write(", ".join(caps) if caps else "Correlation only")
+
+    # =========================================================================
+    # TAB 2: FEATURE IMPORTANCE - Correlation/Permutation/SHAP
+    # =========================================================================
+    elif current_explain_tab == "Feature Importance":
+        st.markdown("#### Feature Importance Analysis")
+
+        method_tab = st.radio(
+            "Method",
+            ["Correlation", "Permutation", "SHAP"],
+            horizontal=True,
+            key="feat_imp_method"
+        )
+
+        if method_tab == "Correlation":
+            st.caption("Fast correlation-based importance (no model inference required)")
+
+            if len(base_covariates) > 0:
+                # Local (window)
+                st.markdown("##### Local (Current Window)")
+                if len(window_df) > 0:
+                    local_corr = compute_correlation_importance(window_df, target_col, base_covariates)
+                    if local_corr:
+                        fig = plot_feature_importance_bar(local_corr, title="Window Feature Importance")
+                        st.plotly_chart(fig, use_container_width=True)
+
+                # Global (test set)
+                st.markdown("##### Global (Test Set)")
+                global_corr = compute_correlation_importance(test_df_processed, target_col,
+                    [c for c in covariate_cols if c in test_df_processed.columns])
+                if global_corr:
+                    fig = plot_feature_importance_bar(global_corr, title="Global Feature Importance")
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No covariates available for analysis.")
+
+        elif method_tab == "Permutation":
+            st.caption("Measures prediction degradation when shuffling feature values")
+
+            if st.button("Compute Permutation Importance", key="perm_btn"):
+                with st.spinner("Computing permutation importance (this may take a moment)..."):
+                    try:
+                        # Prepare series for permutation
+                        target_series, cov_series = prepare_dataframe_for_darts(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns]
+                        )
+
+                        perm_imp = compute_permutation_importance_safe(
+                            model, target_series, cov_series,
+                            n_permutations=3,
+                            output_chunk_length=model_horizon
+                        )
+
+                        if perm_imp and "_error" in perm_imp:
+                            st.error(f"Permutation importance error: {perm_imp['_error']}")
+                        elif perm_imp:
+                            fig = plot_feature_importance_bar(perm_imp, title="Permutation Importance")
+                            st.plotly_chart(fig, use_container_width=True)
+
+                            # Table view
+                            perm_df = pd.DataFrame({
+                                'Feature': list(perm_imp.keys()),
+                                'Importance': list(perm_imp.values())
+                            }).sort_values('Importance', ascending=False)
+                            st.dataframe(perm_df.style.format({'Importance': '{:.3%}'}), use_container_width=True)
+                        else:
+                            st.warning("Permutation importance computation failed.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            else:
+                st.info("Click button to compute permutation importance.")
+
+        else:  # SHAP
+            st.caption("SHAP values showing directional feature contributions")
+            st.warning("SHAP computation can be slow. Consider using Correlation or Permutation for faster results.")
+
+            if st.button("Compute SHAP Values", key="shap_btn"):
+                with st.spinner("Computing SHAP values..."):
+                    try:
+                        from dashboard.utils.timeshap_wrapper import (
+                            DartsModelWrapper, prepare_timeshap_data, compute_shap_perturbation
+                        )
+
+                        # Prepare wrapper
+                        wrapper = DartsModelWrapper(model, input_chunk, 1)
+
+                        # Prepare data
+                        feature_cols_shap = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
+                        window_start_idx = max(0, start_idx - input_chunk)
+                        data_3d, feat_names = prepare_timeshap_data(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns],
+                            window_start=window_start_idx,
+                            window_length=min(input_chunk, len(test_df_processed) - window_start_idx)
+                        )
+
+                        result = compute_shap_perturbation(wrapper, data_3d, feat_names, n_samples=50)
+
+                        if result.get('feat_data') is not None:
+                            from dashboard.utils.timeshap_wrapper import plot_feature_importance
+                            fig = plot_feature_importance(result['feat_data'])
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("SHAP computation did not return feature data.")
+                    except Exception as e:
+                        st.error(f"SHAP error: {e}")
+            else:
+                st.info("Click button to compute SHAP values.")
+
+    # =========================================================================
+    # TAB 3: TEMPORAL ANALYSIS - Lag importance + Saliency
+    # =========================================================================
+    elif current_explain_tab == "Temporal Analysis":
+        st.markdown("#### Temporal Analysis")
+        st.caption("Which past timesteps influence the prediction most?")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("##### Lag Importance (Autocorrelation)")
+            if len(window_df) > 5:
+                max_lag = min(input_chunk, len(window_df) // 2)
+                lag_imp = compute_lag_importance(window_df, target_col, max_lag=max_lag)
+
+                if lag_imp:
+                    fig = plot_lag_importance(lag_imp, input_chunk_length=input_chunk)
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Insights
+                    peak_lag = max(lag_imp.keys(), key=lambda k: lag_imp[k])
+                    recent = [v for k, v in lag_imp.items() if k <= 7]
+                    distant = [v for k, v in lag_imp.items() if k > 7]
+
+                    if recent and distant:
+                        if np.mean(recent) > np.mean(distant) * 1.3:
+                            st.success("Recent days (t-1 to t-7) are most influential.")
+                        elif np.mean(distant) > np.mean(recent) * 1.3:
+                            st.info("Longer history (>7 days) is more influential.")
+                        else:
+                            st.info("Influence is distributed across the input window.")
+                else:
+                    st.info("Not enough data for lag analysis.")
+            else:
+                st.info("Window too small for lag analysis.")
+
+        with col2:
+            st.markdown("##### Gradient-Based Saliency")
+
+            if "saliency" in available_methods or "integrated_gradients" in available_methods:
+                if st.button("Compute Temporal Saliency", key="saliency_btn"):
+                    with st.spinner("Computing gradients..."):
+                        try:
+                            target_series, cov_series = prepare_dataframe_for_darts(
+                                test_df_processed, target_col,
+                                [c for c in covariate_cols if c in test_df_processed.columns]
+                            )
+
+                            result = explainer.explain_local(target_series, cov_series)
+
+                            if result.success and result.gradient_attributions is not None:
+                                feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
+                                fig = plot_temporal_saliency_heatmap(
+                                    result.gradient_attributions,
+                                    feature_names[:result.gradient_attributions.shape[1]],
+                                    title="Feature x Time Attribution",
+                                    input_chunk_length=input_chunk
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            elif result.temporal_importance is not None:
+                                # Fallback to temporal importance only
+                                lag_dict = {i + 1: float(v) for i, v in enumerate(result.temporal_importance)}
+                                fig = plot_lag_importance(lag_dict, input_chunk)
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning(f"Gradient computation failed: {result.error_message}")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                else:
+                    st.info("Click to compute gradient-based temporal importance.")
+            else:
+                st.info("Gradient methods not available for this model type.")
+
+    # =========================================================================
+    # TAB 4: SEASONALITY & TRENDS - STL Decomposition
+    # =========================================================================
+    elif current_explain_tab == "Seasonality & Trends":
+        st.markdown("#### Seasonality & Trend Analysis")
+        st.caption("Decompose time series into trend, seasonal, and residual components.")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            # Seasonality detection
+            st.markdown("##### Detected Seasonality Patterns")
+
+            if len(test_df_raw) > 60:
+                target_series = test_df_raw[target_col]
+                seasonality = detect_seasonality_patterns(target_series, periods=[7, 30, 365])
+
+                fig = plot_seasonality_patterns(seasonality, title="Seasonality Detection")
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Summary
+                detected = [k for k, v in seasonality.items() if v.get('detected', False)]
+                if detected:
+                    st.success(f"Detected patterns: {', '.join(detected)}")
+                else:
+                    st.info("No significant seasonality detected.")
+            else:
+                st.info("Need at least 60 days of data for seasonality analysis.")
+
+        with col2:
+            st.markdown("##### Variance Decomposition")
+
+            if st.button("Compute STL Decomposition", key="stl_btn"):
+                with st.spinner("Computing STL decomposition..."):
+                    try:
+                        from dashboard.utils.statistics import stl_decomposition
+
+                        # Use appropriate period
+                        series_len = len(test_df_raw)
+                        period = 7 if series_len < 365 else 365
+
+                        decomp = stl_decomposition(test_df_raw[target_col], seasonal=period)
+
+                        if decomp:
+                            var = decomp.get('variance', {})
+                            st.metric("Trend", f"{var.get('trend_pct', 0):.1f}%")
+                            st.metric("Seasonal", f"{var.get('seasonal_pct', 0):.1f}%")
+                            st.metric("Residual", f"{var.get('residual_pct', 0):.1f}%")
+                    except Exception as e:
+                        st.error(f"STL error: {e}")
+            else:
+                st.info("Click to compute decomposition.")
+
+        # Decomposition comparison (if predictions available)
+        if cached_window and cached_window.get('prediction') is not None:
+            st.markdown("---")
+            st.markdown("##### Actual vs Predicted Decomposition")
+
+            if st.button("Compare Decompositions", key="decomp_compare_btn"):
+                with st.spinner("Comparing decompositions..."):
+                    try:
+                        pred = cached_window['prediction']
+                        target = cached_window['target']
+
+                        # Get aligned values
+                        common_idx = pred.time_index.intersection(target.time_index)
+                        if len(common_idx) > 14:
+                            actual_series = pd.Series(
+                                target.values().flatten()[:len(common_idx)],
+                                index=common_idx
+                            )
+                            pred_series = pd.Series(
+                                pred.values().flatten()[:len(common_idx)],
+                                index=common_idx
+                            )
+
+                            result = analyze_prediction_decomposition(
+                                actual_series, pred_series, period=7
+                            )
+
+                            if result.get('success'):
+                                st.write(f"**Trend correlation:** {result['comparison']['trend_correlation']:.3f}")
+                                st.write(f"**Seasonal correlation:** {result['comparison']['seasonal_correlation']:.3f}")
+
+                                # Interpretation
+                                for key, interp in result.get('interpretation', {}).items():
+                                    st.info(f"**{key.capitalize()}**: {interp}")
+                            else:
+                                st.warning(f"Decomposition comparison failed: {result.get('error')}")
+                        else:
+                            st.info("Not enough overlapping data for comparison.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+    # =========================================================================
+    # TAB 5: MODEL INTERNALS - Model-specific explanations
+    # =========================================================================
+    elif current_explain_tab == "Model Internals":
+        st.markdown("#### Model-Specific Internals")
+        st.caption(f"Explanations specific to **{model_type_display}**")
+
+        if model_type == ModelType.TFT:
+            st.markdown("##### TFT Attention & Variable Selection")
+            st.info("TFT provides built-in attention weights and variable selection network outputs.")
+
+            if st.button("Extract TFT Attention", key="tft_attention_btn"):
+                with st.spinner("Extracting TFT attention..."):
+                    try:
+                        from dashboard.utils.explainability.attention import TFTExplainer as TFTAttentionExplainer
+
+                        target_series, cov_series = prepare_dataframe_for_darts(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns]
+                        )
+
+                        tft_explainer = TFTAttentionExplainer(model)
+                        result = tft_explainer.explain(target_series, cov_series)
+
+                        if result.get('success'):
+                            # Encoder importance
+                            if result.get('encoder_importance'):
+                                st.markdown("**Encoder Variable Importance:**")
+                                st.json(result['encoder_importance'])
+
+                            # Attention heatmap
+                            if result.get('attention') is not None:
+                                from dashboard.utils.explainability.visualizations import plot_attention_heatmap
+                                fig = plot_attention_heatmap(result['attention'], title="TFT Attention Weights")
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning(f"TFT extraction failed: {result.get('error', 'Unknown error')}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            else:
+                st.info("Click to extract TFT-specific explanations.")
+
+        elif model_type == ModelType.TSMIXER:
+            st.markdown("##### TSMixer Gradient Analysis")
+            st.info("TSMixer doesn't have native attention. Using Integrated Gradients for feature attribution.")
+
+            if st.button("Compute TSMixer Attributions", key="tsmixer_btn"):
+                with st.spinner("Computing Integrated Gradients..."):
+                    try:
+                        target_series, cov_series = prepare_dataframe_for_darts(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns]
+                        )
+
+                        result = explainer.explain_local(target_series, cov_series)
+
+                        if result.success:
+                            if result.gradient_attributions is not None:
+                                feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
+                                fig = plot_temporal_saliency_heatmap(
+                                    result.gradient_attributions,
+                                    feature_names[:result.gradient_attributions.shape[1]],
+                                    title="TSMixer Feature x Time Attribution"
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+
+                            if result.feature_importance:
+                                st.markdown("**Feature Importance (from gradients):**")
+                                fig = plot_feature_importance_bar(result.feature_importance)
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning(f"TSMixer attribution failed: {result.error_message}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            else:
+                st.info("Click to compute TSMixer-specific attributions.")
+
+        elif model_type in (ModelType.NHITS, ModelType.NBEATS):
+            st.markdown(f"##### {model_type.name} Stack Analysis")
+
+            if model_type == ModelType.NHITS:
+                st.info("NHiTS uses multi-scale hierarchical interpolation with multiple stacks.")
+            else:
+                st.info("NBEATS can use interpretable stacks (trend/seasonal) or generic stacks.")
+
+            if st.button(f"Analyze {model_type.name} Structure", key="stack_btn"):
+                with st.spinner("Analyzing model structure..."):
+                    try:
+                        target_series, cov_series = prepare_dataframe_for_darts(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns]
+                        )
+
+                        result = explainer.explain_local(target_series, cov_series)
+
+                        if result.success:
+                            if result.decomposition:
+                                st.markdown("**Model Structure:**")
+                                st.json(result.decomposition)
+
+                            if result.gradient_attributions is not None:
+                                feature_names = [target_col] + [c for c in covariate_cols if c in test_df_processed.columns]
+                                fig = plot_temporal_saliency_heatmap(
+                                    result.gradient_attributions,
+                                    feature_names[:result.gradient_attributions.shape[1]],
+                                    title=f"{model_type.name} Attribution"
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning(f"Analysis failed: {result.error_message}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+        else:
+            st.markdown("##### Generic Model Analysis")
+            st.info("Using gradient-based methods (if available) or correlation-based analysis.")
+
+            if st.button("Run Generic Analysis", key="generic_btn"):
+                with st.spinner("Running analysis..."):
+                    try:
+                        target_series, cov_series = prepare_dataframe_for_darts(
+                            test_df_processed, target_col,
+                            [c for c in covariate_cols if c in test_df_processed.columns]
+                        )
+
+                        result = explainer.explain_local(target_series, cov_series)
+
+                        if result.success and result.feature_importance:
+                            fig = plot_feature_importance_bar(result.feature_importance, title="Feature Importance")
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("Using correlation-based fallback.")
+                            corr = compute_correlation_importance(
+                                test_df_processed, target_col,
+                                [c for c in covariate_cols if c in test_df_processed.columns]
+                            )
+                            if corr:
+                                fig = plot_feature_importance_bar(corr)
+                                st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+    # =========================================================================
+    # TAB 6: LOCAL EXPLANATION - Waterfall for single prediction
+    # =========================================================================
+    elif current_explain_tab == "Local Explanation":
+        st.markdown("#### Local Explanation")
+        st.caption("Deep-dive into a specific prediction window.")
+
+        # Context visualization
         if len(window_df) > 0:
-            # 1. Context Chart
-            fig_target = go.Figure()
-            
-            # Highlight Prediction
-            fig_target.add_vrect(
+            st.markdown("##### Prediction Context")
+
+            fig_context = go.Figure()
+            fig_context.add_vrect(
                 x0=window_start_date, x1=window_end_date,
                 fillcolor="rgba(255, 200, 0, 0.15)", line_color="orange",
                 annotation_text="Prediction", annotation_position="top right"
             )
-            fig_target.add_vline(x=window_start_date, line_dash="dash", line_color="orange")
-            
-            fig_target.add_trace(go.Scatter(
-                x=window_df.index,
-                y=window_df[target_col].values,
+            fig_context.add_vline(x=window_start_date, line_dash="dash", line_color="orange")
+
+            fig_context.add_trace(go.Scatter(
+                x=window_df.index, y=window_df[target_col].values,
                 mode='lines+markers', name='Ground Truth',
                 line=dict(color='#2E86AB'), marker=dict(size=4)
             ))
-            
-            if cached_window and cached_window.get('pred_onestep') is not None:
-                pred = cached_window['pred_onestep']
-                fig_target.add_trace(go.Scatter(
+
+            if cached_window and cached_window.get('prediction') is not None:
+                pred = cached_window['prediction']
+                fig_context.add_trace(go.Scatter(
                     x=pred.time_index, y=pred.values().flatten(),
-                    mode='lines+markers', name='One-Step Prediction',
+                    mode='lines+markers', name='Prediction',
                     line=dict(color='#28A745'), marker=dict(size=6, symbol='diamond')
                 ))
-            
-            fig_target.update_layout(
-                title=f" Context ({input_chunk}d) + Prediction Window",
+
+            fig_context.update_layout(
+                title=f"Context ({input_chunk}d) + Prediction ({model_horizon}d)",
                 height=300, margin=dict(l=10, r=10, t=40, b=20),
                 hovermode='x unified'
             )
-            st.plotly_chart(fig_target, use_container_width=True)
-            
-            # 2. Covariates Display
-            # Filter standard computed features to avoid clutter
-            computed_patterns = ['day_of_week', 'month', 'sin', 'cos', 'weekday']
-            base_covariates = [
-                col for col in covariate_cols 
-                if col in window_df.columns and not any(p in col.lower() for p in computed_patterns)
-            ]
-            
-            if base_covariates:
-                st.markdown(f"#####  Covariates ({len(base_covariates)})")
-                colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
-                
-                for i, feat_col in enumerate(base_covariates):
-                    c1, c2 = st.columns([5, 1])
-                    with c1:
-                        fig_cov = go.Figure()
-                        fig_cov.add_trace(go.Scatter(
-                            x=window_df.index, y=window_df[feat_col].values,
-                            mode='lines', name=feat_col,
-                            line=dict(color=colors[i % len(colors)])
-                        ))
-                        fig_cov.update_layout(
-                            title=dict(text=feat_col, font=dict(size=12)),
-                            height=80, margin=dict(l=0, r=0, t=20, b=0),
-                            showlegend=False, xaxis=dict(showticklabels=False)
-                        )
-                        st.plotly_chart(fig_cov, use_container_width=True)
-                    with c2:
-                        vals = window_df[feat_col].values
-                        st.markdown(f"""
-                        <div style='font-size:10px; padding-top:20px;'>
-                        <b>Mean:</b> {vals.mean():.2f}<br>
-                        <b>Min/Max:</b> {vals.min():.2f} / {vals.max():.2f}
-                        </div>
-                        """, unsafe_allow_html=True)
-        
+            st.plotly_chart(fig_context, use_container_width=True)
+
         st.markdown("---")
-        
-        # 3. Feature Importance (Correlation-based - no external dependencies)
-        st.markdown("##### Feature Importance")
-        st.caption("Correlation-based importance (correlation with target variable)")
-        
-        feature_cols = [target_col] + [c for c in covariate_cols if c in window_df.columns]
-        
-        if len(feature_cols) > 1:
-            # Calculate correlations with target
-            correlations = {}
-            target_values = window_df[target_col].values
-            
-            for col in feature_cols:
-                if col != target_col and col in window_df.columns:
-                    col_values = window_df[col].values
-                    if len(col_values) > 2:
-                        corr = np.corrcoef(target_values, col_values)[0, 1]
-                        if not np.isnan(corr):
-                            correlations[col] = abs(corr)
-            
-            if correlations:
-                # Sort by importance
-                sorted_corr = dict(sorted(correlations.items(), key=lambda x: x[1], reverse=True))
-                
-                # Create bar chart
-                importance_df = pd.DataFrame({
-                    'Feature': list(sorted_corr.keys()),
-                    'Importance': list(sorted_corr.values())
-                })
-                
-                fig_importance = go.Figure(go.Bar(
-                    x=importance_df['Importance'],
-                    y=importance_df['Feature'],
-                    orientation='h',
-                    marker_color='#2E86AB'
-                ))
-                fig_importance.update_layout(
-                    title="Feature Importance (|correlation| with target)",
-                    xaxis_title="Absolute Correlation",
-                    yaxis_title="Feature",
-                    height=max(200, len(sorted_corr) * 30),
-                    margin=dict(l=10, r=10, t=40, b=20),
-                    yaxis=dict(autorange="reversed")
-                )
-                st.plotly_chart(fig_importance, use_container_width=True)
-            else:
-                st.info("Not enough data to compute feature importance.")
-        else:
-            st.info("No covariates available for importance analysis.")
-    
-    # -------------------------------------------------------------------------
-    # SUB-TAB: GLOBAL (Aggregated)
-    # -------------------------------------------------------------------------
-    elif sub_tab == "Global Explanations":
-        st.markdown("#### Global Feature Importance")
-        st.caption("Correlation-based importance across the entire test set.")
-        
-        if st.button("Compute Global Importance"):
-            with st.spinner("Computing..."):
-                feature_cols = [c for c in covariate_cols if c in test_df_processed.columns]
-                
-                if feature_cols:
-                    correlations = {}
-                    target_values = test_df_processed[target_col].values
-                    
-                    for col in feature_cols:
-                        col_values = test_df_processed[col].values
-                        if len(col_values) > 2:
-                            corr = np.corrcoef(target_values, col_values)[0, 1]
-                            if not np.isnan(corr):
-                                correlations[col] = abs(corr)
-                    
-                    if correlations:
-                        sorted_corr = dict(sorted(correlations.items(), key=lambda x: x[1], reverse=True))
-                        
-                        importance_df = pd.DataFrame({
-                            'Feature': list(sorted_corr.keys()),
-                            'Importance': list(sorted_corr.values())
-                        })
-                        
-                        chart = alt.Chart(importance_df).mark_bar().encode(
-                            x=alt.X('Importance', title='|Correlation| with Target'),
-                            y=alt.Y('Feature', sort='-x'),
-                            tooltip=['Feature', 'Importance']
-                        ).properties(
-                            title='Global Feature Importance',
-                            height=max(200, len(sorted_corr) * 25)
-                        ).interactive()
-                        
-                        st.altair_chart(chart, use_container_width=True)
-                        
-                        # Show table
-                        st.dataframe(importance_df.style.format({'Importance': '{:.3f}'}), use_container_width=True)
+
+        # Waterfall explanation
+        st.markdown("##### Feature Contributions (Waterfall)")
+
+        if st.button("Compute Local SHAP Waterfall", key="waterfall_btn"):
+            with st.spinner("Computing local SHAP values..."):
+                try:
+                    from dashboard.utils.timeshap_wrapper import (
+                        DartsModelWrapper, prepare_timeshap_data, compute_shap_perturbation
+                    )
+
+                    wrapper = DartsModelWrapper(model, input_chunk, 1)
+
+                    window_start_idx = max(0, start_idx - input_chunk)
+                    window_len = min(input_chunk, len(test_df_processed) - window_start_idx)
+
+                    data_3d, feat_names = prepare_timeshap_data(
+                        test_df_processed, target_col,
+                        [c for c in covariate_cols if c in test_df_processed.columns],
+                        window_start=window_start_idx,
+                        window_length=window_len
+                    )
+
+                    result = compute_shap_perturbation(wrapper, data_3d, feat_names, n_samples=50)
+
+                    if 'feature_importance' in result or 'feat_data' in result:
+                        # Get feature importance dict
+                        if 'feature_importance' in result:
+                            feat_imp = result['feature_importance']
+                        else:
+                            feat_df = result['feat_data']
+                            feat_imp = dict(zip(feat_df['Feature'], feat_df['Shapley Value']))
+
+                        base_val = result.get('baseline_pred', 0)
+
+                        fig = plot_shap_waterfall(feat_imp, base_value=base_val, title="Feature Contributions")
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # Top contributors table
+                        st.markdown("**Top Contributors:**")
+                        sorted_feat = sorted(feat_imp.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+                        for feat, val in sorted_feat:
+                            sign = "+" if val > 0 else ""
+                            st.write(f"- **{feat}**: {sign}{val:.4f}")
                     else:
-                        st.info("Could not compute correlations.")
-                else:
-                    st.info("No covariates available.")
+                        st.warning("Could not compute waterfall data.")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+        else:
+            st.info("Click to compute waterfall explanation for the current window.")
+
+        # Residual analysis
+        if cached_window and cached_window.get('prediction') is not None:
+            st.markdown("---")
+            st.markdown("##### Residual Analysis")
+
+            pred = cached_window['prediction']
+            target = cached_window['target']
+
+            min_len = min(len(pred), len(target))
+            actual_vals = target.values().flatten()[:min_len]
+            pred_vals = pred.values().flatten()[:min_len]
+
+            residual_stats = compute_residual_analysis(actual_vals, pred_vals)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mean Error", f"{residual_stats['mean']:.4f}")
+            with col2:
+                st.metric("Std Error", f"{residual_stats['std']:.4f}")
+            with col3:
+                bias_status = "Biased" if residual_stats['is_biased'] else "Balanced"
+                st.metric("Bias Status", bias_status)
+
+            fig = plot_residual_analysis(residual_stats['residuals'], pred.time_index[:min_len])
+            st.plotly_chart(fig, use_container_width=True)
 

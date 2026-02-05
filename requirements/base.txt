@@ -20,6 +20,7 @@ darts>=0.32.0
 statsmodels>=0.14.0
 
 # Explainability & Optimization
+captum>=0.7.0
 shap>=0.42.0
 timeshap>=1.0.0
 optuna>=3.0.0
