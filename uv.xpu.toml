@@ -1,0 +1,14 @@
+# UV configuration for Intel XPU PyTorch
+# Requires Intel oneAPI Base Toolkit 2025.0.1
+# Usage: uv sync --extra xpu --config-file uv.xpu.toml
+
+[[tool.uv.index]]
+name = "pytorch-xpu"
+url = "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-xpu" }]
+torchaudio = [{ index = "pytorch-xpu" }]
+torchvision = [{ index = "pytorch-xpu" }]
+intel-extension-for-pytorch = [{ index = "pytorch-xpu" }]

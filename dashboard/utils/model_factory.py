@@ -152,9 +152,12 @@ class ModelFactory:
         if 'pl_trainer_kwargs' not in params:
             params['pl_trainer_kwargs'] = {}
 
+        # XPU is handled via custom strategy in pl_trainer_kwargs_override
+        # Do NOT set accelerator='xpu' here as it's not natively supported by PL 2.5
         if device == 'xpu':
-            params['pl_trainer_kwargs']['accelerator'] = 'xpu'
-            params['pl_trainer_kwargs']['devices'] = 1
+            # XPU config will come from pl_trainer_kwargs_override (custom strategy)
+            # Don't set accelerator here - it conflicts with the strategy
+            pass
         elif device == 'cuda':
             params['pl_trainer_kwargs']['accelerator'] = 'gpu'
             if torch.cuda.is_available():

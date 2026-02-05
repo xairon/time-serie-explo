@@ -259,7 +259,7 @@ with col1:
         help=get_hyperparam_description('input_chunk_length')
     )
     output_chunk = st.number_input(
-        "Output chunk (days)", min_value=1, max_value=90, value=7,
+        "Output chunk (days)", min_value=1, max_value=365, value=7,
         help=get_hyperparam_description('output_chunk_length')
     )
 

@@ -618,8 +618,18 @@ def run_training_pipeline(
             trainer_kwargs = {}
             if pl_trainer_kwargs:
                 trainer_kwargs.update(pl_trainer_kwargs)
-            
-            if torch.cuda.is_available():
+
+            # Device detection: XPU > CUDA > CPU
+            from dashboard.utils.xpu_support import is_xpu_available, get_xpu_trainer_kwargs, get_xpu_device_name
+
+            if is_xpu_available():
+                # Intel XPU (Arc GPU) - use custom accelerator/strategy
+                xpu_kwargs = get_xpu_trainer_kwargs()
+                trainer_kwargs.update(xpu_kwargs)
+                if verbose:
+                    device_name = get_xpu_device_name(0)
+                    print(f"🚀 Using Intel XPU: {device_name}")
+            elif torch.cuda.is_available():
                 trainer_kwargs['accelerator'] = 'gpu'
                 trainer_kwargs['devices'] = 1
                 if verbose:

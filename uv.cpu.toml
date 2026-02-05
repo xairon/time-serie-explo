@@ -1,0 +1,5 @@
+# UV configuration for CPU-only PyTorch
+# Usage: uv sync --extra cpu --config-file uv.cpu.toml
+
+[tool.uv]
+# Use default PyPI for CPU-only torch
