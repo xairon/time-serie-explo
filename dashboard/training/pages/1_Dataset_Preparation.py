@@ -463,8 +463,94 @@ def render_configuration_ui(df, source_name):
         else:
             st.warning("No suitable categorical column found. Make sure your data includes a text column for station identifiers.")
     
-    # Step 3: Variables
-    st.markdown("##### 3️⃣ Variables Selection")
+    # Step 3: Filters (optional)
+    st.markdown("##### 3️⃣ Filters (optional)")
+    
+    df_filtered = df.copy()
+    df_filtered[date_col] = pd.to_datetime(df_filtered[date_col], errors='coerce')
+    invalid_dates = df_filtered[date_col].isna().sum()
+    if invalid_dates > 0:
+        st.warning(f"⚠️ {invalid_dates:,} lignes avec dates invalides ont été ignorées pour les filtres.")
+        df_filtered = df_filtered.dropna(subset=[date_col])
+    
+    min_date = df_filtered[date_col].min()
+    max_date = df_filtered[date_col].max()
+    
+    date_filter_mode = "Aucun"
+    start_date = end_date = None
+    years_back = None
+    
+    if min_date is not None and max_date is not None:
+        available_years = max(1, int((max_date - min_date).days // 365))
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            date_filter_mode = st.radio(
+                "Filtre temporel",
+                options=["Aucun", "Dernières N années", "Plage personnalisée"],
+                horizontal=True,
+                key="filter_date_mode"
+            )
+        with col_f2:
+            if date_filter_mode == "Dernières N années":
+                st.caption(f"Années disponibles : {available_years}")
+                years_back = st.number_input(
+                    "N années",
+                    min_value=1,
+                    max_value=available_years,
+                    value=min(10, available_years),
+                    key="filter_years"
+                )
+                end_date = max_date.date()
+                start_date = (max_date - pd.DateOffset(years=years_back)).date()
+            elif date_filter_mode == "Plage personnalisée":
+                start_date = st.date_input(
+                    "Du",
+                    value=min_date.date(),
+                    min_value=min_date.date(),
+                    max_value=max_date.date(),
+                    key="filter_start"
+                )
+                end_date = st.date_input(
+                    "Au",
+                    value=max_date.date(),
+                    min_value=min_date.date(),
+                    max_value=max_date.date(),
+                    key="filter_end"
+                )
+    else:
+        st.info("Aucune date exploitable pour filtrer.")
+    
+    if start_date and end_date:
+        if start_date > end_date:
+            st.error("La date de début est après la date de fin.")
+            st.stop()
+        df_filtered = df_filtered[
+            (df_filtered[date_col] >= pd.Timestamp(start_date)) &
+            (df_filtered[date_col] <= pd.Timestamp(end_date))
+        ]
+    
+    selected_stations_filter = None
+    if station_col:
+        filter_stations = st.checkbox(
+            "Filtrer par stations",
+            value=False,
+            key="filter_stations_enabled"
+        )
+        if filter_stations:
+            station_options = sorted(df_filtered[station_col].dropna().unique().tolist())
+            selected_stations_filter = st.multiselect(
+                "Stations à conserver",
+                options=station_options,
+                default=station_options[:1] if station_options else [],
+                key="filter_stations_list"
+            )
+            if selected_stations_filter:
+                df_filtered = df_filtered[df_filtered[station_col].isin(selected_stations_filter)]
+    
+    st.caption(f"Après filtres: {len(df_filtered):,} lignes")
+    
+    # Step 4: Variables
+    st.markdown("##### 4️⃣ Variables Selection")
     
     exclude_cols = [date_col]
     if station_col:
@@ -498,8 +584,8 @@ def render_configuration_ui(df, source_name):
     
     all_selected_vars = [target_var] + covariate_vars
     
-    # Step 4: Preprocessing
-    st.markdown("##### 4️⃣ Preprocessing Configuration")
+    # Step 5: Preprocessing
+    st.markdown("##### 5️⃣ Preprocessing Configuration")
     
     col_prep1, col_prep2 = st.columns(2)
     
@@ -526,8 +612,7 @@ def render_configuration_ui(df, source_name):
     with col_action1:
         if st.button("👁️ Preview Preprocessed Data", use_container_width=True, key="btn_preview"):
             try:
-                df_preview = df.copy()
-                df_preview[date_col] = pd.to_datetime(df_preview[date_col])
+                df_preview = df_filtered.copy()
                 
                 if station_col:
                     first_station = df_preview[station_col].iloc[0]
@@ -559,8 +644,11 @@ def render_configuration_ui(df, source_name):
     with col_action2:
         if st.button("✅ Validate & Load Dataset", type="primary", use_container_width=True, key="btn_validate"):
             try:
-                df_processed = df.copy()
-                df_processed[date_col] = pd.to_datetime(df_processed[date_col])
+                if df_filtered.empty:
+                    st.error("❌ Aucun enregistrement après filtrage.")
+                    st.stop()
+                
+                df_processed = df_filtered.copy()
                 
                 # Check for duplicate dates if no station column selected
                 if not station_col:
@@ -588,7 +676,14 @@ def render_configuration_ui(df, source_name):
                 
                 preprocessing_config = {
                     'fill_method': fill_method,
-                    'normalization': normalization
+                    'normalization': normalization,
+                    'date_filter': {
+                        'mode': date_filter_mode,
+                        'start': str(start_date) if start_date else None,
+                        'end': str(end_date) if end_date else None,
+                        'years': years_back
+                    },
+                    'station_filter': selected_stations_filter
                 }
                 
                 if station_col:
@@ -716,12 +811,12 @@ with tab_database:
         
         col1, col2 = st.columns(2)
         with col1:
-            db_host = st.text_input("Host", value="localhost", key="db_host")
-            db_port = st.number_input("Port", value=5432, min_value=1, max_value=65535, key="db_port")
-            db_name = st.text_input("Database", value="", key="db_name")
-        
+            db_host = st.text_input("Host", value="dib-2019006065", key="db_host")
+            db_port = st.number_input("Port", value=49502, min_value=1, max_value=65535, key="db_port")
+            db_name = st.text_input("Database", value="postgres", key="db_name")
+
         with col2:
-            db_user = st.text_input("Username", value="", key="db_user")
+            db_user = st.text_input("Username", value="postgres", key="db_user")
             db_password = st.text_input("Password", type="password", key="db_password")
         
         if st.button("🔌 Connect", type="primary", use_container_width=True, key="db_connect"):
@@ -746,7 +841,7 @@ with tab_database:
                         st.session_state.db_connected = True
                         st.session_state.db_connection_info = {
                             'host': db_host, 'port': int(db_port), 'database': db_name,
-                            'user': db_user, 'schema': 'public'
+                            'user': db_user, 'schema': 'gold'
                         }
                         st.success(f"Connected! {message}")
                         st.rerun()
@@ -772,7 +867,7 @@ with tab_database:
         try:
             from dashboard.utils.postgres_connector import (
                 list_schemas, list_tables_and_views, get_table_schema, get_row_count,
-                detect_date_columns, fetch_data, get_date_range
+                detect_date_columns, fetch_data, get_date_range, get_distinct_values
             )
             
             # Schema selection
@@ -838,14 +933,117 @@ with tab_database:
                         if any(t in col['type'].lower() for t in text_types)
                         and col['name'] != date_column
                     ]
-                    
+
                     station_column = st.selectbox(
                         "Station Column (optional)",
                         options=[None] + potential_station_cols + [c for c in all_columns if c not in potential_station_cols and c != date_column],
-                        help="Select if data contains multiple stations/locations",
+                        help="Select if data contains multiple stations/locations (e.g., code_bss)",
                         key="db_station_col"
                     )
-                
+
+                # Station filter (only if station column is selected)
+                selected_stations_db = None
+                if station_column:
+                    st.markdown("##### Filter by Station (recommended for large tables)")
+
+                    # Get ALL distinct station values (no limit)
+                    with st.spinner("Loading station list..."):
+                        station_values = get_distinct_values(engine, table_name, station_column, schema, limit=None)
+
+                    if station_values:
+                        st.info(f"**{len(station_values):,}** stations found in table")
+
+                        filter_mode = st.radio(
+                            "Station filter mode",
+                            options=["Load all stations", "Select specific stations"],
+                            horizontal=True,
+                            key="db_station_filter_mode"
+                        )
+
+                        if filter_mode == "Select specific stations":
+                            # Two methods: search/select OR paste codes directly
+                            input_method = st.radio(
+                                "Input method",
+                                options=["Search and select", "Paste station codes"],
+                                horizontal=True,
+                                key="db_station_input_method"
+                            )
+
+                            if input_method == "Paste station codes":
+                                # Direct text input for pasting codes
+                                codes_text = st.text_area(
+                                    "Paste station codes (one per line or comma-separated)",
+                                    height=100,
+                                    placeholder="BSS001ABCD\nBSS002EFGH\nor: BSS001ABCD, BSS002EFGH",
+                                    key="db_station_codes_paste"
+                                )
+
+                                if codes_text.strip():
+                                    # Parse codes (handle both newlines and commas)
+                                    raw_codes = codes_text.replace(',', '\n').split('\n')
+                                    parsed_codes = [c.strip() for c in raw_codes if c.strip()]
+
+                                    # Validate against available stations
+                                    valid_codes = [c for c in parsed_codes if c in station_values]
+                                    invalid_codes = [c for c in parsed_codes if c not in station_values]
+
+                                    if valid_codes:
+                                        st.success(f"**{len(valid_codes)}** valid station(s) found")
+                                        selected_stations_db = valid_codes
+
+                                    if invalid_codes:
+                                        st.warning(f"**{len(invalid_codes)}** code(s) not found in table: {', '.join(invalid_codes[:5])}" +
+                                                  (f" (+{len(invalid_codes)-5} more)" if len(invalid_codes) > 5 else ""))
+                                else:
+                                    st.caption("Paste station codes above to filter")
+
+                            else:
+                                # Search and select method
+                                search_term = st.text_input(
+                                    "Search stations",
+                                    key="db_station_search",
+                                    placeholder="Type to filter (e.g., BSS001 or partial code)..."
+                                )
+
+                                # Filter station values based on search
+                                if search_term and len(search_term) >= 2:
+                                    filtered_stations = [s for s in station_values if search_term.lower() in str(s).lower()]
+                                    if filtered_stations:
+                                        st.caption(f"Found {len(filtered_stations)} matching station(s)")
+                                    else:
+                                        st.warning(f"No stations matching '{search_term}'. Try a different search term.")
+                                        # Show some examples
+                                        st.caption(f"Examples of available codes: {', '.join(str(s) for s in station_values[:5])}")
+                                        filtered_stations = []
+                                elif search_term:
+                                    st.caption("Type at least 2 characters to search...")
+                                    filtered_stations = station_values[:50]
+                                else:
+                                    # No search - show first N stations
+                                    filtered_stations = station_values[:100]
+                                    if len(station_values) > 100:
+                                        st.caption(f"Showing first 100 of {len(station_values)} stations. Type to search.")
+
+                                if filtered_stations:
+                                    selected_stations_db = st.multiselect(
+                                        "Select stations to load",
+                                        options=filtered_stations,
+                                        default=[],
+                                        help="Select one or more stations. Only data for these stations will be loaded.",
+                                        key="db_selected_stations"
+                                    )
+
+                            # Summary
+                            if selected_stations_db:
+                                stations_str = ", ".join([f"'{s}'" for s in selected_stations_db[:5]])
+                                if len(selected_stations_db) > 5:
+                                    stations_str += f" (+{len(selected_stations_db) - 5} more)"
+                                st.success(f"**{len(selected_stations_db)}** station(s) selected: {stations_str}")
+                            elif filter_mode == "Select specific stations":
+                                st.warning("No stations selected. Please select at least one station to load data.")
+                    else:
+                        st.warning("Could not retrieve station values from the table.")
+
                 # Data columns (numeric)
                 st.markdown("##### Data Columns")
                 numeric_types = ['int', 'float', 'numeric', 'decimal', 'double', 'real', 'bigint', 'smallint']
@@ -881,13 +1079,30 @@ with tab_database:
                 
                 # Info for large tables
                 if row_count and row_count > 1000000:
-                    st.warning(f"⚠️ Table has {row_count:,} rows - loading will take time")
-                
+                    if station_column and selected_stations_db:
+                        # Filtered by station - estimate is much lower
+                        estimated_rows = row_count // len(station_values) * len(selected_stations_db) if station_values else row_count
+                        st.info(f"Estimated **~{estimated_rows:,} rows** for {len(selected_stations_db)} station(s)")
+                    elif station_column and st.session_state.get('db_station_filter_mode') == "Select specific stations":
+                        st.error(f"Table has **{row_count:,} rows** - select specific stations to avoid loading all data!")
+                    else:
+                        st.warning(f"Table has **{row_count:,} rows** - consider filtering by station to reduce load time")
+
+                # Load button - disable if station column selected but no stations chosen
+                load_disabled = not selected_columns
+                if station_column and st.session_state.get('db_station_filter_mode') == "Select specific stations" and not selected_stations_db:
+                    load_disabled = True
+
                 # Load button
                 st.markdown("---")
-                
-                if st.button("📥 Load Data from Database", type="primary", use_container_width=True, disabled=not selected_columns, key="db_load"):
-                    with st.spinner("Loading data from database..."):
+
+                if st.button("Load Data from Database", type="primary", use_container_width=True, disabled=load_disabled, key="db_load"):
+                    # Build filters
+                    db_filters = {}
+                    if station_column and selected_stations_db:
+                        db_filters[station_column] = selected_stations_db
+
+                    with st.spinner(f"Loading data from database{f' ({len(selected_stations_db)} stations)' if selected_stations_db else ''}..."):
                         # Build query columns
                         query_columns = []
                         if date_column:
@@ -895,13 +1110,13 @@ with tab_database:
                         if station_column:
                             query_columns.append(station_column)
                         query_columns.extend(selected_columns)
-                        
+
                         df = fetch_data(
                             engine, table_name, query_columns, schema,
                             date_column,
                             str(start_date) if start_date else None,
                             str(end_date) if end_date else None,
-                            filters={},
+                            filters=db_filters,
                             limit=None
                         )
                         
@@ -936,39 +1151,70 @@ with tab_saved:
             st.success(f"**{len(datasets)}** saved dataset(s) available")
             
             for dataset in datasets:
+                dataset_key = f"{dataset.name}_{dataset.creation_date}"
                 with st.expander(f"📦 **{dataset.name}**"):
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         st.write(f"**Source:** {dataset.source_file or 'N/A'}")
                         st.write(f"**Target:** {dataset.target_column or 'N/A'}")
+                        st.write(f"**Rows:** {dataset.n_rows:,}")
                     with col_m2:
                         st.write(f"**Stations:** {len(dataset.stations or [])}")
                         st.write(f"**Covariates:** {len(dataset.covariate_columns or [])}")
-                    
-                    if st.button(f"📥 Load '{dataset.name}'", key=f"load_{dataset.name}"):
-                        try:
-                            loaded_df, loaded_config = registry.load_dataset(dataset)
-                            
-                            st.session_state['training_data'] = loaded_df
-                            st.session_state['training_variables'] = [loaded_config['target_column']] + loaded_config.get('covariate_columns', [])
-                            st.session_state['training_target_var'] = loaded_config['target_column']
-                            st.session_state['training_covariate_vars'] = loaded_config.get('covariate_columns', [])
-                            st.session_state['training_is_multistation'] = len(loaded_config.get('stations', [])) > 0
-                            source_file = loaded_config.get('source_file') or dataset.source_file or dataset.name
-                            st.session_state['training_filename'] = source_file
-                            st.session_state['training_dataset_name'] = dataset.name
-                            st.session_state['training_preprocessing'] = loaded_config.get('preprocessing', {})
-                            st.session_state['training_data_configured'] = True
-                            
-                            if loaded_config.get('stations'):
-                                st.session_state['training_stations'] = loaded_config['stations']
-                                st.session_state['training_station_col'] = loaded_config.get('station_column')
-                            
-                            st.success(f"✅ Loaded '{dataset.name}'!")
-                            st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"Error loading: {e}")
+                        st.write(f"**Created:** {dataset.creation_date[:10] if dataset.creation_date else 'N/A'}")
+
+                    col_load, col_delete = st.columns([3, 1])
+                    with col_load:
+                        if st.button(f"📥 Load", key=f"load_{dataset_key}", use_container_width=True):
+                            try:
+                                loaded_df, loaded_config = registry.load_dataset(dataset)
+
+                                st.session_state['training_data'] = loaded_df
+                                st.session_state['training_variables'] = [loaded_config['target_column']] + loaded_config.get('covariate_columns', [])
+                                st.session_state['training_target_var'] = loaded_config['target_column']
+                                st.session_state['training_covariate_vars'] = loaded_config.get('covariate_columns', [])
+                                st.session_state['training_is_multistation'] = len(loaded_config.get('stations', [])) > 0
+                                source_file = loaded_config.get('source_file') or dataset.source_file or dataset.name
+                                st.session_state['training_filename'] = source_file
+                                st.session_state['training_dataset_name'] = dataset.name
+                                st.session_state['training_preprocessing'] = loaded_config.get('preprocessing', {})
+                                st.session_state['training_data_configured'] = True
+
+                                if loaded_config.get('stations'):
+                                    st.session_state['training_stations'] = loaded_config['stations']
+                                    st.session_state['training_station_col'] = loaded_config.get('station_column')
+
+                                st.success(f"✅ Loaded '{dataset.name}'!")
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Error loading: {e}")
+
+                    with col_delete:
+                        delete_key = f"delete_{dataset_key}"
+                        confirm_key = f"confirm_delete_{dataset_key}"
+
+                        if st.session_state.get(confirm_key, False):
+                            # Show confirmation buttons
+                            st.warning("Confirm?")
+                            col_yes, col_no = st.columns(2)
+                            with col_yes:
+                                if st.button("Yes", key=f"yes_{dataset_key}", type="primary", use_container_width=True):
+                                    try:
+                                        registry.delete_dataset(dataset)
+                                        st.session_state[confirm_key] = False
+                                        st.success("Deleted!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
+                            with col_no:
+                                if st.button("No", key=f"no_{dataset_key}", use_container_width=True):
+                                    st.session_state[confirm_key] = False
+                                    st.rerun()
+                        else:
+                            if st.button("🗑️", key=delete_key, use_container_width=True, help="Delete dataset"):
+                                st.session_state[confirm_key] = True
+                                st.rerun()
                             
     except Exception as e:
         st.warning(f"Could not access dataset registry: {e}")

@@ -142,8 +142,11 @@ class MetricsFileCallback(Callback):
         self._write_state()
 
     def on_train_end(self, trainer, pl_module) -> None:
+        # Write "finalizing" instead of "completed" to allow the training pipeline
+        # to finish evaluation and MLflow logging before signaling completion.
+        # The training thread will write "completed" after all post-training steps.
         if self.state.status != "error":
-            self.state.status = "completed"
+            self.state.status = "finalizing"
         if self._training_start_time is not None:
             self.state.total_time_seconds = time.time() - self._training_start_time
         self.state.last_update = datetime.now().isoformat()

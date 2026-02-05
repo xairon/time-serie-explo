@@ -935,7 +935,16 @@ def run_training_pipeline(
         finally:
             if fallback_run is not None:
                 fallback_run.__exit__(None, None, None)
-            
+
+            # Clean up GPU memory after training
+            try:
+                from dashboard.utils.xpu_support import cleanup_gpu_memory
+                # Pass model to move it to CPU before clearing GPU cache
+                _model = results.get('model') if results else None
+                cleanup_gpu_memory(model=_model)
+            except Exception:
+                pass  # Don't fail if cleanup fails
+
     return results
 
 

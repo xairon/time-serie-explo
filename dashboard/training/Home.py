@@ -111,8 +111,8 @@ with col_status2:
         datasets = registry.scan_datasets()
         if datasets:
             st.success(f"**{len(datasets)}** dataset(s)")
-            for ds in list(datasets.keys())[:3]:
-                st.caption(f"- {ds}")
+            for ds in datasets[:3]:
+                st.caption(f"- {ds.name}")
             if len(datasets) > 3:
                 st.caption(f"... +{len(datasets)-3} more")
         else:

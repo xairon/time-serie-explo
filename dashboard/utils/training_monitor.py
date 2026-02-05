@@ -109,12 +109,17 @@ class TrainingMonitor:
                 
                 status_text.text(status_msg)
             
+            elif status == 'finalizing':
+                # Model training done, post-processing in progress
+                status_text.text("Finalizing: evaluating and saving artifacts...")
+                # Don't rerun yet, wait for 'completed' status
+
             elif status == 'completed':
                 total_time = metrics.get('total_time_seconds', 0)
-                status_text.text(f"✅ Entraînement terminé en {int(total_time)}s")
+                status_text.text(f"Training completed in {int(total_time)}s")
                 if rerun_on_complete:
                     st.rerun()
-            
+
             elif status == 'error':
                 error = metrics.get('error', 'Unknown error')
                 status_text.text(f"❌ Erreur: {error}")

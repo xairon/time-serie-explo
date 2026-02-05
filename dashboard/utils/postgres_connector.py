@@ -168,29 +168,30 @@ def get_distinct_values(
     table_name: str,
     column_name: str,
     schema: str = "public",
-    limit: int = 100
+    limit: int = None
 ) -> List[Any]:
     """
     Get distinct values for a column (for filter dropdowns).
-    
+
     Args:
         engine: SQLAlchemy Engine
         table_name: Name of the table
         column_name: Column to get distinct values from
         schema: Schema name
-        limit: Maximum number of values to return
-        
+        limit: Maximum number of values to return (None = no limit)
+
     Returns:
         List of distinct values
     """
     query = f'''
-        SELECT DISTINCT "{column_name}" 
-        FROM "{schema}"."{table_name}" 
+        SELECT DISTINCT "{column_name}"
+        FROM "{schema}"."{table_name}"
         WHERE "{column_name}" IS NOT NULL
         ORDER BY "{column_name}"
-        LIMIT {limit}
     '''
-    
+    if limit is not None and limit > 0:
+        query += f' LIMIT {int(limit)}'
+
     with engine.connect() as conn:
         result = conn.execute(text(query))
         return [row[0] for row in result.fetchall()]

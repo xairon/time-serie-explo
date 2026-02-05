@@ -312,3 +312,54 @@ def get_device_info() -> Dict[str, Any]:
         info['cuda_name'] = torch.cuda.get_device_name(0)
 
     return info
+
+
+def cleanup_gpu_memory(model=None) -> None:
+    """
+    Clean up GPU memory after training.
+
+    This function should be called after training is complete to release
+    GPU memory back to the system. It handles both CUDA and XPU devices.
+
+    Args:
+        model: Optional Darts model to move to CPU before cleanup.
+    """
+    import gc
+
+    # Try to move model to CPU first to release GPU tensors
+    if model is not None:
+        try:
+            # Darts models have an internal PyTorch model
+            if hasattr(model, 'model') and model.model is not None:
+                model.model.cpu()
+            # Also try the trainer
+            if hasattr(model, 'trainer') and model.trainer is not None:
+                # Clear trainer references
+                model.trainer = None
+            logger.info("Model moved to CPU")
+        except Exception as e:
+            logger.debug(f"Could not move model to CPU: {e}")
+
+    # Force garbage collection first
+    gc.collect()
+
+    # Clean up CUDA memory
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            logger.info("CUDA memory cache cleared")
+        except Exception as e:
+            logger.warning(f"Failed to clear CUDA cache: {e}")
+
+    # Clean up XPU memory
+    if is_xpu_available():
+        try:
+            torch.xpu.empty_cache()
+            torch.xpu.synchronize()
+            logger.info("XPU memory cache cleared")
+        except Exception as e:
+            logger.warning(f"Failed to clear XPU cache: {e}")
+
+    # Another round of garbage collection
+    gc.collect()
