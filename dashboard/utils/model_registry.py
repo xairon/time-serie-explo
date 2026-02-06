@@ -207,9 +207,13 @@ class ModelRegistry:
                 model._fit_called = True
             return model
         except Exception as e:
-            logger.warning(f"Robust load failed ({e}), trying ForecastingModel.load")
-            from darts.models.forecasting.forecasting_model import ForecastingModel
-            model = ForecastingModel.load(str(p))
+            logger.warning(f"Robust load failed ({e}), trying torch.load fallback")
+            # Fallback: torch.load direct (ne PAS utiliser pickle.load car les fichiers
+            # Darts TorchForecastingModel sont sauvés avec torch.save et contiennent des
+            # persistent_id que seul torch.load sait gérer).
+            import torch
+            with open(str(p), "rb") as fh:
+                model = torch.load(fh, map_location="cpu", weights_only=False)
             if ckpt_path.exists() and getattr(model, "_fit_called", False) is False:
                 model._fit_called = True
             return model

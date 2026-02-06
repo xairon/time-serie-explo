@@ -176,14 +176,21 @@ class StreamlitSafeUnpickler(pickle.Unpickler):
         if module == "torch.storage" and name == "_load_from_bytes":
             import io
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
-        # 1. Intercepter les générateurs Numpy qui plantent
-        if "BitGenerator" in name and "numpy" in module:
-            return SafeBitGenerator
+        # 1. Intercepter les générateurs Numpy qui plantent (BitGenerator, MT19937, PCG64, etc.)
+        # On essaie d'abord l'import réel ; on ne remplace par SafeBitGenerator qu'en cas d'échec.
+        _numpy_rng_modules = {"numpy.random._mt19937", "numpy.random._pcg64",
+                              "numpy.random._philox", "numpy.random._sfc64",
+                              "numpy.random._common", "numpy.random.bit_generator"}
+        if ("BitGenerator" in name and "numpy" in module) or module in _numpy_rng_modules:
+            try:
+                return super().find_class(module, name)
+            except (ImportError, AttributeError):
+                return SafeBitGenerator
         # 2. Gérer les renommages internes de Numpy (1.x vs 2.x)
-        if module == "numpy._core.multiarray":
-            module = "numpy.core.multiarray"
-        elif module == "numpy.core.multiarray" and "numpy._core" in sys.modules:
-            module = "numpy._core.multiarray"
+        if module.startswith("numpy._core"):
+            module = module.replace("numpy._core", "numpy.core", 1)
+        elif module.startswith("numpy.core") and "numpy._core" in sys.modules:
+            module = module.replace("numpy.core", "numpy._core", 1)
         # 3. Fallback standard
         try:
             return super().find_class(module, name)
@@ -230,61 +237,87 @@ def load_model_safe(model_path: Path, model_type: str) -> Any:
         'GLOBALNAIVESEASONAL': GlobalNaiveSeasonal,
     }
     
-    model_class = model_classes.get(model_type.upper())
+    # Normaliser le type (ex: "TSMixer" -> "TSMIXER") pour la lookup
+    model_type_key = (model_type or "").strip().upper()
+    if not model_type_key:
+        model_type_key = "UNKNOWN"
+    # Alias courants pour le tag MLflow (dernier run, noms affichés)
+    if model_type_key == "TSMIXERMODEL":
+        model_type_key = "TSMIXER"
+    model_class = model_classes.get(model_type_key)
     if not model_class:
-        raise ValueError(f"Unknown model type: {model_type}")
+        raise ValueError(f"Unknown model type: {model_type!r} (normalized: {model_type_key})")
 
-    # 2. Patching de torch.load pour utiliser notre Unpickler
-    # C'est ici que la magie opère : on injecte notre logique dans Torch
-    
+    # 2. Module pickle personnalisé (Unpickler avec find_class sécurisé)
+    class CustomPickle:
+        def __init__(self):
+            for k, v in pickle.__dict__.items():
+                if not k.startswith("__"):
+                    setattr(self, k, v)
+            self.Unpickler = StreamlitSafeUnpickler
+            self.__name__ = "pickle"
+
+        def load(self, file, **kwargs):
+            return self.Unpickler(file, **kwargs).load()
+
+    from darts.models.forecasting.forecasting_model import ForecastingModel
+
     original_torch_load = torch.load
-    
-    def safe_torch_load(f, map_location=None, pickle_module=None, **kwargs):
-        """Version patchée de torch.load qui utilise notre StreamlitSafeUnpickler."""
-        if pickle_module is None:
-            # On crée un module pickle factice qui utilise notre Unpickler
-            class CustomPickle:
-                def __init__(self):
-                    # Copie les attributs de pickle
-                    for k, v in pickle.__dict__.items():
-                        if not k.startswith('__'):
-                            setattr(self, k, v)
-                    self.Unpickler = StreamlitSafeUnpickler
-                    self.__name__ = "pickle" # Important pour torch
-                
-                def load(self, file, **kwargs):
-                    return self.Unpickler(file, **kwargs).load()
-            
-            pickle_module = CustomPickle()
-            
-        return original_torch_load(f, map_location=map_location, pickle_module=pickle_module, **kwargs)
 
-    # 3. Application du patch temporaire sur la méthode .load() du modèle
-    # Darts utilise torch.load en interne via TorchForecastingModel.load
-    
-    # On doit patcher au niveau de la classe Darts ou intercepter l'appel
-    # Le plus simple est de charger manuellement si possible, ou de patcher torch.load globalement
-    # Patcher torch.load globalement est risqué, mais temporaire c'est ok.
-    
+    def _patched_torch_load(f, map_location=None, pickle_module=None, **kwargs):
+        """torch.load patché : injecte notre CustomPickle et force weights_only=False."""
+        if pickle_module is None:
+            pickle_module = CustomPickle()
+        kwargs.pop("weights_only", None)
+        return original_torch_load(
+            f, map_location=map_location or "cpu", weights_only=False,
+            pickle_module=pickle_module, **kwargs
+        )
+
     saved_streamlit = _disable_streamlit_temporarily()
     try:
-        # Patch temporaire de torch.load
-        torch.load = safe_torch_load
-        
-        # Désactiver les warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            # Chargement !
-            model = model_class.load(str(model_path))
-            
-        return model
-        
+
+            # Essai 1 (préféré) : patch torch.load puis model_class.load()
+            # model_class.load() gère le chargement COMPLET : pickle + checkpoint .ckpt (poids du réseau)
+            try:
+                torch.load = _patched_torch_load
+                model = model_class.load(str(model_path))
+                if isinstance(model, ForecastingModel):
+                    return model
+            except Exception:
+                pass
+            finally:
+                torch.load = original_torch_load
+
+            # Essai 2 (fallback) : torch.load direct + chargement manuel du checkpoint
+            try:
+                with open(model_path, "rb") as f:
+                    model = original_torch_load(
+                        f,
+                        map_location="cpu",
+                        weights_only=False,
+                        pickle_module=CustomPickle(),
+                    )
+                if isinstance(model, ForecastingModel):
+                    # Charger le checkpoint .ckpt (poids du réseau neuronal)
+                    ckpt_path = str(model_path) + ".ckpt"
+                    if os.path.exists(ckpt_path) and hasattr(model, "_load_from_checkpoint"):
+                        model.model = model._load_from_checkpoint(ckpt_path)
+                    return model
+            except Exception:
+                pass
+
+        raise RuntimeError(
+            f"Failed to load model {model_type!r} (normalized: {model_type_key}): "
+            "tried patched model_class.load and direct torch.load."
+        )
+    except RuntimeError:
+        raise
     except Exception as e:
-        raise RuntimeError(f"Failed to load model {model_type} despite patches: {e}")
-        
+        raise RuntimeError(f"Failed to load model {model_type!r}: {e}")
     finally:
-        # RESTAURATION IMPORTANTE
-        torch.load = original_torch_load
         _restore_streamlit_modules(saved_streamlit)
 
 def _load_in_subprocess(*args, **kwargs):
