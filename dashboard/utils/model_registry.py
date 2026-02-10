@@ -111,7 +111,13 @@ class ModelRegistry:
                 'covariates': covariates
             }
 
-        data_source = params.get("dataset_name") or params.get("original_filename") or "unknown"
+        # Priorité : tag override > param dataset_name > param original_filename
+        data_source = (
+            tags.get("dataset_name_override")
+            or params.get("dataset_name") 
+            or params.get("original_filename") 
+            or "unknown"
+        )
 
         return ModelEntry(
             model_id=run.info.run_id,
@@ -208,12 +214,28 @@ class ModelRegistry:
             return model
         except Exception as e:
             logger.warning(f"Robust load failed ({e}), trying torch.load fallback")
-            # Fallback: torch.load direct (ne PAS utiliser pickle.load car les fichiers
-            # Darts TorchForecastingModel sont sauvés avec torch.save et contiennent des
-            # persistent_id que seul torch.load sait gérer).
+            # Fallback: torch.load with our safe unpickler to handle NumPy
+            # BitGenerator version mismatches. We still use torch.load (not
+            # pickle.load) because Darts files contain persistent_id entries.
             import torch
+            from dashboard.utils.robust_loader import StreamlitSafeUnpickler
+            import pickle as _pickle
+
+            class _FallbackPickle:
+                def __init__(self):
+                    for k, v in _pickle.__dict__.items():
+                        if not k.startswith("__"):
+                            setattr(self, k, v)
+                    self.Unpickler = StreamlitSafeUnpickler
+                    self.__name__ = "pickle"
+                def load(self, file, **kwargs):
+                    return self.Unpickler(file, **kwargs).load()
+
             with open(str(p), "rb") as fh:
-                model = torch.load(fh, map_location="cpu", weights_only=False)
+                model = torch.load(
+                    fh, map_location="cpu", weights_only=False,
+                    pickle_module=_FallbackPickle(),
+                )
             if ckpt_path.exists() and getattr(model, "_fit_called", False) is False:
                 model._fit_called = True
             return model

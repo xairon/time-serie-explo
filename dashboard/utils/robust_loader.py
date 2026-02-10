@@ -33,17 +33,40 @@ class SafeBitGenerator:
     """Une classe factice qui remplace numpy.random.BitGenerator défectueux."""
     def __init__(self, *args, **kwargs):
         pass
-    
+
     def __setstate__(self, state):
-        # On ignore silencieusement l'état corrompu
         pass
-        
+
     def __getstate__(self):
         return {}
 
-# On rend cette classe accessible globalement pour pickle
-if 'SafeBitGenerator' not in globals():
-    globals()['SafeBitGenerator'] = SafeBitGenerator
+
+class SafeRandomState(np.random.RandomState):
+    """RandomState qui absorbe les erreurs de __setstate__ liées au BitGenerator."""
+    def __setstate__(self, state):
+        try:
+            super().__setstate__(state)
+        except Exception:
+            # Etat corrompu / incompatible : on garde le RandomState(0) par défaut
+            pass
+
+
+def _safe_randomstate_ctor(*args, **kwargs):
+    """Remplace numpy.random._pickle.__randomstate_ctor."""
+    return SafeRandomState(0)
+
+
+def _safe_generator_ctor(*args, **kwargs):
+    """Remplace numpy.random._pickle.__generator_ctor."""
+    # Retourne un SafeBitGenerator pour que pickle ne plante pas sur __setstate__
+    return SafeBitGenerator()
+
+
+def _safe_bit_generator_ctor(*args, **kwargs):
+    """Remplace numpy.random._pickle.__bit_generator_ctor."""
+    # Retourne un SafeBitGenerator : pickle appellera __setstate__ dessus
+    # avec l'ancien état potentiellement incompatible, SafeBitGenerator l'absorbe.
+    return SafeBitGenerator()
 
 # =============================================================================
 # Streamlit stubs
@@ -176,16 +199,24 @@ class StreamlitSafeUnpickler(pickle.Unpickler):
         if module == "torch.storage" and name == "_load_from_bytes":
             import io
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
-        # 1. Intercepter les générateurs Numpy qui plantent (BitGenerator, MT19937, PCG64, etc.)
-        # On essaie d'abord l'import réel ; on ne remplace par SafeBitGenerator qu'en cas d'échec.
+        # 1a. Intercepter les fonctions de reconstruction numpy.random._pickle
+        # qui valident le BitGenerator et échouent si la version numpy a changé.
+        if module == "numpy.random._pickle":
+            if name == "__randomstate_ctor":
+                return _safe_randomstate_ctor
+            if name == "__generator_ctor":
+                return _safe_generator_ctor
+            if name == "__bit_generator_ctor":
+                return _safe_bit_generator_ctor
+        # 1b. Intercepter les classes BitGenerator (MT19937, PCG64, etc.)
         _numpy_rng_modules = {"numpy.random._mt19937", "numpy.random._pcg64",
                               "numpy.random._philox", "numpy.random._sfc64",
                               "numpy.random._common", "numpy.random.bit_generator"}
         if ("BitGenerator" in name and "numpy" in module) or module in _numpy_rng_modules:
-            try:
-                return super().find_class(module, name)
-            except (ImportError, AttributeError):
-                return SafeBitGenerator
+            return SafeBitGenerator
+        # 1c. Intercepter RandomState directement (numpy.random.mtrand)
+        if module in ("numpy.random.mtrand", "numpy.random") and name == "RandomState":
+            return SafeRandomState
         # 2. Gérer les renommages internes de Numpy (1.x vs 2.x)
         if module.startswith("numpy._core"):
             module = module.replace("numpy._core", "numpy.core", 1)

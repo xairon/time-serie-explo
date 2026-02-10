@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from typing import Dict, Any, Optional, Tuple
 from darts import TimeSeries, concatenate
-from darts.metrics import mae, rmse, mape, r2_score
+from darts.metrics import mae, rmse, r2_score
 from pathlib import Path
 
 from dashboard.utils.model_factory import ModelFactory
@@ -109,7 +109,7 @@ def create_optuna_objective(
         train, val: Séries d'entraînement et validation
         train_cov, val_cov, full_cov: Covariables
         use_covariates: Utiliser les covariables
-        metric: Métrique à optimiser ('MAE', 'RMSE', 'MAPE')
+        metric: Métrique à optimiser ('MAE', 'RMSE')
         n_epochs: Nombre d'epochs (réduit pour Optuna)
         early_stopping: Activer early stopping
         early_stopping_patience: Patience pour early stopping
@@ -202,8 +202,6 @@ def create_optuna_objective(
                 score = float(mae(val_aligned, pred_aligned))
             elif metric == 'RMSE':
                 score = float(rmse(val_aligned, pred_aligned))
-            elif metric == 'MAPE':
-                score = float(mape(val_aligned, pred_aligned))
             else:
                 score = float(mae(val_aligned, pred_aligned))
 

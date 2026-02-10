@@ -33,7 +33,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List, Union, Sequence
 from pathlib import Path
 from darts import TimeSeries, concatenate
-from darts.metrics import mae, rmse, mape, smape
+from darts.metrics import mae, rmse, smape
 from darts.models.forecasting.forecasting_model import ForecastingModel
 
 from dashboard.utils.model_factory import ModelFactory
@@ -208,7 +208,7 @@ def evaluate_model_sliding(
     if isinstance(raw, TimeSeries):
         raw = [raw]
 
-    mlist = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
+    mlist = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
     agg: Dict[str, List[float]] = {k: [] for k in mlist}
     dir_accs: List[float] = []
 
@@ -305,7 +305,7 @@ def calculate_metrics(
         Dictionary with metrics
     """
     if metrics_list is None:
-        metrics_list = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
+        metrics_list = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
 
     results = {}
 
@@ -348,13 +348,6 @@ def calculate_metrics(
     except Exception as e:
         logger.warning(f"RMSE calculation failed: {e}")
         results['RMSE'] = np.nan
-
-    try:
-        if 'MAPE' in metrics_list:
-            results['MAPE'] = mape(actual_aligned, predicted_aligned)
-    except Exception as e:
-        logger.warning(f"MAPE calculation failed: {e}")
-        results['MAPE'] = np.nan
 
     try:
         if 'sMAPE' in metrics_list:

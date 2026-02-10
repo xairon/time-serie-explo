@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Dict, Any, Optional, Tuple, List
 from darts import TimeSeries
 from darts.models.forecasting.forecasting_model import ForecastingModel
-from darts.metrics import mae, rmse, mape, smape
+from darts.metrics import mae, rmse, smape
 from darts import concatenate
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
@@ -48,7 +48,9 @@ def generate_single_window_forecast(
             - horizon: The forecast horizon used.
     """
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
-    
+
+
+
     # Get model horizon
     horizon = getattr(model, 'output_chunk_length', 30)
     
@@ -193,7 +195,6 @@ def generate_single_window_forecast(
         return {
             'MAE': float(mae(target, pred)),
             'RMSE': float(rmse(target, pred)),
-            'MAPE': float(mape(target, pred)),
             'sMAPE': float(smape(target, pred))
         }
 
@@ -233,9 +234,11 @@ def generate_global_forecast(
             - target_series: Original target series (for metrics).
             - metrics: Dictionary of evaluation metrics.
     """
+
+
     # 1. Get fill method from config
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
-    
+
     # 2. Prepare Darts series
     # History (Context)
     history_series, _ = prepare_dataframe_for_darts(
@@ -312,7 +315,6 @@ def generate_global_forecast(
     metrics = {
         'MAE': float(mae(target_series, pred_series)),
         'RMSE': float(rmse(target_series, pred_series)),
-        'MAPE': float(mape(target_series, pred_series)),
         'sMAPE': float(smape(target_series, pred_series))
     }
     
@@ -349,8 +351,10 @@ def generate_rolling_forecast(
     Returns:
         Tuple (list of forecast windows, full target series).
     """
+
+
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
-    
+
     # Prepare full series
     full_series, covariates = prepare_dataframe_for_darts(
         full_df,
@@ -433,8 +437,10 @@ def generate_comparison_forecast(
     Returns:
         Tuple (target_slice, autoregressive_forecast, exact_window_forecast, metrics_auto, metrics_exact).
     """
+
+
     fill_method = preprocessing_config.get('fill_method', 'Interpolation linéaire')
-    
+
     # 1. Prepare data
     full_series, covariates = prepare_dataframe_for_darts(
         full_df,
@@ -515,8 +521,7 @@ def generate_comparison_forecast(
         return {
             'MAE': float(mae(true, pred)),
             'RMSE': float(rmse(true, pred)),
-            'MAPE': float(mape(true, pred)),
-
+            'sMAPE': float(smape(true, pred)),
         }
         
     metrics_auto = calc_metrics(target_slice, autoregressive)

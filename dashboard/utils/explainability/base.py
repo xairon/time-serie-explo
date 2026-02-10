@@ -235,7 +235,7 @@ class BaseExplainer(ABC):
 
         if past_covariates is not None:
             try:
-                cov_df = past_covariates.pd_dataframe()
+                cov_df = past_covariates.to_dataframe()
                 names.extend(list(cov_df.columns))
             except Exception:
                 pass

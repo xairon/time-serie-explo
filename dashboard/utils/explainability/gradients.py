@@ -72,18 +72,19 @@ class GradientExplainer:
         return self._device
 
     def _unwrap_model(self):
-        """Unwrap Darts model to get PyTorch model."""
+        """Unwrap Darts model to get the PLForecastingModule (not the inner nn.Module).
+
+        We keep the PLForecastingModule because its forward() expects the standard
+        PLModuleInput tuple (x_past, x_future, x_static) and internally routes to
+        the actual architecture-specific nn.Module.
+        """
         try:
-            # Darts wraps: model.model (PLModule) -> model.model.model (actual nn.Module)
-            if hasattr(self.darts_model, "model"):
-                pl_module = self.darts_model.model
-                if hasattr(pl_module, "model"):
-                    return pl_module.model
-                return pl_module
+            if hasattr(self.darts_model, "model") and self.darts_model.model is not None:
+                return self.darts_model.model  # PLForecastingModule
         except Exception as e:
             raise ValueError(f"Could not unwrap PyTorch model: {e}")
 
-        raise ValueError("Model is not a PyTorch model")
+        raise ValueError("Model is not a PyTorch model or has no loaded weights (model.model is None)")
 
     def _prepare_input(
         self,
@@ -163,11 +164,14 @@ class GradientExplainer:
             input_tensor = self._prepare_input(series, past_covariates, future_covariates)
 
             # Create forward function that returns specific output step
+            # Darts PLForecastingModule.forward expects PLModuleInput = (x_past, x_future, x_static)
             def forward_fn(x):
-                # Model expects specific input format
-                output = self.torch_model(x)
+                output = self.torch_model((x, None, None))
                 # Select target step
-                if output.dim() == 3:
+                if output.dim() == 4:
+                    # (batch, time, components, nr_params)
+                    return output[:, target_step, 0, 0]
+                elif output.dim() == 3:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]
@@ -242,8 +246,10 @@ class GradientExplainer:
                 )
 
             def forward_fn(x):
-                output = self.torch_model(x)
-                if output.dim() == 3:
+                output = self.torch_model((x, None, None))
+                if output.dim() == 4:
+                    return output[:, target_step, 0, 0]
+                elif output.dim() == 3:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]
@@ -309,8 +315,10 @@ class GradientExplainer:
             baseline_tensor = torch.zeros_like(input_tensor)
 
             def forward_fn(x):
-                output = self.torch_model(x)
-                if output.dim() == 3:
+                output = self.torch_model((x, None, None))
+                if output.dim() == 4:
+                    return output[:, target_step, 0, 0]
+                elif output.dim() == 3:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]

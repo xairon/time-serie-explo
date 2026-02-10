@@ -209,7 +209,7 @@ def compute_temporal_importance(
 
     # Fallback to lag importance
     try:
-        target_df = series.pd_dataframe()
+        target_df = series.to_dataframe()
         target_col = target_df.columns[0]
         lag_imp = compute_lag_importance(target_df, target_col, max_lag=n_steps)
         if lag_imp:

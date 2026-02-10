@@ -42,11 +42,11 @@ class GenericExplainer(BaseExplainer):
             result.feature_names = feature_names
 
             # Build DataFrame for correlation analysis
-            target_df = series.pd_dataframe()
+            target_df = series.to_dataframe()
             target_col = target_df.columns[0]
 
             if past_covariates is not None:
-                cov_df = past_covariates.pd_dataframe()
+                cov_df = past_covariates.to_dataframe()
                 df = pd.concat([target_df, cov_df], axis=1)
                 covariate_cols = list(cov_df.columns)
             else:

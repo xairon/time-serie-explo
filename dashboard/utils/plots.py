@@ -449,7 +449,7 @@ def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Fig
             # Normalize between 0 and 1
             normalized[col] = (normalized[col] - min_val) / (max_val - min_val)
             # Invert for error metrics
-            if col in ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'NRMSE']:
+            if col in ['MAE', 'RMSE', 'sMAPE', 'NRMSE']:
                 normalized[col] = 1 - normalized[col]
 
     fig = go.Figure()

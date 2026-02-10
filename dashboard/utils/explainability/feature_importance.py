@@ -119,7 +119,7 @@ def compute_permutation_importance(
 
         baseline_pred = model.predict(**predict_kwargs)
 
-        cov_df = covariates.pd_dataframe()
+        cov_df = covariates.to_dataframe()
         feature_names = list(cov_df.columns)
 
         # Get frequency - try multiple methods

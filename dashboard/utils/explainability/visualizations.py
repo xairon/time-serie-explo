@@ -207,6 +207,8 @@ def plot_shap_waterfall(
     """
     Create SHAP waterfall plot showing cumulative feature contributions.
 
+    Uses Plotly's native Waterfall trace for correct rendering.
+
     Args:
         feature_importance: Dict mapping features to signed SHAP values
         base_value: Expected value E[f(x)]
@@ -221,77 +223,55 @@ def plot_shap_waterfall(
         fig.add_annotation(text="No SHAP data", x=0.5, y=0.5, showarrow=False)
         return fig
 
-    # Sort by absolute value
+    # Sort by absolute value (top contributors first)
     sorted_items = sorted(feature_importance.items(), key=lambda x: abs(x[1]), reverse=True)
+    # Limit to top 15 for readability
+    if len(sorted_items) > 15:
+        top_items = sorted_items[:14]
+        rest_val = sum(v for _, v in sorted_items[14:])
+        top_items.append(("Other features", rest_val))
+        sorted_items = top_items
+
     features = [item[0] for item in sorted_items]
     values = [item[1] for item in sorted_items]
 
-    # Calculate cumulative values
-    cumulative = [base_value]
+    final_prediction = prediction if prediction is not None else base_value + sum(values)
+
+    # Build Waterfall trace
+    x_labels = [f"Base ({base_value:.3f})"] + features + [f"Prediction ({final_prediction:.3f})"]
+    measures = ["absolute"] + ["relative"] * len(features) + ["total"]
+    y_values = [base_value] + values + [0]  # total is auto-computed
+    text_labels = [f"{base_value:.3f}"] + [f"{v:+.4f}" for v in values] + [f"{final_prediction:.3f}"]
+
+    # Colors: green for positive, red for negative
+    colors = ["rgba(128,128,128,0.7)"]  # base
     for v in values:
-        cumulative.append(cumulative[-1] + v)
+        colors.append("rgba(44,160,44,0.8)" if v >= 0 else "rgba(214,39,40,0.8)")
+    colors.append("rgba(31,119,180,0.8)")  # prediction
 
-    final_prediction = prediction if prediction is not None else cumulative[-1]
-
-    # Create waterfall data
-    y_positions = list(range(len(features) + 2))
-    y_labels = ["Base Value"] + features + ["Prediction"]
-
-    # Waterfall bars
-    fig = go.Figure()
-
-    # Base value bar
-    fig.add_trace(go.Bar(
-        x=[base_value],
-        y=[0],
-        orientation='h',
-        marker_color='gray',
-        name='Base',
-        text=[f'{base_value:.3f}'],
-        textposition='outside',
-        showlegend=False,
-    ))
-
-    # Feature contribution bars
-    for i, (feat, val) in enumerate(zip(features, values)):
-        color = '#2ca02c' if val >= 0 else '#d62728'
-        fig.add_trace(go.Bar(
-            x=[val],
-            y=[i + 1],
-            orientation='h',
-            marker_color=color,
-            name=feat,
-            base=cumulative[i],
-            text=[f'{val:+.3f}'],
-            textposition='outside',
-            showlegend=False,
-            hovertemplate=f'<b>{feat}</b><br>Contribution: {val:+.4f}<br>Cumulative: {cumulative[i+1]:.4f}<extra></extra>'
-        ))
-
-    # Final prediction bar
-    fig.add_trace(go.Bar(
-        x=[final_prediction],
-        y=[len(features) + 1],
-        orientation='h',
-        marker_color='#1f77b4',
-        name='Prediction',
-        text=[f'{final_prediction:.3f}'],
-        textposition='outside',
-        showlegend=False,
+    fig = go.Figure(go.Waterfall(
+        orientation="v",
+        measure=measures,
+        x=x_labels,
+        y=y_values,
+        text=text_labels,
+        textposition="outside",
+        textfont=dict(size=10),
+        connector=dict(line=dict(color="rgba(100,100,100,0.3)", width=1)),
+        increasing=dict(marker=dict(color="rgba(44,160,44,0.8)")),
+        decreasing=dict(marker=dict(color="rgba(214,39,40,0.8)")),
+        totals=dict(marker=dict(color="rgba(31,119,180,0.8)")),
+        hovertemplate='<b>%{x}</b><br>Value: %{text}<extra></extra>',
     ))
 
     fig.update_layout(
         title=dict(text=title, font=dict(size=16)),
-        xaxis_title="Value",
-        yaxis=dict(
-            tickmode='array',
-            tickvals=y_positions,
-            ticktext=y_labels,
-        ),
-        height=max(350, len(features) * 35 + 100),
-        margin=dict(l=10, r=80, t=50, b=30),
-        barmode='relative',
+        yaxis_title="Value",
+        height=max(400, 350),
+        margin=dict(l=10, r=10, t=50, b=100),
         plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(tickangle=-45),
+        showlegend=False,
     )
 
     return fig

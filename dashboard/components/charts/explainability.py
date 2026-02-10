@@ -114,10 +114,10 @@ def _render_overview_tab(
 
     try:
         # Build DataFrame
-        target_df = series.pd_dataframe()
+        target_df = series.to_dataframe()
         target_col = target_df.columns[0]
 
-        cov_df = past_covariates.pd_dataframe()
+        cov_df = past_covariates.to_dataframe()
         df = pd.concat([target_df, cov_df], axis=1)
 
         correlations = compute_correlation_importance(df, target_col, list(cov_df.columns))
@@ -162,9 +162,9 @@ def _render_importance_tab(
         st.caption("Fast correlation-based importance")
 
         try:
-            target_df = series.pd_dataframe()
+            target_df = series.to_dataframe()
             target_col = target_df.columns[0]
-            cov_df = past_covariates.pd_dataframe()
+            cov_df = past_covariates.to_dataframe()
             df = pd.concat([target_df, cov_df], axis=1)
 
             correlations = compute_correlation_importance(df, target_col, list(cov_df.columns))
@@ -213,7 +213,7 @@ def _render_temporal_tab(
     st.info("Which past days influence the prediction most?")
 
     try:
-        target_df = series.pd_dataframe()
+        target_df = series.to_dataframe()
         target_col = target_df.columns[0]
 
         max_lag = min(input_chunk, len(target_df) // 2)

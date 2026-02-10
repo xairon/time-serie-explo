@@ -219,7 +219,8 @@ target_var = st.session_state['training_target_var']
 covariate_vars = st.session_state['training_covariate_vars']
 preprocessing_config = st.session_state['training_preprocessing']
 
-st.success(f" Data loaded: **{st.session_state['training_filename']}**")
+_display_ds_name = st.session_state.get('training_dataset_name') or st.session_state['training_filename']
+st.success(f" Data loaded: **{_display_ds_name}**")
 
 # Ensure dataset identifiers are set
 if not st.session_state.get('training_filename'):
@@ -288,7 +289,10 @@ if is_multistation:
 else:
     df_raw = st.session_state['training_data']
     filename = st.session_state.get('training_filename', 'station_data')
-    station_name = Path(filename).stem
+    # Utiliser le nom du dataset donné par l'utilisateur en priorité (ex: "09994X0521/P4B_prepared")
+    # plutôt que le nom de la source brute (ex: "db_hubeau_daily_chroniques")
+    dataset_display_name = st.session_state.get('training_dataset_name') or filename
+    station_name = Path(dataset_display_name).stem if '/' not in dataset_display_name else dataset_display_name
     selected_stations = [station_name]
     training_strategy = "Independent"
     st.info(f" Single-station data detected: {station_name}")
@@ -482,7 +486,7 @@ with col_options:
         with c1:
             n_trials = st.number_input("Trials", 5, 100, 20, help="Number of optimization trials")
         with c2:
-            optuna_metric = st.selectbox("Metric", ["MAE", "RMSE", "MAPE"], help="Metric to minimize")
+            optuna_metric = st.selectbox("Metric", ["MAE", "RMSE"], help="Metric to minimize")
         with c3:
             optuna_timeout = st.number_input("Timeout (min)", 5, 120, 30, help="Max time in minutes")
 
@@ -1161,7 +1165,6 @@ elif current_phase == TrainingPhase.COMPLETED.value:
                 'Status': status,
                 'MAE': format_metric(metrics.get('MAE')),
                 'RMSE': format_metric(metrics.get('RMSE')),
-                'MAPE': format_metric(metrics.get('MAPE'), ".2f", "%"),
                 'sMAPE': format_metric(metrics.get('sMAPE'), ".2f", "%"),
                 'Saved': '[OK]' if res.get('saved_path') else '-'
             })

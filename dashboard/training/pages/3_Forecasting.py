@@ -61,11 +61,27 @@ _SHAP_PATCHED = _apply_shap_patch()
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from dashboard.config import CHECKPOINTS_DIR
+
+# Infobulles métriques (échelle, calcul, interprétation) — défini ici pour ne pas dépendre de config
+try:
+    from dashboard.config import METRIC_TOOLTIPS
+except ImportError:
+    METRIC_TOOLTIPS = {
+        'MAE': "Échelle : même unité que la cible (ex. m). Calcul : moyenne des |vrai − prédit|. Interprétation : plus c'est bas, mieux c'est ; erreur typique par pas.",
+        'RMSE': "Échelle : même unité que la cible. Calcul : racine de la moyenne des carrés des erreurs. Interprétation : plus c'est bas, mieux c'est ; pénalise plus les grosses erreurs que le MAE.",
+        'sMAPE': "Échelle : %. Calcul : moyenne de 2|prédit−vrai|/(|vrai|+|prédit|), en %. Interprétation : plus c'est bas, mieux c'est ; ≤10% bon, 10–20% moyen, >20% faible.",
+        'WAPE': "Échelle : %. Calcul : somme des |erreurs| / somme des |vrais|, en %. Interprétation : plus c'est bas, mieux c'est ; plus stable que MAPE si la série passe près de 0.",
+        'NRMSE': "Échelle : % (RMSE rapportée à l'amplitude). Calcul : RMSE / (max−min) × 100. Interprétation : plus c'est bas, mieux c'est ; ≤10% bon, 10–20% moyen, >20% faible.",
+        'Dir_Acc': "Échelle : %. Calcul : part des pas où la direction (montée/descente) est correcte. Interprétation : plus c'est haut, mieux c'est ; 50% = hasard, >50% utile.",
+        'NSE': "Échelle : sans unité (souvent entre −∞ et 1). Calcul : 1 − (variance des erreurs / variance des observations). Interprétation : 1 = parfait, 0 = comme prédire la moyenne, <0 = pire ; >0,75 bon, 0,5–0,75 moyen.",
+        'KGE': "Échelle : sans unité. Calcul : combine corrélation, biais et variabilité. Interprétation : 1 = parfait, 0 = moyen, <0 = mauvais ; >0,75 bon, 0,5–0,75 moyen.",
+    }
+
 from dashboard.utils.model_registry import get_registry
 # from dashboard.utils.model_config import load_model_with_config, load_scalers # Removed (Legacy)
 from dashboard.utils.forecasting import generate_single_window_forecast
 from dashboard.utils.preprocessing import prepare_dataframe_for_darts
-from darts.metrics import mae, rmse, mape, smape
+from darts.metrics import mae, rmse, smape
 
 # Nash-Sutcliffe Efficiency (NSE) - standard metric for hydrology
 def nash_sutcliffe_efficiency(actual, predicted):
@@ -492,7 +508,7 @@ def generate_raw_from_processed(processed_df, scalers, target_col):
             processed_df, target_col, []
         )
         raw_series = target_preprocessor.inverse_transform(processed_series)
-        raw_df = raw_series.pd_dataframe()
+        raw_df = raw_series.to_dataframe()
         raw_df.index = processed_df.index  # Ensure same index
         return raw_df
     else:
@@ -540,7 +556,7 @@ if target_series_raw_vals is not None and len(target_series_raw_vals) > 0:
 # =============================================================================
 # INFO PANELS
 # =============================================================================
-col_data, col_model, col_metrics = st.columns(3)
+col_data, col_model = st.columns(2)
 
 with col_data:
     st.markdown("### Dataset Info")
@@ -562,102 +578,6 @@ with col_model:
     | Horizon | {model_horizon} days |
     | Covariates | {' ' + str(len(covariate_cols)) if use_covariates else ''} |
     """)
-
-with col_metrics:
-    st.markdown("### Test Metrics")
-    if config.metrics:
-        st.caption("**Test (1 fenêtre)** — une prédiction au début du test")
-        cols = st.columns(2)
-        display_order = ["MAE", "RMSE", "NRMSE", "MAPE", "sMAPE", "WAPE", "NSE", "KGE", "Dir_Acc"]
-        percent_metrics = {"MAPE", "sMAPE", "WAPE", "NRMSE", "Dir_Acc"}
-        filtered_metrics = {
-            str(name): value for name, value in config.metrics.items()
-            if not str(name).startswith("system/") and not str(name).startswith("system.")
-            and str(name) not in {"train_loss", "val_loss"}
-        }
-        metrics_list = [(k, filtered_metrics[k]) for k in display_order if k in filtered_metrics]
-        for i, (name, value) in enumerate(metrics_list[:8]):
-            with cols[i % 2]:
-                if value is not None and not pd.isna(value):
-                    suffix = " %" if name in percent_metrics else ""
-                    st.metric(name, f"{value:.4f}{suffix}")
-    ms = getattr(config, 'metrics_sliding', None) or {}
-    if ms:
-        st.caption("**Test (fenêtré)** — sliding window sur tout le test (standard)")
-        cols = st.columns(2)
-        for i, (name, value) in enumerate(list(ms.items())[:6]):
-            if name.upper() in ['R2', 'R SQUARED']:
-                continue
-            with cols[i % 2]:
-                if value is not None and not pd.isna(value):
-                    st.metric(name, f"{value:.4f}")
-
-with st.expander("🔎 Comprendre les métriques", expanded=False):
-    normalization = None
-    try:
-        normalization = config.preprocessing.get('normalization')
-    except Exception:
-        normalization = None
-
-    norm_note = ""
-    if normalization:
-        norm_note = f"\n**Normalisation**: `{normalization}`. Les métriques sont calculées sur l’échelle *originale* (après inverse‑transform).\n"
-
-    st.markdown("""
-**Lecture rapide**
-- **MAE / RMSE** : erreurs absolue / quadratique (plus petit = mieux). RMSE pénalise plus les grosses erreurs.
-- **MAPE / sMAPE / WAPE** : erreurs en % (plus petit = mieux). WAPE est plus stable que MAPE si la série passe près de 0.
-- **NRMSE** : RMSE normalisée par l’amplitude (plus petit = mieux).
-- **NSE** : 1 = parfait, 0 = équivalent à la moyenne, < 0 = pire que la moyenne.
-- **KGE** : 1 = parfait, 0 = moyen, < 0 = mauvais.
-- **Dir_Acc** : % de directions correctement prédites (plus grand = mieux).
-
-**Effet de la taille de fenêtre (output horizon)**
-- Plus l’horizon est long, **plus les métriques se dégradent** (erreur cumulée).
-- **MAPE / sMAPE** peuvent varier fortement si la cible est proche de 0 sur une partie de la fenêtre.
-- **NSE / KGE** deviennent plus sensibles aux erreurs de tendance sur des fenêtres longues.
-- Compare toujours des modèles **avec le même horizon**.
-    """)
-
-    st.markdown("""
-**Seuils indicatifs (à adapter au domaine)**
-- **MAPE / sMAPE / WAPE / NRMSE** :  
-  `≤ 10%` bon · `10–20%` moyen · `> 20%` faible
-- **NSE** :  
-  `> 0.75` bon · `0.5–0.75` moyen · `0–0.5` faible · `< 0` mauvais
-- **KGE** :  
-  `> 0.75` bon · `0.5–0.75` moyen · `0–0.5` faible · `< 0` mauvais
-    """)
-
-    if norm_note:
-        st.caption(norm_note)
-
-    if scale_stats:
-        scale_ref = scale_stats["iqr"] if scale_stats["iqr"] > 0 else scale_stats["std"]
-        if scale_ref == 0:
-            scale_ref = scale_stats["mean_abs"] if scale_stats["mean_abs"] > 0 else None
-        if scale_ref:
-            st.markdown(f"""
-**Seuils automatiques (basés sur la série test)**
-- Échelle de référence ≈ `{scale_ref:.4f}` (IQR ou écart‑type)
-- **MAE/RMSE** en % de l’échelle :  
-  `≤ 10%` bon · `10–20%` moyen · `> 20%` faible
-            """)
-        else:
-            st.markdown("**Seuils automatiques**: non calculables (variance trop faible).")
-
-    # Actionnable: quick suggestions based on horizon/covariates
-    suggestions = []
-    if model_horizon and model_horizon >= 30:
-        suggestions.append("Réduire l’horizon si l’erreur est trop élevée.")
-    if not use_covariates and len(covariate_cols) > 0:
-        suggestions.append("Activer les covariables pour améliorer la stabilité.")
-    if input_chunk and model_horizon and input_chunk < model_horizon * 2:
-        suggestions.append("Augmenter l’input chunk pour plus de contexte.")
-    if suggestions:
-        st.markdown("**Actions suggérées**")
-        for s in suggestions:
-            st.write(f"- {s}")
 
 with st.expander("Hyperparameters"):
     if hasattr(config, 'hyperparams') and config.hyperparams:
@@ -835,7 +755,6 @@ if selected_tab == "Predictions":
             metrics = {
                 'MAE': float(mae(target_aligned, pred_aligned)),
                 'RMSE': float(rmse(target_aligned, pred_aligned)),
-                'MAPE': float(mape(target_aligned, pred_aligned)),
                 'sMAPE': float(smape(target_aligned, pred_aligned)),
                 'WAPE': float(np.sum(np.abs(target_aligned.values().flatten() - pred_aligned.values().flatten()))
                               / np.sum(np.abs(target_aligned.values().flatten())) * 100.0) if np.sum(np.abs(target_aligned.values().flatten())) != 0 else np.nan,
@@ -846,15 +765,16 @@ if selected_tab == "Predictions":
                 'KGE': kling_gupta_efficiency(target_aligned, pred_aligned),
             }
 
-            display_order = ["MAE", "RMSE", "NRMSE", "MAPE", "sMAPE", "WAPE", "NSE", "KGE"]
-            percent_metrics = {"MAPE", "sMAPE", "WAPE", "NRMSE"}
+            display_order = ["MAE", "RMSE", "NRMSE", "sMAPE", "WAPE", "NSE", "KGE"]
+            percent_metrics = {"sMAPE", "WAPE", "NRMSE"}
             m_cols = st.columns(4)
             for i, name in enumerate(display_order):
                 value = metrics.get(name)
                 with m_cols[i % 4]:
                     if value is not None and not pd.isna(value):
                         suffix = " %" if name in percent_metrics else ""
-                        st.metric(name, f"{value:.4f}{suffix}")
+                        tip = METRIC_TOOLTIPS.get(name, "")
+                        st.metric(name, f"{value:.4f}{suffix}", help=tip or None)
 
             if scale_stats:
                 scale_ref = scale_stats["iqr"] if scale_stats["iqr"] > 0 else scale_stats["std"]

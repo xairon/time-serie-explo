@@ -80,18 +80,29 @@ OPTUNA_CONFIG = {
     'metric': 'MAE'
 }
 
-# Métriques
-METRICS = ['MAE', 'RMSE', 'MAPE', 'sMAPE', 'WAPE', 'NRMSE', 'Dir_Acc', 'NSE', 'KGE']
+# Métriques (MAPE retiré : instable quand la cible est proche de 0)
+METRICS = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE', 'Dir_Acc', 'NSE', 'KGE']
 METRICS_INFO = {
     'MAE': {'name': 'Mean Absolute Error', 'unit': 'm', 'lower_is_better': True},
     'RMSE': {'name': 'Root Mean Square Error', 'unit': 'm', 'lower_is_better': True},
-    'MAPE': {'name': 'Mean Absolute Percentage Error', 'unit': '%', 'lower_is_better': True},
     'sMAPE': {'name': 'Symmetric MAPE', 'unit': '%', 'lower_is_better': True},
     'WAPE': {'name': 'Weighted Absolute Percentage Error', 'unit': '%', 'lower_is_better': True},
-    'NRMSE': {'name': 'Normalized RMSE', 'unit': '0-1', 'lower_is_better': True},
+    'NRMSE': {'name': 'Normalized RMSE', 'unit': '%', 'lower_is_better': True},
     'Dir_Acc': {'name': 'Directional Accuracy', 'unit': '%', 'lower_is_better': False},
     'NSE': {'name': 'Nash-Sutcliffe Efficiency', 'unit': '-', 'lower_is_better': False},
     'KGE': {'name': 'Kling-Gupta Efficiency', 'unit': '-', 'lower_is_better': False}
+}
+
+# Infobulles au survol des métriques (échelle, calcul, interprétation)
+METRIC_TOOLTIPS = {
+    'MAE': "Échelle : même unité que la cible (ex. m). Calcul : moyenne des |vrai − prédit|. Interprétation : plus c’est bas, mieux c’est ; erreur typique par pas.",
+    'RMSE': "Échelle : même unité que la cible. Calcul : racine de la moyenne des carrés des erreurs. Interprétation : plus c’est bas, mieux c’est ; pénalise plus les grosses erreurs que le MAE.",
+    'sMAPE': "Échelle : %. Calcul : moyenne de 2|prédit−vrai|/(|vrai|+|prédit|), en %. Interprétation : plus c’est bas, mieux c’est ; ≤10% bon, 10–20% moyen, >20% faible.",
+    'WAPE': "Échelle : %. Calcul : somme des |erreurs| / somme des |vrais|, en %. Interprétation : plus c’est bas, mieux c’est ; plus stable que MAPE si la série passe près de 0.",
+    'NRMSE': "Échelle : % (RMSE rapportée à l’amplitude de la série). Calcul : RMSE / (max−min) × 100. Interprétation : plus c’est bas, mieux c’est ; ≤10% bon, 10–20% moyen, >20% faible.",
+    'Dir_Acc': "Échelle : %. Calcul : part des pas où la direction (montée/descente) est correcte. Interprétation : plus c’est haut, mieux c’est ; 50% = hasard, >50% utile.",
+    'NSE': "Échelle : sans unité (souvent entre −∞ et 1). Calcul : 1 − (variance des erreurs / variance des observations). Interprétation : 1 = parfait, 0 = comme prédire la moyenne, <0 = pire que la moyenne ; >0,75 bon, 0,5–0,75 moyen.",
+    'KGE': "Échelle : sans unité. Calcul : combine corrélation, biais et variabilité. Interprétation : 1 = parfait, 0 = moyen, <0 = mauvais ; >0,75 bon, 0,5–0,75 moyen.",
 }
 
 # Device (CPU/GPU)
