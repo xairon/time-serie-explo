@@ -897,13 +897,14 @@ def run_training_pipeline(
 
             # 7. Compute and save IPS reference stats (for Counterfactual Analysis page)
             # IPS must be computed on RAW physical values (m NGF), not normalized.
-            # We use inverse_transform to recover raw training data.
+            # We compute IPS-N for all windows (1, 3, 6, 12) so the CF page
+            # can let the user choose which aggregation to use.
             try:
                 from dashboard.utils.counterfactual.ips import (
-                    compute_ips_reference,
+                    compute_all_ips_references,
                     extract_scaler_params,
-                    ref_stats_to_json,
                     validate_ips_data,
+                    IPS_WINDOWS,
                 )
                 # Extract real scaler params
                 if target_preprocessor:
@@ -919,12 +920,24 @@ def run_training_pipeline(
                             gwl_norm = train_target_df.iloc[:, 0]
                         gwl_raw = gwl_norm * _sigma + _mu
 
-                        # Validate and compute IPS reference
+                        # Validate data quality
                         _validation = validate_ips_data(gwl_raw)
                         if _validation["valid"]:
-                            _ref_stats = compute_ips_reference(gwl_raw, aggregate_to_monthly=True)
+                            # Compute ALL IPS-N references (IPS-1, IPS-3, IPS-6, IPS-12)
+                            _all_refs = compute_all_ips_references(
+                                gwl_raw, windows=IPS_WINDOWS, aggregate_to_monthly=True
+                            )
+                            # Serialize: {window: {month: [mu, sigma]}}
+                            all_refs_serialized = {}
+                            for w, ref_dict in _all_refs.items():
+                                all_refs_serialized[str(w)] = {
+                                    str(m): list(v) for m, v in ref_dict.items()
+                                }
                             ips_meta = {
-                                "ref_stats": {str(k): list(v) for k, v in _ref_stats.items()},
+                                "ref_stats_all": all_refs_serialized,
+                                # Keep backward compat: ref_stats = IPS-1
+                                "ref_stats": all_refs_serialized.get("1", {}),
+                                "windows": IPS_WINDOWS,
                                 "mu_target": _mu,
                                 "sigma_target": _sigma,
                                 "covariate_params": _cov_params,
@@ -936,7 +949,10 @@ def run_training_pipeline(
                                 },
                             }
                             custom_artifacts['ips_reference.json'] = ips_meta
-                            logger.info(f"IPS reference computed and saved ({_validation['n_years']} years)")
+                            logger.info(
+                                f"IPS reference computed for windows {IPS_WINDOWS} "
+                                f"({_validation['n_years']} years)"
+                            )
                         else:
                             logger.warning(f"IPS reference not computed: {_validation['errors']}")
             except Exception as e:

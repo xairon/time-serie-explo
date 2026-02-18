@@ -45,9 +45,12 @@ from dashboard.utils.counterfactual import (
     generate_counterfactual_comet,
     IPS_CLASSES,
     IPS_ORDER,
+    IPS_WINDOWS,
     BRGM_MIN_YEARS,
     AQUIFER_IPS_WINDOW,
     compute_ips_reference,
+    compute_all_ips_references,
+    compute_ips_reference_n,
     validate_ips_data,
     get_aquifer_ips_info,
     daily_to_monthly_mean,
@@ -329,7 +332,7 @@ if not aquifer_type and hasattr(model_entry, "hyperparams"):
 
 # Sidebar: aquifer type selection (user can override)
 st.sidebar.markdown("---")
-st.sidebar.header("5. Type de nappe")
+st.sidebar.header("5. Type de nappe & IPS-N")
 aquifer_options = ["auto", "chalk", "limestone", "karst", "alluvial", "sand", "volcanic"]
 aquifer_labels = {
     "auto": "Auto-detect",
@@ -350,18 +353,48 @@ selected_aquifer = st.sidebar.selectbox(
 if selected_aquifer == "auto":
     selected_aquifer = aquifer_type  # May be None
 
+# IPS-N window selector
+# Determine default window from aquifer type
+_default_window = AQUIFER_IPS_WINDOW.get(selected_aquifer, 1) if selected_aquifer else 1
+_window_options = IPS_WINDOWS  # [1, 3, 6, 12]
+_window_labels = {
+    1: "IPS-1 (mensuel)",
+    3: "IPS-3 (trimestriel)",
+    6: "IPS-6 (semestriel)",
+    12: "IPS-12 (annuel)",
+}
+_default_idx = _window_options.index(_default_window) if _default_window in _window_options else 0
+selected_ips_window = st.sidebar.selectbox(
+    "Fenetre IPS-N",
+    options=_window_options,
+    format_func=lambda x: _window_labels.get(x, f"IPS-{x}"),
+    index=_default_idx,
+    help=(
+        "IPS-1: mensuel (defaut BSN). "
+        "IPS-3: trimestriel (nappes reactives: karst, alluvial). "
+        "IPS-6: semestriel (nappes inertielles: craie). "
+        "IPS-12: annuel (cycles pluriannuels: calcaire/Beauce)."
+    ),
+)
+st.sidebar.caption(
+    f"Recommandation: **IPS-{_default_window}** "
+    f"({'auto' if not selected_aquifer else selected_aquifer})"
+)
+
 # Validate data for IPS (with aquifer info)
 ips_validation = validate_ips_data(gwl_all_raw, aquifer_type=selected_aquifer)
 
 # Show IPS data quality and methodology
 with st.expander("Qualite des donnees et methodologie IPS (BRGM)", expanded=not ips_validation["valid"]):
-    st.markdown("""
-    **Methodologie IPS** (ref: Seguin 2014, BRGM/RP-64147-FR):
+    st.markdown(f"""
+    **Methodologie IPS-{selected_ips_window}** (ref: Seguin 2014, BRGM/RP-64147-FR):
     - L'IPS est un indicateur **mensuel**: les donnees journalieres sont d'abord
       agregees en **moyennes mensuelles** (min 15 valeurs/mois)
-    - Pour chaque mois calendaire (1-12), on calcule la moyenne et l'ecart-type
+    - **IPS-{selected_ips_window}**: moyenne glissante sur **{selected_ips_window} mois**
+      {'(pas de lissage)' if selected_ips_window == 1 else f'avant calcul des statistiques de reference'}
+    - Pour chaque mois calendaire (1-12), on calcule mu_m et sigma_m
       sur la periode de reference (idealement 1981-2010, 30 ans)
-    - Le z-score est: `z = (gwl_mois - mu_mois) / sigma_mois`
+    - Le z-score est: `z = (gwl_lisse - mu_m) / sigma_m`
     - Classification en 7 classes (Tres bas a Tres haut) selon les seuils z
     """)
 
@@ -395,24 +428,50 @@ with st.expander("Qualite des donnees et methodologie IPS (BRGM)", expanded=not 
         st.error("L'IPS ne peut pas etre calcule de maniere fiable avec ces donnees.")
         st.stop()
 
-# Use pre-computed IPS reference from MLflow if available, otherwise compute on-the-fly
-if ips_reference_cached and "ref_stats" in ips_reference_cached:
-    ref_stats = {int(k): tuple(v) for k, v in ips_reference_cached["ref_stats"].items()}
-    st.caption("IPS reference chargee depuis les artefacts MLflow (pre-calculee a l'entrainement)")
+# ====================
+# Load IPS reference stats for ALL windows
+# ====================
+# Structure: all_ref_stats = {window_int: {month_int: (mu, sigma)}}
+all_ref_stats = {}
 
-    # Also use cached scaler params if they are more reliable
-    if ips_reference_cached.get("mu_target") is not None:
-        cached_mu = ips_reference_cached["mu_target"]
-        cached_sigma = ips_reference_cached["sigma_target"]
-        if abs(cached_mu - mu_target) > 0.01 or abs(cached_sigma - sigma_target) > 0.01:
-            st.info(
-                f"Scalers caches: mu={cached_mu:.4f}, sigma={cached_sigma:.4f} "
-                f"(vs extraits: mu={mu_target:.4f}, sigma={sigma_target:.4f})"
-            )
-else:
-    # Compute on-the-fly (for older models without ips_reference.json)
-    ref_stats = compute_ips_reference(gwl_all_raw, aggregate_to_monthly=True)
-    st.caption("IPS reference calculee a la volee (modele entraine avant cette fonctionnalite)")
+if ips_reference_cached and "ref_stats_all" in ips_reference_cached:
+    # New format: all windows pre-computed
+    for w_str, month_dict in ips_reference_cached["ref_stats_all"].items():
+        w_int = int(w_str)
+        all_ref_stats[w_int] = {int(m): tuple(v) for m, v in month_dict.items()}
+    st.caption(
+        f"IPS references chargees depuis MLflow "
+        f"(fenetres: {sorted(all_ref_stats.keys())})"
+    )
+elif ips_reference_cached and "ref_stats" in ips_reference_cached:
+    # Old format: only IPS-1 pre-computed
+    all_ref_stats[1] = {int(k): tuple(v) for k, v in ips_reference_cached["ref_stats"].items()}
+    st.caption("IPS-1 reference chargee depuis MLflow (ancien format)")
+
+# Also use cached scaler params if they are more reliable
+if ips_reference_cached and ips_reference_cached.get("mu_target") is not None:
+    cached_mu = ips_reference_cached["mu_target"]
+    cached_sigma = ips_reference_cached["sigma_target"]
+    if abs(cached_mu - mu_target) > 0.01 or abs(cached_sigma - sigma_target) > 0.01:
+        st.info(
+            f"Scalers caches: mu={cached_mu:.4f}, sigma={cached_sigma:.4f} "
+            f"(vs extraits: mu={mu_target:.4f}, sigma={sigma_target:.4f})"
+        )
+
+# If the selected window is not in cached refs, compute on-the-fly
+if selected_ips_window not in all_ref_stats:
+    with st.spinner(f"Calcul IPS-{selected_ips_window} a la volee..."):
+        all_ref_stats[selected_ips_window] = compute_ips_reference_n(
+            gwl_all_raw, window=selected_ips_window, aggregate_to_monthly=True
+        )
+    st.caption(f"IPS-{selected_ips_window} reference calculee a la volee")
+
+# Also ensure IPS-1 is always available (used as fallback)
+if 1 not in all_ref_stats:
+    all_ref_stats[1] = compute_ips_reference(gwl_all_raw, aggregate_to_monthly=True)
+
+# Active ref_stats for the selected window
+ref_stats = all_ref_stats[selected_ips_window]
 
 
 # ---- Sidebar: scenario ----
@@ -543,7 +602,7 @@ cached = st.session_state.get(pred_cache_key)
 # SECTION 2: IPS bands + main chart
 # ====================
 
-st.subheader("2. Classification IPS et qualite de la prediction")
+st.subheader(f"2. Classification IPS-{selected_ips_window} et qualite de la prediction")
 
 fig = go.Figure()
 
@@ -605,7 +664,7 @@ if cached and cached.get("prediction") is not None:
     ))
 
 fig.update_layout(
-    title=f"{target_col} - Test set avec bandes IPS (m NGF)",
+    title=f"{target_col} - Test set avec bandes IPS-{selected_ips_window} (m NGF)",
     xaxis_title="Date", yaxis_title=f"Niveau piezometrique (m NGF)",
     height=500, hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
