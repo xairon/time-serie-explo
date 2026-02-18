@@ -258,14 +258,23 @@ class ModelRegistry:
             return {}
 
     def load_model_config(self, model_entry: ModelEntry) -> Dict[str, Any]:
-        """Load model_config.json from artifacts."""
+        """Load model_config.json from artifacts (supports JSON and pickle formats)."""
         try:
             local_path = mlflow.artifacts.download_artifacts(
                 run_id=model_entry.run_id,
                 artifact_path="model/model_config.json"
             )
-            with open(local_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            # Try JSON first
+            try:
+                with open(local_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+            # Fallback to pickle (some configs are pickled despite .json extension)
+            import pickle
+            with open(local_path, 'rb') as f:
+                data = pickle.load(f)
+                return data if isinstance(data, dict) else {}
         except FileNotFoundError:
             logger.info(f"No model_config.json found for model {model_entry.model_id}")
             return {}

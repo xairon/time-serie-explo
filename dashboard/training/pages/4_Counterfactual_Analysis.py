@@ -1,15 +1,17 @@
 """Counterfactual Analysis Page - PhysCF Integration.
 
-This page allows users to:
-1. Load a trained model from the registry
-2. Select a test window and target IPS class
-3. Generate counterfactual scenarios using PhysCF (gradient), Optuna, or COMET-Hydro
-4. Visualize factual vs counterfactual predictions
-5. Interpret the perturbation parameters (theta*)
+Fully autonomous: loads model, data, and scalers from MLflow artifacts.
+Workflow:
+1. Load trained model from MLflow registry
+2. Display test set with ground truth + sliding window predictions
+3. Show IPS classification bands with colored levels
+4. Indicate per-window whether prediction matches ground truth IPS class
+5. Allow user to select target IPS class change (e.g., normal -> dry)
+6. Run 1, 2 or 3 CF methods (checkboxes) and overlay results
+7. Display comparative metrics tables and scenario interpretation
 """
 
 import sys
-import time
 import traceback
 from pathlib import Path
 
@@ -23,7 +25,14 @@ import torch
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+# Ensure MLflow tracking URI is set before any registry call
+import mlflow
+from dashboard.config import MLFLOW_TRACKING_URI, CHECKPOINTS_DIR
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
 from dashboard.utils.model_registry import get_registry
+from dashboard.utils.forecasting import generate_single_window_forecast
+from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
 # PhysCF counterfactual module
 from dashboard.utils.counterfactual import (
@@ -39,6 +48,11 @@ from dashboard.utils.counterfactual import (
     cc_compliance,
     param_count,
 )
+from dashboard.utils.counterfactual.ips import (
+    IPS_ORDER,
+    gwl_to_ips_class,
+    gwl_to_ips_zscore,
+)
 from dashboard.utils.counterfactual.darts_adapter import (
     DartsModelAdapter,
     StandaloneGRUAdapter,
@@ -47,622 +61,693 @@ from dashboard.utils.counterfactual.darts_adapter import (
 # ---- Page Config ----
 st.set_page_config(page_title="PhysCF - Counterfactual Analysis", layout="wide")
 st.title("PhysCF - Analyse Contrefactuelle")
-st.markdown("""
-Generez des scenarios meteorologiques contrefactuels pour expliquer les previsions
-de niveau piezometrique. PhysCF optimise **7 parametres physiques** (precipitation saisonniere,
-temperature, ETP, decalage temporel) avec le couplage Clausius-Clapeyron en contrainte dure.
-""")
 
-# ---- Sidebar: Model & Data Selection ----
-st.sidebar.header("Configuration")
+# ---- Constants ----
+IPS_COLORS = {
+    "very_low":       "#8B0000",
+    "low":            "#DC143C",
+    "moderately_low": "#FF8C00",
+    "normal":         "#228B22",
+    "moderately_high":"#4169E1",
+    "high":           "#0000CD",
+    "very_high":      "#00008B",
+}
 
-# Check if data is in session
-if "df" not in st.session_state or st.session_state.df is None:
-    st.warning("Chargez d'abord des donnees dans l'onglet Dataset Preparation.")
-    st.stop()
+IPS_LABELS = {
+    "very_low":        "Tres bas",
+    "low":             "Bas",
+    "moderately_low":  "Moderement bas",
+    "normal":          "Normal",
+    "moderately_high": "Moderement haut",
+    "high":            "Haut",
+    "very_high":       "Tres haut",
+}
 
-df = st.session_state.df
-
-# Model selection from registry
-registry = get_registry()
-models_list = registry.list_all_models() if hasattr(registry, "list_all_models") else []
+# ---- Registry ----
+registry = get_registry(CHECKPOINTS_DIR.parent)
+models_list = registry.list_all_models()
 
 if not models_list:
-    st.sidebar.warning("Aucun modele dans le registry MLflow.")
-
-model_display = {m.display_name: m for m in models_list}
-selected_model_name = st.sidebar.selectbox(
-    "Modele entraine",
-    list(model_display.keys()) if model_display else ["(aucun)"],
-    help="Selectionnez un modele entraine depuis MLflow."
-)
-
-# ---- Method Selection ----
-st.sidebar.subheader("Methode CF")
-cf_method = st.sidebar.selectbox(
-    "Methode de generation",
-    ["PhysCF (gradient)", "PhysCF (Optuna)", "COMET-Hydro", "Comparer les 3"],
-    help="PhysCF: 7 params physiques. COMET-Hydro: L x 3 params bruts."
-)
-
-# ---- Hyperparameters ----
-st.sidebar.subheader("Hyperparametres")
-lambda_prox = st.sidebar.slider(
-    "lambda_prox (regularisation)",
-    min_value=0.001, max_value=2.0, value=0.1, step=0.01,
-    help="Poids de la proximite. Bas = plus de liberte pour les perturbations."
-)
-n_iter = st.sidebar.number_input("Iterations", min_value=50, max_value=2000, value=500, step=50)
-lr = st.sidebar.number_input(
-    "Learning rate", min_value=0.001, max_value=0.1, value=0.02,
-    step=0.005, format="%.3f"
-)
-
-# ---- Target IPS Class ----
-st.sidebar.subheader("Classe IPS cible")
-target_ips = st.sidebar.selectbox(
-    "Classe cible",
-    list(IPS_CLASSES.keys()),
-    index=3,  # 'normal' by default
-    help="Classe IPS que le contrefactuel doit atteindre."
-)
-
-# ---- Device selection ----
-device = "cuda" if torch.cuda.is_available() else "cpu"
-st.sidebar.caption(f"Device: **{device}** {'(GPU)' if device == 'cuda' else '(CPU)'}")
+    st.error("Aucun modele entraine dans le registry MLflow. "
+             "Entrainez un modele dans l'onglet Train Models d'abord.")
+    st.stop()
 
 
 # ====================
-# Helper functions
+# Data loading (cached)
 # ====================
 
-def _get_columns():
-    """Get target and covariate column names from session state."""
-    target_col = st.session_state.get("target_col", None)
-    covariate_cols = st.session_state.get("covariate_cols", None)
+@st.cache_resource(show_spinner="Chargement du modele et des donnees depuis MLflow...")
+def _load_model_and_data(run_id: str):
+    """Load model, scalers, data, config from MLflow artifacts. Cached."""
+    reg = get_registry(CHECKPOINTS_DIR.parent)
+    entry = None
+    for m in reg.list_all_models():
+        if m.run_id == run_id:
+            entry = m
+            break
+    if entry is None:
+        raise ValueError(f"Run {run_id} introuvable")
 
-    # Auto-detect if not set
-    if target_col is None:
-        # Common target column names
-        for candidate in ["gwl", "Water_Level", "water_level", "piezo", "level"]:
-            if candidate in df.columns:
-                target_col = candidate
+    model = reg.load_model(entry)
+    scalers = reg.load_scalers(entry)
+    model_config = reg.load_model_config(entry)
+
+    data_dict = {}
+    for split in ["train", "val", "test", "train_cov", "val_cov", "test_cov"]:
+        df_split = reg.load_data(entry, split)
+        if df_split is not None:
+            data_dict[split] = df_split
+
+    return model, scalers, data_dict, model_config, entry
+
+
+def _detect_columns(model_config, data_dict):
+    """Detect target and covariate columns from model config and data."""
+    target_col = None
+    covariate_cols = []
+
+    if model_config:
+        if isinstance(model_config, dict):
+            cols = model_config.get("columns", {})
+            if not cols:
+                cols = model_config.get("preprocessing", {}).get("columns", {})
+        elif hasattr(model_config, "columns"):
+            cols = model_config.columns if isinstance(model_config.columns, dict) else {}
+        else:
+            cols = {}
+        target_col = cols.get("target")
+        covariate_cols = cols.get("covariates", [])
+        if isinstance(covariate_cols, str):
+            import json as _json
+            try:
+                covariate_cols = _json.loads(covariate_cols)
+            except Exception:
+                covariate_cols = [covariate_cols]
+
+    if not target_col and "train" in data_dict:
+        df_train = data_dict["train"]
+        for c in ["gwl", "Water_Level", "water_level", "niveau_nappe_eau", "piezo", "level"]:
+            if c in df_train.columns:
+                target_col = c
                 break
-        if target_col is None:
-            target_col = df.columns[0]
+        if not target_col:
+            target_col = df_train.columns[0]
 
-    if covariate_cols is None:
-        # Common covariate patterns
-        covariate_cols = []
-        for candidate in ["precip", "Precipitation", "temp", "Temperature", "evap", "ETP", "etp"]:
-            if candidate in df.columns:
-                covariate_cols.append(candidate)
-        if not covariate_cols:
-            covariate_cols = [c for c in df.columns if c != target_col][:3]
+    if not covariate_cols and "train_cov" in data_dict:
+        covariate_cols = list(data_dict["train_cov"].columns)
 
     return target_col, covariate_cols
 
 
-def _build_scaler_from_df(df_train: pd.DataFrame, cols: list) -> dict:
-    """Build a simple z-score scaler dict from training data."""
+def _build_full_df(data_dict, target_col, covariate_cols):
+    """Merge train/val/test + covariates into a single DataFrame."""
+    parts = []
+    for split in ["train", "val", "test"]:
+        if split in data_dict and target_col in data_dict[split].columns:
+            parts.append(data_dict[split][[target_col]])
+    if not parts:
+        return None, []
+
+    df_target = pd.concat(parts).sort_index()
+    df_target = df_target[~df_target.index.duplicated(keep="first")]
+
+    cov_parts = []
+    for split in ["train_cov", "val_cov", "test_cov"]:
+        if split in data_dict:
+            cov_parts.append(data_dict[split])
+
+    if cov_parts:
+        df_cov = pd.concat(cov_parts).sort_index()
+        df_cov = df_cov[~df_cov.index.duplicated(keep="first")]
+        available_covs = [c for c in covariate_cols if c in df_cov.columns]
+        if not available_covs:
+            available_covs = list(df_cov.columns)[:3]
+        df_full = df_target.join(df_cov[available_covs], how="inner")
+        return df_full, available_covs
+    else:
+        return df_target, []
+
+
+def _build_scaler_dict(data_dict, target_col, covariate_cols):
+    """Build a simple z-score scaler dict from training data for PhysCF."""
     scaler = {}
-    for col in cols:
-        if col in df_train.columns:
-            scaler[col] = {
-                "mean": float(df_train[col].mean()),
-                "std": float(df_train[col].std()),
-            }
+    if "train" in data_dict:
+        df_t = data_dict["train"]
+        if target_col in df_t.columns:
+            scaler[target_col] = {"mean": float(df_t[target_col].mean()),
+                                  "std": float(df_t[target_col].std())}
+    if "train_cov" in data_dict:
+        df_c = data_dict["train_cov"]
+        for col in covariate_cols:
+            if col in df_c.columns:
+                scaler[col] = {"mean": float(df_c[col].mean()),
+                               "std": float(df_c[col].std())}
+    # Map generic names for PhysCF perturbation layer
+    for c in covariate_cols:
+        cl = c.lower()
+        if "precip" in cl or "rain" in cl:
+            if c in scaler and "precip" not in scaler:
+                scaler["precip"] = scaler[c]
+        elif "temp" in cl:
+            if c in scaler and "temp" not in scaler:
+                scaler["temp"] = scaler[c]
+        elif "evap" in cl or "etp" in cl:
+            if c in scaler and "evap" not in scaler:
+                scaler["evap"] = scaler[c]
+
     return scaler
 
 
-def _normalize(arr: np.ndarray, scaler: dict, cols: list) -> np.ndarray:
-    """Z-score normalize array using scaler."""
-    out = arr.copy()
-    for j, col in enumerate(cols):
-        if col in scaler:
-            mu = scaler[col]["mean"]
-            sigma = scaler[col]["std"]
-            if sigma > 0:
-                out[..., j] = (out[..., j] - mu) / sigma
-    return out
+# ====================
+# Sidebar
+# ====================
+
+st.sidebar.header("1. Modele")
+model_display = {m.display_name: m for m in models_list}
+selected_model_name = st.sidebar.selectbox("Modele entraine", list(model_display.keys()))
+selected_model_entry = model_display[selected_model_name]
+
+# Load model + data
+try:
+    darts_model, scalers, data_dict, model_config, model_entry = \
+        _load_model_and_data(selected_model_entry.run_id)
+except Exception as e:
+    st.error(f"Erreur chargement modele: {e}")
+    st.code(traceback.format_exc())
+    st.stop()
+
+target_col, covariate_cols = _detect_columns(model_config, data_dict)
+df_full, covariate_cols = _build_full_df(data_dict, target_col, covariate_cols)
+
+if df_full is None or len(df_full) == 0:
+    st.error("Impossible de reconstruire les donnees depuis MLflow.")
+    st.stop()
+
+L_model = getattr(darts_model, "input_chunk_length", 365)
+H_model = getattr(darts_model, "output_chunk_length", 90)
+
+# Build PhysCF scaler
+physcf_scaler = _build_scaler_dict(data_dict, target_col, covariate_cols)
+
+# ---- IPS reference ----
+target_scaler = physcf_scaler.get(target_col, {"mean": 0, "std": 1})
+mu_target = target_scaler["mean"]
+sigma_target = target_scaler["std"]
+
+gwl_train_norm = data_dict["train"][target_col] if "train" in data_dict else df_full[target_col]
+gwl_train_raw = gwl_train_norm * sigma_target + mu_target
+ref_stats = compute_ips_reference(gwl_train_raw)
+
+# ---- Sidebar: scenario ----
+st.sidebar.markdown("---")
+st.sidebar.header("2. Scenario IPS")
+st.sidebar.markdown("Changer la classe IPS de la prediction")
+
+ips_labels_list = list(IPS_LABELS.values())
+col_from, col_to = st.sidebar.columns(2)
+with col_from:
+    ips_from = st.selectbox("De", ips_labels_list, index=3, key="ips_from")
+with col_to:
+    ips_to = st.selectbox("Vers", ips_labels_list, index=1, key="ips_to")
+
+ips_from_key = [k for k, v in IPS_LABELS.items() if v == ips_from][0]
+ips_to_key = [k for k, v in IPS_LABELS.items() if v == ips_to][0]
+st.sidebar.caption(f"Scenario: {ips_from} -> **{ips_to}**")
+
+# ---- Sidebar: methods ----
+st.sidebar.markdown("---")
+st.sidebar.header("3. Methodes CF")
+use_physcf = st.sidebar.checkbox("PhysCF (gradient)", value=True)
+use_optuna = st.sidebar.checkbox("PhysCF (Optuna)", value=False)
+use_comet = st.sidebar.checkbox("COMET-Hydro", value=False)
+
+# ---- Sidebar: hyperparams ----
+st.sidebar.markdown("---")
+st.sidebar.header("4. Hyperparametres")
+lambda_prox = st.sidebar.slider("lambda_prox", 0.001, 2.0, 0.1, 0.01)
+n_iter = st.sidebar.number_input("Iterations", 50, 2000, 500, 50)
+lr_cf = st.sidebar.number_input("Learning rate", 0.001, 0.1, 0.02, 0.005, format="%.3f")
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+st.sidebar.caption(f"Device: **{device}** | L={L_model} H={H_model}")
 
 
-def _denormalize_gwl(arr: np.ndarray, scaler: dict, target_col: str) -> np.ndarray:
-    """Inverse z-score for gwl."""
-    if target_col in scaler:
-        mu = scaler[target_col]["mean"]
-        sigma = scaler[target_col]["std"]
-        return arr * sigma + mu
-    return arr
+# ====================
+# SECTION 1: Test set with ground truth + sliding window
+# ====================
+
+st.markdown("---")
+st.subheader("1. Serie de test et prediction du modele")
+
+if "test" not in data_dict:
+    st.error("Pas de donnees de test dans les artifacts MLflow.")
+    st.stop()
+
+test_df = data_dict["test"]
+test_len = len(test_df)
+
+# Raw values for display
+test_raw_values = test_df[target_col].values * sigma_target + mu_target
+test_dates = test_df.index
+
+# Sliding window
+valid_end = test_len - H_model
+if valid_end <= 0:
+    st.error(f"Test set trop court ({test_len}j) pour H={H_model}.")
+    st.stop()
+
+start_idx = st.slider(
+    f"Fenetre glissante sur le test ({H_model}j de prediction)",
+    min_value=0, max_value=valid_end,
+    value=min(valid_end // 2, valid_end),
+    help=f"Contexte: {L_model}j | Prediction: {H_model}j"
+)
+
+window_pred_start = test_dates[start_idx]
+window_pred_end = test_dates[min(start_idx + H_model - 1, test_len - 1)]
+
+# Find context start in full df
+full_pred_loc = df_full.index.get_loc(window_pred_start)
+if isinstance(full_pred_loc, slice):
+    full_pred_loc = full_pred_loc.start
+context_start_loc = max(0, full_pred_loc - L_model)
+window_context_start = df_full.index[context_start_loc]
+
+st.caption(f"**Contexte:** {window_context_start.strftime('%Y-%m-%d')} | "
+           f"**Prediction:** {window_pred_start.strftime('%Y-%m-%d')} -> "
+           f"{window_pred_end.strftime('%Y-%m-%d')} ({H_model}j)")
+
+# Generate prediction
+pred_cache_key = f"cf_pred_{model_entry.run_id}_{start_idx}"
+if pred_cache_key not in st.session_state:
+    with st.spinner("Generation de la prediction..."):
+        try:
+            full_df_processed = pd.concat(
+                [data_dict.get(s, pd.DataFrame()) for s in ["train", "val", "test"]]
+            ).sort_index()
+            full_df_processed = full_df_processed[~full_df_processed.index.duplicated(keep="first")]
+
+            if covariate_cols:
+                full_cov = pd.concat(
+                    [data_dict.get(s, pd.DataFrame()) for s in ["train_cov", "val_cov", "test_cov"]]
+                ).sort_index()
+                full_cov = full_cov[~full_cov.index.duplicated(keep="first")]
+                full_df_processed = full_df_processed.join(full_cov, how="inner")
+
+            preproc_config = model_config.get("preprocessing", {}) if isinstance(model_config, dict) else {}
+            is_global = (model_config.get("type", "single") == "global") if isinstance(model_config, dict) else False
+
+            results = generate_single_window_forecast(
+                model=darts_model,
+                full_df=full_df_processed,
+                target_col=target_col,
+                covariate_cols=covariate_cols or None,
+                preprocessing_config=preproc_config,
+                scalers=scalers,
+                start_date=window_pred_start,
+                use_covariates=bool(covariate_cols),
+                already_processed=True,
+                is_global_model=is_global,
+            )
+            st.session_state[pred_cache_key] = {
+                "prediction": results[0],
+                "target": results[2],
+                "metrics": results[3],
+            }
+        except Exception as e:
+            st.error(f"Erreur prediction: {e}")
+            st.code(traceback.format_exc())
+            st.session_state[pred_cache_key] = None
+
+cached = st.session_state.get(pred_cache_key)
 
 
-def _extract_window(
-    df: pd.DataFrame, start_idx: int, L: int, H: int,
-    target_col: str, covariate_cols: list
-) -> tuple:
-    """Extract a (h_obs, s_obs, y_true, months, dates) window from the dataframe."""
-    lookback_df = df.iloc[start_idx : start_idx + L]
-    horizon_df = df.iloc[start_idx + L : start_idx + L + H]
+# ====================
+# SECTION 2: IPS bands + main chart
+# ====================
 
-    h_obs = lookback_df[target_col].values.astype(np.float32)
-    s_obs = lookback_df[covariate_cols].values.astype(np.float32)
-    y_true = horizon_df[target_col].values.astype(np.float32) if len(horizon_df) >= H else None
-    months = lookback_df.index.month.values.astype(np.int64)
-    dates_lookback = lookback_df.index
-    dates_horizon = horizon_df.index
+st.subheader("2. Classification IPS et qualite de la prediction")
 
-    return h_obs, s_obs, y_true, months, dates_lookback, dates_horizon
+fig = go.Figure()
 
+# IPS colored bands
+# For each month in the test period, we could compute per-month bands,
+# but for simplicity use the test median month
+test_month_median = int(np.median(test_dates.month))
+for cls_name in IPS_ORDER:
+    z_lo, z_hi = IPS_CLASSES[cls_name]
+    z_lo_c = max(z_lo, -5.0)
+    z_hi_c = min(z_hi, 5.0)
+    mu_m, sigma_m = ref_stats.get(test_month_median, (mu_target, sigma_target))
+    y_lo = mu_m + z_lo_c * sigma_m
+    y_hi = mu_m + z_hi_c * sigma_m
 
-def _run_single_cf(
-    method: str, h_obs_norm, s_obs_phys, s_obs_norm, model_adapter,
-    target_bounds, scaler, months, L, H,
-    lambda_prox, n_iter, lr, device
-) -> dict:
-    """Run a single counterfactual method and return results."""
-    h_t = torch.tensor(h_obs_norm, dtype=torch.float32)
-    months_t = torch.tensor(months, dtype=torch.long)
-    lower_t, upper_t = target_bounds
+    fig.add_hrect(
+        y0=y_lo, y1=y_hi,
+        fillcolor=IPS_COLORS[cls_name], opacity=0.08,
+        layer="below", line_width=0,
+        annotation_text=IPS_LABELS[cls_name],
+        annotation_position="right",
+        annotation=dict(font_size=9, font_color=IPS_COLORS[cls_name]),
+    )
 
-    if method == "physcf_gradient":
-        s_phys_t = torch.tensor(s_obs_phys, dtype=torch.float32)
-        result = generate_counterfactual(
-            h_t, s_phys_t, model_adapter, (lower_t, upper_t),
-            scaler, months_t,
-            lambda_prox=lambda_prox, n_iter=n_iter, lr=lr, device=device,
-        )
-    elif method == "physcf_optuna":
-        s_phys_t = torch.tensor(s_obs_phys, dtype=torch.float32)
-        result = generate_counterfactual_optuna(
-            h_t, s_phys_t, model_adapter, (lower_t, upper_t),
-            scaler, months_t,
-            lambda_prox=lambda_prox, n_trials=n_iter, device=device,
-        )
-    elif method == "comet_hydro":
-        s_norm_t = torch.tensor(s_obs_norm, dtype=torch.float32)
-        result = generate_counterfactual_comet(
-            h_t, s_norm_t, model_adapter, (lower_t, upper_t),
-            scaler, n_iter=n_iter, lr=lr, device=device,
-        )
-    else:
-        raise ValueError(f"Unknown method: {method}")
+# Context window highlight
+fig.add_vrect(
+    x0=window_context_start, x1=window_pred_start,
+    fillcolor="rgba(46,134,171,0.12)", layer="below", line_width=1,
+    line=dict(color="rgba(46,134,171,0.3)"),
+    annotation_text=f"Contexte ({L_model}j)", annotation_position="bottom left",
+    annotation=dict(font_size=9),
+)
 
-    return result
+# Prediction window highlight
+fig.add_vrect(
+    x0=window_pred_start, x1=window_pred_end,
+    fillcolor="rgba(255,200,0,0.2)", layer="below", line_width=1,
+    line=dict(color="rgba(255,200,0,0.5)"),
+    annotation_text=f"Prediction ({H_model}j)", annotation_position="top right",
+    annotation=dict(font_size=9),
+)
 
+# Ground truth (blue)
+fig.add_trace(go.Scatter(
+    x=test_dates, y=test_raw_values,
+    mode="lines", name="Ground Truth",
+    line=dict(color="#2E86AB", width=2),
+))
 
-def _plot_factual_vs_cf(
-    dates_lookback, dates_horizon, h_obs_raw, y_factual_raw,
-    y_cf_raw, target_bounds_raw, target_col, method_name
-):
-    """Create a plotly figure comparing factual vs CF predictions."""
-    fig = make_subplots(rows=1, cols=1)
-
-    # Lookback period
+# Model prediction (pink)
+if cached and cached.get("prediction") is not None:
+    pred_ts = cached["prediction"]
     fig.add_trace(go.Scatter(
-        x=dates_lookback, y=h_obs_raw,
-        name="Historique (lookback)", mode="lines",
-        line=dict(color="gray", width=1),
+        x=pred_ts.time_index, y=pred_ts.values().flatten(),
+        mode="lines+markers", name="Prediction modele",
+        line=dict(color="#E91E63", width=3),
+        marker=dict(size=4),
     ))
 
-    # Factual prediction
-    fig.add_trace(go.Scatter(
-        x=dates_horizon, y=y_factual_raw,
-        name="Prediction factuelle", mode="lines",
-        line=dict(color="blue", width=2),
-    ))
+fig.update_layout(
+    title=f"{target_col} - Test set avec bandes IPS",
+    xaxis_title="Date", yaxis_title=f"{target_col} (raw)",
+    height=500, hovermode="x unified",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+)
+st.plotly_chart(fig, use_container_width=True)
 
-    # CF prediction
-    fig.add_trace(go.Scatter(
-        x=dates_horizon, y=y_cf_raw,
-        name=f"Contrefactuel ({method_name})", mode="lines",
-        line=dict(color="red", width=2, dash="dash"),
-    ))
+# --- Per-window IPS assessment ---
+if cached and cached.get("prediction") is not None and cached.get("target") is not None:
+    pred_ts = cached["prediction"]
+    target_ts = cached["target"]
+
+    pred_mean_raw = float(np.mean(pred_ts.values().flatten()))
+    gt_mean_raw = float(np.mean(target_ts.values().flatten()))
+
+    gt_month = int(pd.Timestamp(target_ts.time_index[len(target_ts) // 2]).month)
+    gt_ips = gwl_to_ips_class(gt_mean_raw, gt_month, ref_stats)
+    pred_ips = gwl_to_ips_class(pred_mean_raw, gt_month, ref_stats)
+
+    col_gt, col_pred, col_match = st.columns(3)
+    with col_gt:
+        st.metric("IPS Ground Truth", IPS_LABELS.get(gt_ips, gt_ips))
+    with col_pred:
+        st.metric("IPS Prediction", IPS_LABELS.get(pred_ips, pred_ips))
+    with col_match:
+        match = gt_ips == pred_ips
+        st.metric("Correspondance", "OUI" if match else "NON",
+                  delta="Bonne prediction" if match else "Classe differente",
+                  delta_color="normal" if match else "inverse")
+
+    if cached.get("metrics"):
+        metrics = cached["metrics"]
+        m_cols = st.columns(min(len(metrics), 4))
+        for i, (name, val) in enumerate(metrics.items()):
+            if val is not None and not pd.isna(val):
+                with m_cols[i % len(m_cols)]:
+                    st.metric(name, f"{val:.4f}")
+
+
+# ====================
+# SECTION 3: Counterfactual generation
+# ====================
+
+st.markdown("---")
+st.subheader(f"3. Generation contrefactuelle: {ips_from} -> {ips_to}")
+
+if not any([use_physcf, use_optuna, use_comet]):
+    st.info("Cochez au moins une methode CF dans la sidebar (section 3).")
+
+if st.button("Lancer la generation contrefactuelle", type="primary",
+             use_container_width=True, disabled=not any([use_physcf, use_optuna, use_comet])):
+
+    # Extract window data
+    lookback_df = df_full.iloc[context_start_loc: context_start_loc + L_model]
+    horizon_df = df_full.iloc[context_start_loc + L_model: context_start_loc + L_model + H_model]
+
+    h_obs_norm = lookback_df[target_col].values.astype(np.float32)
+    s_obs_norm = lookback_df[covariate_cols].values.astype(np.float32)
+    months_arr = lookback_df.index.month.values.astype(np.int64)
+
+    # Denormalize stresses for PhysCF perturbation layer
+    s_obs_phys = s_obs_norm.copy()
+    for j, col in enumerate(covariate_cols):
+        if col in physcf_scaler:
+            mu_c = physcf_scaler[col]["mean"]
+            sigma_c = physcf_scaler[col]["std"]
+            if sigma_c > 0:
+                s_obs_phys[:, j] = s_obs_norm[:, j] * sigma_c + mu_c
 
     # Target bounds
-    lower_raw, upper_raw = target_bounds_raw
-    fig.add_trace(go.Scatter(
-        x=dates_horizon, y=lower_raw,
-        name="Borne inf IPS", mode="lines",
-        line=dict(color="green", width=1, dash="dot"),
-    ))
-    fig.add_trace(go.Scatter(
-        x=dates_horizon, y=upper_raw,
-        name="Borne sup IPS", mode="lines",
-        line=dict(color="green", width=1, dash="dot"),
-        fill="tonexty", fillcolor="rgba(0,255,0,0.08)",
-    ))
+    z_min, z_max = IPS_CLASSES[ips_to_key]
+    z_min_c = max(z_min, -5.0)
+    z_max_c = min(z_max, 5.0)
+    lower_norm = torch.full((H_model,), z_min_c, dtype=torch.float32)
+    upper_norm = torch.full((H_model,), z_max_c, dtype=torch.float32)
 
-    fig.update_layout(
-        title=f"Factuel vs Contrefactuel - {method_name}",
-        xaxis_title="Date",
-        yaxis_title=f"{target_col} (m NGF)",
-        height=450,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-    )
-    return fig
+    # Raw bounds for display
+    horizon_months = horizon_df.index.month.values if len(horizon_df) >= H_model else np.full(H_model, 6)
+    lower_raw_arr = np.zeros(H_model)
+    upper_raw_arr = np.zeros(H_model)
+    for t in range(min(H_model, len(horizon_months))):
+        m = int(horizon_months[t])
+        mu_m, sigma_m = ref_stats.get(m, (mu_target, sigma_target))
+        lower_raw_arr[t] = mu_m + z_min_c * sigma_m if sigma_m > 0 else mu_m
+        upper_raw_arr[t] = mu_m + z_max_c * sigma_m if sigma_m > 0 else mu_m
 
-
-def _plot_stress_comparison(
-    dates_lookback, s_obs_phys, s_cf_phys, covariate_cols
-):
-    """Plot original vs CF stresses (precipitation, temperature, ETP)."""
-    n_cov = min(len(covariate_cols), s_obs_phys.shape[-1])
-    fig = make_subplots(rows=n_cov, cols=1, shared_xaxes=True,
-                        subplot_titles=[c for c in covariate_cols[:n_cov]])
-
-    colors = ["blue", "orange", "purple"]
-    for j in range(n_cov):
-        fig.add_trace(go.Scatter(
-            x=dates_lookback, y=s_obs_phys[:, j],
-            name=f"{covariate_cols[j]} (obs)", mode="lines",
-            line=dict(color=colors[j % 3], width=1),
-            showlegend=(j == 0),
-            legendgroup="obs",
-        ), row=j + 1, col=1)
-
-        if s_cf_phys is not None:
-            fig.add_trace(go.Scatter(
-                x=dates_lookback, y=s_cf_phys[:, j],
-                name=f"{covariate_cols[j]} (CF)", mode="lines",
-                line=dict(color=colors[j % 3], width=1, dash="dash"),
-                showlegend=(j == 0),
-                legendgroup="cf",
-            ), row=j + 1, col=1)
-
-    fig.update_layout(
-        title="Stresses: Factuel vs Contrefactuel",
-        height=150 * n_cov + 100,
-    )
-    return fig
-
-
-def _plot_loss_curves(results_dict: dict):
-    """Plot convergence curves for all methods."""
-    fig = go.Figure()
-    for method, result in results_dict.items():
-        if "loss_history" in result:
-            fig.add_trace(go.Scatter(
-                y=result["loss_history"], name=f"{method} (total)",
-                mode="lines",
-            ))
-        if "target_history" in result:
-            fig.add_trace(go.Scatter(
-                y=result["target_history"], name=f"{method} (target)",
-                mode="lines", line=dict(dash="dash"),
-            ))
-    fig.update_layout(
-        title="Courbes de convergence",
-        xaxis_title="Iteration", yaxis_title="Loss",
-        yaxis_type="log", height=350,
-    )
-    return fig
-
-
-def _make_theta_table(results_dict: dict) -> pd.DataFrame:
-    """Create a comparison table of theta* parameters."""
-    rows = []
-    for method, result in results_dict.items():
-        if "theta_star" in result:
-            row = {"Methode": method, **result["theta_star"]}
-            rows.append(row)
-    if rows:
-        return pd.DataFrame(rows).set_index("Methode").round(3)
-    return pd.DataFrame()
-
-
-def _make_metrics_table(results_dict: dict, target_bounds) -> pd.DataFrame:
-    """Create a comparison table of metrics."""
-    lower, upper = target_bounds
-    rows = []
-    for method, result in results_dict.items():
-        row = {"Methode": method}
-        y_cf = result.get("y_cf")
-        if y_cf is not None:
-            row["Validite"] = validity_ratio(y_cf, lower, upper)
-        if "theta_star" in result:
-            row["Proximite"] = proximity_theta(result["theta_star"])
-            row["CC compliance"] = cc_compliance(result["theta_star"])
-        row["Converge"] = result.get("converged", False)
-        row["Temps (s)"] = round(result.get("wall_clock_s", 0), 2)
-        row["N params"] = param_count(result.get("method", method))
-        rows.append(row)
-    if rows:
-        return pd.DataFrame(rows).set_index("Methode")
-    return pd.DataFrame()
-
-
-# ====================
-# Main Content
-# ====================
-
-target_col, covariate_cols = _get_columns()
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    st.subheader("Donnees et fenetre de test")
-    st.write(f"**Cible:** {target_col} | **Covariables:** {', '.join(covariate_cols)}")
-    st.write(f"**Periode:** {df.index.min().date()} - {df.index.max().date()} ({len(df)} jours)")
-
-    # Window selection
-    L = st.number_input("Lookback L (jours)", min_value=30, max_value=730, value=365, step=30)
-    H = st.number_input("Horizon H (jours)", min_value=7, max_value=365, value=90, step=7)
-
-    max_start = len(df) - L - H
-    if max_start <= 0:
-        st.error(f"Donnees insuffisantes pour L={L} + H={H} = {L + H} jours.")
+    # Model adapter
+    try:
+        model_adapter = DartsModelAdapter(darts_model, L_model, H_model)
+    except Exception as e:
+        st.error(f"Erreur adaptateur: {e}")
+        st.code(traceback.format_exc())
         st.stop()
 
-    # Date-based window selection
-    min_date = df.index[L].date()
-    max_date = df.index[max_start + L - 1].date()
-    window_start_date = st.date_input(
-        "Date de debut de la fenetre de prevision",
-        value=max_date,  # Default to latest possible
-        min_value=min_date,
-        max_value=max_date,
-    )
-
-    # Find the index for this date
-    window_start_dt = pd.Timestamp(window_start_date)
-    window_start_idx = df.index.searchsorted(window_start_dt) - L
-
-with col2:
-    st.subheader("PerturbationLayer (PhysCF)")
-    st.markdown("""
-    | Param | Bornes |
-    |-------|--------|
-    | s_P (x4 saisons) | [0.3, 2.0] |
-    | delta_T | [-5, +5] C |
-    | delta_ETP | CC coupling |
-    | delta_s | [-30, +30] j |
-    """)
-    st.caption(f"IPS cible: **{target_ips}** "
-               f"(z in [{IPS_CLASSES[target_ips][0]:.2f}, {IPS_CLASSES[target_ips][1]:.2f}])")
-
-
-# ---- Run Counterfactual ----
-st.markdown("---")
-
-if st.button("Generer les contrefactuels", type="primary", use_container_width=True):
-
-    # Extract data window
-    h_obs_raw, s_obs_raw, y_true_raw, months_arr, dates_lookback, dates_horizon = \
-        _extract_window(df, window_start_idx, L, H, target_col, covariate_cols)
-
-    # Build scaler from training data (first 70% of the series)
-    train_end = int(len(df) * 0.7)
-    df_train = df.iloc[:train_end]
-    scaler = _build_scaler_from_df(df_train, [target_col] + covariate_cols)
-
-    # Normalize
-    h_obs_norm = h_obs_raw.copy()
-    if target_col in scaler:
-        mu_t, sigma_t = scaler[target_col]["mean"], scaler[target_col]["std"]
-        if sigma_t > 0:
-            h_obs_norm = (h_obs_norm - mu_t) / sigma_t
-
-    s_obs_norm = _normalize(
-        s_obs_raw.reshape(-1, len(covariate_cols)), scaler, covariate_cols
-    )
-
-    # IPS reference stats (for bounds)
-    gwl_series = df[target_col].dropna()
-    ref_stats = compute_ips_reference(gwl_series)
-
-    # Target bounds in normalized units
-    z_min, z_max = IPS_CLASSES[target_ips]
-    # Clamp infinities to +-5 sigma
-    z_min_clamped = max(z_min, -5.0)
-    z_max_clamped = min(z_max, 5.0)
-    lower_norm = torch.full((H,), z_min_clamped, dtype=torch.float32)
-    upper_norm = torch.full((H,), z_max_clamped, dtype=torch.float32)
-
-    # Target bounds in raw units (for display) - use mean month of horizon
-    horizon_months = dates_horizon.month.values if len(dates_horizon) >= H else np.array([6] * H)
-    lower_raw_arr = np.zeros(H)
-    upper_raw_arr = np.zeros(H)
-    for t in range(min(H, len(horizon_months))):
-        m = int(horizon_months[t])
-        mu_m, sigma_m = ref_stats.get(m, (0, 1))
-        if sigma_m > 0:
-            lower_raw_arr[t] = mu_m + z_min_clamped * sigma_m
-            upper_raw_arr[t] = mu_m + z_max_clamped * sigma_m
-        else:
-            lower_raw_arr[t] = mu_m
-            upper_raw_arr[t] = mu_m
-
-    # ---- Load or create model adapter ----
-    model_adapter = None
-
-    if selected_model_name != "(aucun)" and selected_model_name in model_display:
-        model_entry = model_display[selected_model_name]
-        with st.spinner(f"Chargement du modele {model_entry.model_name}..."):
-            try:
-                darts_model = registry.load_model(model_entry)
-                model_adapter = DartsModelAdapter(
-                    darts_model,
-                    input_chunk_length=L,
-                    output_chunk_length=H,
-                )
-                st.success(f"Modele {model_entry.model_name} charge (type: {model_adapter._model_type})")
-            except Exception as e:
-                st.error(f"Erreur chargement modele: {e}")
-                st.code(traceback.format_exc())
-
-    if model_adapter is None:
-        st.warning("Pas de modele charge. Utilisation d'un GRU factice pour la demo.")
-
-        # Create a simple demo model
-        class DemoGRU(torch.nn.Module):
-            def __init__(self, H):
-                super().__init__()
-                self.gru = torch.nn.GRU(4, 64, batch_first=True)
-                self.fc = torch.nn.Linear(64, H)
-
-            def forward(self, h_obs, s_obs):
-                if h_obs.dim() == 2:
-                    h_obs = h_obs.unsqueeze(-1)
-                x = torch.cat([h_obs, s_obs], dim=-1)
-                out, _ = self.gru(x)
-                return self.fc(out[:, -1, :])
-
-            def to_train_mode(self):
-                self.train()
-                for p in self.parameters():
-                    p.requires_grad_(False)
-
-        model_adapter = StandaloneGRUAdapter(DemoGRU(H))
-        st.info("Demo: le GRU n'est pas entraine, les resultats sont illustratifs.")
-
-    # ---- Factual prediction ----
-    with st.spinner("Prediction factuelle..."):
-        model_adapter.eval()
-        h_t = torch.tensor(h_obs_norm, dtype=torch.float32).unsqueeze(0)
-        s_t = torch.tensor(s_obs_norm, dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
-            y_factual_norm = model_adapter(h_t.to(device), s_t.to(device)).squeeze(0).cpu().numpy()
-
-    y_factual_raw = _denormalize_gwl(y_factual_norm, scaler, target_col)
-
-    # ---- Run CF methods ----
-    methods_to_run = {
-        "PhysCF (gradient)": "physcf_gradient",
-        "PhysCF (Optuna)": "physcf_optuna",
-        "COMET-Hydro": "comet_hydro",
-    }
-
-    if cf_method == "Comparer les 3":
-        selected_methods = methods_to_run
-    else:
-        selected_methods = {cf_method: methods_to_run[cf_method]}
+    # Run methods
+    methods_to_run = {}
+    if use_physcf:
+        methods_to_run["PhysCF (gradient)"] = "physcf_gradient"
+    if use_optuna:
+        methods_to_run["PhysCF (Optuna)"] = "physcf_optuna"
+    if use_comet:
+        methods_to_run["COMET-Hydro"] = "comet_hydro"
 
     results_dict = {}
     progress = st.progress(0)
-    status = st.empty()
+    status_text = st.empty()
 
-    for i, (display_name, method_key) in enumerate(selected_methods.items()):
-        status.text(f"Optimisation {display_name}...")
-        progress.progress((i) / len(selected_methods))
+    for i, (display_name, method_key) in enumerate(methods_to_run.items()):
+        status_text.text(f"Optimisation {display_name}...")
+        progress.progress(i / len(methods_to_run))
 
         try:
-            result = _run_single_cf(
-                method_key, h_obs_norm, s_obs_raw, s_obs_norm,
-                model_adapter, (lower_norm, upper_norm), scaler,
-                months_arr, L, H, lambda_prox, n_iter, lr, device,
-            )
+            h_t = torch.tensor(h_obs_norm, dtype=torch.float32)
+            months_t = torch.tensor(months_arr, dtype=torch.long)
+
+            if method_key == "physcf_gradient":
+                result = generate_counterfactual(
+                    h_t, torch.tensor(s_obs_phys, dtype=torch.float32),
+                    model_adapter, (lower_norm, upper_norm),
+                    physcf_scaler, months_t,
+                    lambda_prox=lambda_prox, n_iter=n_iter, lr=lr_cf, device=device,
+                )
+            elif method_key == "physcf_optuna":
+                result = generate_counterfactual_optuna(
+                    h_t, torch.tensor(s_obs_phys, dtype=torch.float32),
+                    model_adapter, (lower_norm, upper_norm),
+                    physcf_scaler, months_t,
+                    lambda_prox=lambda_prox, n_trials=n_iter, device=device,
+                )
+            elif method_key == "comet_hydro":
+                result = generate_counterfactual_comet(
+                    h_t, torch.tensor(s_obs_norm, dtype=torch.float32),
+                    model_adapter, (lower_norm, upper_norm),
+                    physcf_scaler, n_iter=n_iter, lr=lr_cf, device=device,
+                )
+
             results_dict[display_name] = result
         except Exception as e:
             st.error(f"Erreur {display_name}: {e}")
             st.code(traceback.format_exc())
 
     progress.progress(1.0)
-    status.text("Terminee!")
+    status_text.text("Terminee!")
+    st.session_state["cf_results_latest"] = results_dict
 
     if not results_dict:
-        st.error("Aucune methode n'a converge.")
+        st.error("Aucune methode n'a reussi.")
         st.stop()
 
-    # ============================================
-    # DISPLAY RESULTS
-    # ============================================
+    # ====================================
+    # SECTION 4: Display results
+    # ====================================
 
-    st.subheader("Resultats")
+    st.markdown("---")
+    st.subheader("4. Resultats contrefactuels")
 
-    # ---- Metrics table ----
-    metrics_df = _make_metrics_table(results_dict, (lower_norm, upper_norm))
-    if not metrics_df.empty:
-        st.dataframe(metrics_df, use_container_width=True)
+    # Metrics table
+    rows = []
+    for mn, res in results_dict.items():
+        row = {"Methode": mn}
+        y_cf = res.get("y_cf")
+        if y_cf is not None:
+            row["Validite"] = f"{validity_ratio(y_cf, lower_norm, upper_norm):.2%}"
+        if "theta_star" in res:
+            row["Proximite"] = f"{proximity_theta(res['theta_star']):.4f}"
+            row["CC residuel"] = f"{cc_compliance(res['theta_star']):.6f}"
+        row["Converge"] = "Oui" if res.get("converged") else "Non"
+        row["Temps"] = f"{res.get('wall_clock_s', 0):.1f}s"
+        row["Params"] = param_count(res.get("method", mn))
+        rows.append(row)
 
-    # ---- Factual vs CF plots ----
-    for display_name, result in results_dict.items():
-        y_cf_norm = result["y_cf"].numpy() if hasattr(result["y_cf"], "numpy") else result["y_cf"]
-        y_cf_raw = _denormalize_gwl(y_cf_norm, scaler, target_col)
+    if rows:
+        st.dataframe(pd.DataFrame(rows).set_index("Methode"), use_container_width=True)
 
-        fig = _plot_factual_vs_cf(
-            dates_lookback, dates_horizon,
-            h_obs_raw, y_factual_raw, y_cf_raw,
-            (lower_raw_arr, upper_raw_arr),
-            target_col, display_name,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    # CF overlay chart
+    fig_cf = go.Figure()
 
-    # ---- Stress comparison (for PhysCF methods) ----
-    for display_name, result in results_dict.items():
-        if "s_cf_phys" in result:
-            s_cf_phys = result["s_cf_phys"].numpy() if hasattr(result["s_cf_phys"], "numpy") else result["s_cf_phys"]
-            fig_stress = _plot_stress_comparison(
-                dates_lookback, s_obs_raw, s_cf_phys, covariate_cols
-            )
-            st.plotly_chart(fig_stress, use_container_width=True)
-            break  # Only show once for PhysCF
+    gt_window = test_raw_values[start_idx: start_idx + H_model]
+    gt_dates = test_dates[start_idx: start_idx + H_model]
 
-    # ---- Theta* table ----
-    theta_df = _make_theta_table(results_dict)
-    if not theta_df.empty:
-        st.subheader("Parametres theta* (interpretables)")
-        st.dataframe(theta_df, use_container_width=True)
+    fig_cf.add_trace(go.Scatter(
+        x=gt_dates, y=gt_window,
+        mode="lines", name="Ground Truth",
+        line=dict(color="#2E86AB", width=2),
+    ))
 
-        # Interpretation
-        for method_name, result in results_dict.items():
-            if "theta_star" not in result:
+    if cached and cached.get("prediction") is not None:
+        pred_ts = cached["prediction"]
+        fig_cf.add_trace(go.Scatter(
+            x=pred_ts.time_index, y=pred_ts.values().flatten(),
+            mode="lines", name="Prediction factuelle",
+            line=dict(color="#E91E63", width=2, dash="dot"),
+        ))
+
+    # Target IPS band
+    ips_color = IPS_COLORS[ips_to_key]
+    r, g, b = int(ips_color[1:3], 16), int(ips_color[3:5], 16), int(ips_color[5:7], 16)
+    fig_cf.add_trace(go.Scatter(
+        x=gt_dates, y=lower_raw_arr[:len(gt_dates)],
+        mode="lines", name=f"Borne inf ({ips_to})",
+        line=dict(color=ips_color, width=1, dash="dot"),
+    ))
+    fig_cf.add_trace(go.Scatter(
+        x=gt_dates, y=upper_raw_arr[:len(gt_dates)],
+        mode="lines", name=f"Borne sup ({ips_to})",
+        line=dict(color=ips_color, width=1, dash="dot"),
+        fill="tonexty", fillcolor=f"rgba({r},{g},{b},0.1)",
+    ))
+
+    # CF curves
+    cf_colors = {"PhysCF (gradient)": "#FF6B35", "PhysCF (Optuna)": "#9B59B6", "COMET-Hydro": "#2ECC71"}
+    for mn, res in results_dict.items():
+        y_cf_norm = res["y_cf"].numpy() if hasattr(res["y_cf"], "numpy") else np.array(res["y_cf"])
+        y_cf_raw = y_cf_norm * sigma_target + mu_target
+        fig_cf.add_trace(go.Scatter(
+            x=gt_dates[:len(y_cf_raw)], y=y_cf_raw,
+            mode="lines+markers", name=f"CF: {mn}",
+            line=dict(color=cf_colors.get(mn, "#888"), width=2, dash="dash"),
+            marker=dict(size=3),
+        ))
+
+    fig_cf.update_layout(
+        title=f"Contrefactuel: {ips_from} -> {ips_to}",
+        xaxis_title="Date", yaxis_title=f"{target_col} (raw)",
+        height=450, hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    st.plotly_chart(fig_cf, use_container_width=True)
+
+    # Theta* table
+    theta_rows = []
+    for mn, res in results_dict.items():
+        if "theta_star" in res:
+            theta_rows.append({"Methode": mn, **res["theta_star"]})
+    if theta_rows:
+        st.subheader("5. Parametres theta* (scenarios climatiques)")
+        st.dataframe(pd.DataFrame(theta_rows).set_index("Methode").round(3), use_container_width=True)
+
+        for mn, res in results_dict.items():
+            if "theta_star" not in res:
                 continue
-            theta = result["theta_star"]
-            st.markdown(f"**{method_name}:**")
+            theta = res["theta_star"]
+            st.markdown(f"**{mn}** - Scenario pour passer en *{ips_to}*:")
             parts = []
             for s in ["DJF", "MAM", "JJA", "SON"]:
                 k = f"s_P_{s}"
                 if k in theta:
                     v = theta[k]
                     if v > 1.05:
-                        parts.append(f"  - Precipitation {s}: **+{(v - 1) * 100:.0f}%**")
+                        parts.append(f"  - Precipitation {s}: **+{(v-1)*100:.0f}%**")
                     elif v < 0.95:
-                        parts.append(f"  - Precipitation {s}: **{(v - 1) * 100:.0f}%**")
+                        parts.append(f"  - Precipitation {s}: **{(v-1)*100:.0f}%**")
             if "delta_T" in theta and abs(theta["delta_T"]) > 0.1:
                 parts.append(f"  - Temperature: **{theta['delta_T']:+.1f} C**")
             if "delta_s" in theta and abs(theta["delta_s"]) > 1:
                 parts.append(f"  - Decalage temporel: **{theta['delta_s']:+.0f} jours**")
-            if parts:
-                st.markdown("\n".join(parts))
-            else:
-                st.markdown("  - Perturbations negligeables (proche de l'identite)")
+            st.markdown("\n".join(parts) if parts else "  - Perturbations negligeables")
 
-    # ---- Loss curves ----
-    fig_loss = _plot_loss_curves(results_dict)
-    st.plotly_chart(fig_loss, use_container_width=True)
+    # Stress comparison
+    for mn, res in results_dict.items():
+        if "s_cf_phys" not in res:
+            continue
+        s_cf_phys = res["s_cf_phys"].numpy() if hasattr(res["s_cf_phys"], "numpy") else res["s_cf_phys"]
 
-    # ---- Radar chart for PhysCF methods ----
-    physcf_results = {k: v for k, v in results_dict.items() if "theta_star" in v}
-    if len(physcf_results) > 0:
-        fig_radar = go.Figure()
-        labels = ["P DJF", "P MAM", "P JJA", "P SON", "dT (norm)", "ds (norm)"]
+        st.subheader("6. Comparaison des stresses climatiques")
+        n_cov = min(len(covariate_cols), s_obs_phys.shape[-1])
+        fig_s = make_subplots(rows=n_cov, cols=1, shared_xaxes=True,
+                              subplot_titles=covariate_cols[:n_cov])
+        lb_dates = lookback_df.index
+        colors_s = ["#2E86AB", "#FF8C00", "#9B59B6"]
+        for j in range(n_cov):
+            fig_s.add_trace(go.Scatter(
+                x=lb_dates, y=s_obs_phys[:, j], name=f"{covariate_cols[j]} (obs)",
+                line=dict(color=colors_s[j%3], width=1),
+                showlegend=(j==0), legendgroup="obs",
+            ), row=j+1, col=1)
+            fig_s.add_trace(go.Scatter(
+                x=lb_dates, y=s_cf_phys[:, j], name=f"{covariate_cols[j]} (CF)",
+                line=dict(color=colors_s[j%3], width=2, dash="dash"),
+                showlegend=(j==0), legendgroup="cf",
+            ), row=j+1, col=1)
+        fig_s.update_layout(title=f"Stresses ({mn})", height=150*n_cov+100)
+        st.plotly_chart(fig_s, use_container_width=True)
+        break
 
-        for method_name, result in physcf_results.items():
-            theta = result["theta_star"]
-            values = [
-                theta.get("s_P_DJF", 1.0),
-                theta.get("s_P_MAM", 1.0),
-                theta.get("s_P_JJA", 1.0),
-                theta.get("s_P_SON", 1.0),
-                theta.get("delta_T", 0.0) / 5.0 + 1.0,
-                theta.get("delta_s", 0.0) / 30.0 + 1.0,
-            ]
-            fig_radar.add_trace(go.Scatterpolar(
-                r=values + [values[0]],
-                theta=labels + [labels[0]],
-                name=method_name,
-                fill="toself",
-                opacity=0.4,
-            ))
+    # Loss curves
+    has_loss = any("loss_history" in r for r in results_dict.values())
+    if has_loss:
+        st.subheader("7. Convergence")
+        fig_l = go.Figure()
+        for mn, res in results_dict.items():
+            c = cf_colors.get(mn, "#888")
+            if "loss_history" in res:
+                fig_l.add_trace(go.Scatter(y=res["loss_history"], name=f"{mn} (total)",
+                                           mode="lines", line=dict(color=c)))
+            if "target_history" in res:
+                fig_l.add_trace(go.Scatter(y=res["target_history"], name=f"{mn} (cible)",
+                                           mode="lines", line=dict(color=c, dash="dash")))
+        fig_l.update_layout(xaxis_title="Iteration", yaxis_title="Loss",
+                            yaxis_type="log", height=350)
+        st.plotly_chart(fig_l, use_container_width=True)
 
-        fig_radar.update_layout(
-            polar=dict(radialaxis=dict(visible=True, range=[0.0, 2.0])),
-            title="Profil des perturbations theta*",
-            showlegend=True,
-            height=450,
-        )
-        st.plotly_chart(fig_radar, use_container_width=True)
-
-    # ---- Save results to session ----
-    st.session_state["cf_results"] = results_dict
-    st.success(f"Analyse terminee! {len(results_dict)} methode(s) executee(s).")
+    st.success(f"Analyse terminee! {len(results_dict)} methode(s), scenario: {ips_from} -> {ips_to}")
