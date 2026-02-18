@@ -1,14 +1,18 @@
 """Counterfactual Analysis Page - PhysCF Integration.
 
 Fully autonomous: loads model, data, and scalers from MLflow artifacts.
+IPS is computed on RAW physical values (m NGF) using real scaler params.
+
 Workflow:
 1. Load trained model from MLflow registry
-2. Display test set with ground truth + sliding window predictions
-3. Show IPS classification bands with colored levels
-4. Indicate per-window whether prediction matches ground truth IPS class
-5. Allow user to select target IPS class change (e.g., normal -> dry)
-6. Run 1, 2 or 3 CF methods (checkboxes) and overlay results
-7. Display comparative metrics tables and scenario interpretation
+2. Extract real mu/sigma from Darts scalers (inverse_transform)
+3. Denormalize data to physical units (m NGF) for IPS computation
+4. Display test set with ground truth + sliding window predictions
+5. Show IPS classification bands with colored levels
+6. Indicate per-window whether prediction matches ground truth IPS class
+7. Allow user to select target IPS class change (e.g., normal -> dry)
+8. Run 1, 2 or 3 CF methods (checkboxes) and overlay results
+9. Display comparative metrics tables and scenario interpretation
 """
 
 import sys
@@ -32,7 +36,6 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 from dashboard.utils.model_registry import get_registry
 from dashboard.utils.forecasting import generate_single_window_forecast
-from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
 # PhysCF counterfactual module
 from dashboard.utils.counterfactual import (
@@ -41,15 +44,21 @@ from dashboard.utils.counterfactual import (
     generate_counterfactual_optuna,
     generate_counterfactual_comet,
     IPS_CLASSES,
+    IPS_ORDER,
+    BRGM_MIN_YEARS,
+    AQUIFER_IPS_WINDOW,
     compute_ips_reference,
+    validate_ips_data,
+    get_aquifer_ips_info,
+    daily_to_monthly_mean,
     ips_class_to_gwl_bounds,
+    extract_scaler_params,
     validity_ratio,
     proximity_theta,
     cc_compliance,
     param_count,
 )
 from dashboard.utils.counterfactual.ips import (
-    IPS_ORDER,
     gwl_to_ips_class,
     gwl_to_ips_zscore,
 )
@@ -99,7 +108,7 @@ if not models_list:
 
 @st.cache_resource(show_spinner="Chargement du modele et des donnees depuis MLflow...")
 def _load_model_and_data(run_id: str):
-    """Load model, scalers, data, config from MLflow artifacts. Cached."""
+    """Load model, scalers, data, config, and IPS reference from MLflow artifacts."""
     reg = get_registry(CHECKPOINTS_DIR.parent)
     entry = None
     for m in reg.list_all_models():
@@ -119,7 +128,20 @@ def _load_model_and_data(run_id: str):
         if df_split is not None:
             data_dict[split] = df_split
 
-    return model, scalers, data_dict, model_config, entry
+    # Try to load pre-computed IPS reference stats
+    import json as _json
+    ips_reference = None
+    try:
+        local_path = mlflow.artifacts.download_artifacts(
+            run_id=run_id,
+            artifact_path="model/ips_reference.json"
+        )
+        with open(local_path, 'r') as f:
+            ips_reference = _json.load(f)
+    except Exception:
+        pass  # IPS reference not available (older model), will compute on-the-fly
+
+    return model, scalers, data_dict, model_config, entry, ips_reference
 
 
 def _detect_columns(model_config, data_dict):
@@ -161,7 +183,7 @@ def _detect_columns(model_config, data_dict):
 
 
 def _build_full_df(data_dict, target_col, covariate_cols):
-    """Merge train/val/test + covariates into a single DataFrame."""
+    """Merge train/val/test + covariates into a single DataFrame (NORMALIZED)."""
     parts = []
     for split in ["train", "val", "test"]:
         if split in data_dict and target_col in data_dict[split].columns:
@@ -189,20 +211,33 @@ def _build_full_df(data_dict, target_col, covariate_cols):
         return df_target, []
 
 
-def _build_scaler_dict(data_dict, target_col, covariate_cols):
-    """Build a simple z-score scaler dict from training data for PhysCF."""
+def _extract_real_scaler_params(scalers_dict):
+    """Extract real mu/sigma from Darts scalers.
+
+    Returns (mu_target, sigma_target, cov_params_dict) or (None, None, {}).
+    cov_params_dict: {col_name: {'mean': mu, 'std': sigma}}
+    """
+    if not scalers_dict:
+        return None, None, {}
+    return extract_scaler_params(scalers_dict)
+
+
+def _build_physcf_scaler(mu_target, sigma_target, target_col, cov_params, covariate_cols):
+    """Build the PhysCF scaler dict from real physical parameters.
+
+    This scaler maps column names to {mean, std} in physical units.
+    PhysCF uses it for Clausius-Clapeyron constraint and normalization.
+    """
     scaler = {}
-    if "train" in data_dict:
-        df_t = data_dict["train"]
-        if target_col in df_t.columns:
-            scaler[target_col] = {"mean": float(df_t[target_col].mean()),
-                                  "std": float(df_t[target_col].std())}
-    if "train_cov" in data_dict:
-        df_c = data_dict["train_cov"]
-        for col in covariate_cols:
-            if col in df_c.columns:
-                scaler[col] = {"mean": float(df_c[col].mean()),
-                               "std": float(df_c[col].std())}
+
+    if mu_target is not None and sigma_target is not None:
+        scaler[target_col] = {"mean": mu_target, "std": sigma_target}
+
+    # Map covariate params
+    for col in covariate_cols:
+        if col in cov_params:
+            scaler[col] = cov_params[col]
+
     # Map generic names for PhysCF perturbation layer
     for c in covariate_cols:
         cl = c.lower()
@@ -230,7 +265,7 @@ selected_model_entry = model_display[selected_model_name]
 
 # Load model + data
 try:
-    darts_model, scalers, data_dict, model_config, model_entry = \
+    darts_model, scalers, data_dict, model_config, model_entry, ips_reference_cached = \
         _load_model_and_data(selected_model_entry.run_id)
 except Exception as e:
     st.error(f"Erreur chargement modele: {e}")
@@ -247,17 +282,138 @@ if df_full is None or len(df_full) == 0:
 L_model = getattr(darts_model, "input_chunk_length", 365)
 H_model = getattr(darts_model, "output_chunk_length", 90)
 
-# Build PhysCF scaler
-physcf_scaler = _build_scaler_dict(data_dict, target_col, covariate_cols)
 
-# ---- IPS reference ----
-target_scaler = physcf_scaler.get(target_col, {"mean": 0, "std": 1})
-mu_target = target_scaler["mean"]
-sigma_target = target_scaler["std"]
+# ====================
+# CRITICAL: Extract real scaler parameters from Darts scalers
+# ====================
 
-gwl_train_norm = data_dict["train"][target_col] if "train" in data_dict else df_full[target_col]
+mu_target, sigma_target, cov_params = _extract_real_scaler_params(scalers)
+
+if mu_target is None or sigma_target is None:
+    st.warning(
+        "Impossible d'extraire les parametres de normalisation depuis les scalers Darts. "
+        "L'IPS sera calcule sur les donnees normalisees (z-scores), ce qui est INCORRECT. "
+        "Verifiez que le modele a ete entraine avec des scalers."
+    )
+    # Fallback: compute from normalized data (INCORRECT but avoids crash)
+    if "train" in data_dict and target_col in data_dict["train"].columns:
+        mu_target = float(data_dict["train"][target_col].mean())
+        sigma_target = float(data_dict["train"][target_col].std())
+    else:
+        mu_target = 0.0
+        sigma_target = 1.0
+
+# Build PhysCF scaler with REAL physical units
+physcf_scaler = _build_physcf_scaler(mu_target, sigma_target, target_col, cov_params, covariate_cols)
+
+
+# ====================
+# IPS Reference Stats (on RAW physical values, monthly aggregation)
+# ====================
+
+# Denormalize ALL available data (train+val+test) to physical units for IPS reference
+# BRGM recommends using the longest possible series for reference computation
+gwl_all_norm = df_full[target_col]
+gwl_all_raw = gwl_all_norm * sigma_target + mu_target
+
+# Also get train-only for reference period
+gwl_train_norm = data_dict["train"][target_col] if "train" in data_dict else gwl_all_norm
 gwl_train_raw = gwl_train_norm * sigma_target + mu_target
-ref_stats = compute_ips_reference(gwl_train_raw)
+
+# Try to detect aquifer type from model metadata
+aquifer_type = None
+if isinstance(model_config, dict):
+    aquifer_type = model_config.get("aquifer_type")
+if not aquifer_type and hasattr(model_entry, "hyperparams"):
+    aquifer_type = model_entry.hyperparams.get("aquifer_type")
+
+# Sidebar: aquifer type selection (user can override)
+st.sidebar.markdown("---")
+st.sidebar.header("5. Type de nappe")
+aquifer_options = ["auto", "chalk", "limestone", "karst", "alluvial", "sand", "volcanic"]
+aquifer_labels = {
+    "auto": "Auto-detect",
+    "chalk": "Craie (inertielle)",
+    "limestone": "Calcaire (inertielle)",
+    "karst": "Karst (reactive)",
+    "alluvial": "Alluviale (reactive)",
+    "sand": "Sable (reactive)",
+    "volcanic": "Volcanique (inertielle)",
+}
+selected_aquifer = st.sidebar.selectbox(
+    "Type d'aquifere",
+    options=aquifer_options,
+    format_func=lambda x: aquifer_labels.get(x, x),
+    index=aquifer_options.index(aquifer_type) if (aquifer_type and aquifer_type in aquifer_options) else 0,
+    help="Influence les recommandations IPS (fenetre d'aggregation)"
+)
+if selected_aquifer == "auto":
+    selected_aquifer = aquifer_type  # May be None
+
+# Validate data for IPS (with aquifer info)
+ips_validation = validate_ips_data(gwl_all_raw, aquifer_type=selected_aquifer)
+
+# Show IPS data quality and methodology
+with st.expander("Qualite des donnees et methodologie IPS (BRGM)", expanded=not ips_validation["valid"]):
+    st.markdown("""
+    **Methodologie IPS** (ref: Seguin 2014, BRGM/RP-64147-FR):
+    - L'IPS est un indicateur **mensuel**: les donnees journalieres sont d'abord
+      agregees en **moyennes mensuelles** (min 15 valeurs/mois)
+    - Pour chaque mois calendaire (1-12), on calcule la moyenne et l'ecart-type
+      sur la periode de reference (idealement 1981-2010, 30 ans)
+    - Le z-score est: `z = (gwl_mois - mu_mois) / sigma_mois`
+    - Classification en 7 classes (Tres bas a Tres haut) selon les seuils z
+    """)
+
+    col_v1, col_v2, col_v3, col_v4 = st.columns(4)
+    with col_v1:
+        color = "normal" if ips_validation["n_years"] >= BRGM_MIN_YEARS else "inverse"
+        st.metric("Annees de donnees", ips_validation["n_years"],
+                  delta=f"min BRGM: {BRGM_MIN_YEARS}",
+                  delta_color=color)
+    with col_v2:
+        st.metric("Mois couverts", f"{ips_validation['n_months_covered']}/12")
+    with col_v3:
+        st.metric("Moyennes mensuelles", ips_validation.get("n_monthly_values", "?"))
+    with col_v4:
+        st.metric("mu (m NGF)", f"{mu_target:.2f}")
+        st.caption(f"sigma = {sigma_target:.4f} m")
+
+    # Aquifer-specific info
+    if selected_aquifer and ips_validation.get("aquifer_info"):
+        aq_info = ips_validation["aquifer_info"]
+        cat = aq_info.get("category", "?")
+        win = aq_info.get("recommended_window", 1)
+        st.info(f"**Nappe {cat}** ({selected_aquifer}) - IPS-{win} recommande")
+
+    for w in ips_validation["warnings"]:
+        st.warning(w)
+    for e in ips_validation["errors"]:
+        st.error(e)
+
+    if not ips_validation["valid"]:
+        st.error("L'IPS ne peut pas etre calcule de maniere fiable avec ces donnees.")
+        st.stop()
+
+# Use pre-computed IPS reference from MLflow if available, otherwise compute on-the-fly
+if ips_reference_cached and "ref_stats" in ips_reference_cached:
+    ref_stats = {int(k): tuple(v) for k, v in ips_reference_cached["ref_stats"].items()}
+    st.caption("IPS reference chargee depuis les artefacts MLflow (pre-calculee a l'entrainement)")
+
+    # Also use cached scaler params if they are more reliable
+    if ips_reference_cached.get("mu_target") is not None:
+        cached_mu = ips_reference_cached["mu_target"]
+        cached_sigma = ips_reference_cached["sigma_target"]
+        if abs(cached_mu - mu_target) > 0.01 or abs(cached_sigma - sigma_target) > 0.01:
+            st.info(
+                f"Scalers caches: mu={cached_mu:.4f}, sigma={cached_sigma:.4f} "
+                f"(vs extraits: mu={mu_target:.4f}, sigma={sigma_target:.4f})"
+            )
+else:
+    # Compute on-the-fly (for older models without ips_reference.json)
+    ref_stats = compute_ips_reference(gwl_all_raw, aggregate_to_monthly=True)
+    st.caption("IPS reference calculee a la volee (modele entraine avant cette fonctionnalite)")
+
 
 # ---- Sidebar: scenario ----
 st.sidebar.markdown("---")
@@ -307,7 +463,7 @@ if "test" not in data_dict:
 test_df = data_dict["test"]
 test_len = len(test_df)
 
-# Raw values for display
+# Raw values for display (denormalized to m NGF)
 test_raw_values = test_df[target_col].values * sigma_target + mu_target
 test_dates = test_df.index
 
@@ -391,9 +547,8 @@ st.subheader("2. Classification IPS et qualite de la prediction")
 
 fig = go.Figure()
 
-# IPS colored bands
-# For each month in the test period, we could compute per-month bands,
-# but for simplicity use the test median month
+# IPS colored bands - use per-month stats for the median month of the test period
+# We show bands that vary month by month across the test timeline
 test_month_median = int(np.median(test_dates.month))
 for cls_name in IPS_ORDER:
     z_lo, z_hi = IPS_CLASSES[cls_name]
@@ -430,26 +585,28 @@ fig.add_vrect(
     annotation=dict(font_size=9),
 )
 
-# Ground truth (blue)
+# Ground truth (blue) - in m NGF
 fig.add_trace(go.Scatter(
     x=test_dates, y=test_raw_values,
-    mode="lines", name="Ground Truth",
+    mode="lines", name="Ground Truth (m NGF)",
     line=dict(color="#2E86AB", width=2),
 ))
 
-# Model prediction (pink)
+# Model prediction (pink) - denormalized to m NGF
 if cached and cached.get("prediction") is not None:
     pred_ts = cached["prediction"]
+    pred_values_norm = pred_ts.values().flatten()
+    pred_values_raw = pred_values_norm * sigma_target + mu_target
     fig.add_trace(go.Scatter(
-        x=pred_ts.time_index, y=pred_ts.values().flatten(),
-        mode="lines+markers", name="Prediction modele",
+        x=pred_ts.time_index, y=pred_values_raw,
+        mode="lines+markers", name="Prediction modele (m NGF)",
         line=dict(color="#E91E63", width=3),
         marker=dict(size=4),
     ))
 
 fig.update_layout(
-    title=f"{target_col} - Test set avec bandes IPS",
-    xaxis_title="Date", yaxis_title=f"{target_col} (raw)",
+    title=f"{target_col} - Test set avec bandes IPS (m NGF)",
+    xaxis_title="Date", yaxis_title=f"Niveau piezometrique (m NGF)",
     height=500, hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
 )
@@ -460,18 +617,33 @@ if cached and cached.get("prediction") is not None and cached.get("target") is n
     pred_ts = cached["prediction"]
     target_ts = cached["target"]
 
-    pred_mean_raw = float(np.mean(pred_ts.values().flatten()))
-    gt_mean_raw = float(np.mean(target_ts.values().flatten()))
+    # Denormalize to physical units for IPS
+    pred_values_raw = pred_ts.values().flatten() * sigma_target + mu_target
+    gt_values_raw = target_ts.values().flatten() * sigma_target + mu_target
+
+    pred_mean_raw = float(np.mean(pred_values_raw))
+    gt_mean_raw = float(np.mean(gt_values_raw))
 
     gt_month = int(pd.Timestamp(target_ts.time_index[len(target_ts) // 2]).month)
     gt_ips = gwl_to_ips_class(gt_mean_raw, gt_month, ref_stats)
     pred_ips = gwl_to_ips_class(pred_mean_raw, gt_month, ref_stats)
 
+    gt_zscore = gwl_to_ips_zscore(gt_mean_raw, gt_month, ref_stats)
+    pred_zscore = gwl_to_ips_zscore(pred_mean_raw, gt_month, ref_stats)
+
     col_gt, col_pred, col_match = st.columns(3)
     with col_gt:
-        st.metric("IPS Ground Truth", IPS_LABELS.get(gt_ips, gt_ips))
+        st.metric(
+            "IPS Ground Truth",
+            IPS_LABELS.get(gt_ips, gt_ips),
+            delta=f"z = {gt_zscore:+.2f} | {gt_mean_raw:.2f} m NGF",
+        )
     with col_pred:
-        st.metric("IPS Prediction", IPS_LABELS.get(pred_ips, pred_ips))
+        st.metric(
+            "IPS Prediction",
+            IPS_LABELS.get(pred_ips, pred_ips),
+            delta=f"z = {pred_zscore:+.2f} | {pred_mean_raw:.2f} m NGF",
+        )
     with col_match:
         match = gt_ips == pred_ips
         st.metric("Correspondance", "OUI" if match else "NON",
@@ -500,15 +672,15 @@ if not any([use_physcf, use_optuna, use_comet]):
 if st.button("Lancer la generation contrefactuelle", type="primary",
              use_container_width=True, disabled=not any([use_physcf, use_optuna, use_comet])):
 
-    # Extract window data
+    # Extract window data (NORMALIZED - as the model expects)
     lookback_df = df_full.iloc[context_start_loc: context_start_loc + L_model]
     horizon_df = df_full.iloc[context_start_loc + L_model: context_start_loc + L_model + H_model]
 
     h_obs_norm = lookback_df[target_col].values.astype(np.float32)
-    s_obs_norm = lookback_df[covariate_cols].values.astype(np.float32)
+    s_obs_norm = lookback_df[covariate_cols].values.astype(np.float32) if covariate_cols else np.zeros((L_model, 1), dtype=np.float32)
     months_arr = lookback_df.index.month.values.astype(np.int64)
 
-    # Denormalize stresses for PhysCF perturbation layer
+    # Denormalize stresses to physical units for PhysCF perturbation layer
     s_obs_phys = s_obs_norm.copy()
     for j, col in enumerate(covariate_cols):
         if col in physcf_scaler:
@@ -517,22 +689,41 @@ if st.button("Lancer la generation contrefactuelle", type="primary",
             if sigma_c > 0:
                 s_obs_phys[:, j] = s_obs_norm[:, j] * sigma_c + mu_c
 
-    # Target bounds
+    # Target bounds: convert IPS class to z-score bounds, then to NORMALIZED bounds
+    # The model predicts in normalized space, so bounds must be in normalized space too.
     z_min, z_max = IPS_CLASSES[ips_to_key]
     z_min_c = max(z_min, -5.0)
     z_max_c = min(z_max, 5.0)
-    lower_norm = torch.full((H_model,), z_min_c, dtype=torch.float32)
-    upper_norm = torch.full((H_model,), z_max_c, dtype=torch.float32)
 
-    # Raw bounds for display
+    # Convert IPS z-scores to normalized model space:
+    # IPS z-score: z_ips = (gwl_raw - mu_month) / sigma_month
+    # Model normalized: gwl_norm = (gwl_raw - mu_target) / sigma_target
+    # So: gwl_raw = mu_month + z_ips * sigma_month
+    # And: gwl_norm = (mu_month + z_ips * sigma_month - mu_target) / sigma_target
     horizon_months = horizon_df.index.month.values if len(horizon_df) >= H_model else np.full(H_model, 6)
+    lower_norm_arr = np.zeros(H_model, dtype=np.float32)
+    upper_norm_arr = np.zeros(H_model, dtype=np.float32)
     lower_raw_arr = np.zeros(H_model)
     upper_raw_arr = np.zeros(H_model)
+
     for t in range(min(H_model, len(horizon_months))):
         m = int(horizon_months[t])
         mu_m, sigma_m = ref_stats.get(m, (mu_target, sigma_target))
+
+        # Raw bounds (m NGF) for display
         lower_raw_arr[t] = mu_m + z_min_c * sigma_m if sigma_m > 0 else mu_m
         upper_raw_arr[t] = mu_m + z_max_c * sigma_m if sigma_m > 0 else mu_m
+
+        # Normalized bounds for the model
+        if sigma_target > 0:
+            lower_norm_arr[t] = (lower_raw_arr[t] - mu_target) / sigma_target
+            upper_norm_arr[t] = (upper_raw_arr[t] - mu_target) / sigma_target
+        else:
+            lower_norm_arr[t] = z_min_c
+            upper_norm_arr[t] = z_max_c
+
+    lower_norm = torch.tensor(lower_norm_arr, dtype=torch.float32)
+    upper_norm = torch.tensor(upper_norm_arr, dtype=torch.float32)
 
     # Model adapter
     try:
@@ -622,56 +813,57 @@ if st.button("Lancer la generation contrefactuelle", type="primary",
     if rows:
         st.dataframe(pd.DataFrame(rows).set_index("Methode"), use_container_width=True)
 
-    # CF overlay chart
+    # CF overlay chart - ALL IN m NGF
     fig_cf = go.Figure()
 
-    gt_window = test_raw_values[start_idx: start_idx + H_model]
+    gt_window_raw = test_raw_values[start_idx: start_idx + H_model]
     gt_dates = test_dates[start_idx: start_idx + H_model]
 
     fig_cf.add_trace(go.Scatter(
-        x=gt_dates, y=gt_window,
-        mode="lines", name="Ground Truth",
+        x=gt_dates, y=gt_window_raw,
+        mode="lines", name="Ground Truth (m NGF)",
         line=dict(color="#2E86AB", width=2),
     ))
 
     if cached and cached.get("prediction") is not None:
         pred_ts = cached["prediction"]
+        pred_raw = pred_ts.values().flatten() * sigma_target + mu_target
         fig_cf.add_trace(go.Scatter(
-            x=pred_ts.time_index, y=pred_ts.values().flatten(),
-            mode="lines", name="Prediction factuelle",
+            x=pred_ts.time_index, y=pred_raw,
+            mode="lines", name="Prediction factuelle (m NGF)",
             line=dict(color="#E91E63", width=2, dash="dot"),
         ))
 
-    # Target IPS band
+    # Target IPS band (raw m NGF)
     ips_color = IPS_COLORS[ips_to_key]
     r, g, b = int(ips_color[1:3], 16), int(ips_color[3:5], 16), int(ips_color[5:7], 16)
     fig_cf.add_trace(go.Scatter(
         x=gt_dates, y=lower_raw_arr[:len(gt_dates)],
-        mode="lines", name=f"Borne inf ({ips_to})",
+        mode="lines", name=f"Borne inf IPS ({ips_to})",
         line=dict(color=ips_color, width=1, dash="dot"),
     ))
     fig_cf.add_trace(go.Scatter(
         x=gt_dates, y=upper_raw_arr[:len(gt_dates)],
-        mode="lines", name=f"Borne sup ({ips_to})",
+        mode="lines", name=f"Borne sup IPS ({ips_to})",
         line=dict(color=ips_color, width=1, dash="dot"),
         fill="tonexty", fillcolor=f"rgba({r},{g},{b},0.1)",
     ))
 
-    # CF curves
+    # CF curves - denormalized to m NGF
     cf_colors = {"PhysCF (gradient)": "#FF6B35", "PhysCF (Optuna)": "#9B59B6", "COMET-Hydro": "#2ECC71"}
     for mn, res in results_dict.items():
         y_cf_norm = res["y_cf"].numpy() if hasattr(res["y_cf"], "numpy") else np.array(res["y_cf"])
         y_cf_raw = y_cf_norm * sigma_target + mu_target
         fig_cf.add_trace(go.Scatter(
             x=gt_dates[:len(y_cf_raw)], y=y_cf_raw,
-            mode="lines+markers", name=f"CF: {mn}",
+            mode="lines+markers", name=f"CF: {mn} (m NGF)",
             line=dict(color=cf_colors.get(mn, "#888"), width=2, dash="dash"),
             marker=dict(size=3),
         ))
 
     fig_cf.update_layout(
-        title=f"Contrefactuel: {ips_from} -> {ips_to}",
-        xaxis_title="Date", yaxis_title=f"{target_col} (raw)",
+        title=f"Contrefactuel: {ips_from} -> {ips_to} (m NGF)",
+        xaxis_title="Date", yaxis_title="Niveau piezometrique (m NGF)",
         height=450, hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )

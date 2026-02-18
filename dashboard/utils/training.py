@@ -894,7 +894,54 @@ def run_training_pipeline(
                 'type': 'global' if isinstance(train, list) else 'single'
             }
             custom_artifacts['model_config.json'] = config_dict
-            
+
+            # 7. Compute and save IPS reference stats (for Counterfactual Analysis page)
+            # IPS must be computed on RAW physical values (m NGF), not normalized.
+            # We use inverse_transform to recover raw training data.
+            try:
+                from dashboard.utils.counterfactual.ips import (
+                    compute_ips_reference,
+                    extract_scaler_params,
+                    ref_stats_to_json,
+                    validate_ips_data,
+                )
+                # Extract real scaler params
+                if target_preprocessor:
+                    _scalers_dict = {'target': target_preprocessor, 'covariates': cov_preprocessor}
+                    _mu, _sigma, _cov_params = extract_scaler_params(_scalers_dict)
+                    if _mu is not None and _sigma is not None:
+                        # Denormalize training target to raw values
+                        train_target_df = _to_df(train, _stations)
+                        target_var_name = column_mapping.get('target_var') if column_mapping else None
+                        if target_var_name and target_var_name in train_target_df.columns:
+                            gwl_norm = train_target_df[target_var_name]
+                        else:
+                            gwl_norm = train_target_df.iloc[:, 0]
+                        gwl_raw = gwl_norm * _sigma + _mu
+
+                        # Validate and compute IPS reference
+                        _validation = validate_ips_data(gwl_raw)
+                        if _validation["valid"]:
+                            _ref_stats = compute_ips_reference(gwl_raw, aggregate_to_monthly=True)
+                            ips_meta = {
+                                "ref_stats": {str(k): list(v) for k, v in _ref_stats.items()},
+                                "mu_target": _mu,
+                                "sigma_target": _sigma,
+                                "covariate_params": _cov_params,
+                                "n_years": _validation["n_years"],
+                                "n_monthly_values": _validation.get("n_monthly_values", 0),
+                                "validation": {
+                                    "valid": _validation["valid"],
+                                    "warnings": _validation["warnings"],
+                                },
+                            }
+                            custom_artifacts['ips_reference.json'] = ips_meta
+                            logger.info(f"IPS reference computed and saved ({_validation['n_years']} years)")
+                        else:
+                            logger.warning(f"IPS reference not computed: {_validation['errors']}")
+            except Exception as e:
+                logger.warning(f"Could not compute IPS reference stats: {e}")
+
             # Log Model + Artifacts (with model signature/info)
             # Robustness: ensure there's an active MLflow run before logging
             import mlflow
