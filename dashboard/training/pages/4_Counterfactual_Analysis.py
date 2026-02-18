@@ -55,6 +55,7 @@ from dashboard.utils.counterfactual import (
     validity_ratio,
     proximity_theta,
     cc_compliance,
+    cc_compliance_from_theta,
     param_count,
 )
 from dashboard.utils.counterfactual.ips import (
@@ -81,6 +82,12 @@ from dashboard.utils.counterfactual.viz import (
     compute_seasonal_summary,
     generate_cf_narrative,
     build_cf_export_df,
+)
+from dashboard.utils.counterfactual.pastas_validation import (
+    PASTAS_AVAILABLE,
+    fit_pastas_for_station,
+    build_pastas_series_from_data,
+    run_dual_validation_for_results,
 )
 
 # ---- Page Config ----
@@ -269,6 +276,23 @@ if df_full is None or len(df_full) == 0:
 L_model = getattr(darts_model, "input_chunk_length", 365)
 H_model = getattr(darts_model, "output_chunk_length", 90)
 
+# ---- Sidebar: prediction window slider (under model section) ----
+if "test" in data_dict:
+    _test_len_sidebar = len(data_dict["test"])
+    _valid_end_sidebar = _test_len_sidebar - H_model
+    if _valid_end_sidebar > 0:
+        st.sidebar.markdown("**Fenetre de prediction**")
+        start_idx = st.sidebar.slider(
+            f"Position sur le test ({H_model}j)",
+            min_value=0, max_value=_valid_end_sidebar,
+            value=min(_valid_end_sidebar // 2, _valid_end_sidebar),
+            help=f"Contexte: {L_model}j | Prediction: {H_model}j",
+        )
+    else:
+        start_idx = 0
+else:
+    start_idx = 0
+
 
 # ====================
 # CRITICAL: Extract real scaler parameters
@@ -305,7 +329,7 @@ if not aquifer_type and hasattr(model_entry, "hyperparams"):
 
 # ---- Sidebar: aquifer & IPS-N ----
 st.sidebar.markdown("---")
-st.sidebar.header("5. Type de nappe & IPS-N")
+st.sidebar.header("2. Type de nappe & IPS-N")
 aquifer_options = ["auto", "chalk", "limestone", "karst", "alluvial", "sand", "volcanic"]
 aquifer_labels_map = {
     "auto": "Auto-detect", "chalk": "Craie (inertielle)", "limestone": "Calcaire (inertielle)",
@@ -391,7 +415,7 @@ ref_stats = all_ref_stats[selected_ips_window]
 
 # ---- Sidebar: scenario IPS ----
 st.sidebar.markdown("---")
-st.sidebar.header("2. Scenario IPS")
+st.sidebar.header("3. Scenario IPS")
 
 # Preset scenarios
 selected_preset = st.sidebar.selectbox(
@@ -441,7 +465,7 @@ st.sidebar.markdown(
 
 # ---- Sidebar: methods ----
 st.sidebar.markdown("---")
-st.sidebar.header("3. Methodes CF")
+st.sidebar.header("4. Methodes CF")
 use_physcf = st.sidebar.checkbox("PhysCF (gradient)", value=True,
     help="Methode PhysCF par descente de gradient. 7 parametres physiques, rapide.")
 use_optuna = st.sidebar.checkbox("PhysCF (Optuna)", value=False,
@@ -451,7 +475,7 @@ use_comet = st.sidebar.checkbox("COMET-Hydro", value=False,
 
 # ---- Sidebar: hyperparams ----
 st.sidebar.markdown("---")
-st.sidebar.header("4. Hyperparametres")
+st.sidebar.header("5. Hyperparametres")
 lambda_prox = st.sidebar.slider("lambda_prox", 0.001, 2.0, 0.1, 0.01,
     help="Poids de la proximite. Plus eleve = perturbations plus petites mais CF potentiellement hors cible.")
 n_iter = st.sidebar.number_input("Iterations", 50, 2000, 500, 50,
@@ -461,6 +485,61 @@ lr_cf = st.sidebar.number_input("Learning rate", 0.001, 0.1, 0.02, 0.005, format
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 st.sidebar.caption(f"Device: **{device}** | L={L_model} H={H_model}")
+
+# ---- Sidebar: Pastas dual validation ----
+st.sidebar.markdown("---")
+st.sidebar.header("6. Validation Pastas")
+use_pastas_validation = st.sidebar.checkbox(
+    "Validation duale (TFT + Pastas TFN)",
+    value=False,
+    disabled=not PASTAS_AVAILABLE,
+    help=(
+        "Ajoute un modele Pastas TFN (Transfer Function Noise) "
+        "comme second modele independant. Valide les CF par accord "
+        "TFT-Pastas (RMSE_cf < gamma x RMSE_baseline). "
+        "Necessite pastas>=1.7."
+    ),
+)
+if use_pastas_validation and not PASTAS_AVAILABLE:
+    st.sidebar.warning("pastas n'est pas installe. `pip install pastas>=1.7`")
+    use_pastas_validation = False
+
+if use_pastas_validation:
+    gamma_pastas = st.sidebar.slider(
+        "gamma (tolerance)", 1.0, 3.0, 1.5, 0.1,
+        help="Multiplicateur sur le RMSE factuel baseline. Plus eleve = plus tolerant.",
+    )
+else:
+    gamma_pastas = 1.5
+
+
+# ---- Pastas model fitting (cached per station) ----
+@st.cache_resource(show_spinner="Calibration du modele Pastas (TFN)...")
+def _fit_pastas_cached(_run_id: str, _gwl_s, _precip_s, _evap_s, _train_end: str):
+    """Fit and cache Pastas model per run_id (= station/model combo)."""
+    return fit_pastas_for_station(_gwl_s, _precip_s, _evap_s, _train_end)
+
+
+pastas_model = None
+if use_pastas_validation:
+    try:
+        gwl_pastas, precip_pastas, evap_pastas, train_end_pastas = build_pastas_series_from_data(
+            data_dict, target_col, covariate_cols,
+            mu_target, sigma_target, physcf_scaler,
+        )
+        pastas_model = _fit_pastas_cached(
+            selected_model_entry.run_id,
+            gwl_pastas, precip_pastas, evap_pastas, train_end_pastas,
+        )
+        if pastas_model is None:
+            st.sidebar.warning("Echec calibration Pastas. Validation desactivee.")
+            use_pastas_validation = False
+        else:
+            params = pastas_model.get_response_params()
+            st.sidebar.success(f"Pastas calibre ({len(params)} params)")
+    except Exception as e:
+        st.sidebar.warning(f"Erreur Pastas: {e}")
+        use_pastas_validation = False
 
 
 # ====================
@@ -484,17 +563,16 @@ if valid_end <= 0:
     st.error(f"Test set trop court ({test_len}j) pour H={H_model}.")
     st.stop()
 
-start_idx = st.slider(
-    f"Fenetre glissante sur le test ({H_model}j de prediction)",
-    min_value=0, max_value=valid_end,
-    value=min(valid_end // 2, valid_end),
-    help=f"Contexte: {L_model}j | Prediction: {H_model}j",
-)
-
 window_pred_start = test_dates[start_idx]
 window_pred_end = test_dates[min(start_idx + H_model - 1, test_len - 1)]
 
-full_pred_loc = df_full.index.get_loc(window_pred_start)
+try:
+    full_pred_loc = df_full.index.get_loc(window_pred_start)
+except KeyError:
+    full_pred_loc = df_full.index.searchsorted(window_pred_start)
+    if full_pred_loc >= len(df_full):
+        st.error(f"Date {window_pred_start} introuvable dans les donnees.")
+        st.stop()
 if isinstance(full_pred_loc, slice):
     full_pred_loc = full_pred_loc.start
 context_start_loc = max(0, full_pred_loc - L_model)
@@ -575,7 +653,7 @@ fig.add_vrect(x0=window_pred_start, x1=window_pred_end,
     annotation=dict(font_size=9))
 
 fig.add_trace(go.Scatter(x=test_dates, y=test_raw_values,
-    mode="lines", name="Ground Truth (m NGF)", line=dict(color="#2E86AB", width=2)))
+    mode="lines", name="Verite terrain (m NGF)", line=dict(color="#2E86AB", width=2)))
 
 if cached and cached.get("prediction") is not None:
     pred_ts = cached["prediction"]
@@ -607,7 +685,7 @@ if cached and cached.get("prediction") is not None and cached.get("target") is n
 
     col_gt, col_pred, col_match = st.columns(3)
     with col_gt:
-        st.metric("IPS Ground Truth", IPS_LABELS.get(gt_ips, gt_ips),
+        st.metric("IPS Verite terrain", IPS_LABELS.get(gt_ips, gt_ips),
                   delta=f"z = {gt_zscore:+.2f} | {gt_mean_raw:.2f} m NGF")
     with col_pred:
         st.metric("IPS Prediction", IPS_LABELS.get(pred_ips, pred_ips),
@@ -718,7 +796,7 @@ with st.expander("Contexte climatique et parametres PhysCF", expanded=False):
 
 # ---- CF Generation button ----
 if not any([use_physcf, use_optuna, use_comet]):
-    st.info("Cochez au moins une methode CF dans la sidebar (section 3).")
+    st.info("Cochez au moins une methode CF dans la sidebar (section 4).")
 
 if st.button("Lancer la generation contrefactuelle", type="primary",
              use_container_width=True, disabled=not any([use_physcf, use_optuna, use_comet])):
@@ -800,16 +878,57 @@ if st.button("Lancer la generation contrefactuelle", type="primary",
         except Exception as e:
             st.error(f"Erreur {display_name}: {e}")
             st.code(traceback.format_exc())
+            if "dtype" in str(e).lower() or "float" in str(e).lower():
+                st.info("Essayez de re-entrainer le modele ou verifiez la compatibilite des types de donnees.")
+            elif "shape" in str(e).lower() or "dimension" in str(e).lower():
+                st.info("Verifiez que le modele a ete entraine avec les memes covariables.")
+            elif "memory" in str(e).lower() or "cuda" in str(e).lower():
+                st.info("Essayez de reduire le nombre d'iterations ou de passer en mode CPU.")
 
     progress.progress(1.0)
     status_container.empty()
     progress.empty()
 
     total_time = sum(r.get("wall_clock_s", 0) for r in results_dict.values())
-    st.success(f"Analyse terminee en {total_time:.1f}s | {len(results_dict)} methode(s) | Scenario: {ips_from} -> {ips_to}")
+
+    # ---- Pastas dual validation ----
+    pastas_validation_results = {}
+    if use_pastas_validation and pastas_model is not None and results_dict:
+        with st.spinner("Validation Pastas (dual model)..."):
+            try:
+                # Get factual TFT prediction (denormalized)
+                _cached_pred = st.session_state.get(pred_cache_key)
+                if _cached_pred and _cached_pred.get("prediction") is not None:
+                    _pred_vals = _cached_pred["prediction"].values().flatten()
+                    _y_factual_tft_raw = _pred_vals * sigma_target + mu_target
+                else:
+                    _y_factual_tft_raw = test_raw_values[start_idx: start_idx + H_model]
+
+                pastas_validation_results = run_dual_validation_for_results(
+                    results_dict=results_dict,
+                    pastas_model=pastas_model,
+                    lookback_dates=lookback_df.index,
+                    y_factual_tft_raw=_y_factual_tft_raw,
+                    horizon_start=str(window_pred_start.date()),
+                    horizon_end=str(window_pred_end.date()),
+                    mu_target=mu_target,
+                    sigma_target=sigma_target,
+                    gamma=gamma_pastas,
+                )
+                n_accepted = sum(1 for v in pastas_validation_results.values() if v.get("accepted"))
+                n_total = len(pastas_validation_results)
+                total_time += 0.1  # negligible overhead
+            except Exception as e:
+                st.warning(f"Erreur validation Pastas: {e}")
+
+    pastas_msg = ""
+    if pastas_validation_results:
+        pastas_msg = f" | Pastas: {n_accepted}/{n_total} accepte(s)"
+    st.success(f"Analyse terminee en {total_time:.1f}s | {len(results_dict)} methode(s) | Scenario: {ips_from} -> {ips_to}{pastas_msg}")
 
     # Store in session state
     st.session_state["cf_results_latest"] = results_dict
+    st.session_state["cf_pastas_validation"] = pastas_validation_results
     st.session_state["cf_context_latest"] = {
         "lookback_df": lookback_df,
         "s_obs_phys": s_obs_phys,
@@ -870,12 +989,18 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
                 row["Validite"] = f"{val:.0%}"
             if "theta_star" in res:
                 prox = proximity_theta(res["theta_star"])
-                cc = cc_compliance(res["theta_star"])
+                cc = cc_compliance_from_theta(res["theta_star"])
                 row["Proximite"] = f"{prox:.4f}"
                 row["CC residuel"] = f"{cc:.6f}"
             row["Converge"] = "Oui" if res.get("converged") else "Non"
             row["Temps"] = f"{res.get('wall_clock_s', 0):.1f}s"
             row["Params"] = param_count(res.get("method_key", mn), L_model)
+            # Pastas validation columns
+            pv = st.session_state.get("cf_pastas_validation", {}).get(mn)
+            if pv:
+                row["Pastas RMSE"] = f"{pv['rmse_cf']:.3f}"
+                row["Pastas Seuil"] = f"{pv['epsilon']:.3f}"
+                row["Pastas"] = "Accepte" if pv["accepted"] else "Rejete"
             rows.append(row)
 
         if rows:
@@ -885,7 +1010,7 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
         st.markdown("#### Indicateurs de plausibilite physique")
         for mn, res in results_dict.items():
             st.markdown(f"**{mn}**")
-            ind_cols = st.columns(5)
+            ind_cols = st.columns(6)
             y_cf = res.get("y_cf")
             if y_cf is not None and _lower_norm is not None:
                 val = validity_ratio(y_cf, _lower_norm, _upper_norm)
@@ -895,7 +1020,7 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
                               delta_color="normal" if val >= 0.95 else "inverse")
             if "theta_star" in res:
                 prox = proximity_theta(res["theta_star"])
-                cc = cc_compliance(res["theta_star"])
+                cc = cc_compliance_from_theta(res["theta_star"])
                 with ind_cols[1]:
                     st.metric("Proximite", f"{prox:.3f}",
                               delta="Minimal" if prox <= 0.1 else "Modere" if prox <= 0.5 else "Fort",
@@ -924,6 +1049,22 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
                     else:
                         st.metric("Plausibilite", "Attention",
                                   delta="; ".join(warnings), delta_color="inverse")
+            # Pastas agreement indicator (always show column 5)
+            pv = st.session_state.get("cf_pastas_validation", {}).get(mn)
+            with ind_cols[5]:
+                if pv:
+                    rmse_str = f"{pv['rmse_cf']:.3f}"
+                    if pv["accepted"]:
+                        st.metric("Accord Pastas", rmse_str,
+                                  delta=f"< {pv['epsilon']:.3f} (accepte)",
+                                  delta_color="normal")
+                    else:
+                        st.metric("Accord Pastas", rmse_str,
+                                  delta=f"> {pv['epsilon']:.3f} (rejete)",
+                                  delta_color="inverse")
+                else:
+                    st.metric("Accord Pastas", "N/A",
+                              delta="Non active", delta_color="off")
 
         # CF overlay chart
         gt_window_raw = test_raw_values[start_idx: start_idx + H_model]
@@ -941,6 +1082,23 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
             _ips_to_key, _ips_to, ref_stats,
             mu_target, sigma_target, _horizon_months,
         )
+
+        # Overlay Pastas CF predictions (dashdot lines)
+        _pastas_val = st.session_state.get("cf_pastas_validation", {})
+        for mn in results_dict:
+            pv = _pastas_val.get(mn)
+            if pv and pv.get("y_cf_pastas") is not None:
+                y_pastas = pv["y_cf_pastas"]
+                _color = CF_METHOD_COLORS.get(results_dict[mn].get("method_key", ""), "#888888")
+                fig_cf.add_trace(go.Scatter(
+                    x=gt_dates[:len(y_pastas)],
+                    y=y_pastas[:len(gt_dates)],
+                    mode="lines",
+                    name=f"Pastas CF ({mn})",
+                    line=dict(color=_color, width=1.5, dash="dashdot"),
+                    opacity=0.6,
+                ))
+
         st.plotly_chart(fig_cf, use_container_width=True)
 
     # ========== TAB: Scenario interpretation ==========
@@ -1043,26 +1201,40 @@ if "cf_results_latest" in st.session_state and st.session_state["cf_results_late
         # LaTeX export
         st.markdown("#### LaTeX (pour le papier)")
         try:
+            _pastas_val_export = st.session_state.get("cf_pastas_validation", {})
+            _has_pastas = bool(_pastas_val_export)
             latex_rows = []
             for mn, res in results_dict.items():
                 y_cf = res.get("y_cf")
                 v = validity_ratio(y_cf, _lower_norm, _upper_norm) if y_cf is not None and _lower_norm is not None else 0
                 prox = proximity_theta(res["theta_star"]) if "theta_star" in res else "-"
-                cc = cc_compliance(res["theta_star"]) if "theta_star" in res else "-"
+                cc = cc_compliance_from_theta(res["theta_star"]) if "theta_star" in res else "-"
                 n_p = param_count(res.get("method_key", mn), L_model)
                 conv = "Y" if res.get("converged") else "N"
                 t_s = f"{res.get('wall_clock_s', 0):.1f}"
-                latex_rows.append(f"  {mn} & {v:.2f} & {prox:.3f} & {cc:.3f} & {n_p} & {conv} & {t_s}s \\\\")
+                pv_export = _pastas_val_export.get(mn)
+                pastas_str = f"{pv_export['rmse_cf']:.3f}" if pv_export else "-"
+                if _has_pastas:
+                    latex_rows.append(f"  {mn} & {v:.2f} & {prox:.3f} & {cc:.3f} & {pastas_str} & {n_p} & {conv} & {t_s}s \\\\")
+                else:
+                    latex_rows.append(f"  {mn} & {v:.2f} & {prox:.3f} & {cc:.3f} & {n_p} & {conv} & {t_s}s \\\\")
+
+            if _has_pastas:
+                _tabular = "\\begin{tabular}{l c c c c c c c}\n"
+                _header = "Method & Valid. & Prox. & CC & Pastas & $|\\theta|$ & Conv. & Time \\\\\n"
+            else:
+                _tabular = "\\begin{tabular}{l c c c c c c}\n"
+                _header = "Method & Valid. & Prox. & CC & $|\\theta|$ & Conv. & Time \\\\\n"
 
             latex_str = (
                 "\\begin{table}[t]\n"
                 "\\centering\n"
                 f"\\caption{{CF results: {_ips_from} $\\to$ {_ips_to} (IPS-{selected_ips_window})}}\n"
                 "\\label{tab:cf_results}\n"
-                "\\begin{tabular}{l c c c c c c}\n"
-                "\\hline\n"
-                "Method & Valid. & Prox. & CC & $|\\theta|$ & Conv. & Time \\\\\n"
-                "\\hline\n"
+                + _tabular
+                + "\\hline\n"
+                + _header
+                + "\\hline\n"
                 + "\n".join(latex_rows) + "\n"
                 "\\hline\n"
                 "\\end{tabular}\n"

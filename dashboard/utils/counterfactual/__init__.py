@@ -8,6 +8,7 @@ from .darts_adapter import DartsModelAdapter
 from .physcf_optim import generate_counterfactual
 from .optuna_optim import generate_counterfactual_optuna
 from .comet_hydro import generate_counterfactual_comet
+from .types import CounterfactualResult
 from .ips import (
     IPS_CLASSES,
     IPS_ORDER,
@@ -31,11 +32,37 @@ from .ips import (
     ref_stats_to_json,
     ref_stats_from_json,
 )
+from .pastas_validation import (
+    PASTAS_AVAILABLE,
+    PastasWrapper,
+    compute_rmse,
+    validate_with_pastas,
+    fit_pastas_for_station,
+    build_pastas_series_from_data,
+    cf_stresses_to_pastas_series,
+    run_dual_validation_for_results,
+)
 from .metrics import (
     validity_ratio,
+    stepwise_validity,
+    seasonal_validity,
     proximity_theta,
+    proximity_l1,
+    proximity_l2,
+    mean_absolute_change,
+    max_absolute_change,
+    relative_change_pct,
+    temporal_sparsity,
+    channel_sparsity,
+    total_variation,
     cc_compliance,
+    cc_compliance_from_theta,
+    cc_compliance_from_stresses,
+    pastas_agreement,
     param_count,
+    convergence_iter,
+    wall_clock_seconds,
+    build_paper_metrics,
 )
 
 __all__ = [
@@ -66,7 +93,32 @@ __all__ = [
     "ref_stats_to_json",
     "ref_stats_from_json",
     "validity_ratio",
+    "stepwise_validity",
+    "seasonal_validity",
     "proximity_theta",
+    "proximity_l1",
+    "proximity_l2",
+    "mean_absolute_change",
+    "max_absolute_change",
+    "relative_change_pct",
+    "temporal_sparsity",
+    "channel_sparsity",
+    "total_variation",
     "cc_compliance",
+    "cc_compliance_from_theta",
+    "cc_compliance_from_stresses",
+    "pastas_agreement",
     "param_count",
+    "convergence_iter",
+    "wall_clock_seconds",
+    "build_paper_metrics",
+    "CounterfactualResult",
+    "PASTAS_AVAILABLE",
+    "PastasWrapper",
+    "compute_rmse",
+    "validate_with_pastas",
+    "fit_pastas_for_station",
+    "build_pastas_series_from_data",
+    "cf_stresses_to_pastas_series",
+    "run_dual_validation_for_results",
 ]
