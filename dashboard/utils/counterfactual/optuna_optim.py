@@ -32,9 +32,28 @@ def generate_counterfactual_optuna(
     """Generate counterfactual using Optuna (TPE sampler).
 
     Same parameter space as gradient-based PhysCF but optimized via black-box.
+
+    Args:
+        h_obs: Normalized gwl lookback tensor (L,).
+        s_obs_phys: Physical stresses tensor (L, 3).
+        model: Forecasting model with forward(h_obs, s_obs) -> y_hat.
+        target_bounds: Tuple of (lower, upper) target IPS bounds (normalized).
+        scaler: Dict of covariate scaler params {col: {mean, std}}.
+        months: Month indices tensor (L,), values 1-12.
+        lambda_prox: Weight for proximity loss (default 0.1).
+        n_trials: Number of Optuna trials (default 200).
+        cc_rate: Clausius-Clapeyron rate (default 0.07 per degC).
+        device: Torch device string (default "cpu").
+        seed: Random seed for reproducibility (default 42).
+
+    Returns:
+        CounterfactualResult dict with standardized keys.
     """
     if not OPTUNA_AVAILABLE:
         raise ImportError("optuna required. Install with: pip install optuna")
+
+    _ranges = PerturbationLayer.PARAM_RANGES
+    stress_cols = PerturbationLayer.STRESS_COLUMNS
 
     h_obs = h_obs.to(device)
     s_obs_phys = s_obs_phys.to(device)
@@ -49,13 +68,8 @@ def generate_counterfactual_optuna(
 
     def objective(trial):
         params = {
-            "s_P_DJF": trial.suggest_float("s_P_DJF", 0.3, 2.0),
-            "s_P_MAM": trial.suggest_float("s_P_MAM", 0.3, 2.0),
-            "s_P_JJA": trial.suggest_float("s_P_JJA", 0.3, 2.0),
-            "s_P_SON": trial.suggest_float("s_P_SON", 0.3, 2.0),
-            "delta_T": trial.suggest_float("delta_T", -5.0, 5.0),
-            "delta_etp": trial.suggest_float("delta_etp", -0.03, 0.03),
-            "delta_s": trial.suggest_float("delta_s", -30.0, 30.0),
+            key: trial.suggest_float(key, r["min"], r["max"])
+            for key, r in _ranges.items()
         }
 
         perturbation = PerturbationLayer(cc_rate=cc_rate).to(device)
@@ -64,7 +78,6 @@ def generate_counterfactual_optuna(
         with torch.no_grad():
             s_cf = perturbation(s_obs_phys, months)
             s_cf_norm = s_cf.clone()
-            stress_cols = ["precip", "temp", "evap"]
             for j, col in enumerate(stress_cols):
                 if col in scaler:
                     mu = scaler[col]["mean"]
@@ -77,11 +90,11 @@ def generate_counterfactual_optuna(
                 torch.relu(lower - y_cf) + torch.relu(y_cf - upper)
             ).item()
 
-            l_prox = (
-                sum((params[f"s_P_{s}"] - 1.0) ** 2 for s in ["DJF", "MAM", "JJA", "SON"])
-                + (params["delta_T"] / 5.0) ** 2
-                + (params["delta_etp"] / 0.03) ** 2
-                + (params["delta_s"] / 30.0) ** 2
+            l_prox = sum(
+                ((params[key] - r["identity"])
+                 / max(abs(r["max"] - r["identity"]), abs(r["min"] - r["identity"]))) ** 2
+                for key, r in _ranges.items()
+                if key in params
             )
 
             total = l_target + lambda_prox * l_prox
@@ -101,7 +114,7 @@ def generate_counterfactual_optuna(
     with torch.no_grad():
         s_cf_final = perturbation(s_obs_phys, months)
         s_cf_norm_final = s_cf_final.clone()
-        for j, col in enumerate(["precip", "temp", "evap"]):
+        for j, col in enumerate(stress_cols):
             if col in scaler:
                 mu = scaler[col]["mean"]
                 sigma = scaler[col]["std"]
@@ -112,17 +125,21 @@ def generate_counterfactual_optuna(
     l_target_final = torch.mean(
         torch.relu(lower - y_cf_final) + torch.relu(y_cf_final - upper)
     ).item()
-    converged = l_target_final < 1e-4
+    converged = l_target_final < PerturbationLayer.CONVERGENCE_THRESHOLD
 
     return {
+        "method": "physcf_optuna",
+        "y_cf": y_cf_final.detach().cpu(),
         "s_cf_phys": s_cf_final.detach().cpu(),
         "s_cf_norm": s_cf_norm_final.detach().cpu(),
-        "y_cf": y_cf_final.detach().cpu(),
         "theta_star": perturbation.to_interpretable(),
         "loss_history": loss_history,
+        "target_history": None,
+        "prox_history": None,
         "converged": converged,
+        "wall_clock_s": elapsed,
+        "n_params": len(_ranges),
+        "n_iter": n_trials,
         "n_trials": n_trials,
         "best_loss": study.best_value,
-        "wall_clock_s": elapsed,
-        "method": "physcf_optuna",
     }

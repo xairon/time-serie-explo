@@ -1,4 +1,4 @@
-"""Adapter to use Darts models (TFT, GRU, LSTM, etc.) with PhysCF.
+"""Adapter to use Darts models (TFT, GRU, LSTM, TSMixer, etc.) with PhysCF.
 
 Darts models wrap PyTorch Lightning modules. This adapter extracts
 the underlying PyTorch nn.Module and provides a unified interface
@@ -9,17 +9,27 @@ for gradient-based counterfactual optimization:
 
 The adapter handles:
 - Extracting the PyTorch module from Darts
-- Converting (h_obs, s_obs) format to Darts internal tensor format
+- Converting (h_obs, s_obs) format to Darts internal 3-tuple format
 - Freezing model weights while allowing gradient flow through inputs
+
+All Darts PLForecastingModule subclasses (TFT, TSMixer, TiDE, NBEATS,
+RNN, GRU, LSTM, DLinear, NLinear, TCN, Transformer...) expect:
+    PLModuleInput = (x_past, x_future, x_static)
+where x_past = cat([past_target, past_covariates, historic_future_cov], dim=2).
+
+The conversion from raw 5-tuple to 3-tuple is done by _process_input_batch()
+which is defined on every Darts PLModule.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import torch
 import torch.nn as nn
-import numpy as np
+
+logger = logging.getLogger(__name__)
 
 try:
     from darts.models.forecasting.torch_forecasting_model import TorchForecastingModel
@@ -40,17 +50,24 @@ class DartsModelAdapter(nn.Module):
         y_hat: (batch, H) - predicted gwl
 
     Args:
-        darts_model: Trained Darts model (TFTModel, RNNModel, etc.)
+        darts_model: Trained Darts model (TFTModel, RNNModel, TSMixerModel, etc.)
         input_chunk_length: L (lookback window)
         output_chunk_length: H (forecast horizon)
     """
 
     def __init__(
         self,
-        darts_model,
+        darts_model: "TorchForecastingModel",
         input_chunk_length: Optional[int] = None,
         output_chunk_length: Optional[int] = None,
-    ):
+    ) -> None:
+        """Initialize the Darts model adapter.
+
+        Args:
+            darts_model: Trained Darts TorchForecastingModel instance.
+            input_chunk_length: Override for lookback window L (auto-detected if None).
+            output_chunk_length: Override for forecast horizon H (auto-detected if None).
+        """
         super().__init__()
 
         if not DARTS_AVAILABLE:
@@ -69,74 +86,32 @@ class DartsModelAdapter(nn.Module):
         # Extract the underlying PyTorch module
         self._pytorch_module = self._extract_pytorch_module(darts_model)
         self._model_type = self._detect_model_type(darts_model)
+        logger.info(
+            f"DartsModelAdapter: {self._model_type} "
+            f"(L={self.input_chunk_length}, H={self.output_chunk_length})"
+        )
 
     @staticmethod
     def _extract_pytorch_module(darts_model) -> nn.Module:
         """Extract the raw nn.Module from a Darts model."""
-        # Darts stores the PyTorch Lightning module in .model
         if hasattr(darts_model, "model") and isinstance(darts_model.model, nn.Module):
-            pl_module = darts_model.model
-        else:
-            raise ValueError(
-                f"Cannot extract PyTorch module from {type(darts_model).__name__}. "
-                "Make sure the model is a trained Darts TorchForecastingModel."
-            )
-
-        return pl_module
+            return darts_model.model
+        raise ValueError(
+            f"Cannot extract PyTorch module from {type(darts_model).__name__}. "
+            "Make sure the model is a trained Darts TorchForecastingModel."
+        )
 
     @staticmethod
     def _detect_model_type(darts_model) -> str:
-        """Detect the Darts model type for format-specific handling."""
+        """Detect the Darts model type for logging."""
         cls_name = type(darts_model).__name__.lower()
-        if "tft" in cls_name:
-            return "tft"
-        elif "rnn" in cls_name or "lstm" in cls_name or "gru" in cls_name:
+        for key in ("tft", "tsmixer", "tide", "nbeats", "nhits", "tcn",
+                     "transformer", "dlinear", "nlinear"):
+            if key in cls_name:
+                return key
+        if any(k in cls_name for k in ("rnn", "lstm", "gru")):
             return "rnn"
-        elif "nbeats" in cls_name or "nhits" in cls_name:
-            return "nbeats"
-        elif "tcn" in cls_name:
-            return "tcn"
-        elif "transformer" in cls_name:
-            return "transformer"
-        elif "tsmixer" in cls_name:
-            return "tsmixer"
-        elif "tide" in cls_name:
-            return "tide"
-        elif "dlinear" in cls_name or "nlinear" in cls_name:
-            return "linear"
-        else:
-            return "generic"
-
-    def _prepare_input(
-        self, h_obs: torch.Tensor, s_obs: torch.Tensor
-    ) -> tuple[torch.Tensor, ...]:
-        """Convert (h_obs, s_obs) to the format expected by Darts' internal module.
-
-        Darts TorchForecastingModel.model expects:
-            For models with past_covariates:
-                x = (past_target, past_covariates, ...)
-                past_target: (batch, L, 1) - the target variable
-                past_covariates: (batch, L, n_cov) - covariates
-            Some models concatenate everything into a single tensor.
-
-        We handle each model type specifically.
-        """
-        batch_size = h_obs.shape[0] if h_obs.dim() > 1 else 1
-
-        if h_obs.dim() == 1:
-            h_obs = h_obs.unsqueeze(0)  # (1, L)
-        if h_obs.dim() == 2:
-            h_obs = h_obs.unsqueeze(-1)  # (batch, L, 1)
-        if s_obs.dim() == 2:
-            s_obs = s_obs.unsqueeze(0)  # (1, L, 3)
-
-        L = h_obs.shape[1]
-
-        # Concatenate target + covariates for Darts internal format
-        # Most Darts models expect: (batch, L, n_features)
-        x_past = torch.cat([h_obs, s_obs], dim=-1)  # (batch, L, 4)
-
-        return x_past, batch_size, L
+        return "generic"
 
     def forward(
         self, h_obs: torch.Tensor, s_obs: torch.Tensor
@@ -150,104 +125,71 @@ class DartsModelAdapter(nn.Module):
         Returns:
             y_hat: (batch, H) - predicted gwl
         """
-        x_past, batch_size, L = self._prepare_input(h_obs, s_obs)
+        # --- Shape normalization ---
+        if h_obs.dim() == 1:
+            h_obs = h_obs.unsqueeze(0)   # (L,) -> (1, L)
+        if h_obs.dim() == 2:
+            h_obs = h_obs.unsqueeze(-1)  # (B, L) -> (B, L, 1)
+        if s_obs.dim() == 2:
+            s_obs = s_obs.unsqueeze(0)   # (L, 3) -> (1, L, 3)
 
-        # Build the input tuple expected by Darts _PLModule.forward()
-        # Darts' internal _PLModule.forward() signature depends on model type
-        # but generally:
-        #   (past_target, past_covariates, historic_future_covariates,
-        #    future_covariates, future_past_covariates)
-        #
-        # For our case (past_covariates only):
-        past_target = h_obs if h_obs.dim() == 3 else h_obs.unsqueeze(-1)
-        past_covariates = s_obs if s_obs.dim() == 3 else s_obs.unsqueeze(0)
-
-        try:
-            # Try the standard Darts PLModule forward
-            output = self._forward_darts_module(past_target, past_covariates)
-        except Exception:
-            # Fallback: concatenate and pass as single tensor
-            output = self._forward_concatenated(x_past)
-
-        # Ensure output is (batch, H)
-        if output.dim() == 3:
-            output = output[:, :, 0]  # (batch, H, 1) -> (batch, H)
-        if output.dim() == 1:
-            output = output.unsqueeze(0)
-
-        return output[:, : self.output_chunk_length]
-
-    def _forward_darts_module(
-        self, past_target: torch.Tensor, past_covariates: torch.Tensor
-    ) -> torch.Tensor:
-        """Forward through Darts PLModule with proper input tuple."""
         pl_module = self._pytorch_module
 
-        # Darts PLModule forward expects a tuple of tensors
-        # The exact format varies by model, but the pattern is:
-        # (past_target, past_covariates, historic_future_cov, future_cov, future_past_cov)
-        # For models without future covariates, we pass None
+        # --- Match dtype to model weights ---
+        # Darts models may be trained in float32 or float64; we must match.
+        model_dtype = next(pl_module.parameters()).dtype
+        if h_obs.dtype != model_dtype:
+            h_obs = h_obs.to(model_dtype)
+        if s_obs.dtype != model_dtype:
+            s_obs = s_obs.to(model_dtype)
 
-        H = self.output_chunk_length
-        B = past_target.shape[0]
-        device = past_target.device
+        # --- Build Darts raw 5-tuple (TorchBatch format) ---
+        # (past_target, past_covariates, historic_future_cov, future_cov, static_cov)
+        input_batch = (h_obs, s_obs, None, None, None)
 
-        # Create dummy static covariates (None for most models)
-        none_tensor = None
+        # --- Convert to PLModuleInput 3-tuple via _process_input_batch ---
+        # Returns (x_past, x_future, x_static) where
+        # x_past = cat([past_target, past_covariates], dim=2)
+        # This method is defined on every Darts PLForecastingModule subclass
+        # and handles the model-specific concatenation logic.
+        try:
+            x_past, x_future, x_static = pl_module._process_input_batch(input_batch)
+        except (ValueError, TypeError, AttributeError) as e:
+            raise RuntimeError(
+                f"DartsModelAdapter: _process_input_batch failed for "
+                f"{self._model_type}: {e}. "
+                f"Input shapes: h_obs={h_obs.shape}, s_obs={s_obs.shape}"
+            ) from e
 
-        # For RNN models (LSTM, GRU)
-        if self._model_type == "rnn":
-            # RNNModel expects (past_target, past_covariates) concatenated
-            # and processes through GRU/LSTM
-            x = torch.cat([past_target, past_covariates], dim=-1)
-            # Access the actual RNN layers
-            if hasattr(pl_module, "rnn"):
-                out, _ = pl_module.rnn(x)
-                last = out[:, -1, :]
-                if hasattr(pl_module, "fc"):
-                    return pl_module.fc(last)
-                elif hasattr(pl_module, "V"):
-                    return pl_module.V(last)
+        # --- Forward through the PLModule ---
+        try:
+            output = pl_module((x_past, x_future, x_static))
+        except (ValueError, RuntimeError) as e:
+            raise RuntimeError(
+                f"DartsModelAdapter: forward failed for {self._model_type}: {e}. "
+                f"x_past={x_past.shape}, x_future={x_future}, x_static={x_static}"
+            ) from e
 
-        # For TFT and other complex models, use the internal forward
-        # Build the standardized input tuple
-        input_tuple = (
-            past_target,          # past target values
-            past_covariates,      # past covariates
-            none_tensor,          # historic future covariates
-            none_tensor,          # future covariates
-            none_tensor,          # future_past_covariates
-        )
-
-        output = pl_module(input_tuple)
-
-        # Darts output is typically (batch, H, n_targets, n_samples)
-        # or (batch, H, n_targets)
+        # Darts output can be tuple (e.g. RNN returns (output, hidden_state))
         if isinstance(output, tuple):
             output = output[0]
 
-        return output
+        # --- Shape normalization of output ---
+        # Darts output: (B, H, n_targets, n_samples) or (B, H, n_targets) or (B, H)
+        while output.dim() > 2:
+            output = output[..., 0]  # Take first target / first sample
+        if output.dim() == 1:
+            output = output.unsqueeze(0)
 
-    def _forward_concatenated(self, x: torch.Tensor) -> torch.Tensor:
-        """Fallback: pass concatenated [target, covariates] as single tensor."""
-        pl_module = self._pytorch_module
+        return output[:, :self.output_chunk_length]
 
-        # Try direct forward with concatenated input
-        if hasattr(pl_module, "forward"):
-            return pl_module(x)
-
-        raise RuntimeError(
-            f"Cannot forward through {type(pl_module).__name__}. "
-            "Model architecture not supported by DartsModelAdapter."
-        )
-
-    def freeze_weights(self):
+    def freeze_weights(self) -> None:
         """Freeze all model weights (for CF optimization)."""
         for p in self._pytorch_module.parameters():
             p.requires_grad_(False)
 
-    def to_train_mode(self):
-        """Set to train mode (required for cuDNN RNN backward)."""
+    def to_train_mode(self) -> None:
+        """Set to train mode (required for cuDNN RNN backward) with frozen weights."""
         self._pytorch_module.train()
         self.freeze_weights()
 
@@ -259,19 +201,35 @@ class StandaloneGRUAdapter(nn.Module):
     but wraps the original PhysCF GRUForecaster.
     """
 
-    def __init__(self, gru_model: nn.Module):
+    def __init__(self, gru_model: nn.Module) -> None:
+        """Initialize with a standalone GRU forecaster.
+
+        Args:
+            gru_model: A trained PhysCF GRUForecaster nn.Module.
+        """
         super().__init__()
         self.model = gru_model
 
     def forward(
         self, h_obs: torch.Tensor, s_obs: torch.Tensor
     ) -> torch.Tensor:
+        """Forward pass delegating to the wrapped GRU model.
+
+        Args:
+            h_obs: Normalized gwl lookback tensor.
+            s_obs: Normalized stresses tensor.
+
+        Returns:
+            Predicted gwl tensor.
+        """
         return self.model(h_obs, s_obs)
 
-    def freeze_weights(self):
+    def freeze_weights(self) -> None:
+        """Freeze all model weights (for CF optimization)."""
         for p in self.model.parameters():
             p.requires_grad_(False)
 
-    def to_train_mode(self):
+    def to_train_mode(self) -> None:
+        """Set to train mode with frozen weights."""
         self.model.train()
         self.freeze_weights()

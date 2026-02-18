@@ -996,9 +996,10 @@ elif current_phase == TrainingPhase.TRAINING.value:
                     _write_log_to_state(_state_ref, f"GPU cleanup warning: {cleanup_err}", "warning")
 
         # Start training thread
-        thread = threading.Thread(target=run_training, daemon=True)
+        thread = threading.Thread(target=run_training, daemon=False)
         thread.start()
         training_state['thread'] = thread
+        st.session_state['_training_thread'] = thread
         add_log("Training thread started", "info")
 
     # Monitor training progress
@@ -1120,7 +1121,7 @@ elif current_phase == TrainingPhase.TRAINING.value:
 
     # Auto-refresh while training
     if current_phase == TrainingPhase.TRAINING.value:
-        time.sleep(1)
+        time.sleep(3)
         st.rerun()
 
 

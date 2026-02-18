@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -82,7 +82,7 @@ AQUIFER_CATEGORY = {
 }
 
 
-def get_aquifer_ips_info(aquifer_type: str) -> dict:
+def get_aquifer_ips_info(aquifer_type: str) -> dict[str, Any]:
     """Get IPS configuration recommendations for an aquifer type.
 
     Returns dict with:
@@ -124,7 +124,7 @@ def get_aquifer_ips_info(aquifer_type: str) -> dict:
 def daily_to_monthly_mean(
     gwl_series: pd.Series,
     min_daily_values: int = MIN_DAILY_VALUES_PER_MONTH,
-) -> pd.Series:
+) -> "pd.Series[float]":
     """Aggregate daily gwl series to monthly means (BRGM standard).
 
     A month must have at least `min_daily_values` daily observations
@@ -161,7 +161,7 @@ def daily_to_monthly_mean(
 def validate_ips_data(
     gwl_series: pd.Series,
     aquifer_type: Optional[str] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Validate that the data is suitable for IPS computation.
 
     Args:
@@ -343,7 +343,7 @@ def compute_ips_reference(
     return stats
 
 
-def gwl_to_ips_zscore(gwl: float, month: int, ref_stats: dict) -> float:
+def gwl_to_ips_zscore(gwl: float, month: int, ref_stats: dict[int, tuple[float, float]]) -> float:
     """Convert a gwl value to a z-score using monthly reference stats.
 
     Note: For BRGM compliance, gwl should be the monthly mean level.
@@ -351,13 +351,18 @@ def gwl_to_ips_zscore(gwl: float, month: int, ref_stats: dict) -> float:
     """
     mu, sigma = ref_stats.get(month, (float("nan"), float("nan")))
     if sigma == 0 or np.isnan(sigma) or np.isnan(mu):
-        return 0.0
+        return float("nan")  # Caller must handle NaN (display "Indetermine")
     return (gwl - mu) / sigma
 
 
-def gwl_to_ips_class(gwl: float, month: int, ref_stats: dict) -> str:
-    """Convert gwl value to IPS class name."""
+def gwl_to_ips_class(gwl: float, month: int, ref_stats: dict[int, tuple[float, float]]) -> str:
+    """Convert gwl value to IPS class name.
+
+    Returns "indeterminate" if reference stats are missing or NaN.
+    """
     z = gwl_to_ips_zscore(gwl, month, ref_stats)
+    if np.isnan(z):
+        return "indeterminate"
     for cls_name, (z_min, z_max) in IPS_CLASSES.items():
         if z_min <= z < z_max:
             return cls_name
@@ -367,7 +372,7 @@ def gwl_to_ips_class(gwl: float, month: int, ref_stats: dict) -> str:
 def ips_class_to_gwl_bounds(
     target_class: str,
     month: int,
-    ref_stats: dict,
+    ref_stats: dict[int, tuple[float, float]],
 ) -> tuple[float, float]:
     """Convert IPS class z-cutoffs to gwl bounds (m NGF).
 
@@ -387,7 +392,7 @@ def ips_class_to_gwl_bounds(
 
 def compute_ips_series(
     gwl_series: pd.Series,
-    ref_stats: dict,
+    ref_stats: dict[int, tuple[float, float]],
     aggregate_to_monthly: bool = True,
 ) -> pd.DataFrame:
     """Compute IPS z-scores and classes for an entire series.
@@ -472,7 +477,7 @@ def extract_scaler_params(
                 f"Extracted target scaler: mu={mu_target:.4f} m NGF, "
                 f"sigma={sigma_target:.4f} m"
             )
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, IndexError) as e:
             logger.warning(f"Could not extract target scaler params: {e}")
 
     cov_scaler = darts_scalers.get("covariates")
@@ -510,7 +515,7 @@ def extract_scaler_params(
 
             logger.info(f"Extracted covariate scaler params for {len(cov_params)} columns")
 
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError, IndexError) as e:
             logger.warning(f"Could not extract covariate scaler params: {e}")
 
     return mu_target, sigma_target, cov_params
@@ -525,7 +530,7 @@ IPS_WINDOWS = [1, 3, 6, 12]
 def compute_rolling_monthly_mean(
     monthly_series: pd.Series,
     window: int,
-) -> pd.Series:
+) -> "pd.Series[float]":
     """Apply rolling mean of N months on a monthly series.
 
     IPS-1: no rolling (identity)
@@ -662,7 +667,7 @@ def compute_all_ips_references(
 
 def compute_ips_series_n(
     gwl_series: pd.Series,
-    ref_stats: dict,
+    ref_stats: dict[int, tuple[float, float]],
     window: int = 1,
     aggregate_to_monthly: bool = True,
 ) -> pd.DataFrame:
@@ -703,7 +708,7 @@ def compute_ips_series_n(
     return result.drop(columns=["month"])
 
 
-def ref_stats_to_json(ref_stats: dict) -> str:
+def ref_stats_to_json(ref_stats: dict[int, tuple[float, float]]) -> str:
     """Serialize IPS reference stats to JSON string.
 
     Converts {int: (float, float)} to JSON-safe format.
@@ -712,7 +717,7 @@ def ref_stats_to_json(ref_stats: dict) -> str:
     return json.dumps(serializable)
 
 
-def ref_stats_from_json(json_str: str) -> dict:
+def ref_stats_from_json(json_str: str) -> dict[int, tuple[float, float]]:
     """Deserialize IPS reference stats from JSON string."""
     raw = json.loads(json_str)
     return {int(k): tuple(v) for k, v in raw.items()}

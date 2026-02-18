@@ -5,7 +5,7 @@ All chart-building functions return plotly go.Figure objects.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ from .ips import IPS_CLASSES, IPS_ORDER
 # ---- Theta radar chart ----
 
 def plot_theta_radar(
-    theta_dicts: dict[str, dict],
+    theta_dicts: dict[str, dict[str, float]],
     title: str = "Parametres theta* (normalises)",
 ) -> go.Figure:
     """Radar chart of theta* parameters for one or more CF methods.
@@ -117,12 +117,12 @@ def plot_cf_overlay(
     gt_raw: np.ndarray,
     pred_raw: Optional[np.ndarray],
     pred_dates: Optional[pd.DatetimeIndex],
-    cf_results: dict[str, dict],
+    cf_results: dict[str, dict[str, Any]],
     lower_raw: np.ndarray,
     upper_raw: np.ndarray,
     ips_to_key: str,
     ips_to_label: str,
-    ref_stats: dict,
+    ref_stats: dict[int, tuple[float, float]],
     mu_target: float,
     sigma_target: float,
     horizon_months: np.ndarray,
@@ -301,7 +301,7 @@ def plot_stress_comparison(
 # ---- Convergence chart ----
 
 def plot_convergence(
-    results_dict: dict[str, dict],
+    results_dict: dict[str, dict[str, Any]],
 ) -> go.Figure:
     """Loss convergence chart for CF methods.
 
@@ -373,7 +373,7 @@ def compute_seasonal_summary(
 # ---- Natural language narrative ----
 
 def generate_cf_narrative(
-    theta: dict,
+    theta: dict[str, float],
     ips_from_label: str,
     ips_to_label: str,
 ) -> str:
@@ -430,10 +430,10 @@ def generate_cf_narrative(
 # ---- Export helpers ----
 
 def build_cf_export_df(
-    results_dict: dict[str, dict],
-    metadata: dict,
-    lower_norm,
-    upper_norm,
+    results_dict: dict[str, dict[str, Any]],
+    metadata: dict[str, Any],
+    lower_norm: Union[np.ndarray, "torch.Tensor"],
+    upper_norm: Union[np.ndarray, "torch.Tensor"],
     L_model: int,
 ) -> pd.DataFrame:
     """Build a DataFrame for CSV export of CF results.

@@ -3,8 +3,14 @@
 Reusable across the CF page, visualization, and export.
 """
 
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from .perturbation import PerturbationLayer
+
 # IPS class colors for charts (BRGM-inspired color scale)
-IPS_COLORS = {
+IPS_COLORS: dict[str, str] = {
     "very_low":        "#8B0000",
     "low":             "#DC143C",
     "moderately_low":  "#FF8C00",
@@ -15,7 +21,7 @@ IPS_COLORS = {
 }
 
 # French labels for IPS classes
-IPS_LABELS = {
+IPS_LABELS: dict[str, str] = {
     "very_low":        "Tres bas",
     "low":             "Bas",
     "moderately_low":  "Moderement bas",
@@ -26,37 +32,32 @@ IPS_LABELS = {
 }
 
 # CF method display colors
-CF_METHOD_COLORS = {
+CF_METHOD_COLORS: dict[str, str] = {
     "PhysCF (gradient)": "#FF6B35",
     "PhysCF (Optuna)":   "#9B59B6",
     "COMET-Hydro":       "#2ECC71",
 }
 
 # Month -> season name mapping
-MONTH_TO_SEASON_NAME = {
+MONTH_TO_SEASON_NAME: dict[int, str] = {
     12: "DJF", 1: "DJF", 2: "DJF",
     3: "MAM", 4: "MAM", 5: "MAM",
     6: "JJA", 7: "JJA", 8: "JJA",
     9: "SON", 10: "SON", 11: "SON",
 }
 
-SEASON_NAMES_FR = {
+SEASON_NAMES_FR: dict[str, str] = {
     "DJF": "Hiver",
     "MAM": "Printemps",
     "JJA": "Ete",
     "SON": "Automne",
 }
 
-# PhysCF parameter descriptions (from PerturbationLayer, perturbation.py)
-# Ranges derived from the sigmoid/tanh transformations in perturbation.py lines 37-40
-PHYSCF_PARAM_INFO = {
+# PhysCF parameter UI metadata (labels, explanations)
+_PARAM_UI: dict[str, dict[str, str]] = {
     "s_P_DJF": {
         "label": "Precipitation Hiver (Dec-Fev)",
         "label_short": "P Hiver",
-        "range_min": 0.3,
-        "range_max": 2.0,
-        "identity": 1.0,
-        "unit": "multiplicateur",
         "explanation": (
             "Facteur multiplicatif sur les precipitations hivernales. "
             "s_P=0.7 signifie -30% de pluie en hiver. La recharge hivernale "
@@ -66,10 +67,6 @@ PHYSCF_PARAM_INFO = {
     "s_P_MAM": {
         "label": "Precipitation Printemps (Mar-Mai)",
         "label_short": "P Printemps",
-        "range_min": 0.3,
-        "range_max": 2.0,
-        "identity": 1.0,
-        "unit": "multiplicateur",
         "explanation": (
             "Facteur sur les precipitations printanieres. Le printemps assure "
             "la transition entre hautes et basses eaux."
@@ -78,10 +75,6 @@ PHYSCF_PARAM_INFO = {
     "s_P_JJA": {
         "label": "Precipitation Ete (Jun-Aout)",
         "label_short": "P Ete",
-        "range_min": 0.3,
-        "range_max": 2.0,
-        "identity": 1.0,
-        "unit": "multiplicateur",
         "explanation": (
             "Facteur sur les precipitations estivales. Moins de pluie d'ete "
             "accelere le rabattement car l'ETP est maximale."
@@ -90,10 +83,6 @@ PHYSCF_PARAM_INFO = {
     "s_P_SON": {
         "label": "Precipitation Automne (Sep-Nov)",
         "label_short": "P Automne",
-        "range_min": 0.3,
-        "range_max": 2.0,
-        "identity": 1.0,
-        "unit": "multiplicateur",
         "explanation": (
             "Facteur sur les precipitations automnales. L'automne amorce "
             "le cycle annuel de recharge."
@@ -102,10 +91,6 @@ PHYSCF_PARAM_INFO = {
     "delta_T": {
         "label": "Offset Temperature",
         "label_short": "Temperature",
-        "range_min": -5.0,
-        "range_max": 5.0,
-        "identity": 0.0,
-        "unit": "degC",
         "explanation": (
             "Offset global de temperature. +2C simule un rechauffement modere. "
             "Impacte l'ETP via Clausius-Clapeyron: +7% d'evaporation par degC."
@@ -114,10 +99,6 @@ PHYSCF_PARAM_INFO = {
     "delta_s": {
         "label": "Decalage Temporel",
         "label_short": "Decalage",
-        "range_min": -30.0,
-        "range_max": 30.0,
-        "identity": 0.0,
-        "unit": "jours",
         "explanation": (
             "Decale conjointement P et T dans le temps. +15j simule un retard "
             "saisonnier. L'ETP n'est PAS decalee (suit via CC)."
@@ -126,10 +107,6 @@ PHYSCF_PARAM_INFO = {
     "delta_etp": {
         "label": "Residuel ETP",
         "label_short": "Residuel ETP",
-        "range_min": -0.03,
-        "range_max": 0.03,
-        "identity": 0.0,
-        "unit": "fractionnaire",
         "explanation": (
             "Perturbation additive de l'ETP au-dela du couplage CC. "
             "Volontairement petit pour forcer la conformite physique."
@@ -137,8 +114,23 @@ PHYSCF_PARAM_INFO = {
     },
 }
 
+# Build PHYSCF_PARAM_INFO from the single source of truth (PerturbationLayer.PARAM_RANGES)
+PHYSCF_PARAM_INFO: dict[str, dict[str, Any]] = {}
+for _key, _ranges in PerturbationLayer.PARAM_RANGES.items():
+    PHYSCF_PARAM_INFO[_key] = {
+        **_PARAM_UI[_key],
+        "range_min": _ranges["min"],
+        "range_max": _ranges["max"],
+        "identity": _ranges["identity"],
+        "unit": _ranges["unit"],
+    }
+
+STRESS_COLUMNS: list[str] = PerturbationLayer.STRESS_COLUMNS
+CONVERGENCE_THRESHOLD: float = PerturbationLayer.CONVERGENCE_THRESHOLD
+IPS_REFERENCE_PERIOD: tuple[str, str] = ("1981", "2010")
+
 # Preset scenarios for quick exploration
-PRESET_SCENARIOS = {
+PRESET_SCENARIOS: dict[str, Optional[dict[str, str]]] = {
     "Personnalise": None,
     "Secheresse moderee (P-20%, T+1.5C)": {
         "description": "Episode sec decennal avec rechauffement leger",

@@ -40,7 +40,25 @@ class PerturbationLayer(nn.Module):
         θ₄ → Δs     = 30.0 × tanh(θ₄_raw)              ∈ [-30, +30] days
     """
 
-    def __init__(self, cc_rate: float = 0.07):
+    # ---- Single source of truth for parameter ranges ----
+    PARAM_RANGES = {
+        "s_P_DJF": {"min": 0.3, "max": 2.0, "identity": 1.0, "unit": "multiplicateur"},
+        "s_P_MAM": {"min": 0.3, "max": 2.0, "identity": 1.0, "unit": "multiplicateur"},
+        "s_P_JJA": {"min": 0.3, "max": 2.0, "identity": 1.0, "unit": "multiplicateur"},
+        "s_P_SON": {"min": 0.3, "max": 2.0, "identity": 1.0, "unit": "multiplicateur"},
+        "delta_T":  {"min": -5.0, "max": 5.0, "identity": 0.0, "unit": "degC"},
+        "delta_etp": {"min": -0.03, "max": 0.03, "identity": 0.0, "unit": "fractionnaire"},
+        "delta_s":  {"min": -30.0, "max": 30.0, "identity": 0.0, "unit": "jours"},
+    }
+    STRESS_COLUMNS = ["precip", "temp", "evap"]
+    CONVERGENCE_THRESHOLD = 1e-4
+
+    def __init__(self, cc_rate: float = 0.07) -> None:
+        """Initialize the perturbation layer.
+
+        Args:
+            cc_rate: Clausius-Clapeyron coupling rate (default 0.07 per degC).
+        """
         super().__init__()
         self.cc_rate = cc_rate
 
@@ -50,7 +68,7 @@ class PerturbationLayer(nn.Module):
         self.theta3_raw = nn.Parameter(torch.zeros(1))   # ETP residual
         self.theta4_raw = nn.Parameter(torch.zeros(1))   # temporal shift
 
-    def identity_init(self):
+    def identity_init(self) -> None:
         """Reset parameters to identity (no perturbation).
 
         Sets theta1_raw such that s_P = 1.0 exactly:
@@ -170,8 +188,12 @@ class PerturbationLayer(nn.Module):
 
         return s_cf
 
-    def to_interpretable(self) -> dict:
-        """Convert raw parameters to physical/interpretable values."""
+    def to_interpretable(self) -> dict[str, float]:
+        """Convert raw parameters to physical/interpretable values.
+
+        Returns:
+            Dict mapping parameter names to their physical values.
+        """
         return {
             "s_P_DJF": self.s_P[0].item(),
             "s_P_MAM": self.s_P[1].item(),
@@ -182,8 +204,12 @@ class PerturbationLayer(nn.Module):
             "delta_s": self.delta_s.item(),
         }
 
-    def from_interpretable(self, params: dict):
-        """Set raw parameters from interpretable values (for Optuna)."""
+    def from_interpretable(self, params: dict[str, float]) -> None:
+        """Set raw parameters from interpretable values (for Optuna).
+
+        Args:
+            params: Dict mapping parameter names to their physical values.
+        """
         with torch.no_grad():
             # Inverse of: s_P = 0.3 + 1.7 * sigmoid(raw) → raw = logit((s_P - 0.3) / 1.7)
             for i, season in enumerate(["DJF", "MAM", "JJA", "SON"]):

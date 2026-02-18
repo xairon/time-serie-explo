@@ -23,38 +23,44 @@ import types
 import logging
 
 _shap_patch_logger = logging.getLogger(__name__)
+_shap_version = getattr(shap, "__version__", "0.0")
 
-def _apply_shap_patch():
-    """Apply SHAP compatibility patch for TimeSHAP. Returns True if successful."""
-    try:
-        from shap import KernelExplainer
-
-        # 1. Try to get existing module or create new one
+if _shap_version >= "0.43":
+    # Apply patches for SHAP >= 0.43 compatibility
+    def _apply_shap_patch():
+        """Apply SHAP compatibility patch for TimeSHAP. Returns True if successful."""
         try:
-            from shap.explainers import _kernel
-        except ImportError:
-            _kernel = types.ModuleType("shap.explainers._kernel")
-            sys.modules["shap.explainers._kernel"] = _kernel
-            if hasattr(shap, "explainers"):
-                shap.explainers._kernel = _kernel
+            from shap import KernelExplainer
 
-        # 2. Inject Kernel attribute if missing
-        if not hasattr(_kernel, "Kernel"):
-            _kernel.Kernel = KernelExplainer
+            # 1. Try to get existing module or create new one
+            try:
+                from shap.explainers import _kernel
+            except ImportError:
+                _kernel = types.ModuleType("shap.explainers._kernel")
+                sys.modules["shap.explainers._kernel"] = _kernel
+                if hasattr(shap, "explainers"):
+                    shap.explainers._kernel = _kernel
 
-        # 3. Ensure sys.modules entry exists
-        if "shap.explainers._kernel" not in sys.modules:
-            sys.modules["shap.explainers._kernel"] = _kernel
+            # 2. Inject Kernel attribute if missing
+            if not hasattr(_kernel, "Kernel"):
+                _kernel.Kernel = KernelExplainer
 
-        return True
-    except ImportError as e:
-        _shap_patch_logger.warning(f"SHAP not available for patching: {e}")
-        return False
-    except Exception as e:
-        _shap_patch_logger.warning(f"Failed to patch SHAP for TimeSHAP compatibility: {e}")
-        return False
+            # 3. Ensure sys.modules entry exists
+            if "shap.explainers._kernel" not in sys.modules:
+                sys.modules["shap.explainers._kernel"] = _kernel
 
-_SHAP_PATCHED = _apply_shap_patch()
+            return True
+        except ImportError as e:
+            _shap_patch_logger.warning(f"SHAP not available for patching: {e}")
+            return False
+        except Exception as e:
+            _shap_patch_logger.warning(f"Failed to patch SHAP for TimeSHAP compatibility: {e}")
+            return False
+
+    _SHAP_PATCHED = _apply_shap_patch()
+else:
+    logging.getLogger(__name__).warning(f"SHAP {_shap_version} non teste, patch non applique")
+    _SHAP_PATCHED = False
 # ---------------------------------------------
 
 # Add project root to path
@@ -526,8 +532,11 @@ else:
 # Ensure indices match
 if not test_df_processed.index.equals(test_df_raw.index):
     if len(test_df_processed) == len(test_df_raw):
-        test_df_raw = test_df_raw.copy()
-        test_df_raw.index = test_df_processed.index
+        if not test_df_processed.index.equals(test_df_raw.index):
+            import logging
+            logging.getLogger(__name__).warning(
+                "Index mismatch between processed and raw data, keeping processed index"
+            )
 
 # Raw dataframe for display - also generate via inverse_transform if not available
 if 'train_raw' in data_dict and 'val_raw' in data_dict and 'test_raw' in data_dict:

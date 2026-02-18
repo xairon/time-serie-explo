@@ -20,13 +20,31 @@ from .perturbation import PerturbationLayer
 def proximity_loss(perturbation: PerturbationLayer) -> torch.Tensor:
     """Compute proximity loss (Eq. 7 from paper).
 
-    L_prox = sum(s_P[k] - 1)^2 + (delta_T/5)^2 + (delta/0.03)^2 + (delta_s/30)^2
+    Uses PARAM_RANGES as single source of truth for normalization scales.
+    L_prox = sum((param - identity) / scale)^2 for all parameters.
+
+    Args:
+        perturbation: PerturbationLayer whose parameters are evaluated.
+
+    Returns:
+        Scalar proximity loss tensor.
     """
+    _ranges = PerturbationLayer.PARAM_RANGES
     s_p = perturbation.s_P
-    l_sp = ((s_p - 1.0) ** 2).sum()
-    l_dt = (perturbation.delta_T / 5.0) ** 2
-    l_de = (perturbation.delta_etp / 0.03) ** 2
-    l_ds = (perturbation.delta_s / 30.0) ** 2
+    # Seasonal precip: scale = max - identity = 2.0 - 1.0 = 1.0
+    p_scale = _ranges["s_P_DJF"]["max"] - _ranges["s_P_DJF"]["identity"]
+    l_sp = ((s_p - _ranges["s_P_DJF"]["identity"]) / p_scale) ** 2
+    l_sp = l_sp.sum()
+
+    dt_scale = _ranges["delta_T"]["max"]  # 5.0
+    l_dt = (perturbation.delta_T / dt_scale) ** 2
+
+    de_scale = _ranges["delta_etp"]["max"]  # 0.03
+    l_de = (perturbation.delta_etp / de_scale) ** 2
+
+    ds_scale = _ranges["delta_s"]["max"]  # 30.0
+    l_ds = (perturbation.delta_s / ds_scale) ** 2
+
     return l_sp + l_dt.squeeze() + l_de.squeeze() + l_ds.squeeze()
 
 
@@ -38,6 +56,14 @@ def target_loss(
     """Target loss: penalize predictions outside IPS bounds.
 
     L_target = mean(relu(lower - y_cf) + relu(y_cf - upper))
+
+    Args:
+        y_cf: Counterfactual predictions tensor.
+        lower: Lower bound of the target IPS band.
+        upper: Upper bound of the target IPS band.
+
+    Returns:
+        Scalar target loss tensor.
     """
     return torch.mean(torch.relu(lower - y_cf) + torch.relu(y_cf - upper))
 
@@ -66,21 +92,20 @@ def generate_counterfactual(
     6. L = L_target + lambda * L_prox
 
     Args:
-        h_obs: (L,) normalized gwl lookback
-        s_obs_phys: (L, 3) stresses in physical units
-        model: Model with forward(h_obs, s_obs) -> y_hat interface.
-            Can be DartsModelAdapter, StandaloneGRUAdapter, or any nn.Module.
-        target_bounds: (lower, upper) tensors (H,) in normalized units
-        scaler: Scaler dict for stress normalization
-        months: (L,) month indices
-        lambda_prox: Proximity weight (default 0.1)
-        n_iter: Number of optimization iterations
-        lr: Learning rate
-        cc_rate: Clausius-Clapeyron rate
-        device: Computation device
+        h_obs: Normalized gwl lookback tensor (L,).
+        s_obs_phys: Physical stresses tensor (L, 3).
+        model: Forecasting model with forward(h_obs, s_obs) -> y_hat.
+        target_bounds: Tuple of (lower, upper) target IPS bounds (normalized).
+        scaler: Dict of covariate scaler params {col: {mean, std}}.
+        months: Month indices tensor (L,), values 1-12.
+        lambda_prox: Weight for proximity loss (default 0.1).
+        n_iter: Number of gradient descent iterations (default 500).
+        lr: Learning rate for Adam optimizer (default 0.02).
+        cc_rate: Clausius-Clapeyron rate (default 0.07 per degC).
+        device: Torch device string (default "cpu").
 
     Returns:
-        Dict with s_cf_phys, theta_star, loss_history, y_cf, converged, etc.
+        CounterfactualResult dict with standardized keys.
     """
     h_obs = h_obs.to(device)
     s_obs_phys = s_obs_phys.to(device)
@@ -102,6 +127,7 @@ def generate_counterfactual(
 
     optimizer = torch.optim.Adam(perturbation.parameters(), lr=lr)
 
+    stress_cols = PerturbationLayer.STRESS_COLUMNS
     loss_history = []
     target_history = []
     prox_history = []
@@ -114,7 +140,6 @@ def generate_counterfactual(
         s_cf_phys = perturbation(s_obs_phys, months)
 
         # 2. Normalize for model input
-        stress_cols = ["precip", "temp", "evap"]
         s_cf_norm = s_cf_phys.clone()
         for j, col in enumerate(stress_cols):
             if col in scaler:
@@ -153,18 +178,21 @@ def generate_counterfactual(
                     s_cf_norm_final[..., j] = (s_cf_norm_final[..., j] - mu) / sigma
         y_cf_final = model(h_obs.unsqueeze(0), s_cf_norm_final.unsqueeze(0)).squeeze(0)
 
-    converged = target_history[-1] < 1e-4
+    converged = target_history[-1] < PerturbationLayer.CONVERGENCE_THRESHOLD
 
     return {
+        "method": "physcf_gradient",
+        "y_cf": y_cf_final.detach().cpu(),
         "s_cf_phys": s_cf_final.detach().cpu(),
         "s_cf_norm": s_cf_norm_final.detach().cpu(),
-        "y_cf": y_cf_final.detach().cpu(),
         "theta_star": perturbation.to_interpretable(),
         "loss_history": loss_history,
         "target_history": target_history,
         "prox_history": prox_history,
         "converged": converged,
-        "n_iter": n_iter,
         "wall_clock_s": elapsed,
-        "method": "physcf_gradient",
+        "n_params": len(PerturbationLayer.PARAM_RANGES),
+        "n_iter": n_iter,
+        "n_trials": None,
+        "best_loss": None,
     }

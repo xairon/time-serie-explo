@@ -2,6 +2,11 @@
 
 Optimizes delta = s_cf - s_obs in R^{L x 3} directly with soft constraints.
 No Clausius-Clapeyron coupling -- T and ETP perturbed independently.
+
+This serves as a non-physics-constrained baseline for comparison with PhysCF.
+COMET has L x 3 free parameters (vs PhysCF's 7 constrained parameters),
+making the comparison of explanation quality meaningful: more parameters
+does not necessarily mean better explanations.
 """
 
 from __future__ import annotations
@@ -10,6 +15,8 @@ import time
 
 import torch
 import torch.nn as nn
+
+from .perturbation import PerturbationLayer
 
 
 def generate_counterfactual_comet(
@@ -27,7 +34,25 @@ def generate_counterfactual_comet(
     """Generate counterfactual using COMET-Hydro approach.
 
     Optimizes raw stress perturbation delta in R^{L x 3}.
+    No physics constraints (no CC coupling, no seasonal structure).
+
+    Args:
+        h_obs: Normalized gwl lookback tensor (L,).
+        s_obs_norm: Normalized stresses tensor (L, 3).
+        model: Forecasting model with forward(h_obs, s_obs) -> y_hat.
+        target_bounds: Tuple of (lower, upper) target IPS bounds (normalized).
+        scaler: Dict of covariate scaler params {col: {mean, std}}.
+        k_sigma: Maximum perturbation magnitude in sigma units (default 4.0).
+        lambda_smooth: Smoothness regularization weight (default 0.1).
+        n_iter: Number of gradient descent iterations (default 1000).
+        lr: Learning rate for Adam optimizer (default 0.01).
+        device: Torch device string (default "cpu").
+
+    Returns:
+        CounterfactualResult dict with standardized keys.
     """
+    stress_cols = PerturbationLayer.STRESS_COLUMNS
+
     h_obs = h_obs.to(device)
     s_obs_norm = s_obs_norm.to(device)
     lower, upper = target_bounds[0].to(device), target_bounds[1].to(device)
@@ -43,7 +68,7 @@ def generate_counterfactual_comet(
 
     L = s_obs_norm.shape[0]
 
-    delta = nn.Parameter(torch.zeros(L, 3, device=device))
+    delta = nn.Parameter(torch.zeros(L, len(stress_cols), device=device))
     optimizer = torch.optim.Adam([delta], lr=lr)
 
     max_delta = k_sigma
@@ -80,17 +105,35 @@ def generate_counterfactual_comet(
         s_cf_final = s_obs_norm + delta
         y_cf_final = model(h_obs.unsqueeze(0), s_cf_final.unsqueeze(0)).squeeze(0)
 
-    converged = target_history[-1] < 1e-4
+    # Denormalize s_cf to physical units if scaler available
+    s_cf_phys = None
+    try:
+        s_cf_phys_t = s_cf_final.clone()
+        for j, col in enumerate(stress_cols):
+            if col in scaler:
+                mu = scaler[col]["mean"]
+                sigma = scaler[col]["std"]
+                if sigma > 0:
+                    s_cf_phys_t[..., j] = s_cf_phys_t[..., j] * sigma + mu
+        s_cf_phys = s_cf_phys_t.detach().cpu()
+    except Exception:
+        pass  # s_cf_phys remains None
+
+    converged = target_history[-1] < PerturbationLayer.CONVERGENCE_THRESHOLD
 
     return {
-        "s_cf_norm": s_cf_final.detach().cpu(),
-        "delta": delta.detach().cpu(),
+        "method": "comet_hydro",
         "y_cf": y_cf_final.detach().cpu(),
+        "s_cf_phys": s_cf_phys,
+        "s_cf_norm": s_cf_final.detach().cpu(),
+        "theta_star": None,
         "loss_history": loss_history,
         "target_history": target_history,
+        "prox_history": None,
         "converged": converged,
-        "n_iter": n_iter,
-        "n_params": L * 3,
         "wall_clock_s": elapsed,
-        "method": "comet_hydro",
+        "n_params": L * len(stress_cols),
+        "n_iter": n_iter,
+        "n_trials": None,
+        "best_loss": None,
     }
