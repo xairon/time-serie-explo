@@ -295,7 +295,7 @@ class TrainingProgressTracker:
         self.current_epoch = epoch
         
         # Update progress bar
-        progress = epoch / self.total_epochs
+        progress = epoch / max(self.total_epochs, 1)
         self.ph['epoch_progress'].progress(
             progress,
             text=f"Epoch {epoch}/{self.total_epochs}"

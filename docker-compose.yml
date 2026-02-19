@@ -1,18 +1,16 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: junon-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-junon}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
-      POSTGRES_DB: ${POSTGRES_DB:-junon}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-junon_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"  # Uncomment only for direct DB access
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-junon}" ]
       interval: 5s
@@ -25,7 +23,8 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - .:/app
+      - ./mlruns:/app/mlruns
+      - ./mlflow.db:/app/mlflow.db
     working_dir: /app
     command: mlflow ui --host 0.0.0.0 --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns
     environment:
@@ -40,9 +39,9 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-junon}
-      - POSTGRES_USER=${POSTGRES_USER:-junon}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-junon}
+      - POSTGRES_DB=${POSTGRES_DB:-junon_db}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - .:/app
@@ -51,6 +50,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mlflow:
+        condition: service_started
     command: python run_app.py --host 0.0.0.0
 
 volumes:

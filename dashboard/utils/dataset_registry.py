@@ -186,6 +186,9 @@ class DatasetRegistry:
     def delete_dataset(self, dataset: PreparedDataset):
         """Delete a prepared dataset."""
         import shutil
+        resolved = dataset.path.resolve()
+        if not str(resolved).startswith(str(self.datasets_dir.resolve())):
+            raise ValueError("Refusing to delete path outside datasets directory")
         if dataset.path.exists():
             shutil.rmtree(dataset.path)
 

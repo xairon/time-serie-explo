@@ -10,7 +10,9 @@ import sys
 from statsmodels.tsa.seasonal import STL
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+_project_root = str(Path(__file__).parent.parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from dashboard.config import VARIABLE_NAMES, MODEL_COLORS, PERFORMANCE_CONFIG
 
@@ -154,7 +156,7 @@ def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation
 
 @st.cache_data(ttl=3600)
 def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
-                  title: str = "ACF/PACF") -> go.Figure:
+                  title: str = "ACF/PACF", n_obs: int = None) -> go.Figure:
     """
     ACF and PACF Plot.
 
@@ -163,6 +165,7 @@ def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
         pacf_vals: PACF values
         lags: Number of lags
         title: Title
+        n_obs: Number of observations in the original series (for confidence bounds)
 
     Returns:
         Plotly Figure
@@ -173,7 +176,9 @@ def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
     )
 
     # Confidence bounds
-    conf_bound = 1.96 / np.sqrt(len(acf_vals))
+    if n_obs is None:
+        n_obs = len(acf_vals)
+    conf_bound = 1.96 / np.sqrt(n_obs)
 
     # ACF
     fig.add_trace(
@@ -254,7 +259,7 @@ def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
     fig.add_hline(y=-conf_bound, line_dash="dash", line_color="gray", opacity=0.5)
     fig.add_hline(y=0, line_color="black", line_width=1)
 
-    if optimal_lag is not None:
+    if optimal_lag is not None and optimal_lag in lags:
         fig.add_annotation(
             x=optimal_lag,
             y=ccf[lags.index(optimal_lag)],
@@ -675,18 +680,8 @@ def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     
     # Create a series with the full index
     # 0 = data present, 1 = data missing, NaN = outside period (not plotted)
-    is_missing = pd.Series(index=full_index, dtype=float)
-    
-    for date in full_index:
-        if date in df.index:
-            # Day exists: check if NaN
-            if pd.isna(df.loc[date, variable]):
-                is_missing.loc[date] = 1  # Missing
-            else:
-                is_missing.loc[date] = 0  # Present
-        else:
-            # Day missing from index
-            is_missing.loc[date] = 1
+    reindexed = df[variable].reindex(full_index)
+    is_missing = pd.Series(reindexed.isna().astype(float).values, index=full_index)
     
     # Create matrix for Heatmap (Year x Day of Year)
     years = sorted(is_missing.index.year.unique())

@@ -333,9 +333,7 @@ def cleanup_gpu_memory(model=None) -> None:
             if hasattr(model, 'model') and model.model is not None:
                 model.model.cpu()
             # Also try the trainer
-            if hasattr(model, 'trainer') and model.trainer is not None:
-                # Clear trainer references
-                model.trainer = None
+            # Removed model.trainer = None to avoid side effects (breaks predict())
             logger.info("Model moved to CPU")
         except Exception as e:
             logger.debug(f"Could not move model to CPU: {e}")

@@ -57,8 +57,12 @@ def generate_counterfactual_comet(
     s_obs_norm = s_obs_norm.to(device)
     lower, upper = target_bounds[0].to(device), target_bounds[1].to(device)
 
-    # Freeze model weights but keep in train mode for cuDNN RNN backward
+    # Save model state to restore later
     model = model.to(device)
+    _original_training = model.training
+    _original_requires_grad = {n: p.requires_grad for n, p in model.named_parameters()}
+
+    # Freeze model weights but keep in train mode for cuDNN RNN backward
     if hasattr(model, "to_train_mode"):
         model.to_train_mode()
     else:
@@ -67,6 +71,30 @@ def generate_counterfactual_comet(
             p.requires_grad_(False)
 
     L = s_obs_norm.shape[0]
+
+    if n_iter <= 0:
+        with torch.no_grad():
+            y_obs = model(h_obs.unsqueeze(0), s_obs_norm.unsqueeze(0)).squeeze(0)
+        # Restore model state
+        model.train(_original_training)
+        for n, p in model.named_parameters():
+            p.requires_grad_(_original_requires_grad.get(n, True))
+        return {
+            "method": "comet_hydro",
+            "y_cf": y_obs.detach().cpu(),
+            "s_cf_phys": None,
+            "s_cf_norm": s_obs_norm.detach().cpu(),
+            "theta_star": None,
+            "loss_history": [],
+            "target_history": [],
+            "prox_history": None,
+            "converged": False,
+            "wall_clock_s": 0.0,
+            "n_params": L * len(stress_cols),
+            "n_iter": 0,
+            "n_trials": None,
+            "best_loss": None,
+        }
 
     delta = nn.Parameter(torch.zeros(L, len(stress_cols), device=device))
     optimizer = torch.optim.Adam([delta], lr=lr)
@@ -102,7 +130,8 @@ def generate_counterfactual_comet(
     elapsed = time.time() - start_time
 
     with torch.no_grad():
-        s_cf_final = s_obs_norm + delta
+        delta_clamped = delta.clamp(-max_delta, max_delta)
+        s_cf_final = s_obs_norm + delta_clamped
         y_cf_final = model(h_obs.unsqueeze(0), s_cf_final.unsqueeze(0)).squeeze(0)
 
     # Denormalize s_cf to physical units if scaler available
@@ -118,6 +147,11 @@ def generate_counterfactual_comet(
         s_cf_phys = s_cf_phys_t.detach().cpu()
     except Exception:
         pass  # s_cf_phys remains None
+
+    # Restore model state
+    model.train(_original_training)
+    for n, p in model.named_parameters():
+        p.requires_grad_(_original_requires_grad.get(n, True))
 
     converged = target_history[-1] < PerturbationLayer.CONVERGENCE_THRESHOLD
 

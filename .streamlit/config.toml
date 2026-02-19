@@ -1,8 +1,8 @@
 [server]
 # Optimisations serveur
-maxUploadSize = 2000
-maxMessageSize = 2000
-enableCORS = true
+maxUploadSize = 500
+maxMessageSize = 500
+enableCORS = false
 enableXsrfProtection = true
 enableWebsocketCompression = true
 
@@ -22,7 +22,7 @@ fastReruns = true
 
 [client]
 # Optimisation client
-showErrorDetails = true
+showErrorDetails = false
 toolbarMode = "auto"
 
 [theme]

@@ -61,6 +61,7 @@ def generate_counterfactual_optuna(
     lower, upper = target_bounds[0].to(device), target_bounds[1].to(device)
 
     model = model.to(device)
+    _original_training = model.training
     model.eval()
 
     loss_history = []
@@ -104,6 +105,9 @@ def generate_counterfactual_optuna(
     sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="minimize", sampler=sampler)
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+
+    # Restore model state
+    model.train(_original_training)
 
     elapsed = time.time() - start_time
 

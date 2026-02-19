@@ -41,11 +41,15 @@ with st.expander("System Status", expanded=False):
     if xpu_avail:
         try:
             device_name = torch.xpu.get_device_name(0)
-        except:
+        except Exception:
             device_name = "Intel Arc GPU"
         st.success(f"🚀 Intel XPU detected: {device_name}")
     elif cuda_avail:
-        st.success(f"🚀 CUDA GPU detected: {torch.cuda.get_device_name(0)}")
+        try:
+            cuda_device_name = torch.cuda.get_device_name(0)
+        except Exception:
+            cuda_device_name = "CUDA GPU"
+        st.success(f"🚀 CUDA GPU detected: {cuda_device_name}")
     else:
         st.warning("⚠️ No GPU detected. Training will be slow on CPU.")
 

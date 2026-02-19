@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Optional, TypedDict
 
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 
 
 class CounterfactualResult(TypedDict, total=False):

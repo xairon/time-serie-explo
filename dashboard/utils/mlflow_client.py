@@ -354,8 +354,8 @@ class MLflowManager:
                     "input_chunk": model_info.get("input_chunk_length"),
                     "output_chunk": model_info.get("output_chunk_length"),
                 })
-            except Exception:
-                pass  # Params may already be logged
+            except Exception as e:
+                logging.getLogger(__name__).debug(f"Param logging skipped: {e}")
 
     def register_model_version(
         self,
@@ -454,7 +454,7 @@ def trace_function(
         def wrapper(*args, **kwargs):
             # Build span name
             span_name = name or func.__name__
-            span_attrs = attributes or {}
+            span_attrs = dict(attributes) if attributes else {}
             span_attrs["function"] = func.__name__
             span_attrs["module"] = func.__module__
             

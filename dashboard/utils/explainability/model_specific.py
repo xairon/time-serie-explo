@@ -11,11 +11,7 @@ Provides specialized explainers for:
 import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Optional, Type
-import warnings
-
 from .base import BaseExplainer, ExplainabilityResult, ModelType
-
-warnings.filterwarnings("ignore")
 
 
 class GenericExplainer(BaseExplainer):

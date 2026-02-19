@@ -112,8 +112,12 @@ def generate_counterfactual(
     months = months.to(device)
     lower, upper = target_bounds[0].to(device), target_bounds[1].to(device)
 
-    # Freeze model weights but keep in train mode for cuDNN RNN backward
+    # Save model state to restore later
     model = model.to(device)
+    _original_training = model.training
+    _original_requires_grad = {n: p.requires_grad for n, p in model.named_parameters()}
+
+    # Freeze model weights but keep in train mode for cuDNN RNN backward
     if hasattr(model, "to_train_mode"):
         model.to_train_mode()
     else:
@@ -121,13 +125,46 @@ def generate_counterfactual(
         for p in model.parameters():
             p.requires_grad_(False)
 
+    stress_cols = PerturbationLayer.STRESS_COLUMNS
+
+    if n_iter <= 0:
+        with torch.no_grad():
+            # Normalize s_obs_phys for model input
+            s_norm = s_obs_phys.clone()
+            for j, col in enumerate(stress_cols):
+                if col in scaler:
+                    mu_val = scaler[col]["mean"]
+                    sigma_val = scaler[col]["std"]
+                    if sigma_val > 0:
+                        s_norm[..., j] = (s_norm[..., j] - mu_val) / sigma_val
+            y_obs = model(h_obs.unsqueeze(0), s_norm.unsqueeze(0)).squeeze(0)
+        # Restore model state
+        model.train(_original_training)
+        for n, p in model.named_parameters():
+            p.requires_grad_(_original_requires_grad.get(n, True))
+        return {
+            "method": "physcf_gradient",
+            "y_cf": y_obs.detach().cpu(),
+            "s_cf_phys": s_obs_phys.detach().cpu(),
+            "s_cf_norm": s_norm.detach().cpu(),
+            "theta_star": PerturbationLayer(cc_rate=cc_rate).to_interpretable(),
+            "loss_history": [],
+            "target_history": [],
+            "prox_history": [],
+            "converged": False,
+            "wall_clock_s": 0.0,
+            "n_params": len(PerturbationLayer.PARAM_RANGES),
+            "n_iter": 0,
+            "n_trials": None,
+            "best_loss": None,
+        }
+
     # Initialize perturbation layer
     perturbation = PerturbationLayer(cc_rate=cc_rate).to(device)
     perturbation.identity_init()
 
     optimizer = torch.optim.Adam(perturbation.parameters(), lr=lr)
 
-    stress_cols = PerturbationLayer.STRESS_COLUMNS
     loss_history = []
     target_history = []
     prox_history = []
@@ -177,6 +214,11 @@ def generate_counterfactual(
                 if sigma > 0:
                     s_cf_norm_final[..., j] = (s_cf_norm_final[..., j] - mu) / sigma
         y_cf_final = model(h_obs.unsqueeze(0), s_cf_norm_final.unsqueeze(0)).squeeze(0)
+
+    # Restore model state
+    model.train(_original_training)
+    for n, p in model.named_parameters():
+        p.requires_grad_(_original_requires_grad.get(n, True))
 
     converged = target_history[-1] < PerturbationLayer.CONVERGENCE_THRESHOLD
 

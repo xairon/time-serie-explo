@@ -41,7 +41,9 @@ def render_dataset_card(
     
     if total_size is None:
         total_size = train_size + val_size + test_size
-    
+    if total_size == 0:
+        total_size = 1
+
     st.markdown(f"""
 | Split | Taille | % |
 |-------|--------|---|

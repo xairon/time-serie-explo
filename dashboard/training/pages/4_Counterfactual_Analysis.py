@@ -657,7 +657,7 @@ fig.add_trace(go.Scatter(x=test_dates, y=test_raw_values,
 
 if cached and cached.get("prediction") is not None:
     pred_ts = cached["prediction"]
-    pred_values_raw = pred_ts.values().flatten() * sigma_target + mu_target
+    pred_values_raw = pred_ts.values().flatten()
     fig.add_trace(go.Scatter(x=pred_ts.time_index, y=pred_values_raw,
         mode="lines+markers", name="Prediction modele (m NGF)",
         line=dict(color="#E91E63", width=3), marker=dict(size=4)))
@@ -673,8 +673,8 @@ st.plotly_chart(fig, use_container_width=True)
 if cached and cached.get("prediction") is not None and cached.get("target") is not None:
     pred_ts = cached["prediction"]
     target_ts = cached["target"]
-    pred_values_raw = pred_ts.values().flatten() * sigma_target + mu_target
-    gt_values_raw = target_ts.values().flatten() * sigma_target + mu_target
+    pred_values_raw = pred_ts.values().flatten()
+    gt_values_raw = target_ts.values().flatten()
     pred_mean_raw = float(np.mean(pred_values_raw))
     gt_mean_raw = float(np.mean(gt_values_raw))
     gt_month = int(pd.Timestamp(target_ts.time_index[len(target_ts) // 2]).month)
@@ -893,14 +893,15 @@ if st.button("Lancer la generation contrefactuelle", type="primary",
 
     # ---- Pastas dual validation ----
     pastas_validation_results = {}
+    n_accepted = 0
+    n_total = 0
     if use_pastas_validation and pastas_model is not None and results_dict:
         with st.spinner("Validation Pastas (dual model)..."):
             try:
                 # Get factual TFT prediction (denormalized)
                 _cached_pred = st.session_state.get(pred_cache_key)
                 if _cached_pred and _cached_pred.get("prediction") is not None:
-                    _pred_vals = _cached_pred["prediction"].values().flatten()
-                    _y_factual_tft_raw = _pred_vals * sigma_target + mu_target
+                    _y_factual_tft_raw = _cached_pred["prediction"].values().flatten()
                 else:
                     _y_factual_tft_raw = test_raw_values[start_idx: start_idx + H_model]
 

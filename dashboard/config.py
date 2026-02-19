@@ -116,14 +116,15 @@ except ImportError:
 
 if torch.cuda.is_available():
     # Force utilisation GPU 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     torch.cuda.set_device(0)
     DEVICE = 'cuda'
     try:
         # Test simple pour vérifier que le GPU fonctionne
         test_tensor = torch.tensor([1.0]).cuda()
         del test_tensor
-    except:
+    except Exception:
         DEVICE = 'cpu'
 elif hasattr(torch, 'xpu') and torch.xpu.is_available():
     DEVICE = 'xpu'
@@ -131,7 +132,7 @@ elif hasattr(torch, 'xpu') and torch.xpu.is_available():
         # Test simple pour vérifier que le XPU fonctionne
         test_tensor = torch.tensor([1.0]).to(DEVICE)
         del test_tensor
-    except:
+    except Exception:
         DEVICE = 'cpu'
 else:
     DEVICE = 'cpu'

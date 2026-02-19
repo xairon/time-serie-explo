@@ -69,14 +69,33 @@ class MetricsFileCallback(Callback):
     # Utils
     # ------------------------------------------------------------------ #
     def _write_state(self) -> None:
-        """Write current state to the JSON file."""
+        """Write current state to the JSON file (Windows-safe)."""
+        import uuid
+        tmp_path = self.metrics_file.with_suffix(f".{uuid.uuid4().hex[:8]}.tmp")
         try:
-            tmp_path = self.metrics_file.with_suffix(".tmp")
             with open(tmp_path, "w") as f:
                 json.dump(self.state.to_dict(), f, indent=2)
-            tmp_path.replace(self.metrics_file)
+            # On Windows, replace() can fail if target is open by another process.
+            # Use a retry strategy with os.replace fallback.
+            import os
+            try:
+                tmp_path.replace(self.metrics_file)
+            except OSError:
+                # Windows: target may be locked. Write directly instead.
+                try:
+                    with open(self.metrics_file, "w") as f:
+                        json.dump(self.state.to_dict(), f, indent=2)
+                except OSError:
+                    pass  # Will retry on next epoch
         except Exception as e:
             logger.warning(f"Failed to write metrics file {self.metrics_file}: {e}")
+        finally:
+            # Clean up orphaned tmp file
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except OSError:
+                pass
 
     @staticmethod
     def _to_float(value: Any) -> Optional[float]:
@@ -163,6 +182,7 @@ def create_training_callbacks(
     use_mlflow: bool = False,  # Conservé pour compatibilité, géré ailleurs
     verbose: bool = True,
     enable_lr_monitor: bool = False,
+    has_validation: bool = True,
 ) -> List[Callback]:
     """
     Crée les callbacks de training standards (LR monitor, early stopping,
@@ -185,9 +205,16 @@ def create_training_callbacks(
 
     # Early stopping
     if early_stopping_patience is not None and early_stopping_patience > 0:
+        # Fallback to train_loss if no validation data is provided
+        monitor = early_stopping_monitor
+        if not has_validation and monitor == "val_loss":
+            monitor = "train_loss"
+            if verbose:
+                logger.info("No validation data: EarlyStopping will monitor train_loss instead of val_loss")
+
         callbacks.append(
             EarlyStopping(
-                monitor=early_stopping_monitor,
+                monitor=monitor,
                 patience=early_stopping_patience,
                 mode=early_stopping_mode,
                 verbose=verbose,
@@ -195,7 +222,7 @@ def create_training_callbacks(
         )
         if verbose:
             logger.info(
-                f"EarlyStopping enabled (monitor={early_stopping_monitor}, "
+                f"EarlyStopping enabled (monitor={monitor}, "
                 f"mode={early_stopping_mode}, patience={early_stopping_patience})"
             )
 

@@ -63,10 +63,10 @@ def load_data_flexible(
         df = df.interpolate(method='time')
         df = df.dropna()  # Drop remaining NaN at edges
     elif fill_method == 'ffill':
-        df = df.fillna(method='ffill')
+        df = df.ffill()
         df = df.dropna()
     elif fill_method == 'bfill':
-        df = df.fillna(method='bfill')
+        df = df.bfill()
         df = df.dropna()
     
     return df
@@ -127,6 +127,9 @@ def split_timeseries(
     Returns:
         Dict avec train, val, test pour target et covariates
     """
+    if train_ratio + val_ratio >= 1.0:
+        raise ValueError(f"train_ratio ({train_ratio}) + val_ratio ({val_ratio}) must be < 1.0")
+
     n = len(target)
     train_end = int(n * train_ratio)
     val_end = int(n * (train_ratio + val_ratio))
@@ -265,9 +268,10 @@ def add_lag_features(df: pd.DataFrame, target_col: str, lags: List[int]) -> pd.D
     
     for lag in lags:
         df[f'{target_col}_lag_{lag}'] = df[target_col].shift(lag)
-    
-    # Drop NaN créés par les shifts
-    df = df.dropna()
+
+    # Drop NaN créés par les shifts (only in lag columns, preserve other data)
+    lag_cols = [f'{target_col}_lag_{lag}' for lag in lags]
+    df = df.dropna(subset=lag_cols)
     
     return df
 
@@ -283,6 +287,9 @@ def get_data_summary(df: pd.DataFrame) -> Dict:
     Returns:
         Dict avec statistiques
     """
+    if len(df) == 0:
+        return {'rows': 0, 'columns': len(df.columns), 'missing_pct': 0.0}
+
     return {
         'n_samples': len(df),
         'n_columns': len(df.columns),

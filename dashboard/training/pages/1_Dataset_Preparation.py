@@ -356,8 +356,9 @@ def render_exploration_tabs(df, source_name):
             cols_complete = (missing_data['missing_pct'] == 0).sum()
             st.metric("Complete Columns", f"{cols_complete}/{len(missing_data)}")
         with col_q3:
-            duplicate_pct = (1 - len(df.drop_duplicates()) / len(df)) * 100
-            st.metric("Duplicate Rows", f"{duplicate_pct:.1f}%")
+            n_duplicates = len(df) - len(df.drop_duplicates())
+            dup_pct = (n_duplicates / len(df) * 100) if len(df) > 0 else 0
+            st.metric("Duplicate Rows", f"{dup_pct:.1f}%")
         
         # Date detection
         st.markdown("##### Temporal Analysis")
@@ -367,7 +368,7 @@ def render_exploration_tabs(df, source_name):
                 try:
                     pd.to_datetime(df[col].head(10))
                     date_cols.append(col)
-                except:
+                except Exception:
                     pass
         
         if date_cols:
@@ -417,7 +418,7 @@ def render_configuration_ui(df, source_name):
             try:
                 pd.to_datetime(df[col].head(5))
                 potential_date_cols.append(col)
-            except:
+            except Exception:
                 pass
     
     if not potential_date_cols:

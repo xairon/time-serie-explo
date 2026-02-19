@@ -25,7 +25,7 @@ from .base import (
 from .feature_importance import (
     compute_correlation_importance,
     compute_permutation_importance,
-    compute_permutation_importance as compute_permutation_importance_safe,  # Alias
+    compute_permutation_importance as compute_permutation_importance_safe,
     compute_shap_importance,
     compute_shap_waterfall,
     compute_shap_interactions,
@@ -111,10 +111,9 @@ def compute_captum_attributions(
         else:
             attr_method = IntegratedGradients(model)
 
-        with torch.no_grad():
-            attributions = attr_method.attribute(input_tensor)
+        attributions = attr_method.attribute(input_tensor)
 
-        return attributions.cpu().numpy()
+        return attributions.detach().cpu().numpy()
     except Exception:
         return None
 

@@ -72,7 +72,9 @@ def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int =
         try:
             # Adjust max_lag if necessary
             actual_max_lag = min(max_lag, max(period * 2, len(ts) - 1))
-            is_seasonal = check_seasonality(ts, m=period, max_lag=actual_max_lag, alpha=0.05)
+            seasonality_result = check_seasonality(ts, m=period, max_lag=actual_max_lag, alpha=0.05)
+            # check_seasonality returns a tuple (is_seasonal: bool, period: int)
+            is_seasonal = seasonality_result[0] if isinstance(seasonality_result, tuple) else bool(seasonality_result)
 
             # ACF at period lag
             acf_values = acf(ts.values().flatten(), nlags=min(period + 10, len(ts) - 1))
@@ -83,7 +85,7 @@ def check_seasonality_darts(ts: TimeSeries, periods: list = None, max_lag: int =
                 'detected': is_seasonal,
                 'acf_at_period': acf_at_period
             }
-        except:
+        except Exception:
             results[period_name] = {
                 'period': period,
                 'detected': False,
@@ -118,8 +120,15 @@ def stl_decomposition(series: pd.Series, seasonal: int = 365, trend: int = None)
         if trend % 2 == 0:
             trend += 1  # Make odd
 
-    # STL decomposition
-    stl = STL(series, seasonal=seasonal, trend=trend)
+    # Ensure seasonal is odd (required by STL)
+    if seasonal % 2 == 0:
+        seasonal += 1
+    seasonal = max(seasonal, 7)  # STL requires seasonal >= 7
+
+    # STL decomposition: period= sets the cycle length, seasonal= sets the LOESS smoother window
+    # seasonal_deg=1 uses LOESS; seasonal parameter sets the smoother window
+    seasonal_smoother = seasonal if seasonal % 2 == 1 else seasonal + 1
+    stl = STL(series, period=seasonal, seasonal=seasonal_smoother, trend=trend)
     result = stl.fit()
 
     trend_series = result.trend
@@ -168,23 +177,28 @@ def cross_correlation(x: np.ndarray, y: np.ndarray, max_lag: int = 60) -> tuple:
     lags = range(-max_lag, max_lag + 1)
 
     for lag in lags:
-        if lag > 0:
-            # Positive lag: x leads y
-            # Compare x[0:N-lag] with y[lag:N]
-            if len(x[:-lag]) == len(y[lag:]):
-                corr = np.corrcoef(x[:-lag], y[lag:])[0, 1]
+        try:
+            if lag > 0:
+                # Positive lag: x leads y
+                if len(x[:-lag]) == len(y[lag:]) and len(x[:-lag]) > 1:
+                    corr = np.corrcoef(x[:-lag], y[lag:])[0, 1]
+                else:
+                    corr = 0.0
+            elif lag < 0:
+                # Negative lag: y leads x
+                if len(x[-lag:]) == len(y[:lag]) and len(x[-lag:]) > 1:
+                    corr = np.corrcoef(x[-lag:], y[:lag])[0, 1]
+                else:
+                    corr = 0.0
             else:
-                corr = 0
-        elif lag < 0:
-            # Negative lag: y leads x
-            # Compare x[-lag:N] with y[0:N+lag]
-            if len(x[-lag:]) == len(y[:lag]):
-                corr = np.corrcoef(x[-lag:], y[:lag])[0, 1]
-            else:
-                corr = 0
-        else:
-            # Lag 0
-            corr = np.corrcoef(x, y)[0, 1]
+                # Lag 0
+                corr = np.corrcoef(x, y)[0, 1]
+
+            # Replace NaN with 0 (happens with constant arrays)
+            if np.isnan(corr):
+                corr = 0.0
+        except Exception:
+            corr = 0.0
 
         correlations.append(corr)
 
@@ -205,7 +219,7 @@ def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str
     Returns:
         dict with lags, p-values, significant_lags
     """
-    data = df[[covariate_col, target_col]].dropna()
+    data = df[[target_col, covariate_col]].dropna()
 
     try:
         gc_result = grangercausalitytests(data, maxlag=max_lag, verbose=False)

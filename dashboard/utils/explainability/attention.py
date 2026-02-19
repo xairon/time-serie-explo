@@ -9,9 +9,6 @@ Includes:
 import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 class TFTExplainer:
@@ -100,7 +97,12 @@ class TFTExplainer:
             if hasattr(result, "get_attention"):
                 attention = result.get_attention()
                 if attention is not None:
-                    return attention.values() if hasattr(attention, "values") else np.array(attention)
+                    if isinstance(attention, pd.DataFrame):
+                        return attention.values
+                    elif hasattr(attention, 'values') and callable(attention.values):
+                        return np.array(attention.values())
+                    else:
+                        return np.array(attention)
             return None
         except Exception:
             return None
@@ -112,7 +114,7 @@ class TFTExplainer:
                 importance = result.get_encoder_importance()
                 if importance is not None:
                     if isinstance(importance, pd.DataFrame):
-                        return importance.to_dict()
+                        return importance.mean().to_dict()
                     elif isinstance(importance, dict):
                         return importance
                     return {"importance": float(importance)}
@@ -127,7 +129,7 @@ class TFTExplainer:
                 importance = result.get_decoder_importance()
                 if importance is not None:
                     if isinstance(importance, pd.DataFrame):
-                        return importance.to_dict()
+                        return importance.mean().to_dict()
                     elif isinstance(importance, dict):
                         return importance
                     return {"importance": float(importance)}
@@ -302,7 +304,8 @@ def compute_attention_summary(attention_weights: np.ndarray) -> Dict[str, Any]:
     # Attention concentration (entropy-based)
     flat_attention = attention_weights.flatten()
     flat_attention = flat_attention / (flat_attention.sum() + 1e-10)
-    entropy = -np.sum(flat_attention * np.log(flat_attention + 1e-10))
+    flat_attention_safe = np.clip(flat_attention, 1e-10, None)
+    entropy = -np.sum(flat_attention_safe * np.log(flat_attention_safe))
     max_entropy = np.log(len(flat_attention))
     concentration = 1 - (entropy / max_entropy)  # 1 = very concentrated, 0 = uniform
 

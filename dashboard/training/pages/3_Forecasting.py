@@ -25,7 +25,14 @@ import logging
 _shap_patch_logger = logging.getLogger(__name__)
 _shap_version = getattr(shap, "__version__", "0.0")
 
-if _shap_version >= "0.43":
+def _version_gte(v1: str, v2: str) -> bool:
+    """Compare version strings semantically."""
+    try:
+        return tuple(int(x) for x in v1.split('.')) >= tuple(int(x) for x in v2.split('.'))
+    except (ValueError, AttributeError):
+        return False
+
+if _version_gte(_shap_version, "0.43"):
     # Apply patches for SHAP >= 0.43 compatibility
     def _apply_shap_patch():
         """Apply SHAP compatibility patch for TimeSHAP. Returns True if successful."""
@@ -64,7 +71,9 @@ else:
 # ---------------------------------------------
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+_project_root = str(Path(__file__).parent.parent.parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from dashboard.config import CHECKPOINTS_DIR
 
@@ -185,7 +194,7 @@ def load_model_data(model_entry):
             # Also try to load raw if available, otherwise it will be generated later
             try:
                 data_dict[f'{split}_raw'] = registry.load_data(model_entry, f'{split}_raw')
-            except:
+            except Exception:
                 pass
 
         # Load covariates if available
@@ -651,6 +660,14 @@ st.session_state.forecasting_tab = selected_tab
 # Cache key for window predictions
 window_pred_key = f"window_pred_{selected_model_info.model_id}_{target_station}_{start_idx}"
 
+# Evict old cached predictions to prevent memory leak (keep last 10)
+_pred_prefix = f"window_pred_{selected_model_info.model_id}_{target_station}_"
+_cached_keys = [k for k in st.session_state if isinstance(k, str) and k.startswith(_pred_prefix)]
+if len(_cached_keys) > 10:
+    _sorted_keys = sorted(_cached_keys, key=lambda k: int(k.split('_')[-1]) if k.split('_')[-1].isdigit() else 0)
+    for _old_key in _sorted_keys[:-10]:
+        del st.session_state[_old_key]
+
 
 # =============================================================================
 # GENERATE WINDOW PREDICTION (Only when slider moves)
@@ -912,6 +929,8 @@ else:
         st.info("Quick summary of model explainability with top contributing features.")
 
         col1, col2 = st.columns([2, 1])
+
+        correlations = {}
 
         with col1:
             # Top 5 features (correlation-based - always available)

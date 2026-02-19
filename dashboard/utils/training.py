@@ -268,7 +268,7 @@ def _nse(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
 
 
 def _kge(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
-    if np.std(actual_vals) == 0 or np.std(pred_vals) == 0:
+    if np.std(actual_vals, ddof=1) == 0 or np.std(pred_vals, ddof=1) == 0:
         r = 0.0
     else:
         r = np.corrcoef(actual_vals, pred_vals)[0, 1]
@@ -278,8 +278,8 @@ def _kge(actual_vals: np.ndarray, pred_vals: np.ndarray) -> float:
         beta = 1.0 if mean_pred == 0 else np.inf
     else:
         beta = mean_pred / mean_obs
-    std_obs = np.std(actual_vals)
-    std_pred = np.std(pred_vals)
+    std_obs = np.std(actual_vals, ddof=1)
+    std_pred = np.std(pred_vals, ddof=1)
     if std_obs == 0:
         gamma = 1.0 if std_pred == 0 else np.inf
     else:
@@ -381,15 +381,15 @@ def calculate_metrics(
                     actual_diff = np.diff(act.values().flatten())
                     pred_diff = np.diff(pred.values().flatten())
                     if len(actual_diff) > 0:
-                        correct = np.sum((actual_diff > 0) == (pred_diff > 0))
+                        correct = np.sum(np.sign(actual_diff) == np.sign(pred_diff))
                         accs.append(correct / len(actual_diff) * 100)
                 results['Dir_Acc'] = np.mean(accs) if accs else np.nan
             else:
                 actual_diff = np.diff(actual_aligned.values().flatten())
                 pred_diff = np.diff(predicted_aligned.values().flatten())
                 if len(actual_diff) > 0:
-                    correct_direction = np.sum((actual_diff > 0) == (pred_diff > 0))
-                    results['Dir_Acc'] = correct_direction / len(actual_diff) * 100
+                    correct = np.sum(np.sign(actual_diff) == np.sign(pred_diff))
+                    results['Dir_Acc'] = correct / len(actual_diff) * 100
                 else:
                     results['Dir_Acc'] = np.nan
     except Exception as e:
@@ -411,6 +411,9 @@ def save_model(
 
     DEPRECATED: Use run_training_pipeline with save_dir instead.
     """
+    import warnings
+    warnings.warn("save_model is deprecated, use model_registry instead", DeprecationWarning, stacklevel=2)
+
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -421,7 +424,6 @@ def save_model(
     model.save(str(filepath))
 
     if metadata:
-        import json
         metadata_path = save_dir / f"{model_name}_{station}_metadata.json"
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
@@ -642,11 +644,12 @@ def run_training_pipeline(
                 early_stopping_monitor="val_loss",  # Must be val_loss, not train_loss
                 early_stopping_mode="min",
                 use_mlflow=True,  # Enable MLflow callback
-                enable_lr_monitor=False
+                enable_lr_monitor=False,
+                has_validation=(val is not None),
             )
             
             if 'callbacks' in trainer_kwargs:
-                trainer_kwargs['callbacks'] = callbacks
+                trainer_kwargs['callbacks'] = trainer_kwargs['callbacks'] + callbacks
             else:
                 trainer_kwargs['callbacks'] = callbacks
             
@@ -984,10 +987,10 @@ def run_training_pipeline(
             
             # Legacy save logic removed (replaced by MLflow)
 
-        except Exception as e:
+        except Exception:
             # Log error
             # mlflow.end_run(status='FAILED') # handled by context manager if exception propagates
-            raise e
+            raise
         finally:
             if fallback_run is not None:
                 fallback_run.__exit__(None, None, None)

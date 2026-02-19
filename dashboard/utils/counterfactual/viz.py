@@ -201,7 +201,7 @@ def plot_cf_overlay(
     for mn, res in cf_results.items():
         if "y_cf" not in res:
             continue
-        y_cf_norm = res["y_cf"].numpy() if hasattr(res["y_cf"], "numpy") else np.array(res["y_cf"])
+        y_cf_norm = res["y_cf"].detach().numpy() if hasattr(res["y_cf"], "numpy") else np.array(res["y_cf"])
         y_cf_raw = y_cf_norm * sigma_target + mu_target
         color = CF_METHOD_COLORS.get(mn, "#888")
         fig.add_trace(go.Scatter(

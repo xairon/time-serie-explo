@@ -12,9 +12,28 @@ USAGE:
 
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List, Union
+import pickle
+import io
 import pandas as pd
 import numpy as np
 from darts import TimeSeries
+
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    """Restrict unpickling to safe classes only."""
+    _SAFE_MODULES = {
+        'numpy', 'numpy.core', 'numpy.core.multiarray',
+        'sklearn', 'sklearn.preprocessing',
+        'collections', 'builtins', 'copy',
+        'pandas', 'pandas.core',
+    }
+
+    def find_class(self, module, name):
+        if module.split('.')[0] in self._SAFE_MODULES:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(
+            f"Forbidden unpickle: {module}.{name}"
+        )
 
 
 class BaseModelWrapper(ABC):
@@ -208,9 +227,9 @@ class BaseModelWrapper(ABC):
         Returns:
             Instance du wrapper avec le modèle chargé
         """
-        import pickle
+        # WARNING: pickle.load can execute arbitrary code; use restricted unpickler
         with open(path, 'rb') as f:
-            data = pickle.load(f)
+            data = _RestrictedUnpickler(f).load()
         
         instance = cls(
             input_chunk_length=data['input_chunk_length'],

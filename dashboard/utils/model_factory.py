@@ -97,7 +97,8 @@ class ModelFactory:
             raise ValueError(f"Modèle inconnu: {model_name}. Disponibles: {list(cls.MODEL_CLASSES.keys())}")
 
         model_class = cls.MODEL_CLASSES[model_name]
-        params = hyperparams.copy()
+        import copy
+        params = copy.deepcopy(hyperparams)
 
         # Validate hyperparameters
         cls._validate_hyperparams(params, model_name, logger)
@@ -185,6 +186,9 @@ class ModelFactory:
 
         # Random seed pour reproductibilité
         params['random_state'] = 42
+
+        # Force reset to avoid conflicts with existing checkpoint dirs
+        params['force_reset'] = True
 
         # Gestion spéciale pour RNNModel (LSTM/GRU)
         if model_name in ['LSTM', 'GRU']:
@@ -290,7 +294,11 @@ class ModelFactory:
                 return None
 
         elif loss_name == 'RMSE':
-            return nn.MSELoss()
+            # Custom RMSE loss: sqrt of MSE
+            class RMSELoss(nn.Module):
+                def forward(self, pred, target):
+                    return torch.sqrt(nn.functional.mse_loss(pred, target))
+            return RMSELoss()
 
         else:
             return None
@@ -332,7 +340,7 @@ def get_device_info() -> Dict[str, Any]:
         info['gpu_count'] = torch.xpu.device_count()
         try:
             info['gpu_name'] = torch.xpu.get_device_name(0)
-        except:
+        except Exception:
             info['gpu_name'] = "Intel Arc GPU"
         info['xpu_version'] = getattr(torch.version, 'xpu', 'Unknown')
 

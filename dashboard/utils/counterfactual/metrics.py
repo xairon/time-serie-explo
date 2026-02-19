@@ -102,6 +102,8 @@ def mean_absolute_change(s_obs, s_cf) -> float:
 def max_absolute_change(s_obs, s_cf) -> float:
     """Maximum absolute change over all timesteps (for paper Table 1)."""
     s_obs, s_cf = _to_numpy(s_obs), _to_numpy(s_cf)
+    if len(s_obs) == 0:
+        return 0.0
     return float(np.max(np.abs(s_cf - s_obs)))
 
 
@@ -147,6 +149,8 @@ def total_variation(s_obs, s_cf) -> float:
     TV = |delta[t] - delta[t-1]| averaged over channels and time.
     """
     s_obs, s_cf = _to_numpy(s_obs), _to_numpy(s_cf)
+    if len(s_obs) <= 1:
+        return 0.0
     delta = s_cf - s_obs
     if delta.ndim == 1:
         return float(np.mean(np.abs(np.diff(delta))))

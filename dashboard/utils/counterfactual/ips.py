@@ -319,7 +319,7 @@ def compute_ips_reference(
                     f"Month {month}: std=0 or NaN ({n_vals} values). "
                     f"IPS for this month will be unreliable."
                 )
-                sigma = 1e-6  # Avoid division by zero
+                sigma = np.nan
             if n_vals < 10:
                 logger.warning(
                     f"Month {month}: only {n_vals} years of data "
@@ -609,7 +609,7 @@ def compute_ips_reference_n(
             mu = float(vals.mean())
             sigma = float(vals.std())
             if sigma == 0 or np.isnan(sigma):
-                sigma = 1e-6
+                sigma = np.nan
             stats[month] = (mu, sigma)
         else:
             stats[month] = (float("nan"), float("nan"))

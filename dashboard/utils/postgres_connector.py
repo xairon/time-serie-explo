@@ -4,11 +4,41 @@ Provides functions to connect to PostgreSQL, list tables/views,
 get schemas, and fetch data with filters.
 """
 
+import re
+import logging
 import pandas as pd
 from typing import Optional, Dict, List, Any, Tuple
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine import URL
 from urllib.parse import quote_plus
+
+logger = logging.getLogger(__name__)
+
+# Regex for safe SQL identifiers (schema, table, column names)
+_SAFE_IDENTIFIER_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_identifier(name: str, kind: str = "identifier") -> str:
+    """Validate a SQL identifier to prevent injection.
+
+    Args:
+        name: The identifier to validate
+        kind: Description for error messages (e.g., 'table', 'schema', 'column')
+
+    Returns:
+        The validated identifier
+
+    Raises:
+        ValueError: If the identifier contains unsafe characters
+    """
+    if not name or not _SAFE_IDENTIFIER_RE.match(name):
+        raise ValueError(
+            f"Invalid SQL {kind}: {name!r}. "
+            f"Only alphanumeric characters and underscores are allowed, "
+            f"and it must start with a letter or underscore."
+        )
+    return name
 
 
 def create_connection(
@@ -33,15 +63,18 @@ def create_connection(
     Returns:
         SQLAlchemy Engine
     """
-    # URL-encode password to handle special characters
-    encoded_password = quote_plus(password)
-    
-    connection_string = (
-        f"postgresql+psycopg2://{user}:{encoded_password}@{host}:{port}/{database}"
-        f"?connect_timeout={connect_timeout}"
+    # Use SQLAlchemy URL.create for safe connection string building
+    url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=user,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+        query={"connect_timeout": str(connect_timeout)},
     )
-    
-    engine = create_engine(connection_string, pool_pre_ping=True)
+
+    engine = create_engine(url, pool_pre_ping=True)
     return engine
 
 
@@ -75,11 +108,12 @@ def list_tables_and_views(engine: Engine, schema: str = "public") -> Dict[str, L
     Returns:
         Dict with 'tables' and 'views' lists
     """
+    schema = _validate_identifier(schema, "schema")
     inspector = inspect(engine)
-    
+
     tables = inspector.get_table_names(schema=schema)
     views = inspector.get_view_names(schema=schema)
-    
+
     return {
         'tables': sorted(tables),
         'views': sorted(views)
@@ -120,8 +154,9 @@ def get_table_schema(engine: Engine, table_name: str, schema: str = "public") ->
     Returns:
         List of column dictionaries with name, type, nullable
     """
+    schema = _validate_identifier(schema, "schema")
     inspector = inspect(engine)
-    
+
     try:
         columns = inspector.get_columns(table_name, schema=schema)
         return [
@@ -143,21 +178,25 @@ def get_row_count(
     where_clause: Optional[str] = None
 ) -> int:
     """
-    Get the row count of a table with optional filters.
-    
+    Get the row count of a table.
+
     Args:
         engine: SQLAlchemy Engine
         table_name: Name of the table
         schema: Schema name
-        where_clause: Optional WHERE clause (without 'WHERE' keyword)
-        
+        where_clause: Deprecated, ignored for security. Use fetch_data with filters instead.
+
     Returns:
         Row count
     """
-    query = f'SELECT COUNT(*) FROM "{schema}"."{table_name}"'
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+
     if where_clause:
-        query += f" WHERE {where_clause}"
-    
+        logger.warning("get_row_count: where_clause parameter is ignored for security. Use fetch_data with parameterized filters.")
+
+    query = f'SELECT COUNT(*) FROM "{schema}"."{table_name}"'
+
     with engine.connect() as conn:
         result = conn.execute(text(query))
         return result.scalar()
@@ -183,6 +222,10 @@ def get_distinct_values(
     Returns:
         List of distinct values
     """
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+    column_name = _validate_identifier(column_name, "column")
+
     query = f'''
         SELECT DISTINCT "{column_name}"
         FROM "{schema}"."{table_name}"
@@ -209,8 +252,9 @@ def detect_date_columns(engine: Engine, table_name: str, schema: str = "public")
     Returns:
         List of date/timestamp column names
     """
+    schema = _validate_identifier(schema, "schema")
     columns = get_table_schema(engine, table_name, schema)
-    
+
     # SQL date/time types (case-insensitive)
     date_types = ['date', 'timestamp', 'datetime', 'time', 'interval']
     
@@ -251,8 +295,12 @@ def get_date_range(
     Returns:
         Tuple of (min_date, max_date) as strings, or (None, None) if error
     """
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+    date_column = _validate_identifier(date_column, "column")
+
     query = f'''
-        SELECT 
+        SELECT
             MIN("{date_column}")::text,
             MAX("{date_column}")::text
         FROM "{schema}"."{table_name}"
@@ -288,18 +336,22 @@ def detect_dimension_columns(
     Returns:
         List of dimension column info with name and cardinality
     """
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+
     columns = get_table_schema(engine, table_name, schema)
     dimensions = []
-    
+
     for col in columns:
         col_type = col['type'].lower()
         # Skip numeric, date, and large text columns
         if any(t in col_type for t in ['int', 'float', 'numeric', 'decimal', 'date', 'time', 'text', 'json']):
             continue
-            
+
         try:
+            col_name = _validate_identifier(col['name'], "column")
             query = f'''
-                SELECT COUNT(DISTINCT "{col['name']}") 
+                SELECT COUNT(DISTINCT "{col_name}")
                 FROM "{schema}"."{table_name}"
             '''
             with engine.connect() as conn:
@@ -346,18 +398,25 @@ def get_station_summary(
     Returns:
         DataFrame with station, row_count, and optional metadata
     """
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+    station_column = _validate_identifier(station_column, "column")
+
     select_parts = [
         f'"{station_column}" as station',
         'COUNT(*) as row_count'
     ]
     
     if date_column:
+        date_column = _validate_identifier(date_column, "column")
         select_parts.extend([
             f'MIN("{date_column}")::text as min_date',
             f'MAX("{date_column}")::text as max_date'
         ])
-        
+
     if lat_column and lon_column:
+        lat_column = _validate_identifier(lat_column, "column")
+        lon_column = _validate_identifier(lon_column, "column")
         select_parts.extend([
             f'MIN("{lat_column}") as latitude',
             f'MIN("{lon_column}") as longitude'
@@ -369,9 +428,9 @@ def get_station_summary(
         WHERE "{station_column}" IS NOT NULL
         GROUP BY "{station_column}"
         ORDER BY "{station_column}"
-        LIMIT {limit}
+        LIMIT {int(limit)}
     '''
-    
+
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn)
 
@@ -404,16 +463,24 @@ def fetch_data(
     Returns:
         DataFrame with the queried data
     """
+    # Validate identifiers
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+    for c in columns:
+        _validate_identifier(c, "column")
+    if date_column:
+        date_column = _validate_identifier(date_column, "column")
+
     # Build column list
     cols_str = ", ".join([f'"{c}"' for c in columns])
-    
+
     # Build query
     query = f'SELECT {cols_str} FROM "{schema}"."{table_name}"'
-    
+
     # Build WHERE clauses
     where_parts = []
     params = {}
-    
+
     # Date range filter
     if date_column and start_date:
         where_parts.append(f'"{date_column}" >= :start_date')
@@ -426,6 +493,7 @@ def fetch_data(
     # Dimension filters
     if filters:
         for col, values in filters.items():
+            col = _validate_identifier(col, "column")
             if values is None or (isinstance(values, list) and len(values) == 0):
                 continue
             
@@ -449,7 +517,7 @@ def fetch_data(
     
     # Add LIMIT if specified
     if limit:
-        query += f" LIMIT {limit}"
+        query += f" LIMIT {int(limit)}"
     
     # Execute and return DataFrame
     with engine.connect() as conn:
@@ -470,39 +538,54 @@ def build_query_preview(
 ) -> str:
     """
     Build a preview of the SQL query that will be executed.
-    
+
+    NOTE: This function is for DISPLAY ONLY. Never execute the returned string.
+
     Returns:
         SQL query string for display
     """
+    # Validate identifiers
+    schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
+    for c in columns:
+        _validate_identifier(c, "column")
+    if date_column:
+        date_column = _validate_identifier(date_column, "column")
+
+    def _escape_value(v) -> str:
+        """Escape single quotes for display only."""
+        return str(v).replace("'", "''")
+
     cols_str = ", ".join([f'"{c}"' for c in columns])
     query = f'SELECT {cols_str}\nFROM "{schema}"."{table_name}"'
-    
+
     where_parts = []
-    
+
     if date_column and start_date:
-        where_parts.append(f'"{date_column}" >= \'{start_date}\'')
-    
+        where_parts.append(f'"{date_column}" >= \'{_escape_value(start_date)}\'')
+
     if date_column and end_date:
-        where_parts.append(f'"{date_column}" <= \'{end_date}\'')
-    
+        where_parts.append(f'"{date_column}" <= \'{_escape_value(end_date)}\'')
+
     if filters:
         for col, values in filters.items():
+            col = _validate_identifier(col, "column")
             if values is None or (isinstance(values, list) and len(values) == 0):
                 continue
-            
+
             if isinstance(values, list):
-                vals_str = ", ".join([f"'{v}'" for v in values])
+                vals_str = ", ".join([f"'{_escape_value(v)}'" for v in values])
                 where_parts.append(f'"{col}" IN ({vals_str})')
             else:
-                where_parts.append(f'"{col}" = \'{values}\'')
-    
+                where_parts.append(f'"{col}" = \'{_escape_value(values)}\'')
+
     if where_parts:
         query += "\nWHERE " + "\n  AND ".join(where_parts)
-    
+
     if date_column:
         query += f'\nORDER BY "{date_column}"'
-    
+
     if limit:
-        query += f"\nLIMIT {limit}"
+        query += f"\nLIMIT {int(limit)}"
     
     return query

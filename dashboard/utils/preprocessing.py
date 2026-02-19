@@ -70,8 +70,8 @@ class TimeSeriesPreprocessor:
             # Log transform with custom mapper
             self.transformers.append(
                 ('log', InvertibleMapper(
-                    fn=lambda x: np.log(x + 1),  # +1 to avoid log(0)
-                    inverse_fn=lambda x: np.exp(x) - 1,
+                    fn=lambda x: np.sign(x) * np.log1p(np.abs(x)),
+                    inverse_fn=lambda x: np.sign(x) * (np.exp(np.abs(x)) - 1),
                     name='Log transform'
                 ))
             )
@@ -231,9 +231,9 @@ def prepare_dataframe_for_darts(
     elif fill_method == 'Interpolation linéaire':
         df = df.interpolate(method='linear')
     elif fill_method == 'Forward fill':
-        df = df.fillna(method='ffill')
+        df = df.ffill()
     elif fill_method == 'Backward fill':
-        df = df.fillna(method='bfill')
+        df = df.bfill()
 
     # Create target series with fill_missing_dates to handle gaps in RAW data
     target_series = TimeSeries.from_dataframe(
@@ -408,6 +408,9 @@ def compute_data_statistics(series: TimeSeries) -> Dict:
     Returns:
         Dict with stats
     """
+    if series is None or len(series) == 0:
+        return {}
+
     df = series.to_dataframe()
 
     stats = {

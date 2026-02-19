@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any, List, Tuple, Callable
 import warnings
+import logging
 import shap
 import sys
 import types
@@ -31,10 +32,10 @@ try:
         sys.modules['shap.explainers._kernel'] = _kernel
 except Exception as e:
     # If patching fails, we proceed and let the actual import fail if it must
-    print(f"Warning: Failed to patch SHAP for TimeSHAP compatibility: {e}")
+    logging.getLogger(__name__).warning(f"Failed to patch SHAP for TimeSHAP compatibility: {e}")
 # ---------------------------------------------
 
-warnings.filterwarnings('ignore')
+# Removed global warnings.filterwarnings('ignore') to avoid suppressing warnings globally
 
 
 class DartsModelWrapper:
@@ -78,7 +79,7 @@ class DartsModelWrapper:
                 predictions.append(pred)
             except Exception as e:
                 if self._debug:
-                    print(f"[DartsWrapper] Prediction {i} failed: {e}")
+                    logging.getLogger(__name__).warning(f"[DartsWrapper] Prediction {i} failed: {e}")
                 # Use last valid prediction as fallback, or 0 if none
                 fallback = self._last_valid_pred if self._last_valid_pred is not None else 0.0
                 predictions.append(fallback)
@@ -265,9 +266,8 @@ def compute_timeshap_local(
         }
         
     except Exception as e:
-        print(f"[TimeSHAP] local_report failed: {e}, using fallback")
-        import traceback
-        traceback.print_exc()
+        logging.getLogger(__name__).warning(f"[TimeSHAP] local_report failed: {e}, using fallback")
+        logging.getLogger(__name__).exception("TimeSHAP local_report traceback")
         # Fall back to simple perturbation method
         return compute_shap_perturbation(model_wrapper, data, feature_names, n_samples)
 
@@ -569,9 +569,8 @@ def compute_global_feature_importance(
         raise Exception("global_report did not return expected format")
         
     except Exception as e:
-        print(f"[TimeSHAP] global_report failed: {e}, using fallback aggregation")
-        import traceback
-        traceback.print_exc()
+        logging.getLogger(__name__).warning(f"[TimeSHAP] global_report failed: {e}, using fallback aggregation")
+        logging.getLogger(__name__).exception("TimeSHAP global_report traceback")
         
         # Fallback: Aggregate local SHAP values
         all_importances = {feat: [] for feat in feature_names}
@@ -598,7 +597,7 @@ def compute_global_feature_importance(
                         feat_name = row['Feature']
                         if feat_name in all_importances:
                             all_importances[feat_name].append(abs(float(row['Shapley Value'])))
-            except:
+            except Exception:
                 continue
         
         global_importance = {}

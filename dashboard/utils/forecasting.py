@@ -1,5 +1,6 @@
 """Module for generating forecasts using Darts models."""
 
+import logging
 import pandas as pd
 from typing import Dict, Any, Optional, Tuple, List
 from darts import TimeSeries
@@ -19,7 +20,8 @@ def generate_single_window_forecast(
     start_date: pd.Timestamp,
     use_covariates: bool = True,
     already_processed: bool = False,
-    is_global_model: bool = False
+    is_global_model: bool = False,
+    freq: str = 'D'
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], Dict[str, float], int]:
     """
     Generates a forecast for a single window starting from a given date.
@@ -59,10 +61,10 @@ def generate_single_window_forecast(
         full_df,
         target_col=target_col,
         covariate_cols=covariate_cols if use_covariates else None,
-        freq='D',
+        freq=freq,
         fill_method=fill_method
     )
-    
+
     # Get scalers for inverse transform (output to RAW for display)
     target_preprocessor = scalers.get('target_preprocessor')
     
@@ -82,10 +84,21 @@ def generate_single_window_forecast(
         if cov_preprocessor and covariates is not None:
             covariates_for_model = cov_preprocessor.transform(covariates)
         
+    # Infer series frequency for timedelta
+    _freq_delta = full_series_for_model.time_index.freq
+    if _freq_delta is None:
+        _freq_delta = pd.tseries.frequencies.to_offset(pd.infer_freq(full_series_for_model.time_index))
+    if _freq_delta is None:
+        _freq_delta = pd.Timedelta(days=1)  # fallback
+    else:
+        _freq_delta = pd.Timedelta(_freq_delta.delta) if hasattr(_freq_delta, 'delta') else pd.Timedelta(days=1)
+
     # Cut history just before start_date
-    history_cutoff = start_date - pd.Timedelta(days=1)
+    history_cutoff = start_date - _freq_delta
+    if history_cutoff < full_series_for_model.start_time():
+        history_cutoff = full_series_for_model.start_time()
     history_series = full_series_for_model.split_after(history_cutoff)[0]
-    
+
     # =========================================================================
     # 1. AUTOREGRESSIVE PREDICTION (model predicts on its own predictions)
     # =========================================================================
@@ -118,7 +131,8 @@ def generate_single_window_forecast(
     # =========================================================================
     # 2. ONE-STEP PREDICTION (each prediction uses real past values)
     # =========================================================================
-    end_date = start_date + pd.Timedelta(days=horizon - 1)
+    end_date = start_date + _freq_delta * (horizon - 1)
+    onestep_fell_back = False
 
     try:
         # Use historical_forecasts with forecast_horizon=1 for one-step
@@ -159,8 +173,9 @@ def generate_single_window_forecast(
             pred_onestep_processed = onestep_forecasts[:horizon]
 
     except Exception as e:
-        print(f"One-step prediction failed: {e}")
+        logging.getLogger(__name__).warning(f"One-step prediction failed, using autoregressive: {e}")
         pred_onestep_processed = pred_auto_processed
+        onestep_fell_back = True
     
     # Inverse scaling - convert predictions to RAW for display
     if target_preprocessor:
@@ -172,6 +187,8 @@ def generate_single_window_forecast(
         
     # Extract corresponding real slice (PROCESSED for metrics)
     target_series_processed = full_series_for_model.slice(start_date, end_date)
+    if len(target_series_processed) == 0:
+        raise ValueError("No actual data available for the forecast window")
 
     # Get RAW target for display (inverse transform if scaler exists)
     if target_preprocessor:
@@ -201,6 +218,9 @@ def generate_single_window_forecast(
     metrics_auto = compute_metrics(target_processed_aligned, pred_auto_processed_aligned)
     metrics_onestep = compute_metrics(target_processed_aligned, pred_onestep_processed_aligned)
 
+    if onestep_fell_back:
+        metrics_onestep['onestep_fallback'] = True
+
     # Return RAW predictions and target for display, metrics computed on PROCESSED
     return pred_auto_raw, pred_onestep_raw, target_series_raw, metrics_auto, metrics_onestep, horizon
 
@@ -213,7 +233,8 @@ def generate_global_forecast(
     covariate_cols: Optional[List[str]],
     preprocessing_config: Dict[str, Any],
     scalers: Dict[str, Any],
-    use_covariates: bool = True
+    use_covariates: bool = True,
+    freq: str = 'D'
 ) -> Tuple[TimeSeries, TimeSeries, Dict[str, float]]:
     """
     Generates a global forecast on the entire test set.
@@ -245,19 +266,19 @@ def generate_global_forecast(
         history_df,
         target_col=target_col,
         covariate_cols=covariate_cols if use_covariates else None,
-        freq='D',
+        freq=freq,
         fill_method=fill_method
     )
-    
+
     # Target (Ground Truth for metrics)
     target_series, _ = prepare_dataframe_for_darts(
         target_df,
         target_col=target_col,
         covariate_cols=covariate_cols if use_covariates else None,
-        freq='D',
+        freq=freq,
         fill_method=fill_method
     )
-    
+
     # Covariates for prediction (must cover the future)
     covariates_future = None
     if use_covariates and covariate_cols:
@@ -267,7 +288,7 @@ def generate_global_forecast(
             full_cov_df,
             target_col=target_col,
             covariate_cols=covariate_cols,
-            freq='D',
+            freq=freq,
             fill_method=fill_method
         )
     
@@ -331,7 +352,8 @@ def generate_rolling_forecast(
     start_date: pd.Timestamp,
     forecast_horizon: int,
     stride: int,
-    use_covariates: bool = True
+    use_covariates: bool = True,
+    freq: str = 'D'
 ) -> Tuple[List[TimeSeries], TimeSeries]:
     """
     Generates rolling forecasts (historical forecasts).
@@ -360,10 +382,10 @@ def generate_rolling_forecast(
         full_df,
         target_col=target_col,
         covariate_cols=covariate_cols if use_covariates else None,
-        freq='D',
+        freq=freq,
         fill_method=fill_method
     )
-    
+
     # Scaling
     target_preprocessor = scalers.get('target_preprocessor')
     cov_preprocessor = scalers.get('cov_preprocessor')
@@ -418,7 +440,8 @@ def generate_comparison_forecast(
     scalers: Dict[str, Any],
     start_date: pd.Timestamp,
     forecast_horizon: int,
-    use_covariates: bool = True
+    use_covariates: bool = True,
+    freq: str = 'D'
 ) -> Tuple[TimeSeries, TimeSeries, TimeSeries, Dict[str, float], Dict[str, float]]:
     """
     Generates a comparison between autoregressive forecast and exact window (teacher forcing).
@@ -446,28 +469,39 @@ def generate_comparison_forecast(
         full_df,
         target_col=target_col,
         covariate_cols=covariate_cols if use_covariates else None,
-        freq='D',
+        freq=freq,
         fill_method=fill_method
     )
-    
+
     # 2. Scaling
     target_preprocessor = scalers.get('target_preprocessor')
     cov_preprocessor = scalers.get('cov_preprocessor')
-    
+
     full_series_scaled = full_series
     covariates_scaled = covariates
-    
+
     if target_preprocessor:
         full_series_scaled = target_preprocessor.transform(full_series)
-        
+
     if cov_preprocessor and covariates is not None:
         covariates_scaled = cov_preprocessor.transform(covariates)
-        
+
+    # Infer series frequency for timedelta
+    _freq_delta = full_series_scaled.time_index.freq
+    if _freq_delta is None:
+        _freq_delta = pd.tseries.frequencies.to_offset(pd.infer_freq(full_series_scaled.time_index))
+    if _freq_delta is None:
+        _freq_delta = pd.Timedelta(days=1)  # fallback
+    else:
+        _freq_delta = pd.Timedelta(_freq_delta.delta) if hasattr(_freq_delta, 'delta') else pd.Timedelta(days=1)
+
     # 3. Autoregressive Forecast (Drift)
     # Cut history just before start_date
-    history_cutoff = start_date - pd.Timedelta(days=1)
+    history_cutoff = start_date - _freq_delta
+    if history_cutoff < full_series_scaled.start_time():
+        history_cutoff = full_series_scaled.start_time()
     history_series_scaled = full_series_scaled.split_after(history_cutoff)[0]
-    
+
     predict_kwargs = {
         'n': forecast_horizon,
         'series': history_series_scaled
@@ -503,7 +537,7 @@ def generate_comparison_forecast(
     exact_window_scaled = model.historical_forecasts(**hist_kwargs)
     
     # Slice to keep only the requested window
-    end_date = start_date + pd.Timedelta(days=forecast_horizon - 1)
+    end_date = start_date + _freq_delta * (forecast_horizon - 1)
     exact_window_scaled = exact_window_scaled.slice(start_date, end_date)
     
     # 5. Inverse Scaling

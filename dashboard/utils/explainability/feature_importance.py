@@ -11,7 +11,7 @@ import pandas as pd
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
 
-warnings.filterwarnings("ignore")
+logger = __import__('logging').getLogger(__name__)
 
 
 def compute_correlation_importance(
@@ -102,10 +102,7 @@ def compute_permutation_importance(
         uses_past = (
             getattr(model, "_uses_past_covariates", False) or
             getattr(model, "uses_past_covariates", False) or
-            hasattr(model, "past_covariate_series") or
-            "past_covariates" in str(type(model).__name__).lower() or
-            # TSMixer and similar models typically use past covariates
-            any(name in type(model).__name__ for name in ["TSMixer", "TFT", "NHiTS", "NBEATS", "Transformer"])
+            hasattr(model, "past_covariate_series")
         )
         uses_future = (
             getattr(model, "_uses_future_covariates", False) or
@@ -118,6 +115,12 @@ def compute_permutation_importance(
             predict_kwargs["future_covariates"] = covariates
 
         baseline_pred = model.predict(**predict_kwargs)
+
+        # Compute baseline score against actual values (end of series)
+        actual_end = series.slice_n_points_after(
+            series.time_index[-output_chunk_length], output_chunk_length
+        ) if len(series) > output_chunk_length else series
+        baseline_score = float(metric_fn(actual_end, baseline_pred))
 
         cov_df = covariates.to_dataframe()
         feature_names = list(cov_df.columns)
@@ -156,9 +159,11 @@ def compute_permutation_importance(
 
                     permuted_pred = model.predict(**perm_kwargs)
 
-                    # Measure degradation from baseline
-                    diff = float(metric_fn(baseline_pred, permuted_pred))
-                    degradations.append(diff)
+                    # Measure degradation: how much worse is the permuted prediction
+                    # compared to baseline, measured against actual values
+                    permuted_score = float(metric_fn(actual_end, permuted_pred))
+                    degradation = permuted_score - baseline_score
+                    degradations.append(max(degradation, 0.0))
 
                 except Exception as inner_e:
                     last_error = inner_e
@@ -169,7 +174,7 @@ def compute_permutation_importance(
             else:
                 importances[feature] = 0.0
                 if last_error:
-                    print(f"  Feature {feature} failed: {last_error}")
+                    logger.warning(f"  Feature {feature} failed: {last_error}")
 
         # Check if all features failed
         if all(v == 0.0 for v in importances.values()) and last_error:
@@ -183,9 +188,7 @@ def compute_permutation_importance(
         return importances
 
     except Exception as e:
-        import traceback
-        print(f"Permutation importance failed: {e}")
-        print(traceback.format_exc())
+        logger.exception(f"Permutation importance failed: {e}")
         return {"_error": str(e)}
 
 
@@ -389,7 +392,7 @@ def compute_shap_waterfall(
         "values": values,
         "cumulative": cumulative,
         "base_value": base_value,
-        "prediction": prediction if prediction else cumulative[-1],
+        "prediction": prediction if prediction is not None else cumulative[-1],
     }
 
 

@@ -11,9 +11,7 @@ Note: Requires 'captum' package. Install with: pip install captum
 import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
-
-warnings.filterwarnings("ignore")
+import logging
 
 # Check if captum is available
 CAPTUM_AVAILABLE = False
@@ -175,12 +173,15 @@ class GradientExplainer:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]
-                return output.squeeze()
+                return output.view(output.shape[0])[:1].squeeze()
 
+            self.torch_model.eval()
             saliency = Saliency(forward_fn)
             attributions = saliency.attribute(input_tensor)
 
             attr_np = attributions.detach().cpu().numpy().squeeze()
+            if attr_np.ndim == 1:
+                attr_np = attr_np.reshape(-1, 1)
 
             return {
                 "success": True,
@@ -253,8 +254,9 @@ class GradientExplainer:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]
-                return output.squeeze()
+                return output.view(output.shape[0])[:1].squeeze()
 
+            self.torch_model.eval()
             ig = IntegratedGradients(forward_fn)
             attributions, delta = ig.attribute(
                 input_tensor,
@@ -264,13 +266,15 @@ class GradientExplainer:
             )
 
             attr_np = attributions.detach().cpu().numpy().squeeze()
+            if attr_np.ndim == 1:
+                attr_np = attr_np.reshape(-1, 1)
 
             return {
                 "success": True,
                 "attributions": attr_np,
                 "temporal_importance": np.abs(attr_np).mean(axis=1),
                 "feature_importance": np.abs(attr_np).mean(axis=0),
-                "convergence_delta": float(delta.detach().cpu().numpy()),
+                "convergence_delta": float(delta.detach().cpu().item()),
                 "method": "integrated_gradients",
             }
 
@@ -322,12 +326,15 @@ class GradientExplainer:
                     return output[:, target_step, 0]
                 elif output.dim() == 2:
                     return output[:, target_step]
-                return output.squeeze()
+                return output.view(output.shape[0])[:1].squeeze()
 
+            self.torch_model.eval()
             dl = DeepLift(forward_fn)
             attributions = dl.attribute(input_tensor, baselines=baseline_tensor)
 
             attr_np = attributions.detach().cpu().numpy().squeeze()
+            if attr_np.ndim == 1:
+                attr_np = attr_np.reshape(-1, 1)
 
             return {
                 "success": True,
@@ -380,7 +387,7 @@ def compute_temporal_saliency(
         return None
 
     except Exception as e:
-        print(f"Temporal saliency failed: {e}")
+        logging.getLogger(__name__).warning(f"Temporal saliency failed: {e}")
         return None
 
 
@@ -421,7 +428,7 @@ def compute_integrated_gradients(
         return None
 
     except Exception as e:
-        print(f"Integrated Gradients failed: {e}")
+        logging.getLogger(__name__).warning(f"Integrated Gradients failed: {e}")
         return None
 
 

@@ -1,7 +1,7 @@
 """Utilitaires pour l'optimisation Optuna adaptés à la nouvelle architecture."""
 
 import optuna
-from optuna.visualization import plot_optimization_history, plot_param_importances
+import copy
 import numpy as np
 import logging
 from typing import Dict, Any, Optional, Tuple
@@ -28,7 +28,7 @@ def get_hyperparam_search_space(model_name: str, trial: optuna.Trial, base_hyper
         Dict des hyperparamètres suggérés
     """
     # On garde les params de base (input/output chunk length fixés par l'utilisateur, pas optimisés par Optuna)
-    hyperparams = base_hyperparams.copy()
+    hyperparams = copy.deepcopy(base_hyperparams)
     
     # Hyperparamètres communs à optimiser (sans input/output chunk length)
     hyperparams['batch_size'] = trial.suggest_categorical('batch_size', [16, 32, 64])
@@ -38,7 +38,7 @@ def get_hyperparam_search_space(model_name: str, trial: optuna.Trial, base_hyper
     model_upper = model_name.upper()
     
     if model_upper == 'NBEATS':
-        hyperparams['num_stacks'] = trial.suggest_categorical('num_stacks', [10, 20, 30])
+        hyperparams['num_stacks'] = trial.suggest_categorical('num_stacks', [2, 3, 4])
         hyperparams['num_blocks'] = trial.suggest_int('num_blocks', 1, 3)
         hyperparams['num_layers'] = trial.suggest_int('num_layers', 2, 4)
         hyperparams['layer_widths'] = trial.suggest_categorical('layer_widths', [128, 256, 512])
@@ -63,7 +63,7 @@ def get_hyperparam_search_space(model_name: str, trial: optuna.Trial, base_hyper
         hyperparams['dilation_base'] = trial.suggest_int('dilation_base', 2, 4)
         hyperparams['dropout'] = trial.suggest_float('dropout', 0.0, 0.3)
         
-    elif model_upper in ['RNNMODEL', 'LSTM']:
+    elif model_upper in ['RNNMODEL', 'LSTM', 'GRU']:
         hyperparams['hidden_dim'] = trial.suggest_categorical('hidden_dim', [64, 128, 256])
         hyperparams['n_rnn_layers'] = trial.suggest_int('n_rnn_layers', 1, 3)
         hyperparams['dropout'] = trial.suggest_float('dropout', 0.0, 0.3)
@@ -132,7 +132,7 @@ def create_optuna_objective(
         
         try:
             # Créer le modèle avec early stopping si demandé
-            trainer_kwargs = pl_trainer_kwargs.copy() if pl_trainer_kwargs else {}
+            trainer_kwargs = copy.deepcopy(pl_trainer_kwargs) if pl_trainer_kwargs else {}
             
             if early_stopping:
                 from pytorch_lightning.callbacks import EarlyStopping
@@ -205,10 +205,28 @@ def create_optuna_objective(
             else:
                 score = float(mae(val_aligned, pred_aligned))
 
+            # Cleanup GPU memory between trials
+            del model
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            if hasattr(torch, 'xpu') and torch.xpu.is_available():
+                torch.xpu.empty_cache()
+
             return score
 
         except Exception as e:
             logger.error(f"Trial {trial.number} failed: {e}", exc_info=True)
+            # Cleanup GPU memory between trials
+            try:
+                del model
+            except NameError:
+                pass
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            if hasattr(torch, 'xpu') and torch.xpu.is_available():
+                torch.xpu.empty_cache()
             return float('inf')
     
     return objective

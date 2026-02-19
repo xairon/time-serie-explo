@@ -137,7 +137,10 @@ class DartsModelAdapter(nn.Module):
 
         # --- Match dtype to model weights ---
         # Darts models may be trained in float32 or float64; we must match.
-        model_dtype = next(pl_module.parameters()).dtype
+        try:
+            model_dtype = next(pl_module.parameters()).dtype
+        except StopIteration:
+            model_dtype = torch.float32
         if h_obs.dtype != model_dtype:
             h_obs = h_obs.to(model_dtype)
         if s_obs.dtype != model_dtype:

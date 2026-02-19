@@ -13,7 +13,9 @@ from enum import Enum
 from typing import Dict, Any
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+_project_root = str(Path(__file__).parent.parent.parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from dashboard.models_config import MODEL_CATEGORIES, RECOMMENDED_MODELS, get_model_info, get_hyperparam_description
 from dashboard.utils.preprocessing import (
@@ -27,6 +29,7 @@ from dashboard.utils.dataset_registry import get_dataset_registry
 from dashboard.utils.training import run_training_pipeline
 from dashboard.utils.export import add_download_button
 
+_training_lock = threading.Lock()
 
 # =============================================================================
 # TRAINING STATE MANAGEMENT
@@ -123,12 +126,13 @@ def _write_log_to_state(state_dict: Dict[str, Any], message: str, level: str = "
     emoji = emoji_map.get(level, "i")
     log_entry = f"[{timestamp}] [{emoji}] {message}"
 
-    if 'logs' not in state_dict:
-        state_dict['logs'] = []
-    state_dict['logs'].append(log_entry)
-    # Keep only last 200 logs
-    if len(state_dict['logs']) > 200:
-        state_dict['logs'] = state_dict['logs'][-200:]
+    with _training_lock:
+        if 'logs' not in state_dict:
+            state_dict['logs'] = []
+        state_dict['logs'].append(log_entry)
+        # Keep only last 200 logs
+        if len(state_dict['logs']) > 200:
+            state_dict['logs'] = state_dict['logs'][-200:]
 
 
 # =============================================================================
@@ -377,6 +381,10 @@ with col2:
     train_ratio = st.slider("Train (%)", 50, 90, 70) / 100
     val_ratio = st.slider("Validation (%)", 5, 30, 15) / 100
     test_ratio = 1.0 - train_ratio - val_ratio
+    if test_ratio < 0.05:
+        st.error(f"Train ({train_ratio*100:.0f}%) + Val ({val_ratio*100:.0f}%) = {(train_ratio+val_ratio)*100:.0f}% — leaves less than 5% for test. Reduce one slider.")
+        test_ratio = max(test_ratio, 0.0)
+        st.stop()
     st.metric("Test (%)", f"{test_ratio*100:.0f}")
 
 with col3:
@@ -559,6 +567,8 @@ elif current_phase in [TrainingPhase.PREPARING.value, TrainingPhase.TRAINING.val
         st.info(f"Training in progress... Phase: {current_phase}")
     with col2:
         if st.button(" Stop & Reset", type="secondary", use_container_width=True):
+            if '_training_stop_event' in st.session_state:
+                st.session_state['_training_stop_event'].set()
             reset_training_state()
             st.rerun()
 
@@ -849,9 +859,19 @@ elif current_phase == TrainingPhase.TRAINING.value:
         # Reference to state dict (safe since dict is mutable and shared)
         _state_ref = training_state
 
+        # Create stop event BEFORE defining run_training so it is captured as closure variable
+        stop_event = threading.Event()
+        training_state['_stop_event'] = stop_event
+        st.session_state['_training_stop_event'] = stop_event
+
         # Define training function
         def run_training():
             results = {}
+
+            # Check cancellation before starting
+            if stop_event.is_set():
+                _write_log_to_state(_state_ref, "Training cancelled by user", "warning")
+                return
 
             try:
                 if is_global_mode and global_data.get('train'):
@@ -892,6 +912,9 @@ elif current_phase == TrainingPhase.TRAINING.value:
                 else:
                     # Independent model training
                     for idx, data in enumerate(prepared_stations):
+                        if stop_event.is_set():
+                            _write_log_to_state(_state_ref, "Training cancelled by user", "warning")
+                            return
                         station = data['station_name']
                         _write_log_to_state(_state_ref, f"Training model for {station} ({idx+1}/{len(prepared_stations)})", "training")
 
@@ -996,7 +1019,7 @@ elif current_phase == TrainingPhase.TRAINING.value:
                     _write_log_to_state(_state_ref, f"GPU cleanup warning: {cleanup_err}", "warning")
 
         # Start training thread
-        thread = threading.Thread(target=run_training, daemon=False)
+        thread = threading.Thread(target=run_training, daemon=True)
         thread.start()
         training_state['thread'] = thread
         st.session_state['_training_thread'] = thread
@@ -1121,7 +1144,7 @@ elif current_phase == TrainingPhase.TRAINING.value:
 
     # Auto-refresh while training
     if current_phase == TrainingPhase.TRAINING.value:
-        time.sleep(3)
+        time.sleep(1)
         st.rerun()
 
 

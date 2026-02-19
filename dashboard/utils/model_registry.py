@@ -6,6 +6,8 @@ providing a unified view of trained models.
 """
 
 import json
+import pickle
+import io
 import mlflow
 from pathlib import Path
 from datetime import datetime
@@ -14,6 +16,27 @@ from dataclasses import dataclass, field
 import logging
 import tempfile
 import shutil
+
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    """Restrict unpickling to safe classes only."""
+    _SAFE_MODULES = {
+        'numpy', 'numpy.core', 'numpy.core.multiarray',
+        'sklearn', 'sklearn.preprocessing',
+        'collections', 'builtins', 'copy',
+        'pandas', 'pandas.core',
+    }
+
+    def find_class(self, module, name):
+        if module.split('.')[0] in self._SAFE_MODULES:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(
+            f"Forbidden unpickle: {module}.{name}"
+        )
+
+
+def _restricted_loads(data: bytes):
+    return _RestrictedUnpickler(io.BytesIO(data)).load()
 
 from dashboard.utils.mlflow_client import get_mlflow_manager
 
@@ -247,9 +270,9 @@ class ModelRegistry:
                 run_id=model_entry.run_id,
                 artifact_path="model/scalers.pkl"
             )
-            import pickle
+            # WARNING: pickle.load can execute arbitrary code; use restricted unpickler
             with open(local_path, 'rb') as f:
-                return pickle.load(f)
+                return _RestrictedUnpickler(f).load()
         except FileNotFoundError:
             logger.info(f"No scalers found for model {model_entry.model_id}")
             return {}
@@ -271,9 +294,9 @@ class ModelRegistry:
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pass
             # Fallback to pickle (some configs are pickled despite .json extension)
-            import pickle
+            # WARNING: pickle.load can execute arbitrary code; use restricted unpickler
             with open(local_path, 'rb') as f:
-                data = pickle.load(f)
+                data = _RestrictedUnpickler(f).load()
                 return data if isinstance(data, dict) else {}
         except FileNotFoundError:
             logger.info(f"No model_config.json found for model {model_entry.model_id}")
@@ -301,7 +324,7 @@ class ModelRegistry:
             # Try loading with date index
             try:
                 return pd.read_csv(local_path, index_col=0, parse_dates=True)
-            except:
+            except Exception:
                 return pd.read_csv(local_path)
         except Exception as e:
             logger.warning(f"Failed to load data '{filename}' for model {model_entry.model_name}: {e}")
@@ -345,8 +368,12 @@ class ModelRegistry:
         return filtered
 
     def delete_model(self, model_id: str) -> bool:
-         mlflow.delete_run(model_id)
-         return True
+        try:
+            mlflow.delete_run(model_id)
+            return True
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to delete model {model_id}: {e}")
+            return False
 
 
 # Singleton

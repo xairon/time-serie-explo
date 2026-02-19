@@ -12,13 +12,9 @@ Includes:
 import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
-
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-
-warnings.filterwarnings("ignore")
 
 
 def plot_feature_importance_bar(
@@ -56,7 +52,7 @@ def plot_feature_importance_bar(
     values = [item[1] for item in sorted_items]
 
     # Create color scale
-    max_val = max(values) if values else 1
+    max_val = max(values) if values and max(values) > 0 else 1
     colors = [f'rgba(31, 119, 180, {0.3 + 0.7 * v / max_val})' for v in values]
 
     fig = go.Figure(data=[

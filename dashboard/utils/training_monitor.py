@@ -118,13 +118,20 @@ class TrainingMonitor:
                 total_time = metrics.get('total_time_seconds', 0)
                 status_text.text(f"Training completed in {int(total_time)}s")
                 if rerun_on_complete:
-                    st.rerun()
+                    # Guard against infinite reruns: only rerun once per completion
+                    _rerun_key = f"_monitor_rerun_{self.metrics_file}"
+                    if not st.session_state.get(_rerun_key):
+                        st.session_state[_rerun_key] = True
+                        st.rerun()
 
             elif status == 'error':
                 error = metrics.get('error', 'Unknown error')
                 status_text.text(f"❌ Erreur: {error}")
                 if rerun_on_complete:
-                    st.rerun()
+                    _rerun_key = f"_monitor_rerun_{self.metrics_file}"
+                    if not st.session_state.get(_rerun_key):
+                        st.session_state[_rerun_key] = True
+                        st.rerun()
         
         # Mise à jour des métriques
         if metrics_placeholder:

@@ -1,16 +1,15 @@
-"""Fonctions pour l'optimisation d'hyperparamètres avec Optuna."""
+"""Fonctions utilitaires pour la visualisation et l'exploration des résultats Optuna.
 
+NOTE: L'optimisation elle-même est gérée par optuna_training.py.
+Ce module fournit uniquement des fonctions de visualisation et d'analyse.
+"""
+
+import logging
 import optuna
 from optuna.visualization import plot_optimization_history, plot_param_importances, plot_contour
 import plotly.graph_objects as go
-from pathlib import Path
-import sys
-import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from dashboard.utils.forecasting import create_model, train_model, predict, compute_metrics
-from dashboard.config import METRICS_INFO
+logger = logging.getLogger(__name__)
 
 
 def suggest_hyperparameters(trial: optuna.Trial, model_type: str) -> dict:
@@ -36,7 +35,7 @@ def suggest_hyperparameters(trial: optuna.Trial, model_type: str) -> dict:
     # Hyperparamètres spécifiques au modèle
     if model_type == 'NBEATS':
         hyperparams.update({
-            'num_stacks': trial.suggest_categorical('num_stacks', [10, 20, 30]),
+            'num_stacks': trial.suggest_categorical('num_stacks', [2, 3, 4]),
             'num_blocks': trial.suggest_int('num_blocks', 1, 3),
             'num_layers': trial.suggest_int('num_layers', 2, 5),
             'layer_widths': trial.suggest_categorical('layer_widths', [128, 256, 512])
@@ -59,7 +58,7 @@ def suggest_hyperparameters(trial: optuna.Trial, model_type: str) -> dict:
             'dropout': trial.suggest_float('dropout', 0.0, 0.3)
         })
 
-    elif model_type == 'LSTM':
+    elif model_type in ('LSTM', 'GRU'):
         hyperparams.update({
             'hidden_dim': trial.suggest_categorical('hidden_dim', [64, 128, 256]),
             'n_rnn_layers': trial.suggest_int('n_rnn_layers', 1, 3),
@@ -67,60 +66,6 @@ def suggest_hyperparameters(trial: optuna.Trial, model_type: str) -> dict:
         })
 
     return hyperparams
-
-
-def create_optuna_objective(model_type: str, train_data: dict, val_data: dict,
-                            work_dir: Path, metric: str = 'MAE'):
-    """
-    Crée la fonction objective pour Optuna.
-
-    Args:
-        model_type: Type de modèle
-        train_data: Données d'entraînement
-        val_data: Données de validation
-        work_dir: Répertoire de travail
-        metric: Métrique à optimiser
-
-    Returns:
-        Fonction objective
-    """
-    def objective(trial):
-        # Suggérer les hyperparamètres
-        hyperparams = suggest_hyperparameters(trial, model_type)
-
-        # Créer le modèle
-        model_name = f"optuna_trial_{trial.number}"
-        try:
-            model = create_model(model_type, hyperparams, work_dir, model_name)
-
-            # Entraîner
-            use_covariates = model_type in ['TFT', 'TCN', 'LSTM']
-            train_model(model, train_data, val_data, use_covariates=use_covariates)
-
-            # Prédire sur validation
-            n_pred = len(val_data['target'])
-            if use_covariates:
-                pred = predict(
-                    model,
-                    train_data['target'],
-                    train_data['covariates'],
-                    n=n_pred
-                )
-            else:
-                pred = predict(model, train_data['target'], n=n_pred)
-
-            # Calculer la métrique
-            metrics = compute_metrics(val_data['target'], pred)
-            score = metrics[metric]
-
-            return score
-
-        except Exception as e:
-            # En cas d'erreur, retourner une valeur pénalisante
-            print(f"Trial {trial.number} failed: {e}")
-            return float('inf') if METRICS_INFO[metric]['lower_is_better'] else float('-inf')
-
-    return objective
 
 
 def run_optuna_study(objective, n_trials: int = 50, timeout: int = 3600,
@@ -155,79 +100,35 @@ def run_optuna_study(objective, n_trials: int = 50, timeout: int = 3600,
 
 
 def get_best_params(study: optuna.Study) -> dict:
-    """
-    Retourne les meilleurs hyperparamètres.
-
-    Args:
-        study: Étude Optuna
-
-    Returns:
-        dict avec les meilleurs paramètres
-    """
+    """Retourne les meilleurs hyperparamètres."""
     return study.best_params
 
 
 def get_best_value(study: optuna.Study) -> float:
-    """
-    Retourne la meilleure valeur.
-
-    Args:
-        study: Étude Optuna
-
-    Returns:
-        Meilleure valeur
-    """
+    """Retourne la meilleure valeur."""
     return study.best_value
 
 
-@st.cache_data(ttl=3600)
 def plot_optuna_optimization_history(study: optuna.Study) -> go.Figure:
-    """
-    Graphique de l'historique d'optimisation.
-
-    Args:
-        study: Étude Optuna
-
-    Returns:
-        Figure Plotly
-    """
+    """Graphique de l'historique d'optimisation."""
     fig = plot_optimization_history(study)
     fig.update_layout(template='plotly_white', height=400)
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_optuna_param_importances(study: optuna.Study) -> go.Figure:
-    """
-    Graphique de l'importance des paramètres.
-
-    Args:
-        study: Étude Optuna
-
-    Returns:
-        Figure Plotly
-    """
+    """Graphique de l'importance des paramètres."""
     try:
         fig = plot_param_importances(study)
         fig.update_layout(template='plotly_white', height=400)
         return fig
-    except:
+    except Exception:
         # Pas assez de trials
         return None
 
 
-@st.cache_data(ttl=3600)
 def plot_optuna_contour(study: optuna.Study, params: list = None) -> go.Figure:
-    """
-    Graphique de contour.
-
-    Args:
-        study: Étude Optuna
-        params: Liste des paramètres à afficher (None = auto)
-
-    Returns:
-        Figure Plotly
-    """
+    """Graphique de contour."""
     try:
         if params is None:
             # Sélectionner les 2 paramètres les plus importants
@@ -237,19 +138,10 @@ def plot_optuna_contour(study: optuna.Study, params: list = None) -> go.Figure:
         fig = plot_contour(study, params=params)
         fig.update_layout(template='plotly_white', height=500)
         return fig
-    except:
+    except Exception:
         return None
 
 
-@st.cache_data(ttl=3600)
 def get_trials_dataframe(study: optuna.Study):
-    """
-    Retourne un DataFrame avec les trials.
-
-    Args:
-        study: Étude Optuna
-
-    Returns:
-        DataFrame avec tous les trials
-    """
+    """Retourne un DataFrame avec les trials."""
     return study.trials_dataframe()

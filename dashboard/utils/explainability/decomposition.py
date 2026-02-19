@@ -9,9 +9,6 @@ Includes:
 import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple
-import warnings
-
-warnings.filterwarnings("ignore")
 
 
 class DecompositionAnalyzer:
@@ -65,7 +62,7 @@ class DecompositionAnalyzer:
             }
 
         try:
-            stl = STL(series, seasonal=seasonal, trend=trend)
+            stl = STL(series, period=seasonal, trend=trend)
             result = stl.fit()
 
             trend_series = result.trend
