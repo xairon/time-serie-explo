@@ -815,8 +815,8 @@ with tab_database:
         
         col1, col2 = st.columns(2)
         with col1:
-            db_host = st.text_input("Host", value="dib-2019006065", key="db_host")
-            db_port = st.number_input("Port", value=49502, min_value=1, max_value=65535, key="db_port")
+            db_host = st.text_input("Host", value="brgm-postgres", key="db_host")
+            db_port = st.number_input("Port", value=5432, min_value=1, max_value=65535, key="db_port")
             db_name = st.text_input("Database", value="postgres", key="db_name")
 
         with col2:

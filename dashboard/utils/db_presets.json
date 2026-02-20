@@ -1,8 +1,10 @@
 {
   "serveur": {
-    "host": "localhost",
-    "port": 5433,
+    "host": "brgm-postgres",
+    "port": 5432,
     "database": "postgres",
-    "user": "postgres"
+    "user": "postgres",
+    "password": "",
+    "schema": "postgres"
   }
 }

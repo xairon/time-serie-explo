@@ -34,11 +34,12 @@ services:
       - mlflow_artifacts:/app/mlruns
     working_dir: /app
     command: >
-      mlflow ui
+      mlflow server
         --host 0.0.0.0
         --port 5000
         --backend-store-uri sqlite:///db/mlflow.db
         --default-artifact-root ./mlruns
+        --allowed-hosts *
     environment:
       MLFLOW_TRACKING_URI: sqlite:///db/mlflow.db
     healthcheck:
@@ -80,7 +81,15 @@ services:
         condition: service_healthy
       mlflow:
         condition: service_healthy
+    networks:
+      - default
+      - brgm_net
     # Dockerfile CMD handles streamlit launch directly (no run_app.py)
+
+networks:
+  brgm_net:
+    external: true
+    name: hubeau_data_integration_default
 
 volumes:
   postgres_data:

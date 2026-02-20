@@ -7,12 +7,14 @@ FROM python:3.12-slim AS base-cpu
 FROM intel/intel-extension-for-pytorch:2.5.10-xpu AS base-xpu
 # Intel XPU runtime already ships torch + IPEX
 
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS base-cuda
+FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04 AS base-cuda
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3.12 python3.12-venv python3-pip && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+        python3.12 python3.12-venv python3.12-dev && \
     rm -rf /var/lib/apt/lists/*
+# Create a venv so pip works cleanly on Ubuntu 24.04
+RUN python3.12 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # ---------- select the right base ----------
 FROM base-${BACKEND} AS runtime
@@ -34,7 +36,7 @@ ARG BACKEND=cpu
 RUN pip install --no-cache-dir --upgrade pip && \
     if [ "$BACKEND" = "cuda" ]; then \
         pip install --no-cache-dir torch torchaudio torchvision \
-            --index-url https://download.pytorch.org/whl/cu124 && \
+            --index-url https://download.pytorch.org/whl/cu126 && \
         pip install --no-cache-dir ".[cuda]"; \
     elif [ "$BACKEND" = "xpu" ]; then \
         pip install --no-cache-dir ".[xpu]"; \
