@@ -139,7 +139,10 @@ def _write_log_to_state(state_dict: Dict[str, Any], message: str, level: str = "
 # PAGE SETUP
 # =============================================================================
 
-st.set_page_config(page_title="Train Models", page_icon="", layout="wide")
+try:
+    st.set_page_config(page_title="Train Models", page_icon="", layout="wide")
+except st.errors.StreamlitAPIException:
+    pass
 
 st.title(" Train Models")
 st.markdown("Forecasting model training with configurable preprocessing.")

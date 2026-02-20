@@ -1,0 +1,12 @@
+## XPU (Intel Arc) override
+## Usage: BACKEND=xpu docker compose -f docker-compose.yml -f docker-compose.xpu.yml up -d --build
+
+services:
+  streamlit:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    environment:
+      - BACKEND=xpu

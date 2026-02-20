@@ -61,6 +61,8 @@ from dashboard.utils.counterfactual import (
 from dashboard.utils.counterfactual.ips import (
     gwl_to_ips_class,
     gwl_to_ips_zscore,
+    compute_monthly_ips_bounds,
+    classify_prediction_monthly,
 )
 from dashboard.utils.counterfactual.darts_adapter import (
     DartsModelAdapter,
@@ -77,6 +79,7 @@ from dashboard.utils.counterfactual.constants import (
 from dashboard.utils.counterfactual.viz import (
     plot_theta_radar,
     plot_cf_overlay,
+    add_monthly_ips_bars,
     plot_stress_comparison,
     plot_convergence,
     compute_seasonal_summary,
@@ -91,7 +94,12 @@ from dashboard.utils.counterfactual.pastas_validation import (
 )
 
 # ---- Page Config ----
-st.set_page_config(page_title="PhysCF - Counterfactual Analysis", layout="wide")
+# st.set_page_config is called by Home.py (multipage entrypoint)
+# Only call it if running standalone (not as a sub-page)
+try:
+    st.set_page_config(page_title="PhysCF - Counterfactual Analysis", layout="wide")
+except st.errors.StreamlitAPIException:
+    pass  # Already set by Home.py
 st.title("PhysCF - Analyse Contrefactuelle")
 
 # ---- Registry ----
@@ -627,18 +635,8 @@ st.subheader(f"2. Classification IPS-{selected_ips_window} et qualite de la pred
 
 fig = go.Figure()
 
-test_month_median = int(np.median(test_dates.month))
-for cls_name in IPS_ORDER:
-    z_lo, z_hi = IPS_CLASSES[cls_name]
-    z_lo_c, z_hi_c = max(z_lo, -5.0), min(z_hi, 5.0)
-    mu_m, sigma_m = ref_stats.get(test_month_median, (mu_target, sigma_target))
-    fig.add_hrect(
-        y0=mu_m + z_lo_c * sigma_m, y1=mu_m + z_hi_c * sigma_m,
-        fillcolor=IPS_COLORS[cls_name], opacity=0.08,
-        layer="below", line_width=0,
-        annotation_text=IPS_LABELS[cls_name], annotation_position="right",
-        annotation=dict(font_size=9, font_color=IPS_COLORS[cls_name]),
-    )
+# Monthly IPS stacked bars as background (varies per calendar month)
+add_monthly_ips_bars(fig, test_dates, ref_stats)
 
 fig.add_vrect(x0=window_context_start, x1=window_pred_start,
     fillcolor="rgba(46,134,171,0.12)", layer="below", line_width=1,
@@ -666,35 +664,84 @@ fig.update_layout(
     title=f"{target_col} - Test set avec bandes IPS-{selected_ips_window} (m NGF)",
     xaxis_title="Date", yaxis_title="Niveau piezometrique (m NGF)",
     height=500, hovermode="x unified",
+    barmode="overlay",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Per-window IPS assessment ---
+# --- Per-window IPS assessment (month-by-month) ---
 if cached and cached.get("prediction") is not None and cached.get("target") is not None:
     pred_ts = cached["prediction"]
     target_ts = cached["target"]
     pred_values_raw = pred_ts.values().flatten()
     gt_values_raw = target_ts.values().flatten()
-    pred_mean_raw = float(np.mean(pred_values_raw))
-    gt_mean_raw = float(np.mean(gt_values_raw))
-    gt_month = int(pd.Timestamp(target_ts.time_index[len(target_ts) // 2]).month)
-    gt_ips = gwl_to_ips_class(gt_mean_raw, gt_month, ref_stats)
-    pred_ips = gwl_to_ips_class(pred_mean_raw, gt_month, ref_stats)
-    gt_zscore = gwl_to_ips_zscore(gt_mean_raw, gt_month, ref_stats)
-    pred_zscore = gwl_to_ips_zscore(pred_mean_raw, gt_month, ref_stats)
 
-    col_gt, col_pred, col_match = st.columns(3)
-    with col_gt:
-        st.metric("IPS Verite terrain", IPS_LABELS.get(gt_ips, gt_ips),
-                  delta=f"z = {gt_zscore:+.2f} | {gt_mean_raw:.2f} m NGF")
-    with col_pred:
-        st.metric("IPS Prediction", IPS_LABELS.get(pred_ips, pred_ips),
-                  delta=f"z = {pred_zscore:+.2f} | {pred_mean_raw:.2f} m NGF")
-    with col_match:
-        match = gt_ips == pred_ips
-        st.metric("Correspondance", "OUI" if match else "NON",
-                  delta="Bonne prediction" if match else "Classe differente",
-                  delta_color="normal" if match else "inverse")
+    # Month-by-month IPS classification
+    gt_monthly_ips = classify_prediction_monthly(gt_values_raw, target_ts.time_index, ref_stats)
+    pred_monthly_ips = classify_prediction_monthly(pred_values_raw, pred_ts.time_index, ref_stats)
+
+    if not gt_monthly_ips.empty and not pred_monthly_ips.empty:
+        st.markdown("**Classification IPS mois par mois**")
+
+        # Build a display table merging GT and pred monthly IPS
+        _ips_months = sorted(set(gt_monthly_ips["month_start"].tolist()) | set(pred_monthly_ips["month_start"].tolist()))
+        _gt_map = {row["month_start"]: row for _, row in gt_monthly_ips.iterrows()}
+        _pred_map = {row["month_start"]: row for _, row in pred_monthly_ips.iterrows()}
+
+        ips_display_cols = st.columns(min(len(_ips_months), 6))
+        n_match = 0
+        n_total = 0
+        for i, ms in enumerate(_ips_months):
+            gt_row = _gt_map.get(ms)
+            pred_row = _pred_map.get(ms)
+            month_label = ms.strftime("%b %Y")
+
+            with ips_display_cols[i % len(ips_display_cols)]:
+                st.markdown(f"**{month_label}**")
+                if gt_row is not None:
+                    gt_cls = gt_row["ips_class"]
+                    gt_z = gt_row["z_score"]
+                    gt_lbl = IPS_LABELS.get(gt_cls, gt_cls)
+                    gt_color = IPS_COLORS.get(gt_cls, "#888")
+                    st.markdown(
+                        f'<span style="color:{gt_color};font-weight:bold">GT: {gt_lbl}</span> '
+                        f'<small>(z={gt_z:+.2f})</small>',
+                        unsafe_allow_html=True,
+                    )
+                if pred_row is not None:
+                    pred_cls = pred_row["ips_class"]
+                    pred_z = pred_row["z_score"]
+                    pred_lbl = IPS_LABELS.get(pred_cls, pred_cls)
+                    pred_color = IPS_COLORS.get(pred_cls, "#888")
+                    st.markdown(
+                        f'<span style="color:{pred_color};font-weight:bold">Pred: {pred_lbl}</span> '
+                        f'<small>(z={pred_z:+.2f})</small>',
+                        unsafe_allow_html=True,
+                    )
+
+                if gt_row is not None and pred_row is not None:
+                    n_total += 1
+                    if gt_row["ips_class"] == pred_row["ips_class"]:
+                        n_match += 1
+                        st.caption("Correspondance")
+                    else:
+                        st.caption("Classe differente")
+
+        # Overall match rate
+        if n_total > 0:
+            match_pct = n_match / n_total * 100
+            col_summary_a, col_summary_b = st.columns(2)
+            with col_summary_a:
+                st.metric("Correspondance IPS mensuelle", f"{n_match}/{n_total} ({match_pct:.0f}%)",
+                          delta="Bonne prediction" if match_pct >= 50 else "Predictions divergentes",
+                          delta_color="normal" if match_pct >= 50 else "inverse")
+            with col_summary_b:
+                # Check if prediction spans multiple IPS classes
+                pred_classes = pred_monthly_ips["ips_class"].unique().tolist()
+                if len(pred_classes) > 1:
+                    labels = [IPS_LABELS.get(c, c) for c in pred_classes]
+                    st.info(f"La prediction couvre **{len(pred_classes)} classes IPS**: {', '.join(labels)}")
+                elif len(pred_classes) == 1:
+                    st.info(f"La prediction est entierement en classe **{IPS_LABELS.get(pred_classes[0], pred_classes[0])}**")
 
     if cached.get("metrics"):
         metrics = cached["metrics"]

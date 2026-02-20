@@ -428,97 +428,173 @@ def compute_ips_series(
 
 # ---- Darts scaler utilities ----
 
+def _get_sklearn_scaler(preprocessor_or_scaler):
+    """Extract the underlying sklearn scaler from a Darts Scaler or TimeSeriesPreprocessor.
+
+    Handles both:
+    - Darts ``Scaler`` objects (have ``.scaler`` attribute with sklearn scaler)
+    - ``TimeSeriesPreprocessor`` objects (have ``.get_scaler()`` to find inner Scaler)
+    - Raw sklearn scalers passed directly
+
+    Returns the sklearn scaler or *None*.
+    """
+    # Case 1: TimeSeriesPreprocessor → extract inner Darts Scaler first
+    if hasattr(preprocessor_or_scaler, "get_scaler"):
+        inner = preprocessor_or_scaler.get_scaler("scaler")
+        if inner is not None:
+            preprocessor_or_scaler = inner
+        else:
+            return None
+
+    # Case 2: Darts Scaler → access underlying sklearn scaler
+    # Darts stores fitted params in _fitted_params list (e.g. [StandardScaler()])
+    fitted_params = getattr(preprocessor_or_scaler, "_fitted_params", None)
+    if fitted_params and len(fitted_params) > 0:
+        sklearn_obj = fitted_params[0]
+        if hasattr(sklearn_obj, "transform"):
+            return sklearn_obj
+
+    # Also try .scaler or ._scaler (older Darts versions)
+    for attr in ("_scaler", "scaler", "transformer"):
+        sklearn_obj = getattr(preprocessor_or_scaler, attr, None)
+        if sklearn_obj is not None and hasattr(sklearn_obj, "transform"):
+            return sklearn_obj
+
+    # Case 3: already an sklearn scaler
+    if hasattr(preprocessor_or_scaler, "mean_") or hasattr(preprocessor_or_scaler, "scale_"):
+        return preprocessor_or_scaler
+
+    return None
+
+
+def _extract_mu_sigma_from_sklearn(sklearn_scaler):
+    """Return (mu, sigma) from a fitted sklearn scaler.
+
+    Supports StandardScaler, RobustScaler, and MinMaxScaler.
+    Returns (None, None) if extraction fails.
+    """
+    # StandardScaler: mean_ and scale_
+    if hasattr(sklearn_scaler, "mean_") and hasattr(sklearn_scaler, "scale_"):
+        return float(sklearn_scaler.mean_.flat[0]), float(sklearn_scaler.scale_.flat[0])
+
+    # RobustScaler: center_ and scale_
+    if hasattr(sklearn_scaler, "center_") and hasattr(sklearn_scaler, "scale_"):
+        return float(sklearn_scaler.center_.flat[0]), float(sklearn_scaler.scale_.flat[0])
+
+    # MinMaxScaler: data_min_ and data_range_ (sigma ≈ range)
+    if hasattr(sklearn_scaler, "data_min_") and hasattr(sklearn_scaler, "data_range_"):
+        return float(sklearn_scaler.data_min_.flat[0]), float(sklearn_scaler.data_range_.flat[0])
+
+    return None, None
+
+
 def extract_scaler_params(
     darts_scalers: dict,
 ) -> Tuple[Optional[float], Optional[float], dict]:
-    """Extract real mu/sigma from Darts TimeSeriesPreprocessor scalers.
+    """Extract real mu/sigma from Darts scalers (or TimeSeriesPreprocessor wrappers).
 
-    Darts stores data as z-score normalized: x_norm = (x_raw - mu) / sigma.
-    The scaler can inverse_transform: x_raw = x_norm * sigma + mu.
-
-    We recover mu and sigma by:
-        inverse_transform(0) = mu
-        inverse_transform(1) = mu + sigma
+    Works by directly reading the sklearn scaler parameters instead of
+    using inverse_transform with dummy values, which fails when the
+    preprocessing pipeline includes non-linear transformations (Log, BoxCox).
 
     Args:
         darts_scalers: Dict from MLflow artifacts, e.g.
             {'target': TimeSeriesPreprocessor, 'covariates': TimeSeriesPreprocessor}
+            or {'target_preprocessor': ..., 'cov_preprocessor': ...}
 
     Returns:
         (mu_target, sigma_target, covariate_params)
         where covariate_params = {col_name: {'mean': mu, 'std': sigma}}
     """
-    from darts import TimeSeries
-
     mu_target = None
     sigma_target = None
-    cov_params = {}
+    cov_params: dict = {}
 
-    target_scaler = darts_scalers.get("target")
+    # Support both key naming conventions
+    target_scaler = (
+        darts_scalers.get("target")
+        or darts_scalers.get("target_preprocessor")
+    )
+
     if target_scaler is not None:
         try:
-            # Create dummy TimeSeries with value 0 and 1
-            ts_zero = TimeSeries.from_values(np.array([[0.0]]))
-            ts_one = TimeSeries.from_values(np.array([[1.0]]))
+            sklearn_scaler = _get_sklearn_scaler(target_scaler)
+            if sklearn_scaler is not None:
+                mu_target, sigma_target = _extract_mu_sigma_from_sklearn(sklearn_scaler)
 
-            raw_zero = target_scaler.inverse_transform(ts_zero).values().flatten()[0]
-            raw_one = target_scaler.inverse_transform(ts_one).values().flatten()[0]
+            if mu_target is not None and sigma_target is not None:
+                if sigma_target <= 0:
+                    logger.warning(
+                        f"Target sigma <= 0 ({sigma_target}). Scaler may be invalid."
+                    )
+                    sigma_target = abs(sigma_target) if sigma_target != 0 else 1.0
 
-            mu_target = float(raw_zero)  # inverse(0) = mu
-            sigma_target = float(raw_one - raw_zero)  # inverse(1) - inverse(0) = sigma
-
-            if sigma_target <= 0:
-                logger.warning(
-                    f"Target sigma <= 0 ({sigma_target}). Scaler may be invalid."
+                logger.info(
+                    f"Extracted target scaler: mu={mu_target:.4f} m NGF, "
+                    f"sigma={sigma_target:.4f} m"
                 )
-                sigma_target = abs(sigma_target) if sigma_target != 0 else 1.0
-
-            logger.info(
-                f"Extracted target scaler: mu={mu_target:.4f} m NGF, "
-                f"sigma={sigma_target:.4f} m"
-            )
-        except (AttributeError, ValueError, TypeError, IndexError) as e:
+            else:
+                # Fallback: try inverse_transform with dummy values
+                mu_target, sigma_target = _fallback_inverse_transform(target_scaler)
+        except Exception as e:
             logger.warning(f"Could not extract target scaler params: {e}")
 
-    cov_scaler = darts_scalers.get("covariates")
+    cov_scaler = (
+        darts_scalers.get("covariates")
+        or darts_scalers.get("cov_preprocessor")
+    )
+
     if cov_scaler is not None:
         try:
-            # Determine number of components
-            ts_zero_1d = TimeSeries.from_values(np.array([[0.0]]))
-            try:
-                raw = cov_scaler.inverse_transform(ts_zero_1d)
-                n_components = raw.n_components
-            except Exception:
-                n_components = 1
+            sklearn_scaler = _get_sklearn_scaler(cov_scaler)
+            if sklearn_scaler is not None:
+                # Multi-component: iterate over each feature
+                for attr_mu, attr_sig in [("mean_", "scale_"), ("center_", "scale_"), ("data_min_", "data_range_")]:
+                    mu_arr = getattr(sklearn_scaler, attr_mu, None)
+                    sig_arr = getattr(sklearn_scaler, attr_sig, None)
+                    if mu_arr is not None and sig_arr is not None:
+                        n_features = len(mu_arr.flat)
+                        for i in range(n_features):
+                            name = f"cov_{i}"
+                            mu_c = float(mu_arr.flat[i])
+                            sigma_c = float(sig_arr.flat[i])
+                            if sigma_c <= 0:
+                                sigma_c = 1.0
+                            cov_params[name] = {"mean": mu_c, "std": sigma_c}
+                        break
 
-            # Try multi-component
-            ts_zero_nd = TimeSeries.from_values(np.zeros((1, n_components)))
-            ts_one_nd = TimeSeries.from_values(np.ones((1, n_components)))
-
-            raw_zero = cov_scaler.inverse_transform(ts_zero_nd).values().flatten()
-            raw_one = cov_scaler.inverse_transform(ts_one_nd).values().flatten()
-
-            # Get column names if available
-            try:
-                col_names = list(
-                    cov_scaler.inverse_transform(ts_zero_nd).columns.values
-                )
-            except Exception:
-                col_names = [f"cov_{i}" for i in range(n_components)]
-
-            for i, name in enumerate(col_names):
-                mu_c = float(raw_zero[i])
-                sigma_c = float(raw_one[i] - raw_zero[i])
-                if sigma_c <= 0:
-                    sigma_c = 1.0
-                cov_params[name] = {"mean": mu_c, "std": sigma_c}
-
-            logger.info(f"Extracted covariate scaler params for {len(cov_params)} columns")
-
-        except (AttributeError, ValueError, TypeError, IndexError) as e:
+                if cov_params:
+                    logger.info(f"Extracted covariate scaler params for {len(cov_params)} columns")
+        except Exception as e:
             logger.warning(f"Could not extract covariate scaler params: {e}")
 
     return mu_target, sigma_target, cov_params
+
+
+def _fallback_inverse_transform(scaler) -> Tuple[Optional[float], Optional[float]]:
+    """Fallback: recover mu/sigma via inverse_transform(0) and inverse_transform(1)."""
+    from darts import TimeSeries
+
+    try:
+        ts_zero = TimeSeries.from_values(np.array([[0.0]]))
+        ts_one = TimeSeries.from_values(np.array([[1.0]]))
+
+        raw_zero = scaler.inverse_transform(ts_zero).values().flatten()[0]
+        raw_one = scaler.inverse_transform(ts_one).values().flatten()[0]
+
+        mu = float(raw_zero)
+        sigma = float(raw_one - raw_zero)
+
+        if sigma <= 0:
+            sigma = abs(sigma) if sigma != 0 else 1.0
+
+        logger.info(
+            f"Extracted target scaler (fallback): mu={mu:.4f}, sigma={sigma:.4f}"
+        )
+        return mu, sigma
+    except Exception as e:
+        logger.warning(f"Fallback inverse_transform failed: {e}")
+        return None, None
 
 
 # ---- IPS-N (multi-window aggregation) ----
@@ -706,6 +782,104 @@ def compute_ips_series_n(
         axis=1,
     )
     return result.drop(columns=["month"])
+
+
+def compute_monthly_ips_bounds(
+    dates: "pd.DatetimeIndex",
+    ref_stats: dict[int, tuple[float, float]],
+) -> pd.DataFrame:
+    """Compute IPS class bounds (m NGF) for each month spanned by the dates.
+
+    Returns a DataFrame with one row per distinct (year, month) covered,
+    containing lower/upper bounds for all 7 IPS classes.  This is used to
+    draw per-month stacked bar backgrounds in charts.
+
+    Columns returned:
+        month_start (Timestamp): first day of calendar month
+        month_end   (Timestamp): last day of calendar month
+        month       (int):       calendar month 1-12
+        <cls>_lower (float):     lower bound for IPS class *cls* (m NGF)
+        <cls>_upper (float):     upper bound for IPS class *cls* (m NGF)
+
+    Args:
+        dates: DatetimeIndex covering the time range of interest.
+        ref_stats: Monthly reference statistics {month: (mu, sigma)}.
+
+    Returns:
+        DataFrame sorted by month_start.
+    """
+    if len(dates) == 0:
+        return pd.DataFrame()
+
+    # Distinct (year, month) tuples
+    ym_set: set[tuple[int, int]] = set()
+    for d in dates:
+        ym_set.add((d.year, d.month))
+
+    rows = []
+    for year, month in sorted(ym_set):
+        mu_m, sigma_m = ref_stats.get(month, (float("nan"), float("nan")))
+        if np.isnan(mu_m) or np.isnan(sigma_m):
+            continue
+        row: dict = {
+            "month_start": pd.Timestamp(year=year, month=month, day=1),
+            "month_end": (
+                pd.Timestamp(year=year, month=month, day=1) + pd.offsets.MonthEnd(0)
+            ),
+            "month": month,
+            "mu": mu_m,
+            "sigma": sigma_m,
+        }
+        for cls_name, (z_lo, z_hi) in IPS_CLASSES.items():
+            z_lo_c = max(z_lo, -5.0)
+            z_hi_c = min(z_hi, 5.0)
+            row[f"{cls_name}_lower"] = mu_m + z_lo_c * sigma_m
+            row[f"{cls_name}_upper"] = mu_m + z_hi_c * sigma_m
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def classify_prediction_monthly(
+    pred_values: "np.ndarray",
+    pred_dates: "pd.DatetimeIndex",
+    ref_stats: dict[int, tuple[float, float]],
+) -> pd.DataFrame:
+    """Classify a daily prediction into IPS classes month-by-month.
+
+    For each calendar month covered by the prediction, computes:
+    - the monthly mean of predicted values
+    - the corresponding z-score using the month's reference stats
+    - the IPS class
+
+    Args:
+        pred_values: Array of predicted values (m NGF), one per date.
+        pred_dates: DatetimeIndex of prediction dates.
+        ref_stats: Monthly reference statistics {month: (mu, sigma)}.
+
+    Returns:
+        DataFrame with columns [month_start, month, mean_gwl, z_score, ips_class].
+    """
+    if len(pred_values) == 0 or len(pred_dates) == 0:
+        return pd.DataFrame()
+
+    series = pd.Series(pred_values[:len(pred_dates)], index=pred_dates)
+    monthly_mean = series.resample("ME").mean().dropna()
+
+    rows = []
+    for date, mean_val in monthly_mean.items():
+        m = date.month
+        z = gwl_to_ips_zscore(float(mean_val), m, ref_stats)
+        cls = gwl_to_ips_class(float(mean_val), m, ref_stats)
+        rows.append({
+            "month_start": pd.Timestamp(year=date.year, month=date.month, day=1),
+            "month": m,
+            "mean_gwl": float(mean_val),
+            "z_score": z,
+            "ips_class": cls,
+        })
+
+    return pd.DataFrame(rows)
 
 
 def ref_stats_to_json(ref_stats: dict[int, tuple[float, float]]) -> str:

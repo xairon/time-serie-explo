@@ -288,34 +288,47 @@ class MLflowManager:
             logger.warning(f"Failed to log dataset: {e}")
     
     def log_model_with_signature(
-        self, 
-        model: Any, 
+        self,
+        model: Any,
         artifact_path: str,
         input_example: Optional[Any] = None,
         custom_artifacts: Optional[Dict] = None
     ):
         """
         Log a model with signature inference for documentation.
-        
+
         Args:
             model: The model object (Darts ForecastingModel)
             artifact_path: Directory in artifact store
             input_example: Example input for signature inference
             custom_artifacts: Additional files to log
+
+        Raises:
+            RuntimeError: If no active MLflow run or model saving fails
         """
         if not mlflow.active_run():
-            return
-        
+            raise RuntimeError(
+                "No active MLflow run — cannot save model artifacts. "
+                "Ensure mlflow.start_run() was called before training."
+            )
+
         import tempfile
         import shutil
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            
+
             # 1. Save Darts model
             model_file = temp_path / "model.pkl"
-            model.save(str(model_file))
-            
+            try:
+                model.save(str(model_file))
+            except Exception as e:
+                logger.error(f"Failed to save model: {e}")
+                raise RuntimeError(f"Model serialization failed: {e}") from e
+
+            if not model_file.exists():
+                raise RuntimeError(f"Model file was not created at {model_file}")
+
             # 2. Save model info/signature as JSON
             model_info = {
                 "model_class": model.__class__.__name__,
@@ -325,28 +338,42 @@ class MLflowManager:
                 "supports_future_covariates": getattr(model, "supports_future_covariates", False),
                 "supports_multivariate": getattr(model, "supports_multivariate", False),
             }
-            
+
             info_file = temp_path / "model_info.json"
             with open(info_file, 'w') as f:
                 json.dump(model_info, f, indent=2, default=str)
-            
-            # 3. Save custom artifacts
+
+            # 3. Save custom artifacts (errors logged but don't block model saving)
             if custom_artifacts:
                 for name, content in custom_artifacts.items():
                     artifact_file = temp_path / name
-                    if isinstance(content, (str, Path)):
-                        if Path(content).exists():
-                            shutil.copy(content, artifact_file)
-                    elif hasattr(content, 'to_csv'):
-                        content.to_csv(artifact_file)
-                    else:
-                        import pickle
-                        with open(artifact_file, 'wb') as f:
-                            pickle.dump(content, f)
-            
+                    try:
+                        if isinstance(content, (str, Path)):
+                            if Path(content).exists():
+                                shutil.copy(content, artifact_file)
+                            else:
+                                logger.warning(f"Artifact path does not exist: {content}")
+                        elif hasattr(content, 'to_csv'):
+                            content.to_csv(artifact_file)
+                        elif isinstance(content, dict) and name.endswith('.json'):
+                            with open(artifact_file, 'w') as f:
+                                json.dump(content, f, indent=2, default=str)
+                        else:
+                            import pickle
+                            with open(artifact_file, 'wb') as f:
+                                pickle.dump(content, f)
+                    except Exception as e:
+                        logger.warning(f"Failed to save artifact '{name}': {e}")
+
             # 4. Log all as artifacts
-            mlflow.log_artifacts(str(temp_path), artifact_path=artifact_path)
-            
+            try:
+                mlflow.log_artifacts(str(temp_path), artifact_path=artifact_path)
+            except Exception as e:
+                logger.error(f"Failed to upload artifacts to MLflow: {e}")
+                raise RuntimeError(f"MLflow artifact upload failed: {e}") from e
+
+            logger.info(f"Model and {len(custom_artifacts or {})} artifacts logged to MLflow: {artifact_path}")
+
             # 5. Log model info as params for easy filtering
             try:
                 mlflow.log_params({
@@ -355,7 +382,7 @@ class MLflowManager:
                     "output_chunk": model_info.get("output_chunk_length"),
                 })
             except Exception as e:
-                logging.getLogger(__name__).debug(f"Param logging skipped: {e}")
+                logger.debug(f"Param logging skipped: {e}")
 
     def register_model_version(
         self,
@@ -395,6 +422,34 @@ class MLflowManager:
         """Set the status of the current run."""
         if mlflow.active_run():
             mlflow.set_tag("run_status", status)
+
+    def cleanup_stale_runs(self) -> int:
+        """Mark stale RUNNING runs (no active process) as FAILED.
+
+        Returns the number of runs cleaned up.
+        """
+        client = mlflow.MlflowClient()
+        experiment = client.get_experiment_by_name(self.experiment_name)
+        if not experiment:
+            return 0
+
+        stale_runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string="attributes.status = 'RUNNING'",
+        )
+
+        cleaned = 0
+        for run in stale_runs:
+            try:
+                client.set_terminated(run.info.run_id, status="FAILED")
+                logger.info(f"Cleaned stale run {run.info.run_id} ({run.info.run_name})")
+                cleaned += 1
+            except Exception as e:
+                logger.warning(f"Failed to clean run {run.info.run_id}: {e}")
+
+        if cleaned:
+            logger.info(f"Cleaned {cleaned} stale RUNNING run(s)")
+        return cleaned
 
 
 # Global singleton

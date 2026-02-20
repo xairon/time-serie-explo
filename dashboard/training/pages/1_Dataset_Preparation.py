@@ -15,12 +15,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-st.set_page_config(
-    page_title="Dataset Preparation",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+try:
+    st.set_page_config(
+        page_title="Dataset Preparation",
+        page_icon="📊",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+except st.errors.StreamlitAPIException:
+    pass
 
 # =============================================================================
 # SESSION STATE INITIALIZATION

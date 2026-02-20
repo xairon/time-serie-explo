@@ -1,31 +1,66 @@
-FROM python:3.10-slim
+ARG BACKEND=cpu
+
+# ---------- base image per backend ----------
+FROM python:3.12-slim AS base-cpu
+# nothing extra
+
+FROM intel/intel-extension-for-pytorch:2.5.10-xpu AS base-xpu
+# Intel XPU runtime already ships torch + IPEX
+
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS base-cuda
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3-pip && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    rm -rf /var/lib/apt/lists/*
+
+# ---------- select the right base ----------
+FROM base-${BACKEND} AS runtime
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+# System deps (slim images need curl for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential curl libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY pyproject.toml requirements.txt ./
+# ---------- Python deps via pyproject.toml ----------
+# Copy only what pip needs to resolve deps (cache-friendly layer)
+COPY pyproject.toml ./
+# hatchling needs the package dir + README to exist
+RUN mkdir -p dashboard && touch dashboard/__init__.py && touch README.md
 
-# Install python dependencies from requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+ARG BACKEND=cpu
+RUN pip install --no-cache-dir --upgrade pip && \
+    if [ "$BACKEND" = "cuda" ]; then \
+        pip install --no-cache-dir torch torchaudio torchvision \
+            --index-url https://download.pytorch.org/whl/cu124 && \
+        pip install --no-cache-dir ".[cuda]"; \
+    elif [ "$BACKEND" = "xpu" ]; then \
+        pip install --no-cache-dir ".[xpu]"; \
+    else \
+        pip install --no-cache-dir ".[cpu]"; \
+    fi
 
-# Explicitly install xpu torch if needed (based on pyproject.toml logic, but for simplicity we rely on requirements.txt being correct or pip handling it. 
-# Attempting to follow pyproject.toml logic manually if pip install fails might be needed, but requirements.txt has standard versions. 
-# Pyproject.toml has: torch = { version = "2.10.0+xpu", source = "pytorch-xpu" }
-# If requirements.txt doesn't specify index-url for xpu, this might be tricky.
-# Let's check requirements.txt again. It just says "torch>=2.0.0".
-# To match the user's setup which seems to be XPU focused, we should probably stick to what works. 
-# However, usually pip install -r requirements.txt grabs standard PyTorch. 
-# If the user relies on XPU, they might need the specific command. 
-# For now, let's stick to simple pip install -r requirements.txt.
+# ---------- App code ----------
+COPY dashboard/ ./dashboard/
+COPY .streamlit/ ./.streamlit/
+COPY run_app.py ./
 
-COPY . .
+# Ensure writable dirs exist (volumes will overlay them)
+RUN mkdir -p /app/data/prepared /app/checkpoints/darts /app/mlruns \
+             /app/results /app/figs /app/logs/darts
 
-# Default command (overridden in docker-compose)
-CMD ["python", "run_app.py", "--host", "0.0.0.0"]
+ENV PYTHONPATH="/app"
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+CMD ["python", "-m", "streamlit", "run", "dashboard/training/Home.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true", \
+     "--browser.gatherUsageStats=false"]

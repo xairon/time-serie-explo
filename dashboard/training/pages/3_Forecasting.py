@@ -172,7 +172,10 @@ def kling_gupta_efficiency(actual, predicted):
     return kge
 
 
-st.set_page_config(layout="wide", page_title="Forecasting")
+try:
+    st.set_page_config(layout="wide", page_title="Forecasting")
+except st.errors.StreamlitAPIException:
+    pass  # Already set by Home.py
 
 
 def load_model_data(model_entry):

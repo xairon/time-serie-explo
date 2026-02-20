@@ -31,6 +31,8 @@ from .ips import (
     extract_scaler_params,
     ref_stats_to_json,
     ref_stats_from_json,
+    compute_monthly_ips_bounds,
+    classify_prediction_monthly,
 )
 from .pastas_validation import (
     PASTAS_AVAILABLE,
@@ -92,6 +94,8 @@ __all__ = [
     "extract_scaler_params",
     "ref_stats_to_json",
     "ref_stats_from_json",
+    "compute_monthly_ips_bounds",
+    "classify_prediction_monthly",
     "validity_ratio",
     "stepwise_validity",
     "seasonal_validity",

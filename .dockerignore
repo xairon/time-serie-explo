@@ -29,16 +29,10 @@ build/
 notebooks/
 *.ipynb
 
-# Local data (mount as volume instead)
-data/
-checkpoints/
-logs/
-results/
-figs/
-
 # Environment
 .env
 .env.local
+.env.example
 
 # OS
 .DS_Store
@@ -51,3 +45,16 @@ docs/
 
 # Local dev files
 .claude/
+
+# Docker files (avoid recursive COPY)
+docker-compose*.yml
+Dockerfile
+
+# Data that will be mounted as volumes (not baked into image)
+data/
+checkpoints/
+mlruns/
+mlflow.db
+results/
+figs/
+logs/

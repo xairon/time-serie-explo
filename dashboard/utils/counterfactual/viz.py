@@ -20,7 +20,7 @@ from .constants import (
     MONTH_TO_SEASON_NAME,
     SEASON_NAMES_FR,
 )
-from .ips import IPS_CLASSES, IPS_ORDER
+from .ips import IPS_CLASSES, IPS_ORDER, compute_monthly_ips_bounds
 
 
 # ---- Theta radar chart ----
@@ -110,6 +110,82 @@ def plot_theta_radar(
     return fig
 
 
+# ---- Monthly IPS stacked bars (background) ----
+
+def add_monthly_ips_bars(
+    fig: go.Figure,
+    dates: pd.DatetimeIndex,
+    ref_stats: dict[int, tuple[float, float]],
+    highlight_class: Optional[str] = None,
+    opacity: float = 0.10,
+) -> None:
+    """Add per-month stacked transparent bars showing 7 IPS classes.
+
+    Each calendar month gets bars whose widths span from the 1st to the
+    last day of that month (clipped to the date range).  The bars are
+    ordered from ``very_low`` (bottom) to ``very_high`` (top) so that
+    the stack visually represents the IPS scale.
+
+    Args:
+        fig: Plotly Figure to add traces to (modified in place).
+        dates: DatetimeIndex covering the time range.
+        ref_stats: Monthly reference statistics {month: (mu, sigma)}.
+        highlight_class: If set, this IPS class gets higher opacity.
+        opacity: Base opacity for bars (highlighted class gets 2x).
+    """
+    bounds_df = compute_monthly_ips_bounds(dates, ref_stats)
+    if bounds_df.empty:
+        return
+
+    # Clip month boundaries to the actual date range
+    date_min, date_max = dates.min(), dates.max()
+
+    for cls_name in IPS_ORDER:
+        color_hex = IPS_COLORS[cls_name]
+        r = int(color_hex[1:3], 16)
+        g = int(color_hex[3:5], 16)
+        b = int(color_hex[5:7], 16)
+        cls_opacity = opacity * 2 if cls_name == highlight_class else opacity
+
+        xs = []
+        ys_base = []
+        ys_top = []
+        widths = []
+
+        for _, row in bounds_df.iterrows():
+            m_start = max(row["month_start"], date_min)
+            m_end = min(row["month_end"], date_max)
+            mid = m_start + (m_end - m_start) / 2
+
+            xs.append(mid)
+            ys_base.append(row[f"{cls_name}_lower"])
+            ys_top.append(row[f"{cls_name}_upper"])
+            # width in milliseconds for plotly
+            widths.append(
+                (m_end - m_start).total_seconds() * 1000
+            )
+
+        # Draw with Bar trace (base + top)
+        fig.add_trace(go.Bar(
+            x=xs,
+            y=[t - b for t, b in zip(ys_top, ys_base)],
+            base=ys_base,
+            width=widths,
+            marker=dict(
+                color=f"rgba({r},{g},{b},{cls_opacity})",
+                line=dict(width=0),
+            ),
+            name=IPS_LABELS[cls_name],
+            showlegend=True,
+            hovertemplate=(
+                f"{IPS_LABELS[cls_name]}<br>"
+                "Borne: %{base:.2f} - %{customdata:.2f} m NGF<extra></extra>"
+            ),
+            customdata=ys_top,
+            legendgroup="ips_bands",
+        ))
+
+
 # ---- CF overlay chart ----
 
 def plot_cf_overlay(
@@ -127,7 +203,7 @@ def plot_cf_overlay(
     sigma_target: float,
     horizon_months: np.ndarray,
 ) -> go.Figure:
-    """Build the CF overlay chart with IPS bands, prediction, and CF curves.
+    """Build the CF overlay chart with monthly IPS bars, prediction, and CF curves.
 
     Args:
         gt_dates: Horizon dates for ground truth.
@@ -149,23 +225,8 @@ def plot_cf_overlay(
     """
     fig = go.Figure()
 
-    # All IPS bands as background
-    horizon_month_med = int(np.median(horizon_months)) if len(horizon_months) > 0 else 6
-    mu_m, sigma_m = ref_stats.get(horizon_month_med, (mu_target, sigma_target))
-
-    for cls_name in IPS_ORDER:
-        z_lo, z_hi = IPS_CLASSES[cls_name]
-        z_lo_c, z_hi_c = max(z_lo, -5.0), min(z_hi, 5.0)
-        y_lo = mu_m + z_lo_c * sigma_m
-        y_hi = mu_m + z_hi_c * sigma_m
-        fig.add_hrect(
-            y0=y_lo, y1=y_hi,
-            fillcolor=IPS_COLORS[cls_name], opacity=0.06,
-            layer="below", line_width=0,
-            annotation_text=IPS_LABELS[cls_name] if cls_name == ips_to_key else "",
-            annotation_position="right",
-            annotation=dict(font_size=8, font_color=IPS_COLORS[cls_name]),
-        )
+    # Monthly IPS stacked bars as background
+    add_monthly_ips_bars(fig, gt_dates, ref_stats, highlight_class=ips_to_key)
 
     # Ground truth
     fig.add_trace(go.Scatter(
@@ -182,7 +243,7 @@ def plot_cf_overlay(
             line=dict(color="#E91E63", width=2, dash="dot"),
         ))
 
-    # Target IPS band (highlighted)
+    # Target IPS band (highlighted bounds as lines)
     ips_color = IPS_COLORS[ips_to_key]
     r, g, b = int(ips_color[1:3], 16), int(ips_color[3:5], 16), int(ips_color[5:7], 16)
     fig.add_trace(go.Scatter(
@@ -215,6 +276,7 @@ def plot_cf_overlay(
         title=f"Contrefactuel: cible {ips_to_label} (m NGF)",
         xaxis_title="Date", yaxis_title="Niveau piezometrique (m NGF)",
         height=450, hovermode="x unified",
+        barmode="overlay",
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
     return fig

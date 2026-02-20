@@ -1,14 +1,17 @@
 """Configuration centralisée pour le dashboard Junon."""
 
+import os
 from pathlib import Path
 import torch
 
 # Chemins
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / 'data' / 'piezos'
-# MLflow : base SQLite au même niveau que le projet (run_app.py et mlflow ui utilisent ce chemin)
+# MLflow : utilise l'env var si définie (Docker → http://mlflow:5000), sinon SQLite local
 MLFLOW_DB_PATH = BASE_DIR / "mlflow.db"
-MLFLOW_TRACKING_URI = f"sqlite:///{MLFLOW_DB_PATH.as_posix()}"
+MLFLOW_TRACKING_URI = os.environ.get(
+    "MLFLOW_TRACKING_URI", f"sqlite:///{MLFLOW_DB_PATH.as_posix()}"
+)
 RESULTS_DIR = BASE_DIR / 'results'
 FIGS_DIR = BASE_DIR / 'figs'
 CHECKPOINTS_DIR = BASE_DIR / 'checkpoints' / 'darts'
@@ -106,7 +109,6 @@ METRIC_TOOLTIPS = {
 }
 
 # Device (CPU/GPU)
-import os
 
 # Configuration GPU
 try:

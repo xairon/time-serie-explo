@@ -25,6 +25,8 @@ class _RestrictedUnpickler(pickle.Unpickler):
         'sklearn', 'sklearn.preprocessing',
         'collections', 'builtins', 'copy',
         'pandas', 'pandas.core',
+        'dashboard',  # Our TimeSeriesPreprocessor
+        'darts',      # Darts Scaler, transformers, TimeSeries
     }
 
     def find_class(self, module, name):
@@ -90,6 +92,19 @@ class ModelRegistry:
         self.mlflow_manager = get_mlflow_manager()
         # checkpoints_dir is kept for API compatibility but mostly unused for reading
         self.checkpoints_dir = Path(checkpoints_dir) if checkpoints_dir else Path("checkpoints")
+        # Always pin tracking URI to our project DB
+        self._ensure_tracking_uri()
+        # Clean up stale RUNNING runs from previous interrupted sessions
+        try:
+            self.mlflow_manager.cleanup_stale_runs()
+        except Exception as e:
+            logger.warning(f"Stale run cleanup failed: {e}")
+
+    @staticmethod
+    def _ensure_tracking_uri():
+        """Ensure MLflow tracking URI points to our project database."""
+        from dashboard.config import MLFLOW_TRACKING_URI
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     
     def _run_to_entry(self, run: mlflow.entities.Run) -> ModelEntry:
         """Convert MLflow Run to ModelEntry."""
@@ -162,6 +177,7 @@ class ModelRegistry:
         model_name: Optional[str] = None
     ) -> List[ModelEntry]:
         """List models from MLflow."""
+        self._ensure_tracking_uri()
         try:
             # Use native MLflow client for proper Run objects
             client = mlflow.MlflowClient()
@@ -199,9 +215,13 @@ class ModelRegistry:
             return []
 
     def get_model(self, model_id: str) -> Optional[ModelEntry]:
-        """Get model by Run ID."""
+        """Get model by Run ID. Only returns FINISHED runs."""
+        self._ensure_tracking_uri()
         try:
             run = mlflow.get_run(model_id)
+            if run.info.status != "FINISHED":
+                logger.warning(f"Run {model_id} has status '{run.info.status}', skipping")
+                return None
             return self._run_to_entry(run)
         except mlflow.exceptions.MlflowException as e:
             logger.warning(f"MLflow run not found: {model_id} - {e}")
@@ -212,16 +232,37 @@ class ModelRegistry:
 
     def load_model(self, model_entry: ModelEntry) -> Any:
         """Load Darts model from MLflow artifacts (robust loader for PyTorch pickle)."""
-        # Ensure tracking URI is set before downloading artifacts
-        tracking_uri = mlflow.get_tracking_uri()
-        if not tracking_uri or tracking_uri == "":
-            from dashboard.config import MLFLOW_TRACKING_URI
-            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        self._ensure_tracking_uri()
 
-        local_dir = mlflow.artifacts.download_artifacts(
-            run_id=model_entry.run_id,
-            artifact_path="model",
-        )
+        # Verify the run exists and is FINISHED before downloading
+        try:
+            run = mlflow.get_run(model_entry.run_id)
+            if run.info.status != "FINISHED":
+                raise FileNotFoundError(
+                    f"Run '{model_entry.run_id}' has status '{run.info.status}' (not FINISHED). "
+                    f"Model artifacts are only available for completed training runs."
+                )
+        except mlflow.exceptions.MlflowException as e:
+            raise FileNotFoundError(
+                f"MLflow run '{model_entry.run_id}' not found. "
+                f"The run may have been deleted. Error: {e}"
+            )
+
+        try:
+            local_dir = mlflow.artifacts.download_artifacts(
+                run_id=model_entry.run_id,
+                artifact_path="model",
+            )
+        except Exception as e:
+            # Diagnostic: capture state at failure time
+            _diag_uri = mlflow.get_tracking_uri()
+            _diag_art = run.info.artifact_uri if run else "N/A"
+            raise FileNotFoundError(
+                f"Failed to download artifacts for run '{model_entry.run_id}' "
+                f"(model: {model_entry.model_name}). "
+                f"tracking_uri={_diag_uri}, artifact_uri={_diag_art}. "
+                f"Error: {e}"
+            )
         from pathlib import Path
         p = Path(local_dir)
         ckpt_path = p / "model.pkl.ckpt"
@@ -265,6 +306,7 @@ class ModelRegistry:
 
     def load_scalers(self, model_entry: ModelEntry) -> Dict[str, Any]:
         """Load scalers from artifacts."""
+        self._ensure_tracking_uri()
         try:
             local_path = mlflow.artifacts.download_artifacts(
                 run_id=model_entry.run_id,
@@ -282,6 +324,7 @@ class ModelRegistry:
 
     def load_model_config(self, model_entry: ModelEntry) -> Dict[str, Any]:
         """Load model_config.json from artifacts (supports JSON and pickle formats)."""
+        self._ensure_tracking_uri()
         try:
             local_path = mlflow.artifacts.download_artifacts(
                 run_id=model_entry.run_id,
@@ -310,6 +353,7 @@ class ModelRegistry:
         Load dataset split (train/val/test) from artifacts.
         Returns pandas DataFrame.
         """
+        self._ensure_tracking_uri()
         valid_splits = ["train", "val", "test", "train_cov", "val_cov", "test_cov"]
         if split not in valid_splits:
             raise ValueError(f"Invalid split '{split}'. Must be one of {valid_splits}")
