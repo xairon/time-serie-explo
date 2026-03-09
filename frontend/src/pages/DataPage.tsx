@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useDatasets } from '@/hooks/useDatasets'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
+import { DatasetCard } from '@/components/cards/DatasetCard'
 import { DataTable } from '@/components/data/DataTable'
 import { DataProfiler } from '@/components/data/DataProfiler'
 import { TimeseriesPlot } from '@/components/charts/TimeseriesPlot'
@@ -29,9 +30,10 @@ export default function DataPage() {
   const [fillMethod, setFillMethod] = useState('interpolate')
   const [normalize, setNormalize] = useState(true)
 
+  const dsCount = datasets?.length ?? 0
   const tabs: { key: Tab; label: string }[] = [
     { key: 'import', label: 'Importer' },
-    { key: 'explore', label: 'Explorer' },
+    { key: 'explore', label: dsCount > 0 ? `Explorer (${dsCount})` : 'Explorer' },
     { key: 'config', label: 'Configurer' },
   ]
 
@@ -121,29 +123,40 @@ export default function DataPage() {
       {/* Explore tab */}
       {tab === 'explore' && (
         <div className="space-y-6">
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">Dataset</label>
-            {isLoading ? (
-              <div className="h-9 bg-bg-hover rounded-lg animate-pulse" />
-            ) : (
-              <select
-                value={selectedDatasetId}
-                onChange={(e) => handleDatasetChange(e.target.value)}
-                className="w-full max-w-md bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Sélectionner un dataset</option>
-                {datasets?.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.n_rows} lignes)
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          {/* Dataset grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-28 bg-bg-card rounded-xl animate-pulse border border-white/5" />
+              ))}
+            </div>
+          ) : datasets && datasets.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {datasets.map((ds) => (
+                <button
+                  key={ds.id}
+                  onClick={() => handleDatasetChange(ds.id)}
+                  className={`text-left transition-all ${
+                    selectedDatasetId === ds.id
+                      ? 'ring-2 ring-accent-cyan rounded-xl'
+                      : 'hover:ring-1 hover:ring-white/20 rounded-xl'
+                  }`}
+                >
+                  <DatasetCard dataset={ds} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
+              <p className="text-sm text-text-secondary">
+                Aucun dataset. Importez des données depuis l'onglet Importer.
+              </p>
+            </div>
+          )}
 
-          {selectedDataset ? (
+          {/* Detail view when dataset selected */}
+          {selectedDataset && (
             <>
-              {/* Data table */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-3">
                   Aperçu des données
@@ -151,12 +164,10 @@ export default function DataPage() {
                 <DataTable columns={previewColumns} rows={previewRows} />
               </div>
 
-              {/* Profiler */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <DataProfiler stats={mockStats} />
               </div>
 
-              {/* Time series plot */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-3">Série temporelle</h3>
                 <TimeseriesPlot
@@ -167,7 +178,6 @@ export default function DataPage() {
                 />
               </div>
 
-              {/* Correlation matrix */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-3">
                   Matrice de corrélation
@@ -175,12 +185,6 @@ export default function DataPage() {
                 <CorrelationMatrix labels={[]} matrix={[]} className="h-[400px]" />
               </div>
             </>
-          ) : (
-            <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
-              <p className="text-sm text-text-secondary">
-                Sélectionnez un dataset pour explorer les données.
-              </p>
-            </div>
           )}
         </div>
       )}
