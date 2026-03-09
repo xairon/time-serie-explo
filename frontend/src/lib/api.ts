@@ -2,6 +2,7 @@ import { API_BASE } from './constants'
 import type {
   HealthStatus,
   DatasetSummary,
+  StationInfo,
   ModelSummary,
   TrainingConfig,
   ForecastResult,
@@ -67,6 +68,30 @@ export const api = {
       fetchJson<{ min: string | null; max: string | null }>(
         `/db/date-range?table=${table}&column=${column}&schema=${schema}`,
       ),
+    searchStations: (params: {
+      q?: string
+      departement?: string
+      tendance?: string
+      alerte?: string
+      limit?: number
+    }) => {
+      const sp = new URLSearchParams()
+      if (params.q) sp.set('q', params.q)
+      if (params.departement) sp.set('departement', params.departement)
+      if (params.tendance) sp.set('tendance', params.tendance)
+      if (params.alerte) sp.set('alerte', params.alerte)
+      if (params.limit) sp.set('limit', String(params.limit))
+      return fetchJson<{ stations: StationInfo[]; total: number }>(
+        `/db/stations/search?${sp.toString()}`,
+      )
+    },
+    stationFilters: () =>
+      fetchJson<{
+        departements: string[]
+        tendances: string[]
+        alertes: string[]
+        classifications: string[]
+      }>('/db/stations/filters'),
   },
 
   datasets: {

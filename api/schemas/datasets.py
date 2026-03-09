@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field
 class DatasetSummary(BaseModel):
     """Summary of a prepared dataset."""
 
+    id: str = ""
     name: str
-    source_file: str
-    target_column: str
-    n_rows: int
-    date_range: list[str]
-    creation_date: str
+    source_file: str = ""
+    target_variable: str = ""
+    covariates: list[str] = Field(default_factory=list)
+    n_rows: int = 0
+    date_range: list[str] = Field(default_factory=list)
+    created_at: str = ""
     station_column: Optional[str] = None
     stations: list[str] = Field(default_factory=list)
 
@@ -23,7 +25,6 @@ class DatasetSummary(BaseModel):
 class DatasetDetail(DatasetSummary):
     """Full dataset details including preprocessing config."""
 
-    covariate_columns: list[str] = Field(default_factory=list)
     preprocessing: dict[str, Any] = Field(default_factory=dict)
 
 

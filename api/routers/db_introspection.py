@@ -107,6 +107,93 @@ async def get_distinct_values(
         engine.dispose()
 
 
+@router.get("/stations/search")
+async def search_stations(
+    q: str = Query("", description="Search term (code BSS, commune, département)"),
+    departement: Optional[str] = Query(None),
+    tendance: Optional[str] = Query(None),
+    alerte: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+) -> dict[str, Any]:
+    """Search piezo stations with metadata from dim_piezo_stations."""
+    from sqlalchemy import text as sql_text
+
+    engine = _get_brgm_engine()
+    try:
+        where_parts = []
+        params: dict[str, Any] = {"lim": limit}
+
+        if q and len(q) >= 2:
+            where_parts.append(
+                "(code_bss ILIKE :q OR nom_commune ILIKE :q OR nom_departement ILIKE :q OR codes_bdlisa ILIKE :q)"
+            )
+            params["q"] = f"%{q}%"
+
+        if departement:
+            where_parts.append("code_departement = :dept")
+            params["dept"] = departement
+
+        if tendance:
+            where_parts.append("tendance_classification = :tendance")
+            params["tendance"] = tendance
+
+        if alerte:
+            where_parts.append("niveau_alerte = :alerte")
+            params["alerte"] = alerte
+
+        where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+        query = f"""
+            SELECT code_bss, nom_commune, code_departement, nom_departement,
+                   codes_bdlisa, altitude_station, latitude, longitude,
+                   premiere_mesure::text, derniere_mesure::text,
+                   nb_mesures_total, niveau_moyen_global,
+                   amplitude_totale, tendance_classification,
+                   niveau_alerte, classification_derniere_annee,
+                   qualite_tendance
+            FROM gold.dim_piezo_stations
+            {where_sql}
+            ORDER BY nb_mesures_total DESC NULLS LAST
+            LIMIT :lim
+        """
+
+        with engine.connect() as conn:
+            result = conn.execute(sql_text(query), params)
+            rows = [dict(r._mapping) for r in result.fetchall()]
+
+        # Also get filter options (cached-friendly)
+        return {"stations": rows, "total": len(rows)}
+    finally:
+        engine.dispose()
+
+
+@router.get("/stations/filters")
+async def station_filters() -> dict[str, list[str]]:
+    """Get available filter values for station search."""
+    from sqlalchemy import text as sql_text
+
+    engine = _get_brgm_engine()
+    try:
+        filters: dict[str, list[str]] = {}
+        with engine.connect() as conn:
+            for col, key in [
+                ("code_departement", "departements"),
+                ("tendance_classification", "tendances"),
+                ("niveau_alerte", "alertes"),
+                ("classification_derniere_annee", "classifications"),
+            ]:
+                result = conn.execute(
+                    sql_text(
+                        f'SELECT DISTINCT "{col}" FROM gold.dim_piezo_stations '
+                        f'WHERE "{col}" IS NOT NULL ORDER BY 1'
+                    )
+                )
+                filters[key] = [r[0] for r in result.fetchall()]
+        return filters
+    finally:
+        engine.dispose()
+
+
 @router.get("/date-range")
 async def get_date_range(
     table: str = Query(...),

@@ -1,195 +1,95 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import type { StationInfo } from '@/lib/types'
+import { Search, MapPin, TrendingUp, AlertTriangle, Calendar, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 
 export function ImportDBForm() {
   const qc = useQueryClient()
 
-  // Step 1: Schema & Table selection
-  const [schema, setSchema] = useState('gold')
-  const [selectedItem, setSelectedItem] = useState('')
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [deptFilter, setDeptFilter] = useState('')
+  const [tendanceFilter, setTendanceFilter] = useState('')
+  const [alerteFilter, setAlerteFilter] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
 
-  // Step 2: Columns
-  const [dateColumn, setDateColumn] = useState('')
-  const [stationColumn, setStationColumn] = useState('')
-  const [selectedColumns, setSelectedColumns] = useState<string[]>([])
+  // Selected stations
+  const [selectedStations, setSelectedStations] = useState<StationInfo[]>([])
 
-  // Step 3: Filters
-  const [stationFilterMode, setStationFilterMode] = useState<'all' | 'select'>('all')
-  const [stationInput, setStationInput] = useState('')
-  const [selectedStations, setSelectedStations] = useState<string[]>([])
+  // Import config
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-
-  // Step 4: Dataset name
   const [datasetName, setDatasetName] = useState('')
 
-  // Fetch schemas
-  const { data: schemas } = useQuery({
-    queryKey: ['db-schemas'],
-    queryFn: () => api.db.schemas(),
-    staleTime: 60_000,
+  // Fetch filter options
+  const { data: filters } = useQuery({
+    queryKey: ['station-filters'],
+    queryFn: () => api.db.stationFilters(),
+    staleTime: 300_000,
   })
 
-  // Fetch tables for selected schema
-  const { data: tablesData } = useQuery({
-    queryKey: ['db-tables', schema],
-    queryFn: () => api.db.tables(schema),
-    enabled: !!schema,
-    staleTime: 60_000,
+  // Search stations
+  const { data: searchResults, isLoading: searching } = useQuery({
+    queryKey: ['station-search', searchTerm, deptFilter, tendanceFilter, alerteFilter],
+    queryFn: () =>
+      api.db.searchStations({
+        q: searchTerm || undefined,
+        departement: deptFilter || undefined,
+        tendance: tendanceFilter || undefined,
+        alerte: alerteFilter || undefined,
+        limit: 50,
+      }),
+    enabled: searchTerm.length >= 2 || !!deptFilter || !!tendanceFilter || !!alerteFilter,
+    staleTime: 30_000,
   })
 
-  // Combine tables and views for display
-  const allItems = [
-    ...(tablesData?.views?.map((v) => `[VIEW] ${v}`) ?? []),
-    ...(tablesData?.tables?.map((t) => `[TABLE] ${t}`) ?? []),
-  ]
+  // Paste station codes
+  const [pasteMode, setPasteMode] = useState(false)
+  const [pastedCodes, setPastedCodes] = useState('')
 
-  // Extract actual table name from selected item
-  const tableName = selectedItem.replace('[TABLE] ', '').replace('[VIEW] ', '')
-
-  // Fetch columns when table selected
-  const { data: columnsData } = useQuery({
-    queryKey: ['db-columns', schema, tableName],
-    queryFn: () => api.db.columns(tableName, schema),
-    enabled: !!tableName,
-    staleTime: 60_000,
-  })
-
-  // Fetch date range when date column selected
-  const { data: dateRange } = useQuery({
-    queryKey: ['db-daterange', schema, tableName, dateColumn],
-    queryFn: () => api.db.dateRange(tableName, dateColumn, schema),
-    enabled: !!tableName && !!dateColumn,
-    staleTime: 60_000,
-  })
-
-  // Fetch station values when station column selected
-  const { data: stationValues, isLoading: loadingStations } = useQuery({
-    queryKey: ['db-stations', schema, tableName, stationColumn],
-    queryFn: () => api.db.distinct(tableName, stationColumn, schema),
-    enabled: !!tableName && !!stationColumn,
-    staleTime: 60_000,
-  })
-
-  // Auto-detect date column when columns load
-  useEffect(() => {
-    if (columnsData?.date_columns?.length) {
-      setDateColumn(columnsData.date_columns[0])
-    }
-  }, [columnsData])
-
-  // Auto-detect station column (text/varchar columns)
-  useEffect(() => {
-    if (columnsData?.columns) {
-      const textTypes = ['varchar', 'text', 'char', 'character']
-      const textCols = columnsData.columns.filter(
-        (c) =>
-          textTypes.some((t) => c.type.toLowerCase().includes(t)) &&
-          c.name !== dateColumn,
-      )
-      if (textCols.length > 0) {
-        setStationColumn(textCols[0].name)
-      }
-
-      // Auto-select numeric columns
-      const numericTypes = ['int', 'float', 'numeric', 'decimal', 'double', 'real', 'bigint', 'smallint']
-      const numCols = columnsData.columns
-        .filter((c) => numericTypes.some((t) => c.type.toLowerCase().includes(t)))
-        .map((c) => c.name)
-      setSelectedColumns(numCols.slice(0, 10))
-    }
-  }, [columnsData, dateColumn])
-
-  // Set default date range
-  useEffect(() => {
-    if (dateRange?.min && !dateFrom) setDateFrom(dateRange.min.split(' ')[0])
-    if (dateRange?.max && !dateTo) setDateTo(dateRange.max.split(' ')[0])
-  }, [dateRange, dateFrom, dateTo])
-
-  // Auto-name dataset
-  useEffect(() => {
-    if (tableName && !datasetName) {
-      setDatasetName(`db_${tableName}`)
-    }
-  }, [tableName, datasetName])
-
-  // Parse pasted station codes
-  const parsedStations = stationInput
-    .replace(/,/g, '\n')
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const validStations = stationValues
-    ? parsedStations.filter((s) => stationValues.includes(s))
-    : []
-  const invalidStations = stationValues
-    ? parsedStations.filter((s) => !stationValues.includes(s))
-    : []
-
-  // Filtered station list for search
-  const [stationSearch, setStationSearch] = useState('')
-  const filteredStations =
-    stationSearch.length >= 2
-      ? (stationValues ?? []).filter((s) =>
-          s.toLowerCase().includes(stationSearch.toLowerCase()),
-        )
-      : (stationValues ?? []).slice(0, 100)
-
-  // Effective stations for the query
-  const effectiveStations =
-    stationFilterMode === 'all'
-      ? []
-      : stationInput.trim()
-        ? validStations
-        : selectedStations
-
-  // Numeric columns for display
-  const numericTypes = ['int', 'float', 'numeric', 'decimal', 'double', 'real', 'bigint', 'smallint']
-  const numericCols =
-    columnsData?.columns
-      .filter(
-        (c) =>
-          numericTypes.some((t) => c.type.toLowerCase().includes(t)) &&
-          c.name !== dateColumn &&
-          c.name !== stationColumn,
-      )
-      .map((c) => c.name) ?? []
-
-  // All columns for fallback
-  const allColumnNames =
-    columnsData?.columns
-      .filter((c) => c.name !== dateColumn && c.name !== stationColumn)
-      .map((c) => c.name) ?? []
-
-  const toggleColumn = (col: string) => {
-    setSelectedColumns((prev) =>
-      prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col],
-    )
+  const toggleStation = (station: StationInfo) => {
+    setSelectedStations((prev) => {
+      const exists = prev.some((s) => s.code_bss === station.code_bss)
+      if (exists) return prev.filter((s) => s.code_bss !== station.code_bss)
+      return [...prev, station]
+    })
   }
 
+  const removeStation = (code: string) => {
+    setSelectedStations((prev) => prev.filter((s) => s.code_bss !== code))
+  }
+
+  const isSelected = (code: string) => selectedStations.some((s) => s.code_bss === code)
+
+  // Auto-generate dataset name from selected stations
+  const autoName = () => {
+    if (selectedStations.length === 1) return selectedStations[0].code_bss.replace('/', '_')
+    if (selectedStations.length > 1) return `piezo_${selectedStations.length}stations`
+    return 'hubeau_import'
+  }
+
+  // Import mutation
   const importMutation = useMutation({
     mutationFn: () => {
-      const filters: Record<string, string[]> = {}
-      if (stationColumn && effectiveStations.length > 0) {
-        filters[stationColumn] = effectiveStations
-      }
-
-      const queryColumns = [
-        ...(dateColumn ? [dateColumn] : []),
-        ...(stationColumn ? [stationColumn] : []),
-        ...selectedColumns,
-      ]
-
+      const codes = selectedStations.map((s) => s.code_bss)
       return api.datasets.importDB({
-        table_name: tableName,
-        schema_name: schema,
-        columns: queryColumns,
-        date_column: dateColumn || undefined,
+        table_name: 'hubeau_daily_chroniques',
+        schema_name: 'gold',
+        columns: [
+          'code_bss',
+          'date',
+          'niveau_nappe_eau',
+          'profondeur_nappe',
+          'temperature_2m',
+          'total_precipitation',
+          'potential_evaporation',
+        ],
+        date_column: 'date',
         start_date: dateFrom || undefined,
         end_date: dateTo || undefined,
-        filters: Object.keys(filters).length > 0 ? filters : undefined,
-        dataset_name: datasetName,
+        filters: { code_bss: codes },
+        dataset_name: datasetName || autoName(),
       })
     },
     onSuccess: () => {
@@ -197,323 +97,308 @@ export function ImportDBForm() {
     },
   })
 
-  const loadDisabled =
-    !selectedColumns.length ||
-    (stationColumn &&
-      stationFilterMode === 'select' &&
-      effectiveStations.length === 0)
+  // Handle paste
+  const handlePaste = () => {
+    const codes = pastedCodes
+      .replace(/,/g, '\n')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (codes.length > 0) {
+      // Search each code to get metadata
+      codes.forEach((code) => {
+        if (!isSelected(code)) {
+          // Add as minimal station info
+          setSelectedStations((prev) => [
+            ...prev,
+            {
+              code_bss: code,
+              nom_commune: null,
+              code_departement: null,
+              nom_departement: null,
+              codes_bdlisa: null,
+              altitude_station: null,
+              latitude: null,
+              longitude: null,
+              premiere_mesure: null,
+              derniere_mesure: null,
+              nb_mesures_total: null,
+              niveau_moyen_global: null,
+              amplitude_totale: null,
+              tendance_classification: null,
+              niveau_alerte: null,
+              classification_derniere_annee: null,
+              qualite_tendance: null,
+            },
+          ])
+        }
+      })
+      setPastedCodes('')
+      setPasteMode(false)
+    }
+  }
+
+  const alerteColor = (alerte: string | null) => {
+    if (!alerte) return 'text-text-secondary'
+    if (alerte === 'NORMAL') return 'text-accent-green'
+    if (alerte === 'VIGILANCE') return 'text-accent-amber'
+    return 'text-accent-red'
+  }
+
+  const classifLabel = (c: string | null) => {
+    if (!c) return null
+    const map: Record<string, string> = {
+      TRES_HAUT: 'Tres haut',
+      HAUT: 'Haut',
+      NORMAL: 'Normal',
+      BAS: 'Bas',
+      TRES_BAS: 'Tres bas',
+    }
+    return map[c] || c
+  }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <h3 className="text-sm font-semibold text-text-primary">
-        Import depuis PostgreSQL
+        Import piézométrique
       </h3>
+      <p className="text-xs text-text-secondary">
+        Recherchez et sélectionnez des stations depuis la base BRGM (hubeau_daily_chroniques)
+      </p>
 
-      {/* Step 1: Schema & Table */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-text-secondary mb-1">Schéma</label>
-          <select
-            value={schema}
-            onChange={(e) => {
-              setSchema(e.target.value)
-              setSelectedItem('')
-            }}
-            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-          >
-            {schemas?.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-text-secondary mb-1">Table / Vue</label>
-          <select
-            value={selectedItem}
-            onChange={(e) => {
-              setSelectedItem(e.target.value)
-              setDateColumn('')
-              setStationColumn('')
-              setSelectedColumns([])
-              setDateFrom('')
-              setDateTo('')
-              setDatasetName('')
-            }}
-            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-          >
-            <option value="">Sélectionner...</option>
-            {allItems.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-text-secondary" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
+          placeholder="Code BSS, commune, département..."
+        />
       </div>
 
-      {/* Table info */}
-      {columnsData && (
-        <div className="flex gap-4 text-xs text-text-secondary">
-          <span>
-            <strong className="text-text-primary">{columnsData.row_count.toLocaleString()}</strong>{' '}
-            lignes
-          </span>
-          <span>
-            <strong className="text-text-primary">{columnsData.columns.length}</strong>{' '}
-            colonnes
-          </span>
+      {/* Filter toggles */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
+        >
+          {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          Filtres
+        </button>
+        <button
+          type="button"
+          onClick={() => setPasteMode(!pasteMode)}
+          className="flex items-center gap-1 text-xs text-accent-cyan hover:text-accent-cyan/80"
+        >
+          <Plus className="h-3 w-3" />
+          Coller des codes
+        </button>
+      </div>
+
+      {/* Filters */}
+      {showFilters && filters && (
+        <div className="grid grid-cols-3 gap-2">
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
+          >
+            <option value="">Département</option>
+            {filters.departements.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <select
+            value={tendanceFilter}
+            onChange={(e) => setTendanceFilter(e.target.value)}
+            className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
+          >
+            <option value="">Tendance</option>
+            {filters.tendances.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            value={alerteFilter}
+            onChange={(e) => setAlerteFilter(e.target.value)}
+            className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
+          >
+            <option value="">Alerte</option>
+            {filters.alertes.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
         </div>
       )}
 
-      {/* Step 2: Date & Station columns */}
-      {columnsData && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">
-                Colonne date
-              </label>
-              <select
-                value={dateColumn}
-                onChange={(e) => {
-                  setDateColumn(e.target.value)
-                  setDateFrom('')
-                  setDateTo('')
-                }}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Aucune</option>
-                {columnsData.columns.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {c.name}{' '}
-                    {columnsData.date_columns.includes(c.name) ? '(date)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">
-                Colonne station (optionnel)
-              </label>
-              <select
-                value={stationColumn}
-                onChange={(e) => {
-                  setStationColumn(e.target.value)
-                  setSelectedStations([])
-                  setStationInput('')
-                  setStationSearch('')
-                }}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Aucune</option>
-                {columnsData.columns
-                  .filter((c) => c.name !== dateColumn)
-                  .map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          </div>
+      {/* Paste mode */}
+      {pasteMode && (
+        <div className="space-y-2">
+          <textarea
+            value={pastedCodes}
+            onChange={(e) => setPastedCodes(e.target.value)}
+            rows={3}
+            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-xs resize-none"
+            placeholder="Coller des codes BSS (un par ligne ou séparés par des virgules)..."
+          />
+          <button
+            type="button"
+            onClick={handlePaste}
+            disabled={!pastedCodes.trim()}
+            className="text-xs bg-accent-cyan/10 text-accent-cyan px-3 py-1 rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50"
+          >
+            Ajouter
+          </button>
+        </div>
+      )}
 
-          {/* Station filter */}
-          {stationColumn && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                {loadingStations ? (
-                  <span>Chargement des stations...</span>
-                ) : (
-                  <span>
-                    <strong className="text-text-primary">
-                      {stationValues?.length?.toLocaleString() ?? '?'}
-                    </strong>{' '}
-                    stations trouvées
-                  </span>
-                )}
-              </div>
-
-              <div className="flex gap-3 text-xs">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="stationFilter"
-                    checked={stationFilterMode === 'all'}
-                    onChange={() => setStationFilterMode('all')}
-                    className="accent-accent-cyan"
-                  />
-                  Toutes les stations
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="stationFilter"
-                    checked={stationFilterMode === 'select'}
-                    onChange={() => setStationFilterMode('select')}
-                    className="accent-accent-cyan"
-                  />
-                  Sélection
-                </label>
-              </div>
-
-              {stationFilterMode === 'select' && (
-                <div className="space-y-2">
-                  {/* Paste codes */}
-                  <textarea
-                    value={stationInput}
-                    onChange={(e) => setStationInput(e.target.value)}
-                    rows={2}
-                    className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-xs resize-none"
-                    placeholder="Coller des codes (un par ligne ou séparés par des virgules)..."
-                  />
-
-                  {stationInput.trim() && parsedStations.length > 0 && (
-                    <div className="text-xs space-y-1">
-                      {validStations.length > 0 && (
-                        <p className="text-accent-green">
-                          {validStations.length} code(s) valide(s)
-                        </p>
-                      )}
-                      {invalidStations.length > 0 && (
-                        <p className="text-accent-amber">
-                          {invalidStations.length} code(s) non trouvé(s) :{' '}
-                          {invalidStations.slice(0, 3).join(', ')}
-                          {invalidStations.length > 3 && '...'}
-                        </p>
-                      )}
-                    </div>
+      {/* Search results */}
+      {(searchResults?.stations?.length ?? 0) > 0 && (
+        <div className="max-h-64 overflow-y-auto border border-white/10 rounded-lg divide-y divide-white/5">
+          {searchResults!.stations.map((station) => (
+            <button
+              key={station.code_bss}
+              type="button"
+              onClick={() => toggleStation(station)}
+              className={`w-full text-left px-3 py-2 hover:bg-bg-hover transition-colors ${
+                isSelected(station.code_bss) ? 'bg-accent-cyan/5 border-l-2 border-l-accent-cyan' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-mono text-text-primary">
+                    {station.code_bss}
+                  </div>
+                  <div className="text-[10px] text-text-secondary flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {station.nom_commune && (
+                      <span className="flex items-center gap-0.5">
+                        <MapPin className="h-2.5 w-2.5" />
+                        {station.nom_commune} ({station.code_departement})
+                      </span>
+                    )}
+                    {station.codes_bdlisa && (
+                      <span className="text-accent-indigo" title="Code BDLISA (entité hydrogéologique)">
+                        {station.codes_bdlisa}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-text-secondary flex items-center gap-2 mt-0.5">
+                    {station.premiere_mesure && station.derniere_mesure && (
+                      <span className="flex items-center gap-0.5">
+                        <Calendar className="h-2.5 w-2.5" />
+                        {station.premiere_mesure.slice(0, 4)}–{station.derniere_mesure.slice(0, 4)}
+                      </span>
+                    )}
+                    {station.nb_mesures_total != null && (
+                      <span>{Math.round(station.nb_mesures_total).toLocaleString()} mes.</span>
+                    )}
+                    {station.amplitude_totale != null && (
+                      <span className="flex items-center gap-0.5">
+                        <TrendingUp className="h-2.5 w-2.5" />
+                        {station.amplitude_totale.toFixed(1)}m
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                  {station.niveau_alerte && (
+                    <span className={`text-[10px] ${alerteColor(station.niveau_alerte)}`}>
+                      {station.niveau_alerte === 'NORMAL' ? '' : station.niveau_alerte}
+                    </span>
                   )}
-
-                  {/* Or search */}
-                  {!stationInput.trim() && (
-                    <>
-                      <input
-                        type="text"
-                        value={stationSearch}
-                        onChange={(e) => setStationSearch(e.target.value)}
-                        className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-xs"
-                        placeholder="Rechercher une station..."
-                      />
-                      {filteredStations.length > 0 && (
-                        <div className="max-h-32 overflow-y-auto border border-white/10 rounded-lg">
-                          {filteredStations.map((s) => (
-                            <label
-                              key={s}
-                              className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-hover cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedStations.includes(s)}
-                                onChange={() =>
-                                  setSelectedStations((prev) =>
-                                    prev.includes(s)
-                                      ? prev.filter((x) => x !== s)
-                                      : [...prev, s],
-                                  )
-                                }
-                                className="accent-accent-cyan"
-                              />
-                              <span className="text-text-primary">{s}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                      {stationSearch.length >= 2 && filteredStations.length === 0 && (
-                        <p className="text-xs text-text-secondary">
-                          Aucune station trouvée pour « {stationSearch} »
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {effectiveStations.length > 0 && (
-                    <p className="text-xs text-accent-cyan">
-                      {effectiveStations.length} station(s) sélectionnée(s)
-                    </p>
+                  {station.classification_derniere_annee && (
+                    <span className="text-[10px] text-text-secondary">
+                      {classifLabel(station.classification_derniere_annee)}
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-          {/* Data columns */}
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              Colonnes de données
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {(numericCols.length > 0 ? numericCols : allColumnNames).map((col) => (
+      {searching && (
+        <div className="text-xs text-text-secondary text-center py-4">Recherche...</div>
+      )}
+
+      {searchTerm.length >= 2 && !searching && searchResults?.stations?.length === 0 && (
+        <div className="text-xs text-text-secondary text-center py-4">
+          Aucune station trouvée pour « {searchTerm} »
+        </div>
+      )}
+
+      {/* Selected stations */}
+      {selectedStations.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs text-text-secondary">
+            {selectedStations.length} station(s) sélectionnée(s)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {selectedStations.map((s) => (
+              <span
+                key={s.code_bss}
+                className="inline-flex items-center gap-1 bg-accent-cyan/10 text-accent-cyan text-xs px-2 py-0.5 rounded-lg"
+              >
+                <span className="font-mono">{s.code_bss}</span>
                 <button
-                  key={col}
                   type="button"
-                  onClick={() => toggleColumn(col)}
-                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
-                    selectedColumns.includes(col)
-                      ? 'bg-accent-cyan/10 border-accent-cyan text-accent-cyan'
-                      : 'bg-bg-hover border-white/10 text-text-secondary hover:text-text-primary'
-                  }`}
+                  onClick={() => removeStation(s.code_bss)}
+                  className="hover:text-accent-red"
                 >
-                  {col}
+                  <X className="h-3 w-3" />
                 </button>
-              ))}
-            </div>
+              </span>
+            ))}
           </div>
 
-          {/* Date range filter */}
-          {dateColumn && dateRange && (
+          {/* Date range */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-text-secondary mb-1">
-                Plage de dates
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-                />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
+              <label className="block text-xs text-text-secondary mb-1">Date début</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+              />
             </div>
-          )}
-
-          {/* Large table warning */}
-          {columnsData.row_count > 1_000_000 && stationColumn && stationFilterMode === 'all' && (
-            <p className="text-xs text-accent-amber">
-              Table volumineuse ({columnsData.row_count.toLocaleString()} lignes) —
-              sélectionnez des stations pour réduire le temps de chargement.
-            </p>
-          )}
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Date fin</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
 
           {/* Dataset name */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">
-              Nom du dataset
-            </label>
+            <label className="block text-xs text-text-secondary mb-1">Nom du dataset</label>
             <input
               type="text"
               value={datasetName}
               onChange={(e) => setDatasetName(e.target.value)}
+              placeholder={autoName()}
               className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              placeholder="Mon dataset"
             />
           </div>
 
           {/* Import button */}
           <button
             type="button"
-            disabled={!!loadDisabled || importMutation.isPending || !datasetName}
+            disabled={importMutation.isPending}
             onClick={() => importMutation.mutate()}
             className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
           >
-            {importMutation.isPending ? 'Importation...' : 'Importer depuis la BDD'}
+            {importMutation.isPending
+              ? 'Importation...'
+              : `Importer ${selectedStations.length} station(s)`}
           </button>
 
           {importMutation.isError && (
@@ -524,7 +409,7 @@ export function ImportDBForm() {
           {importMutation.isSuccess && (
             <p className="text-xs text-accent-green">Dataset importé avec succès.</p>
           )}
-        </>
+        </div>
       )}
     </div>
   )

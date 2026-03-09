@@ -10,13 +10,35 @@ export interface HealthStatus {
 export interface DatasetSummary {
   id: string
   name: string
-  source: 'csv' | 'db'
+  source_file: string
   stations: string[]
   target_variable: string
   covariates: string[]
-  date_range: [string, string]
+  date_range: string[]
   n_rows: number
   created_at: string
+  station_column: string | null
+}
+
+// Station metadata (from dim_piezo_stations)
+export interface StationInfo {
+  code_bss: string
+  nom_commune: string | null
+  code_departement: string | null
+  nom_departement: string | null
+  codes_bdlisa: string | null
+  altitude_station: number | null
+  latitude: number | null
+  longitude: number | null
+  premiere_mesure: string | null
+  derniere_mesure: string | null
+  nb_mesures_total: number | null
+  niveau_moyen_global: number | null
+  amplitude_totale: number | null
+  tendance_classification: string | null
+  niveau_alerte: string | null
+  classification_derniere_annee: string | null
+  qualite_tendance: string | null
 }
 
 // Models
