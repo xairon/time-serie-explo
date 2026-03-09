@@ -137,9 +137,6 @@ services:
         condition: service_healthy
       frontend:
         condition: service_healthy
-    networks:
-      - default
-      - observatory_net
     deploy:
       resources:
         limits:
@@ -149,9 +146,6 @@ networks:
   brgm_net:
     external: true
     name: hubeau_data_integration_default
-  observatory_net:
-    external: true
-    name: junondashboard_default
 
 volumes:
   postgres_data:

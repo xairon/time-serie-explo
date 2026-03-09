@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { ExternalLink, Maximize2, Minimize2, Zap, X } from 'lucide-react'
 
 const OBSERVATORY_URL = `${window.location.protocol}//${window.location.hostname}:49510`
-// Proxied URL injects the bridge script via nginx sub_filter
-const OBSERVATORY_PROXY = '/observatory-app/'
 
 interface StationMessage {
   code: string
@@ -87,7 +85,7 @@ export default function ObservatoryPage() {
         </div>
       </div>
       <iframe
-        src={OBSERVATORY_PROXY}
+        src={OBSERVATORY_URL}
         className="flex-1 w-full border-0"
         title="Hydro Observatory"
         allow="fullscreen"
