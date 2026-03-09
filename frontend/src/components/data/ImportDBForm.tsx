@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { StationInfo } from '@/lib/types'
-import { Search, MapPin, TrendingUp, AlertTriangle, Calendar, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
+import { Search, MapPin, TrendingUp, Calendar, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 
 export function ImportDBForm() {
   const qc = useQueryClient()

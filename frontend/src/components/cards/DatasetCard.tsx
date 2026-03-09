@@ -22,7 +22,7 @@ export function DatasetCard({ dataset }: DatasetCardProps) {
           </p>
         </div>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-secondary uppercase">
-          {dataset.source}
+          {dataset.source_file.startsWith('db://') ? 'DB' : 'CSV'}
         </span>
       </div>
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-text-secondary">
