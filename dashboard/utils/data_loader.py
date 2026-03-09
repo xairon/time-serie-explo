@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Optional, List, Tuple, Dict
 from darts import TimeSeries
 from darts.dataprocessing.transformers import Scaler
-import streamlit as st
 
 
 def load_data_flexible(
@@ -276,7 +275,6 @@ def add_lag_features(df: pd.DataFrame, target_col: str, lags: List[int]) -> pd.D
     return df
 
 
-@st.cache_data(ttl=3600)
 def get_data_summary(df: pd.DataFrame) -> Dict:
     """
     Calcule un résumé des données.

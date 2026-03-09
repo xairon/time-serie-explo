@@ -8,7 +8,6 @@ import numpy as np
 from pathlib import Path
 import sys
 from statsmodels.tsa.seasonal import STL
-import streamlit as st
 
 _project_root = str(Path(__file__).parent.parent.parent)
 if _project_root not in sys.path:
@@ -39,7 +38,6 @@ def downsample_data(df: pd.DataFrame, max_points: int = MAX_PLOT_POINTS) -> pd.D
     return df.iloc[::step]
 
 
-@st.cache_data(ttl=3600)
 def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> go.Figure:
     """
     Interactive multi-series time plot.
@@ -115,7 +113,6 @@ def plot_timeseries(dfs: dict, variables: list, title: str = "Time Series") -> g
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation Matrix") -> go.Figure:
     """
     Correlation Heatmap.
@@ -154,7 +151,6 @@ def plot_correlation_matrix(corr_matrix: pd.DataFrame, title: str = "Correlation
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
                   title: str = "ACF/PACF", n_obs: int = None) -> go.Figure:
     """
@@ -213,7 +209,6 @@ def plot_acf_pacf(acf_vals: np.ndarray, pacf_vals: np.ndarray, lags: int = 100,
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
                            title: str = "Cross-Correlation") -> go.Figure:
     """
@@ -281,7 +276,6 @@ def plot_cross_correlation(lags: list, ccf: list, optimal_lag: int = None,
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.Series,
                            residual: pd.Series, title: str = "STL Decomposition") -> go.Figure:
     """
@@ -335,7 +329,6 @@ def plot_stl_decomposition(original: pd.Series, trend: pd.Series, seasonal: pd.S
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
                      title: str = "Predictions vs Reality") -> go.Figure:
     """
@@ -386,7 +379,6 @@ def plot_predictions(test_true_df: pd.DataFrame, predictions_dict: dict,
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
                             title: str = None) -> go.Figure:
     """
@@ -429,7 +421,6 @@ def plot_metrics_comparison(df_metrics: pd.DataFrame, metric: str = 'MAE',
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Figure:
     """
     Multi-metric Radar Chart.
@@ -487,7 +478,6 @@ def plot_metrics_radar(avg_metrics: pd.DataFrame, models: list = None) -> go.Fig
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
     Histogram + Density Plot.
@@ -525,7 +515,6 @@ def plot_distributions(df: pd.DataFrame, variable: str, title: str = None) -> go
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> go.Figure:
     """
     Monthly Boxplot to detect seasonality.
@@ -569,7 +558,6 @@ def plot_monthly_boxplot(df: pd.DataFrame, variable: str, title: str = None) -> 
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     """
     Simplified Seasonal Patterns Plot (Annual and Monthly).
@@ -661,7 +649,6 @@ def plot_seasonal_patterns(df: pd.DataFrame, variable: str) -> go.Figure:
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     """
     Heatmap showing missing data patterns.
@@ -724,7 +711,6 @@ def plot_missing_data(df: pd.DataFrame, variable: str) -> go.Figure:
     return fig
 
 
-@st.cache_data(ttl=3600)
 def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> dict:
     """
     Detects behavior changes in a time series.
@@ -787,7 +773,6 @@ def detect_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) 
     }
 
 
-@st.cache_data(ttl=3600)
 def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) -> go.Figure:
     """
     Plot detecting behavior changes.
@@ -888,7 +873,6 @@ def plot_behavior_changes(df: pd.DataFrame, variable: str, window: int = 365) ->
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: float = 3.0) -> go.Figure:
     """
     Outlier Detection Plot using Rolling Z-Score.
@@ -952,7 +936,6 @@ def plot_outliers(df: pd.DataFrame, variable: str, window: int = 30, sigma: floa
     return fig
 
 
-@st.cache_data(ttl=3600)
 def plot_trend_and_seasonality(df: pd.DataFrame, variable: str, trend_window: int = 365) -> go.Figure:
     """
     Plot displaying Original, Trend (STL), and Seasonal component.
