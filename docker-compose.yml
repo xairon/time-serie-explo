@@ -10,6 +10,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: junon-postgres
+    hostname: junon-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-junon}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
@@ -72,7 +73,7 @@ services:
         BACKEND: ${BACKEND:-cpu}
     container_name: junon-backend
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=junon-postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-junon}
       - DB_PASSWORD=${POSTGRES_PASSWORD:-junon}

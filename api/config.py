@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Internal Junon DB
-    db_host: str = "postgres"
+    db_host: str = "junon-postgres"
     db_port: int = 5432
     db_name: str = "junon_db"
     db_user: str = "junon"
