@@ -6,9 +6,10 @@ import { Search, MapPin, TrendingUp, Calendar, ChevronDown, ChevronUp, Plus, X }
 
 interface ImportDBFormProps {
   initialStation?: string
+  onImportSuccess?: (datasetId: string) => void
 }
 
-export function ImportDBForm({ initialStation }: ImportDBFormProps) {
+export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormProps) {
   const qc = useQueryClient()
 
   // Search state
@@ -122,8 +123,11 @@ export function ImportDBForm({ initialStation }: ImportDBFormProps) {
         dataset_name: datasetName || autoName(),
       })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ['datasets'] })
+      if (onImportSuccess && data?.id) {
+        onImportSuccess(data.id)
+      }
     },
   })
 

@@ -112,7 +112,13 @@ export default function DataPage() {
       {tab === 'import' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-            <ImportDBForm initialStation={stationFromUrl ?? undefined} />
+            <ImportDBForm
+              initialStation={stationFromUrl ?? undefined}
+              onImportSuccess={(id) => {
+                handleDatasetChange(id)
+                setTab('explore')
+              }}
+            />
           </div>
           <div className="bg-bg-card rounded-xl border border-white/5 p-5">
             <ImportCSVForm />
