@@ -123,8 +123,8 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
         dataset_name: datasetName || autoName(),
       })
     },
-    onSuccess: (data) => {
-      void qc.invalidateQueries({ queryKey: ['datasets'] })
+    onSuccess: async (data) => {
+      await qc.invalidateQueries({ queryKey: ['datasets'] })
       if (onImportSuccess && data?.id) {
         onImportSuccess(data.id)
       }
