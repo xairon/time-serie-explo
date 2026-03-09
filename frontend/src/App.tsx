@@ -1,5 +1,7 @@
 import { useState, Component, type ReactNode, type ErrorInfo } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RouterProvider } from 'react-router-dom'
+import { router } from './routes'
 
 // Simple class-based ErrorBoundary
 class ErrorBoundary extends Component<
@@ -65,9 +67,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <div className="min-h-screen bg-bg-primary text-text-primary">
-          <p className="p-8 text-text-secondary">Junon Time-Series Explorer — routes not configured yet.</p>
-        </div>
+        <RouterProvider router={router} />
       </QueryClientProvider>
     </ErrorBoundary>
   )
