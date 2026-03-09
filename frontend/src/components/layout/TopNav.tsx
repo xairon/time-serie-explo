@@ -6,6 +6,7 @@ import {
   GraduationCap,
   TrendingUp,
   GitBranch,
+  Map,
   Menu,
   X,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/training', icon: GraduationCap, label: 'Training' },
   { to: '/forecasting', icon: TrendingUp, label: 'Forecasting' },
   { to: '/counterfactual', icon: GitBranch, label: 'Counterfactual' },
+  { to: '/observatory', icon: Map, label: 'Observatory' },
 ] as const
 
 export function TopNav() {

@@ -7,6 +7,7 @@ const DataPage = lazy(() => import('./pages/DataPage'))
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 const CounterfactualPage = lazy(() => import('./pages/CounterfactualPage'))
+const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -72,6 +73,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <CounterfactualPage />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/observatory',
+        element: (
+          <SuspenseWrapper>
+            <ObservatoryPage />
           </SuspenseWrapper>
         ),
       },

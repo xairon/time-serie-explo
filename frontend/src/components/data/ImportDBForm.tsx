@@ -293,12 +293,12 @@ export function ImportDBForm() {
                       </span>
                     )}
                     {station.nb_mesures_total != null && (
-                      <span>{Math.round(station.nb_mesures_total).toLocaleString()} mes.</span>
+                      <span>{Math.round(Number(station.nb_mesures_total)).toLocaleString()} mes.</span>
                     )}
                     {station.amplitude_totale != null && (
                       <span className="flex items-center gap-0.5">
                         <TrendingUp className="h-2.5 w-2.5" />
-                        {station.amplitude_totale.toFixed(1)}m
+                        {Number(station.amplitude_totale).toFixed(1)}m
                       </span>
                     )}
                   </div>
