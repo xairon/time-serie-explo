@@ -11,6 +11,7 @@ from api.cache import get_redis, pool as redis_pool
 from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
+from api.routers import datasets, training, models, forecasting, explainability, counterfactual
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Accept", "Authorization"],
 )
+
+# Register routers
+app.include_router(datasets.router)
+app.include_router(training.router)
+app.include_router(models.router)
+app.include_router(forecasting.router)
+app.include_router(explainability.router)
+app.include_router(counterfactual.router)
 
 
 def _check_gpu() -> dict:

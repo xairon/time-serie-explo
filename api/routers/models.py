@@ -1,0 +1,140 @@
+"""Models API router.
+
+List available architectures, list/get/delete trained models, download archives.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
+
+from api.config import settings
+from api.serializers import clean_nans
+from api.schemas.models import AvailableModel, ModelDetail, ModelSummary
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/models", tags=["models"])
+
+
+def _get_model_registry():
+    """Lazy-load ModelRegistry."""
+    from dashboard.utils.model_registry import ModelRegistry
+
+    return ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
+
+
+# --------------------------------------------------------------------------- #
+# Endpoints
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/available", response_model=list[AvailableModel])
+async def list_available_models():
+    """List available model architectures."""
+    from dashboard.utils.model_factory import ModelFactory
+
+    results = []
+    for name in ModelFactory.get_available_models():
+        results.append(
+            AvailableModel(
+                name=name,
+                is_torch=ModelFactory.is_torch_model(name),
+                description=f"{'Deep Learning' if ModelFactory.is_torch_model(name) else 'Global Baseline'} model",
+            )
+        )
+    return results
+
+
+@router.get("/", response_model=list[ModelSummary])
+async def list_models(
+    model_type: Optional[str] = Query(None),
+    model_name: Optional[str] = Query(None),
+):
+    """List all trained models from MLflow."""
+    registry = _get_model_registry()
+    entries = registry.list_all_models(model_type=model_type, model_name=model_name)
+    return [
+        ModelSummary(
+            model_id=e.model_id,
+            model_name=e.model_name,
+            model_type=e.model_type,
+            stations=e.stations,
+            primary_station=e.primary_station,
+            created_at=e.created_at,
+            metrics=clean_nans(e.metrics),
+            data_source=e.data_source,
+        )
+        for e in entries
+    ]
+
+
+@router.get("/{model_id}", response_model=ModelDetail)
+async def get_model(model_id: str):
+    """Get full details of a trained model."""
+    registry = _get_model_registry()
+    entry = registry.get_model(model_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    return ModelDetail(
+        model_id=entry.model_id,
+        model_name=entry.model_name,
+        model_type=entry.model_type,
+        stations=entry.stations,
+        primary_station=entry.primary_station,
+        created_at=entry.created_at,
+        metrics=clean_nans(entry.metrics),
+        data_source=entry.data_source,
+        run_id=entry.run_id,
+        hyperparams=clean_nans(entry.hyperparams),
+        preprocessing_config=clean_nans(entry.preprocessing_config),
+        display_name=entry.display_name,
+    )
+
+
+@router.delete("/{model_id}", status_code=204)
+async def delete_model(model_id: str):
+    """Delete a trained model (marks the MLflow run as deleted)."""
+    registry = _get_model_registry()
+    entry = registry.get_model(model_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if not registry.delete_model(model_id):
+        raise HTTPException(status_code=500, detail="Failed to delete model")
+
+
+@router.get("/{model_id}/download")
+async def download_model(model_id: str):
+    """Download model artifacts as a ZIP archive."""
+    registry = _get_model_registry()
+    entry = registry.get_model(model_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    # Download artifacts to a temporary directory and create ZIP
+    try:
+        import mlflow
+
+        local_dir = mlflow.artifacts.download_artifacts(
+            run_id=entry.run_id,
+            artifact_path="model",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to download artifacts: {exc}")
+
+    from dashboard.utils.export import create_model_archive
+
+    archive_bytes = create_model_archive(Path(local_dir))
+    if archive_bytes is None:
+        raise HTTPException(status_code=500, detail="Failed to create archive")
+
+    filename = f"{entry.model_name}_{entry.model_id[:8]}.zip"
+    return Response(
+        content=archive_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
