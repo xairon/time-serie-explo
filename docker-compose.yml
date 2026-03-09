@@ -1,9 +1,8 @@
 ## ──────────────────────────────────────────────
-##  Junon Time-Series  –  docker compose config
+##  Junon Time-Series Explorer — docker compose
 ##  Usage:
-##    BACKEND=xpu  docker compose up -d --build   # Intel Arc
-##    BACKEND=cuda docker compose up -d --build   # NVIDIA
-##    docker compose up -d --build                 # CPU (default)
+##    docker compose up -d --build                                      # CPU
+##    BACKEND=cuda docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build  # NVIDIA
 ## ──────────────────────────────────────────────
 
 services:
@@ -12,26 +11,38 @@ services:
     image: postgres:15-alpine
     container_name: junon-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-junon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
       POSTGRES_DB: ${POSTGRES_DB:-junon_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-junon}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── Redis (API cache) ────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: junon-redis
+    command: redis-server --maxmemory 900mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
   # ── MLflow Tracking Server ────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.8.1
     container_name: junon-mlflow
     ports:
-      - "${MLFLOW_PORT:-5000}:5000"
-    volumes:
-      - mlflow_db:/app/db
-      - mlflow_artifacts:/app/mlruns
+      - "${MLFLOW_PORT:-49511}:5000"
     working_dir: /app
     command: >
       mlflow server
@@ -42,49 +53,92 @@ services:
         --allowed-hosts *
     environment:
       MLFLOW_TRACKING_URI: sqlite:///db/mlflow.db
+    volumes:
+      - mlflow_db:/app/db
+      - mlflow_artifacts:/app/mlruns
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 30s
+      timeout: 10s
+      retries: 3
       start_period: 10s
 
-  # ── Streamlit Dashboard ───────────────────────
-  streamlit:
+  # ── FastAPI Backend ──────────────────────────
+  backend:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/backend/Dockerfile
       args:
         BACKEND: ${BACKEND:-cpu}
-    container_name: junon-streamlit
+    container_name: junon-backend
     environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-junon_db}
-      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set in .env}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-junon}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-junon}
+      - DB_NAME=${POSTGRES_DB:-junon_db}
+      - BRGM_DB_HOST=brgm-postgres
+      - BRGM_DB_PORT=5432
+      - BRGM_DB_USER=postgres
+      - BRGM_DB_PASSWORD=
+      - BRGM_DB_NAME=postgres
+      - REDIS_URL=redis://redis:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - DEBUG=${DEBUG:-true}
+      - DATA_DIR=/app/data
+      - CHECKPOINTS_DIR=/app/checkpoints
+      - RESULTS_DIR=/app/results
     volumes:
-      # Bind mounts — data lives on host, visible in both Docker and local dev
       - ./data/prepared:/app/data/prepared
       - ./data/piezos:/app/data/piezos:ro
-      - ./checkpoints:/app/checkpoints/darts
+      - ./checkpoints:/app/checkpoints
       - ./results:/app/results
-      - ./figs:/app/figs
-      - ./logs:/app/logs/darts
-      # MLflow artifacts shared with mlflow container
+      - ./logs:/app/logs
       - mlflow_artifacts:/app/mlruns
-    ports:
-      - "${STREAMLIT_PORT:-8501}:8501"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       mlflow:
         condition: service_healthy
     networks:
       - default
       - brgm_net
-    # Dockerfile CMD handles streamlit launch directly (no run_app.py)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # ── React Frontend ───────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: junon-frontend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Nginx Reverse Proxy ──────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: junon-nginx
+    ports:
+      - "${APP_PORT:-49509}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 networks:
   brgm_net:
