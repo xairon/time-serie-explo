@@ -503,3 +503,140 @@ def get_preprocessing_summary(config: Dict) -> str:
         summary += f"**Added Lags**: None\n\n"
 
     return summary
+
+
+def detect_columns_from_config(model_config, data_dict: dict) -> tuple:
+    """Detect target column and covariate list from model config and data.
+
+    Args:
+        model_config: Model configuration (dict or object with .columns attribute)
+        data_dict: Dictionary with 'train', 'val', 'test', 'train_cov', etc.
+
+    Returns:
+        Tuple of (target_col: str, covariate_cols: list[str])
+    """
+    import json as _json
+
+    target_col = None
+    covariate_cols = []
+
+    if model_config:
+        if isinstance(model_config, dict):
+            cols = model_config.get("columns", {})
+            if not cols:
+                cols = model_config.get("preprocessing", {}).get("columns", {})
+        elif hasattr(model_config, "columns"):
+            cols = model_config.columns if isinstance(model_config.columns, dict) else {}
+        else:
+            cols = {}
+        target_col = cols.get("target")
+        covariate_cols = cols.get("covariates", [])
+        if isinstance(covariate_cols, str):
+            try:
+                covariate_cols = _json.loads(covariate_cols)
+            except Exception:
+                covariate_cols = [covariate_cols]
+
+    if not target_col and "train" in data_dict:
+        df_train = data_dict["train"]
+        for c in ["gwl", "Water_Level", "water_level", "niveau_nappe_eau", "piezo", "level"]:
+            if c in df_train.columns:
+                target_col = c
+                break
+        if not target_col:
+            target_col = df_train.columns[0]
+
+    if not covariate_cols and "train_cov" in data_dict:
+        covariate_cols = list(data_dict["train_cov"].columns)
+
+    return target_col, covariate_cols
+
+
+def build_complete_dataframe(data_dict: dict, target_col: str, covariate_cols: list) -> tuple:
+    """Merge train/val/test + covariates into a single DataFrame (NORMALIZED).
+
+    Args:
+        data_dict: Dictionary with 'train', 'val', 'test', 'train_cov', etc.
+        target_col: Name of the target column
+        covariate_cols: List of covariate column names
+
+    Returns:
+        Tuple of (full_df: pd.DataFrame or None, available_covariates: list[str])
+    """
+    parts = []
+    for split in ["train", "val", "test"]:
+        if split in data_dict and target_col in data_dict[split].columns:
+            parts.append(data_dict[split][[target_col]])
+    if not parts:
+        return None, []
+
+    df_target = pd.concat(parts).sort_index()
+    df_target = df_target[~df_target.index.duplicated(keep="first")]
+
+    cov_parts = []
+    for split in ["train_cov", "val_cov", "test_cov"]:
+        if split in data_dict:
+            cov_parts.append(data_dict[split])
+
+    if cov_parts:
+        df_cov = pd.concat(cov_parts).sort_index()
+        df_cov = df_cov[~df_cov.index.duplicated(keep="first")]
+        available_covs = [c for c in covariate_cols if c in df_cov.columns]
+        if not available_covs:
+            available_covs = list(df_cov.columns)[:3]
+        df_full = df_target.join(df_cov[available_covs], how="inner")
+        return df_full, available_covs
+    else:
+        return df_target, []
+
+
+def denormalize_data(processed_df: pd.DataFrame, scalers: dict, target_col: str) -> pd.DataFrame:
+    """Generate raw (de-normalized) data from processed (normalized) data.
+
+    Uses the target_preprocessor from scalers to inverse-transform normalized
+    data back to physical units.
+
+    Args:
+        processed_df: DataFrame with normalized data
+        scalers: Dictionary containing 'target_preprocessor' (a Darts transformer)
+        target_col: Name of the target column
+
+    Returns:
+        DataFrame with data in original (physical) units
+    """
+    target_preprocessor = scalers.get('target_preprocessor')
+    if target_preprocessor is not None:
+        # Convert processed DataFrame to TimeSeries, inverse_transform, convert back
+        processed_series, _ = prepare_dataframe_for_darts(
+            processed_df, target_col, []
+        )
+        raw_series = target_preprocessor.inverse_transform(processed_series)
+        raw_df = raw_series.to_dataframe()
+        raw_df.index = processed_df.index  # Ensure same index
+        return raw_df
+    else:
+        # No scaler = data wasn't normalized, processed is raw
+        return processed_df.copy()
+
+
+def merge_covariates_with_splits(data_dict_in: dict) -> dict:
+    """Merge covariate DataFrames into base split DataFrames.
+
+    For each split (train, val, test), joins the corresponding covariate
+    DataFrame (train_cov, val_cov, test_cov) into the base DataFrame.
+
+    Args:
+        data_dict_in: Dictionary with split DataFrames and optional covariate DataFrames
+
+    Returns:
+        New dictionary with covariates merged into base splits
+    """
+    data_dict_out = data_dict_in.copy()
+    for split in ['train', 'val', 'test']:
+        cov_key = f"{split}_cov"
+        base_df = data_dict_out.get(split)
+        cov_df = data_dict_out.get(cov_key)
+        if isinstance(base_df, pd.DataFrame) and isinstance(cov_df, pd.DataFrame):
+            cov_df = cov_df.drop(columns=['station'], errors='ignore')
+            data_dict_out[split] = base_df.join(cov_df, how='left')
+    return data_dict_out

@@ -244,6 +244,90 @@ def granger_causality_test(df: pd.DataFrame, target_col: str, covariate_col: str
         }
 
 
+def nash_sutcliffe_efficiency(actual, predicted):
+    """Calculate Nash-Sutcliffe Efficiency (NSE) - standard hydrology metric.
+
+    NSE = 1 means perfect prediction
+    NSE = 0 means prediction is as good as using the mean
+    NSE < 0 means prediction is worse than using the mean
+
+    Args:
+        actual: Darts TimeSeries of observed values
+        predicted: Darts TimeSeries of predicted values
+
+    Returns:
+        float: NSE value
+    """
+    actual_vals = actual.values().flatten()
+    pred_vals = predicted.values().flatten()
+
+    min_len = min(len(actual_vals), len(pred_vals))
+    actual_vals = actual_vals[:min_len]
+    pred_vals = pred_vals[:min_len]
+
+    mean_obs = np.mean(actual_vals)
+    ss_res = np.sum((actual_vals - pred_vals) ** 2)
+    ss_tot = np.sum((actual_vals - mean_obs) ** 2)
+
+    if ss_tot == 0:
+        return 1.0 if ss_res == 0 else -np.inf
+
+    return 1 - (ss_res / ss_tot)
+
+
+def kling_gupta_efficiency(actual, predicted):
+    """Calculate Kling-Gupta Efficiency (KGE) - improved hydrology metric.
+
+    KGE decomposes the error into:
+    - Correlation (r)
+    - Bias ratio (beta)
+    - Variability ratio (gamma)
+
+    KGE = 1 means perfect prediction
+    KGE > -0.41 is considered useful (better than mean)
+
+    Args:
+        actual: Darts TimeSeries of observed values
+        predicted: Darts TimeSeries of predicted values
+
+    Returns:
+        float: KGE value
+    """
+    actual_vals = actual.values().flatten()
+    pred_vals = predicted.values().flatten()
+
+    min_len = min(len(actual_vals), len(pred_vals))
+    actual_vals = actual_vals[:min_len]
+    pred_vals = pred_vals[:min_len]
+
+    # Correlation coefficient
+    if np.std(actual_vals) == 0 or np.std(pred_vals) == 0:
+        r = 0.0
+    else:
+        r = np.corrcoef(actual_vals, pred_vals)[0, 1]
+
+    # Bias ratio (mean ratio)
+    mean_obs = np.mean(actual_vals)
+    mean_pred = np.mean(pred_vals)
+    if mean_obs == 0:
+        beta = 1.0 if mean_pred == 0 else np.inf
+    else:
+        beta = mean_pred / mean_obs
+
+    # Variability ratio (std ratio)
+    std_obs = np.std(actual_vals)
+    std_pred = np.std(pred_vals)
+    if std_obs == 0:
+        gamma = 1.0 if std_pred == 0 else np.inf
+    else:
+        gamma = std_pred / std_obs
+
+    # KGE formula
+    kge = 1 - np.sqrt((r - 1)**2 + (beta - 1)**2 + (gamma - 1)**2)
+
+    return kge
+
+
 def calculate_lagged_correlations(df: pd.DataFrame, target_col: str, covariate_col: str, max_lag: int = 60) -> tuple:
     """
     Calculates correlation for different lags.

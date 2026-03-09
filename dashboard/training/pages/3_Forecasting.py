@@ -95,81 +95,15 @@ except ImportError:
 from dashboard.utils.model_registry import get_registry
 # from dashboard.utils.model_config import load_model_with_config, load_scalers # Removed (Legacy)
 from dashboard.utils.forecasting import generate_single_window_forecast
-from dashboard.utils.preprocessing import prepare_dataframe_for_darts
+from dashboard.utils.preprocessing import (
+    prepare_dataframe_for_darts,
+    merge_covariates_with_splits,
+    denormalize_data,
+)
 from darts.metrics import mae, rmse, smape
 
-# Nash-Sutcliffe Efficiency (NSE) - standard metric for hydrology
-def nash_sutcliffe_efficiency(actual, predicted):
-    """Calculate Nash-Sutcliffe Efficiency (NSE) - standard hydrology metric.
-    
-    NSE = 1 means perfect prediction
-    NSE = 0 means prediction is as good as using the mean
-    NSE < 0 means prediction is worse than using the mean
-    """
-    import numpy as np
-    actual_vals = actual.values().flatten()
-    pred_vals = predicted.values().flatten()
-    
-    min_len = min(len(actual_vals), len(pred_vals))
-    actual_vals = actual_vals[:min_len]
-    pred_vals = pred_vals[:min_len]
-    
-    mean_obs = np.mean(actual_vals)
-    ss_res = np.sum((actual_vals - pred_vals) ** 2)
-    ss_tot = np.sum((actual_vals - mean_obs) ** 2)
-    
-    if ss_tot == 0:
-        return 1.0 if ss_res == 0 else -np.inf
-    
-    return 1 - (ss_res / ss_tot)
-
-
-# Kling-Gupta Efficiency (KGE) - improved hydrology metric
-def kling_gupta_efficiency(actual, predicted):
-    """Calculate Kling-Gupta Efficiency (KGE) - improved hydrology metric.
-    
-    KGE decomposes the error into:
-    - Correlation (r)
-    - Bias ratio (beta)  
-    - Variability ratio (gamma)
-    
-    KGE = 1 means perfect prediction
-    KGE > -0.41 is considered useful (better than mean)
-    """
-    import numpy as np
-    actual_vals = actual.values().flatten()
-    pred_vals = predicted.values().flatten()
-    
-    min_len = min(len(actual_vals), len(pred_vals))
-    actual_vals = actual_vals[:min_len]
-    pred_vals = pred_vals[:min_len]
-    
-    # Correlation coefficient
-    if np.std(actual_vals) == 0 or np.std(pred_vals) == 0:
-        r = 0.0
-    else:
-        r = np.corrcoef(actual_vals, pred_vals)[0, 1]
-    
-    # Bias ratio (mean ratio)
-    mean_obs = np.mean(actual_vals)
-    mean_pred = np.mean(pred_vals)
-    if mean_obs == 0:
-        beta = 1.0 if mean_pred == 0 else np.inf
-    else:
-        beta = mean_pred / mean_obs
-    
-    # Variability ratio (std ratio)
-    std_obs = np.std(actual_vals)
-    std_pred = np.std(pred_vals)
-    if std_obs == 0:
-        gamma = 1.0 if std_pred == 0 else np.inf
-    else:
-        gamma = std_pred / std_obs
-    
-    # KGE formula
-    kge = 1 - np.sqrt((r - 1)**2 + (beta - 1)**2 + (gamma - 1)**2)
-    
-    return kge
+# Hydrology metrics (extracted to utils)
+from dashboard.utils.statistics import nash_sutcliffe_efficiency, kling_gupta_efficiency
 
 
 try:
@@ -483,19 +417,8 @@ covariate_cols = config.columns.get('covariates', [])
 use_covariates = getattr(config, 'use_covariates', bool(covariate_cols))
 
 # Merge covariates into processed data if available
-def _merge_covariates(data_dict_in: dict) -> dict:
-    data_dict_out = data_dict_in.copy()
-    for split in ['train', 'val', 'test']:
-        cov_key = f"{split}_cov"
-        base_df = data_dict_out.get(split)
-        cov_df = data_dict_out.get(cov_key)
-        if isinstance(base_df, pd.DataFrame) and isinstance(cov_df, pd.DataFrame):
-            cov_df = cov_df.drop(columns=['station'], errors='ignore')
-            data_dict_out[split] = base_df.join(cov_df, how='left')
-    return data_dict_out
-
 if use_covariates:
-    data_dict = _merge_covariates(data_dict)
+    data_dict = merge_covariates_with_splits(data_dict)
 
 # Full processed dataframe for predictions
 # IMPORTANT: Always use train+val+test concatenation, NOT 'full' (full_data.csv)!
@@ -516,22 +439,8 @@ if use_covariates and missing_covariates:
     )
     st.stop()
 
-# Helper function to generate raw data from processed data via inverse_transform
-def generate_raw_from_processed(processed_df, scalers, target_col):
-    """Generate raw (de-normalized) data from processed (normalized) data."""
-    target_preprocessor = scalers.get('target_preprocessor')
-    if target_preprocessor is not None:
-        # Convert processed DataFrame to TimeSeries, inverse_transform, convert back
-        processed_series, _ = prepare_dataframe_for_darts(
-            processed_df, target_col, []
-        )
-        raw_series = target_preprocessor.inverse_transform(processed_series)
-        raw_df = raw_series.to_dataframe()
-        raw_df.index = processed_df.index  # Ensure same index
-        return raw_df
-    else:
-        # No scaler = data wasn't normalized, processed is raw
-        return processed_df.copy()
+# Helper function alias for backward compatibility
+generate_raw_from_processed = denormalize_data
 
 # Get raw test data - CRITICAL for correct ground truth display
 # If test_raw.csv wasn't saved, we need to generate it via inverse_transform

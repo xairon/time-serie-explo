@@ -35,6 +35,7 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 from dashboard.utils.model_registry import get_registry
 from dashboard.utils.forecasting import generate_single_window_forecast
+from dashboard.utils.preprocessing import detect_columns_from_config, build_complete_dataframe
 
 # PhysCF counterfactual module
 from dashboard.utils.counterfactual import (
@@ -154,71 +155,9 @@ def _load_model_and_data(run_id: str):
     return model, scalers, data_dict, model_config, entry, ips_reference
 
 
-def _detect_columns(model_config, data_dict):
-    """Detect target and covariate columns from model config and data."""
-    target_col = None
-    covariate_cols = []
-
-    if model_config:
-        if isinstance(model_config, dict):
-            cols = model_config.get("columns", {})
-            if not cols:
-                cols = model_config.get("preprocessing", {}).get("columns", {})
-        elif hasattr(model_config, "columns"):
-            cols = model_config.columns if isinstance(model_config.columns, dict) else {}
-        else:
-            cols = {}
-        target_col = cols.get("target")
-        covariate_cols = cols.get("covariates", [])
-        if isinstance(covariate_cols, str):
-            import json as _json
-            try:
-                covariate_cols = _json.loads(covariate_cols)
-            except Exception:
-                covariate_cols = [covariate_cols]
-
-    if not target_col and "train" in data_dict:
-        df_train = data_dict["train"]
-        for c in ["gwl", "Water_Level", "water_level", "niveau_nappe_eau", "piezo", "level"]:
-            if c in df_train.columns:
-                target_col = c
-                break
-        if not target_col:
-            target_col = df_train.columns[0]
-
-    if not covariate_cols and "train_cov" in data_dict:
-        covariate_cols = list(data_dict["train_cov"].columns)
-
-    return target_col, covariate_cols
-
-
-def _build_full_df(data_dict, target_col, covariate_cols):
-    """Merge train/val/test + covariates into a single DataFrame (NORMALIZED)."""
-    parts = []
-    for split in ["train", "val", "test"]:
-        if split in data_dict and target_col in data_dict[split].columns:
-            parts.append(data_dict[split][[target_col]])
-    if not parts:
-        return None, []
-
-    df_target = pd.concat(parts).sort_index()
-    df_target = df_target[~df_target.index.duplicated(keep="first")]
-
-    cov_parts = []
-    for split in ["train_cov", "val_cov", "test_cov"]:
-        if split in data_dict:
-            cov_parts.append(data_dict[split])
-
-    if cov_parts:
-        df_cov = pd.concat(cov_parts).sort_index()
-        df_cov = df_cov[~df_cov.index.duplicated(keep="first")]
-        available_covs = [c for c in covariate_cols if c in df_cov.columns]
-        if not available_covs:
-            available_covs = list(df_cov.columns)[:3]
-        df_full = df_target.join(df_cov[available_covs], how="inner")
-        return df_full, available_covs
-    else:
-        return df_target, []
+# Aliases for backward compatibility (functions extracted to preprocessing.py)
+_detect_columns = detect_columns_from_config
+_build_full_df = build_complete_dataframe
 
 
 def _extract_real_scaler_params(scalers_dict):
