@@ -2,7 +2,7 @@
 
 import streamlit as st
 from pathlib import Path
-from dashboard.utils.export import add_download_button
+from dashboard.components.export_button import add_download_button
 
 
 def render_export_section(model_dir: Path, key_suffix: str = ""):

@@ -27,7 +27,7 @@ from dashboard.utils.model_factory import ModelFactory
 from dashboard.config import CHECKPOINTS_DIR
 from dashboard.utils.dataset_registry import get_dataset_registry
 from dashboard.utils.training import run_training_pipeline
-from dashboard.utils.export import add_download_button
+from dashboard.components.export_button import add_download_button
 
 _training_lock = threading.Lock()
 
