@@ -131,11 +131,15 @@ services:
       - "${APP_PORT:-49509}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/observatory-bridge.js:/usr/share/nginx/html/observatory-bridge.js:ro
     depends_on:
       backend:
         condition: service_healthy
       frontend:
         condition: service_healthy
+    networks:
+      - default
+      - observatory_net
     deploy:
       resources:
         limits:
@@ -145,6 +149,9 @@ networks:
   brgm_net:
     external: true
     name: hubeau_data_integration_default
+  observatory_net:
+    external: true
+    name: junondashboard_default
 
 volumes:
   postgres_data:

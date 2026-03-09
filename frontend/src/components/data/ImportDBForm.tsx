@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { StationInfo } from '@/lib/types'
 import { Search, MapPin, TrendingUp, Calendar, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 
-export function ImportDBForm() {
+interface ImportDBFormProps {
+  initialStation?: string
+}
+
+export function ImportDBForm({ initialStation }: ImportDBFormProps) {
   const qc = useQueryClient()
 
   // Search state
@@ -43,6 +47,32 @@ export function ImportDBForm() {
     enabled: searchTerm.length >= 2 || !!deptFilter || !!tendanceFilter || !!alerteFilter,
     staleTime: 30_000,
   })
+
+  // Auto-import station from URL param (e.g., from Observatory)
+  const [initialHandled, setInitialHandled] = useState(false)
+  useEffect(() => {
+    if (initialStation && !initialHandled) {
+      setInitialHandled(true)
+      setSearchTerm(initialStation)
+    }
+  }, [initialStation, initialHandled])
+
+  // Auto-select first search result when coming from URL param
+  useEffect(() => {
+    if (
+      initialStation &&
+      initialHandled &&
+      searchResults?.stations?.length &&
+      selectedStations.length === 0
+    ) {
+      const match = searchResults.stations.find(
+        (s) => s.code_bss === initialStation,
+      )
+      if (match) {
+        setSelectedStations([match])
+      }
+    }
+  }, [initialStation, initialHandled, searchResults, selectedStations.length])
 
   // Paste station codes
   const [pasteMode, setPasteMode] = useState(false)

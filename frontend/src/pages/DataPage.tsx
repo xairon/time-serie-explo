@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useDatasets } from '@/hooks/useDatasets'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
@@ -10,9 +11,18 @@ import { CorrelationMatrix } from '@/components/charts/CorrelationMatrix'
 type Tab = 'import' | 'explore' | 'config'
 
 export default function DataPage() {
+  const [searchParams] = useSearchParams()
+  const stationFromUrl = searchParams.get('station')
   const [tab, setTab] = useState<Tab>('import')
   const { data: datasets, isLoading } = useDatasets()
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('')
+
+  // If navigated with ?station=, ensure we're on import tab and clear the param
+  useEffect(() => {
+    if (stationFromUrl) {
+      setTab('import')
+    }
+  }, [stationFromUrl])
 
   const [targetVariable, setTargetVariable] = useState('')
   const [selectedCovariates, setSelectedCovariates] = useState<string[]>([])
@@ -100,7 +110,7 @@ export default function DataPage() {
       {tab === 'import' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-            <ImportDBForm />
+            <ImportDBForm initialStation={stationFromUrl ?? undefined} />
           </div>
           <div className="bg-bg-card rounded-xl border border-white/5 p-5">
             <ImportCSVForm />
