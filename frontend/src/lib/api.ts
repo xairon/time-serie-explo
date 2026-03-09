@@ -51,6 +51,24 @@ async function deleteJson<T>(path: string): Promise<T> {
 export const api = {
   health: () => fetchJson<HealthStatus>('/health'),
 
+  db: {
+    schemas: () => fetchJson<string[]>('/db/schemas'),
+    tables: (schema: string) =>
+      fetchJson<{ tables: string[]; views: string[] }>(`/db/tables?schema=${schema}`),
+    columns: (table: string, schema: string) =>
+      fetchJson<{
+        columns: { name: string; type: string; nullable: boolean }[]
+        row_count: number
+        date_columns: string[]
+      }>(`/db/columns?table=${table}&schema=${schema}`),
+    distinct: (table: string, column: string, schema: string) =>
+      fetchJson<string[]>(`/db/distinct?table=${table}&column=${column}&schema=${schema}`),
+    dateRange: (table: string, column: string, schema: string) =>
+      fetchJson<{ min: string | null; max: string | null }>(
+        `/db/date-range?table=${table}&column=${column}&schema=${schema}`,
+      ),
+  },
+
   datasets: {
     list: () => fetchJson<DatasetSummary[]>('/datasets'),
     get: (id: string) => fetchJson<DatasetSummary>(`/datasets/${id}`),
@@ -60,6 +78,16 @@ export const api = {
         return res.json() as Promise<DatasetSummary>
       }),
     delete: (id: string) => deleteJson<{ ok: boolean }>(`/datasets/${id}`),
+    importDB: (body: {
+      table_name: string
+      schema_name: string
+      columns: string[]
+      date_column?: string
+      start_date?: string
+      end_date?: string
+      filters?: Record<string, string[]>
+      dataset_name?: string
+    }) => postJson<DatasetSummary>('/datasets/import-db', body),
   },
 
   training: {

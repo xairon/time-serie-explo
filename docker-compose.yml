@@ -81,7 +81,7 @@ services:
       - BRGM_DB_HOST=brgm-postgres
       - BRGM_DB_PORT=5432
       - BRGM_DB_USER=postgres
-      - BRGM_DB_PASSWORD=
+      - BRGM_DB_PASSWORD=${BRGM_DB_PASSWORD:-}
       - BRGM_DB_NAME=postgres
       - REDIS_URL=redis://redis:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow:5000
