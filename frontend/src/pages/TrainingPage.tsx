@@ -3,11 +3,11 @@ import { API_BASE } from '@/lib/constants'
 import { api } from '@/lib/api'
 import { useSSE } from '@/hooks/useSSE'
 import { useStartTraining, useStopTraining } from '@/hooks/useTraining'
-import { useModels } from '@/hooks/useModels'
+import { useModels, useDeleteModel } from '@/hooks/useModels'
 import { ModelConfigForm } from '@/components/training/ModelConfigForm'
 import { TrainingMonitor } from '@/components/training/TrainingMonitor'
 import { TrainingResults } from '@/components/training/TrainingResults'
-import type { TrainingConfig, TrainingMetrics } from '@/lib/types'
+import type { TrainingConfig, TrainingMetrics, TrainingResult } from '@/lib/types'
 import { METRIC_LABELS } from '@/lib/constants'
 
 type TrainingPhase = 'idle' | 'preparing' | 'training' | 'completed' | 'error'
@@ -17,7 +17,7 @@ export default function TrainingPage() {
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const [trainLossHistory, setTrainLossHistory] = useState<number[]>([])
   const [valLossHistory, setValLossHistory] = useState<number[]>([])
-  const [finalMetrics, setFinalMetrics] = useState<Record<string, number> | null>(null)
+  const [finalResult, setFinalResult] = useState<TrainingResult | null>(null)
 
   const [logs, setLogs] = useState<string[]>([])
   const [phase, setPhase] = useState<TrainingPhase>('idle')
@@ -25,6 +25,7 @@ export default function TrainingPage() {
 
   const startMutation = useStartTraining()
   const stopMutation = useStopTraining()
+  const deleteMutation = useDeleteModel()
   const { data: models } = useModels()
 
   const sse = useSSE<TrainingMetrics>(sseUrl)
@@ -95,12 +96,12 @@ export default function TrainingPage() {
     }
   }
 
-  // Detect training done
-  if (sse.status === 'done' && !finalMetrics && taskId) {
+  // Detect training done - fetch full result including sliding metrics
+  if (sse.status === 'done' && !finalResult && taskId) {
     void fetch(`${API_BASE}/training/${taskId}/status`)
       .then((r) => r.json())
-      .then((data: { metrics?: Record<string, number> }) => {
-        if (data.metrics) setFinalMetrics(data.metrics)
+      .then((data: TrainingResult) => {
+        setFinalResult(data)
       })
       .catch(() => {
         /* ignore */
@@ -111,7 +112,7 @@ export default function TrainingPage() {
     (config: TrainingConfig) => {
       setTrainLossHistory([])
       setValLossHistory([])
-      setFinalMetrics(null)
+      setFinalResult(null)
       setLogs([])
       setPhase('preparing')
       startMutation.mutate(config, {
@@ -131,12 +132,24 @@ export default function TrainingPage() {
     }
   }, [taskId, stopMutation])
 
+  const handleDeleteModel = useCallback(
+    (modelId: string) => {
+      if (window.confirm('Supprimer ce modele ?')) {
+        deleteMutation.mutate(modelId)
+      }
+    },
+    [deleteMutation],
+  )
+
+  // Key metrics to show in history table
+  const historyMetricKeys = ['MAE', 'RMSE', 'KGE', 'NSE']
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Entraînement</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Entrainement</h1>
         <p className="text-sm text-text-secondary">
-          Configurer et lancer l'entraînement de modèles de prévision
+          Configurer et lancer l'entrainement de modeles de prevision
         </p>
       </div>
 
@@ -168,7 +181,7 @@ export default function TrainingPage() {
           ) : (
             <div className="flex items-center justify-center h-full min-h-[300px]">
               <p className="text-sm text-text-secondary">
-                Configurez le modèle et lancez l'entraînement pour voir le moniteur en temps réel.
+                Configurez le modele et lancez l'entrainement pour voir le moniteur en temps reel.
               </p>
             </div>
           )}
@@ -236,9 +249,12 @@ export default function TrainingPage() {
       )}
 
       {/* Results */}
-      {finalMetrics && (
+      {finalResult?.metrics && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-          <TrainingResults metrics={finalMetrics} />
+          <TrainingResults
+            metrics={finalResult.metrics}
+            metricsSliding={finalResult.metrics_sliding}
+          />
         </div>
       )}
 
@@ -246,48 +262,84 @@ export default function TrainingPage() {
       {models && models.length > 0 && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-3">
-            Historique des entraînements
+            Historique des entrainements
           </h3>
           <div className="overflow-x-auto rounded-lg border border-white/5">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-hover">
-                  {['Nom', 'Architecture', 'Station', 'Date', ...Object.keys(METRIC_LABELS).slice(0, 4), ''].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap"
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Nom
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Architecture
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Dataset
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Station
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Date
+                  </th>
+                  {historyMetricKeys.map((key) => (
+                    <th
+                      key={key}
+                      className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {METRIC_LABELS[key] ?? key}
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {models.map((m) => (
                   <tr key={m.model_id} className="border-t border-white/5 hover:bg-bg-hover/50">
-                    <td className="px-3 py-1.5 text-text-primary">{m.model_name}</td>
-                    <td className="px-3 py-1.5 text-text-primary">{m.model_type}</td>
-                    <td className="px-3 py-1.5 text-text-secondary">{m.primary_station ?? '—'}</td>
-                    <td className="px-3 py-1.5 text-text-secondary text-xs">
+                    <td className="px-3 py-1.5 text-text-primary font-medium">{m.model_name}</td>
+                    <td className="px-3 py-1.5 text-text-secondary text-xs">{m.model_type}</td>
+                    <td className="px-3 py-1.5 text-text-secondary text-xs">{m.data_source ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-text-secondary text-xs">{m.primary_station ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-text-secondary text-xs whitespace-nowrap">
                       {new Date(m.created_at).toLocaleDateString('fr-FR')}
                     </td>
-                    {Object.keys(METRIC_LABELS)
-                      .slice(0, 4)
-                      .map((key) => (
-                        <td key={key} className="px-3 py-1.5 text-text-primary text-xs">
-                          {m.metrics[key]?.toFixed(4) ?? '—'}
+                    {historyMetricKeys.map((key) => {
+                      const val = m.metrics[key]
+                      // Highlight good KGE/NSE values
+                      const isGood =
+                        (key === 'KGE' || key === 'NSE') && val != null && val > 0.7
+                      return (
+                        <td
+                          key={key}
+                          className={`px-3 py-1.5 text-xs font-mono ${
+                            isGood ? 'text-accent-green' : 'text-text-primary'
+                          }`}
+                        >
+                          {val != null ? val.toFixed(4) : '—'}
                         </td>
-                      ))}
+                      )
+                    })}
                     <td className="px-3 py-1.5">
-                      <a
-                        href={api.models.downloadUrl(m.model_id)}
-                        className="text-xs text-accent-cyan hover:underline"
-                        download
-                      >
-                        Télécharger
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={api.models.downloadUrl(m.model_id)}
+                          className="text-xs text-accent-cyan hover:underline"
+                          download
+                        >
+                          Telecharger
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteModel(m.model_id)}
+                          disabled={deleteMutation.isPending}
+                          className="text-xs text-accent-red/70 hover:text-accent-red transition-colors disabled:opacity-50"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 export function useModels() {
@@ -20,5 +20,15 @@ export function useAvailableModels() {
   return useQuery({
     queryKey: ['available-models'],
     queryFn: api.models.available,
+  })
+}
+
+export function useDeleteModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.models.delete(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['models'] })
+    },
   })
 }

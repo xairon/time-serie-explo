@@ -10,7 +10,7 @@ export function useForecast() {
 
 export function useForecastSingle() {
   return useMutation({
-    mutationFn: (body: { model_id: string; start_date?: string; use_covariates?: boolean }) =>
+    mutationFn: (body: { model_id: string; start_date?: string; use_covariates?: boolean; horizon?: number; dataset_id?: string }) =>
       api.forecasting.single(body),
   })
 }

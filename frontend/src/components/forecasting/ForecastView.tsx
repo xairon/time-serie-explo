@@ -4,10 +4,12 @@ import type { ForecastResult } from '@/lib/types'
 interface ForecastViewProps {
   result: ForecastResult | null
   isLoading: boolean
+  inputChunkLength?: number
+  outputChunkLength?: number
   className?: string
 }
 
-export function ForecastView({ result, isLoading, className = '' }: ForecastViewProps) {
+export function ForecastView({ result, isLoading, inputChunkLength, outputChunkLength, className = '' }: ForecastViewProps) {
   if (isLoading) {
     return (
       <div className={`bg-bg-card rounded-xl border border-white/5 p-6 ${className}`}>
@@ -25,7 +27,7 @@ export function ForecastView({ result, isLoading, className = '' }: ForecastView
         className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}
       >
         <p className="text-text-secondary text-sm">
-          Sélectionnez un modèle et lancez une prévision pour afficher les résultats.
+          Selectionnez un modele et lancez une prevision pour afficher les resultats.
         </p>
       </div>
     )
@@ -33,7 +35,12 @@ export function ForecastView({ result, isLoading, className = '' }: ForecastView
 
   return (
     <div className={`bg-bg-card rounded-xl border border-white/5 p-4 ${className}`}>
-      <ForecastPlot result={result} className="h-[400px]" />
+      <ForecastPlot
+        result={result}
+        inputChunkLength={inputChunkLength}
+        outputChunkLength={outputChunkLength}
+        className="h-[400px]"
+      />
     </div>
   )
 }

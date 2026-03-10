@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import { METRIC_LABELS } from '@/lib/constants'
 
 interface MetricsPanelProps {
   metrics: Record<string, number>
+  actuals?: (number | null)[]
   className?: string
 }
 
@@ -14,10 +16,24 @@ const isGood = (key: string, value: number): boolean | null => {
   return null
 }
 
-export function MetricsPanel({ metrics, className = '' }: MetricsPanelProps) {
+/** Compute IQR from actual values (ignoring nulls) */
+function computeIQR(values: (number | null)[]): number | null {
+  const sorted = values.filter((v): v is number => v != null).sort((a, b) => a - b)
+  if (sorted.length < 4) return null
+  const q25Idx = Math.floor(sorted.length * 0.25)
+  const q75Idx = Math.floor(sorted.length * 0.75)
+  const iqr = sorted[q75Idx] - sorted[q25Idx]
+  return iqr > 0 ? iqr : null
+}
+
+export function MetricsPanel({ metrics, actuals, className = '' }: MetricsPanelProps) {
+  const iqr = useMemo(() => (actuals ? computeIQR(actuals) : null), [actuals])
+
+  const mae = metrics['MAE'] ?? metrics['mae']
+
   return (
     <div className={`space-y-2 ${className}`}>
-      <h4 className="text-sm font-semibold text-text-primary">Métriques</h4>
+      <h4 className="text-sm font-semibold text-text-primary">Metriques</h4>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(metrics).map(([key, val]) => {
           const good = isGood(key, val)
@@ -41,6 +57,15 @@ export function MetricsPanel({ metrics, className = '' }: MetricsPanelProps) {
           )
         })}
       </div>
+
+      {/* Relative error context */}
+      {iqr != null && mae != null && (
+        <div className="bg-bg-card rounded-lg border border-white/5 p-3">
+          <p className="text-xs text-text-secondary">
+            MAE ≈ <span className="text-text-primary font-medium">{((mae / iqr) * 100).toFixed(1)}%</span> de l&apos;echelle (IQR = {iqr.toFixed(4)})
+          </p>
+        </div>
+      )}
     </div>
   )
 }

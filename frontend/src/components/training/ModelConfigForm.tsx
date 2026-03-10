@@ -30,6 +30,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const [valSplit, setValSplit] = useState(0.15)
   const [lossFunction, setLossFunction] = useState('MAE')
   const [hyperparams, setHyperparams] = useState<Record<string, unknown>>({})
+  const [useCovariates, setUseCovariates] = useState(true)
 
   // Group models by category
   const modelsByCategory = useMemo(() => {
@@ -68,6 +69,13 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const selectedDataset = datasets?.find((d) => d.id === datasetId)
   const selectedModel = availableModels?.find((m) => m.name === modelType)
 
+  // Default useCovariates based on dataset
+  useEffect(() => {
+    if (selectedDataset) {
+      setUseCovariates(selectedDataset.covariates.length > 0)
+    }
+  }, [selectedDataset?.id])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({
@@ -80,7 +88,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       early_stopping: earlyStopping,
       early_stopping_patience: earlyStopping ? patience : 0,
       station_name: station || null,
-      use_covariates: true,
+      use_covariates: useCovariates,
       loss_function: lossFunction,
     })
   }
@@ -88,6 +96,11 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const updateHyperparam = (key: string, value: string) => {
     const num = Number(value)
     setHyperparams((prev) => ({ ...prev, [key]: isNaN(num) ? value : num }))
+  }
+
+  /** Determine if a hyperparam value is numeric */
+  const isNumericParam = (val: unknown): boolean => {
+    return typeof val === 'number'
   }
 
   return (
@@ -131,7 +144,10 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         ) : (
           <select
             value={datasetId}
-            onChange={(e) => setDatasetId(e.target.value)}
+            onChange={(e) => {
+              setDatasetId(e.target.value)
+              setStation('')
+            }}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
             {datasets?.map((d) => (
@@ -142,6 +158,50 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
           </select>
         )}
       </div>
+
+      {/* Dataset info panel */}
+      {selectedDataset && (
+        <div className="bg-bg-hover rounded-lg p-3 space-y-1.5 border border-white/5">
+          <h4 className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
+            Informations du dataset
+          </h4>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <div>
+              <span className="text-text-secondary">Cible : </span>
+              <span className="text-accent-cyan font-medium">{selectedDataset.target_variable}</span>
+            </div>
+            <div>
+              <span className="text-text-secondary">Lignes : </span>
+              <span className="text-text-primary">{selectedDataset.n_rows.toLocaleString('fr-FR')}</span>
+            </div>
+            <div>
+              <span className="text-text-secondary">Covariables : </span>
+              <span className="text-text-primary">{selectedDataset.covariates.length}</span>
+            </div>
+            {selectedDataset.date_range.length >= 2 && (
+              <div>
+                <span className="text-text-secondary">Periode : </span>
+                <span className="text-text-primary">
+                  {selectedDataset.date_range[0]?.slice(0, 10)} → {selectedDataset.date_range[1]?.slice(0, 10)}
+                </span>
+              </div>
+            )}
+            {selectedDataset.stations.length > 0 && (
+              <div className="col-span-2">
+                <span className="text-text-secondary">Stations : </span>
+                <span className="text-text-primary">{selectedDataset.stations.length} station(s)</span>
+              </div>
+            )}
+          </div>
+          {selectedDataset.covariates.length > 0 && (
+            <div className="mt-1">
+              <p className="text-[10px] text-text-secondary">
+                {selectedDataset.covariates.join(', ')}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Station */}
       {selectedDataset && selectedDataset.stations.length > 0 && (
@@ -159,6 +219,23 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* Covariate toggle */}
+      {selectedDataset && selectedDataset.covariates.length > 0 && (
+        <div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useCovariates}
+              onChange={(e) => setUseCovariates(e.target.checked)}
+              className="w-4 h-4 rounded border-white/10 bg-bg-input text-accent-cyan focus:ring-accent-cyan/50"
+            />
+            <span className="text-xs text-text-secondary">
+              Utiliser les covariables ({selectedDataset.covariates.length} features)
+            </span>
+          </label>
         </div>
       )}
 
@@ -232,11 +309,11 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         </label>
         {earlyStopping && (
           <div>
-            <label className="block text-xs text-text-secondary mb-1">Patience</label>
+            <label className="block text-xs text-text-secondary mb-1">Patience (epochs)</label>
             <input
               type="number"
-              min={1}
-              max={100}
+              min={3}
+              max={50}
               value={patience}
               onChange={(e) => setPatience(Number(e.target.value))}
               className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
@@ -245,22 +322,44 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         )}
       </div>
 
-      {/* Dynamic hyperparams */}
+      {/* Dynamic hyperparams with proper number inputs */}
       {Object.keys(hyperparams).length > 0 && (
         <div>
           <label className="block text-xs text-text-secondary mb-2">Hyperparametres</label>
           <div className="space-y-2">
-            {Object.entries(hyperparams).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-2">
-                <label className="text-xs text-text-secondary w-32 shrink-0">{key}</label>
-                <input
-                  type="text"
-                  value={String(val)}
-                  onChange={(e) => updateHyperparam(key, e.target.value)}
-                  className="flex-1 bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-1.5 text-xs"
-                />
-              </div>
-            ))}
+            {Object.entries(hyperparams).map(([key, val]) => {
+              const isNum = isNumericParam(val)
+              const numVal = Number(val)
+              // Determine appropriate step for numeric params
+              const step = isNum && numVal < 1 ? 0.001 : isNum && numVal < 10 ? 1 : 1
+              const label = key
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (c) => c.toUpperCase())
+
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <label className="text-xs text-text-secondary w-36 shrink-0" title={key}>
+                    {label}
+                  </label>
+                  {isNum ? (
+                    <input
+                      type="number"
+                      step={step}
+                      value={String(val)}
+                      onChange={(e) => updateHyperparam(key, e.target.value)}
+                      className="flex-1 bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-1.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={String(val)}
+                      onChange={(e) => updateHyperparam(key, e.target.value)}
+                      className="flex-1 bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-1.5 text-xs"
+                    />
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

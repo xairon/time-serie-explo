@@ -1,6 +1,6 @@
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
-import type { Data, Layout, Shape } from 'plotly.js-dist-min'
+import type { Data, Layout, Shape, Annotations } from 'plotly.js-dist-min'
 import type { ForecastResult } from '@/lib/types'
 
 interface ForecastPlotProps {
@@ -10,10 +10,22 @@ interface ForecastPlotProps {
   contextWindow?: { start: number; end: number }
   /** Start/end date indices for prediction window highlight */
   predictionWindow?: { start: number; end: number }
+  /** Input chunk length from model hyperparams */
+  inputChunkLength?: number
+  /** Output chunk length from model hyperparams */
+  outputChunkLength?: number
   className?: string
 }
 
-export function ForecastPlot({ result, splitIndex, contextWindow, predictionWindow, className = '' }: ForecastPlotProps) {
+export function ForecastPlot({
+  result,
+  splitIndex,
+  contextWindow,
+  predictionWindow,
+  inputChunkLength,
+  outputChunkLength,
+  className = '',
+}: ForecastPlotProps) {
   const { dates, actuals, predictions, confidence_low, confidence_high } = result
 
   const traces: Data[] = []
@@ -35,23 +47,23 @@ export function ForecastPlot({ result, splitIndex, contextWindow, predictionWind
     })
   }
 
-  // Actuals
+  // Actuals (gray line as background context)
   traces.push({
     x: dates,
     y: actuals as number[],
     type: 'scatter',
     mode: 'lines',
     name: 'Observations',
-    line: { color: '#e5e7eb', width: 2 },
+    line: { color: '#9ca3af', width: 2 },
   })
 
-  // Predictions (autoregressive)
+  // Predictions (cyan overlay)
   traces.push({
     x: dates,
     y: predictions as number[],
     type: 'scatter',
     mode: 'lines',
-    name: result.predictions_onestep ? 'Autoregressif' : 'Prédictions',
+    name: result.predictions_onestep ? 'Autoregressif' : 'Predictions',
     line: { color: '#06b6d4', width: 2 },
   })
 
@@ -68,35 +80,56 @@ export function ForecastPlot({ result, splitIndex, contextWindow, predictionWind
   }
 
   const shapes: Partial<Shape>[] = []
+  const annotations: Partial<Annotations>[] = []
 
   // Auto-detect context and prediction windows from split index or predictions
-  const effectiveContextWindow = contextWindow ?? (() => {
-    if (splitIndex !== undefined && splitIndex > 0) {
-      return { start: 0, end: splitIndex }
-    }
-    // Detect from predictions: context = where predictions are null, prediction = where they exist
-    const firstPredIdx = predictions.findIndex((v) => v !== null)
-    if (firstPredIdx > 0) {
-      return { start: 0, end: firstPredIdx }
-    }
-    return undefined
-  })()
+  let effectiveContextWindow = contextWindow
+  let effectivePredictionWindow = predictionWindow
 
-  const effectivePredictionWindow = predictionWindow ?? (() => {
-    if (splitIndex !== undefined && splitIndex < dates.length) {
-      return { start: splitIndex, end: dates.length - 1 }
+  if (!effectiveContextWindow) {
+    if (splitIndex !== undefined && splitIndex > 0) {
+      effectiveContextWindow = { start: 0, end: splitIndex }
+    } else {
+      const firstPredIdx = predictions.findIndex((v) => v !== null)
+      if (firstPredIdx > 0) {
+        effectiveContextWindow = { start: 0, end: firstPredIdx }
+      }
     }
+  }
+
+  if (!effectivePredictionWindow) {
+    if (splitIndex !== undefined && splitIndex < dates.length) {
+      effectivePredictionWindow = { start: splitIndex, end: dates.length - 1 }
+    } else {
+      const firstPredIdx = predictions.findIndex((v) => v !== null)
+      if (firstPredIdx >= 0) {
+        let lastPredIdx = predictions.length - 1
+        while (lastPredIdx > firstPredIdx && predictions[lastPredIdx] === null) lastPredIdx--
+        effectivePredictionWindow = { start: firstPredIdx, end: lastPredIdx }
+      }
+    }
+  }
+
+  // If we have chunk lengths, try to compute windows from predictions
+  if (inputChunkLength && !contextWindow) {
     const firstPredIdx = predictions.findIndex((v) => v !== null)
     if (firstPredIdx >= 0) {
-      let lastPredIdx = predictions.length - 1
-      while (lastPredIdx > firstPredIdx && predictions[lastPredIdx] === null) lastPredIdx--
-      return { start: firstPredIdx, end: lastPredIdx }
+      const contextStart = Math.max(0, firstPredIdx - inputChunkLength)
+      effectiveContextWindow = { start: contextStart, end: firstPredIdx }
     }
-    return undefined
-  })()
+  }
 
-  // Context window rectangle (light blue background)
+  if (outputChunkLength && !predictionWindow) {
+    const firstPredIdx = predictions.findIndex((v) => v !== null)
+    if (firstPredIdx >= 0) {
+      const predEnd = Math.min(dates.length - 1, firstPredIdx + outputChunkLength - 1)
+      effectivePredictionWindow = { start: firstPredIdx, end: predEnd }
+    }
+  }
+
+  // Context window rectangle (light blue, 15% opacity)
   if (effectiveContextWindow && effectiveContextWindow.end > effectiveContextWindow.start) {
+    const contextLen = effectiveContextWindow.end - effectiveContextWindow.start
     shapes.push({
       type: 'rect',
       x0: dates[effectiveContextWindow.start],
@@ -104,14 +137,24 @@ export function ForecastPlot({ result, splitIndex, contextWindow, predictionWind
       y0: 0,
       y1: 1,
       yref: 'paper',
-      fillcolor: 'rgba(59, 130, 246, 0.06)',
+      fillcolor: 'rgba(59, 130, 246, 0.15)',
       line: { width: 0 },
       layer: 'below',
     })
+    annotations.push({
+      x: dates[Math.floor((effectiveContextWindow.start + effectiveContextWindow.end) / 2)],
+      y: 1,
+      yref: 'paper',
+      text: `Input (${contextLen}j)`,
+      showarrow: false,
+      font: { size: 10, color: 'rgba(147, 197, 253, 0.8)' },
+      yanchor: 'bottom',
+    })
   }
 
-  // Prediction window rectangle (light yellow background)
+  // Prediction window rectangle (light orange, 25% opacity)
   if (effectivePredictionWindow && effectivePredictionWindow.end > effectivePredictionWindow.start) {
+    const predLen = effectivePredictionWindow.end - effectivePredictionWindow.start
     shapes.push({
       type: 'rect',
       x0: dates[effectivePredictionWindow.start],
@@ -119,9 +162,18 @@ export function ForecastPlot({ result, splitIndex, contextWindow, predictionWind
       y0: 0,
       y1: 1,
       yref: 'paper',
-      fillcolor: 'rgba(234, 179, 8, 0.06)',
+      fillcolor: 'rgba(251, 146, 60, 0.25)',
       line: { width: 0 },
       layer: 'below',
+    })
+    annotations.push({
+      x: dates[Math.floor((effectivePredictionWindow.start + effectivePredictionWindow.end) / 2)],
+      y: 1,
+      yref: 'paper',
+      text: `Prediction (${predLen}j)`,
+      showarrow: false,
+      font: { size: 10, color: 'rgba(253, 186, 116, 0.9)' },
+      yanchor: 'bottom',
     })
   }
 
@@ -141,8 +193,10 @@ export function ForecastPlot({ result, splitIndex, contextWindow, predictionWind
   const layout: Partial<Layout> = {
     ...darkLayout,
     xaxis: { ...darkLayout.xaxis, title: { text: 'Date' } },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Niveau piézométrique' } },
+    yaxis: { ...darkLayout.yaxis, title: { text: 'Niveau piezometrique' } },
     shapes,
+    annotations,
+    hovermode: 'x unified',
   }
 
   return (
