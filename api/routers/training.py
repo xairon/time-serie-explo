@@ -87,6 +87,12 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
         hyperparams = req.hyperparams.copy()
         if req.n_epochs is not None:
             hyperparams.setdefault("n_epochs", req.n_epochs)
+        # Pass loss function into hyperparams for ModelFactory
+        if req.loss_function:
+            hyperparams.setdefault("loss_fn", req.loss_function)
+
+        # Handle early stopping
+        es_patience = req.early_stopping_patience if req.early_stopping else None
 
         results = run_training_pipeline(
             model_name=req.model_name,
@@ -101,7 +107,7 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
             use_covariates=req.use_covariates,
             station_name=req.station_name,
             verbose=False,
-            early_stopping_patience=req.early_stopping_patience,
+            early_stopping_patience=es_patience,
             metrics_file=metrics_file,
             n_epochs=hyperparams.get("n_epochs"),
             dataset_name=req.dataset_id,

@@ -18,7 +18,7 @@ def serialize_tensor(tensor) -> list:
 
 def serialize_timeseries(ts) -> list[dict]:
     """Convert a Darts TimeSeries to a list of {time, ...values} dicts."""
-    df = ts.pd_dataframe()
+    df = ts.to_dataframe()
     df.index.name = "time"
     records = df.reset_index().to_dict(orient="records")
     return clean_nans(records)

@@ -103,7 +103,7 @@ async def create_dataset(
     station_list = [s.strip() for s in stations.split(",") if s.strip()]
 
     try:
-        registry.save_dataset(
+        dataset_dir = registry.save_dataset(
             name=name,
             df=df,
             source_file=file.filename or "upload.csv",
@@ -117,7 +117,7 @@ async def create_dataset(
         raise HTTPException(status_code=500, detail=f"Failed to save dataset: {exc}")
 
     return DatasetSummary(
-        id=name,
+        id=dataset_dir.name,
         name=name,
         source_file=file.filename or "upload.csv",
         target_variable=target_column,
@@ -232,7 +232,7 @@ async def import_from_db(
     target_col = numeric_cols[0] if numeric_cols else ""
     cov_cols = numeric_cols[1:] if len(numeric_cols) > 1 else []
 
-    registry.save_dataset(
+    dataset_dir = registry.save_dataset(
         name=dataset_name,
         df=df,
         source_file=f"db://{req.schema_name}.{req.table_name}",
@@ -243,8 +243,11 @@ async def import_from_db(
         preprocessing_config={"source": "brgm-postgres", "schema": req.schema_name},
     )
 
+    # Use the actual directory name (includes timestamp) as ID
+    dataset_id = dataset_dir.name
+
     return DatasetSummary(
-        id=dataset_name,
+        id=dataset_id,
         name=dataset_name,
         source_file=f"db://{req.schema_name}.{req.table_name}",
         target_variable=target_col,

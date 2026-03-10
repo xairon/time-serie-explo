@@ -243,6 +243,12 @@ def prepare_dataframe_for_darts(
         fill_missing_dates=True
     )
 
+    # fill_missing_dates can introduce NaN for dates not present in the original df.
+    # Interpolate those NaN values so training doesn't produce NaN losses.
+    if target_series.to_dataframe().isna().any().any():
+        ts_df = target_series.to_dataframe().interpolate(method='linear').bfill().ffill()
+        target_series = TimeSeries.from_dataframe(ts_df, freq=freq)
+
     # Create covariates if specified
     covariates_series = None
     if covariate_cols and len(covariate_cols) > 0:
@@ -252,6 +258,10 @@ def prepare_dataframe_for_darts(
             freq=freq,
             fill_missing_dates=True
         )
+        # Same NaN fix for covariates
+        if covariates_series.to_dataframe().isna().any().any():
+            cov_df = covariates_series.to_dataframe().interpolate(method='linear').bfill().ffill()
+            covariates_series = TimeSeries.from_dataframe(cov_df, freq=freq)
 
     return target_series, covariates_series
 

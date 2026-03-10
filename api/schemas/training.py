@@ -15,11 +15,13 @@ class TrainingRequest(BaseModel):
     station_name: str = "default"
     hyperparams: dict[str, Any] = Field(default_factory=dict)
     use_covariates: bool = True
+    early_stopping: bool = True
     early_stopping_patience: Optional[int] = 10
     n_epochs: Optional[int] = None
     train_ratio: float = 0.7
     val_ratio: float = 0.15
     test_ratio: float = 0.15
+    loss_function: str = "MAE"
 
 
 class TrainingStatus(BaseModel):

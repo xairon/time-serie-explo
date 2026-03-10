@@ -193,6 +193,7 @@ def evaluate_model_sliding(
         'start': start,
         'forecast_horizon': horizon,
         'stride': stride,
+        'retrain': False,
         'last_points_only': False,
         'verbose': False,
     }

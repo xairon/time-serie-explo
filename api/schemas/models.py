@@ -16,7 +16,7 @@ class ModelSummary(BaseModel):
     stations: list[str] = Field(default_factory=list)
     primary_station: Optional[str] = None
     created_at: str
-    metrics: dict[str, float] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
     data_source: Optional[str] = None
 
 
