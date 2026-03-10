@@ -1,33 +1,79 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Download } from 'lucide-react'
+import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { CFConfigForm } from '@/components/counterfactual/CFConfigForm'
-import type { CFFormConfig } from '@/components/counterfactual/CFConfigForm'
+import type { CFFormData } from '@/components/counterfactual/CFConfigForm'
 import { CFResultView } from '@/components/counterfactual/CFResultView'
-import { IPSPanel } from '@/components/counterfactual/IPSPanel'
-import { PastasPanel } from '@/components/counterfactual/PastasPanel'
-import { RadarPlot } from '@/components/charts/RadarPlot'
-import { ConvergencePlot } from '@/components/counterfactual/ConvergencePlot'
-import { useCounterfactualRun } from '@/hooks/useCounterfactual'
+import { IPSBandsChart } from '@/components/counterfactual/IPSBandsChart'
+import IPSMonthlyGrid from '@/components/counterfactual/IPSMonthlyGrid'
+import { useCounterfactualRun, useIPSBounds, useIPSReference } from '@/hooks/useCounterfactual'
+import { useModelTestInfo } from '@/hooks/useModels'
 import { api } from '@/lib/api'
 import type { CounterfactualResult } from '@/lib/types'
 
-type RightTab = 'ips' | 'radar' | 'pastas' | 'convergence'
-
 export default function CounterfactualPage() {
-  const [rightTab, setRightTab] = useState<RightTab>('ips')
-  const [modelId, setModelId] = useState<string | null>(null)
-  const cfMutation = useCounterfactualRun()
+  // Core state
+  const [modelId, setModelId] = useState<string>('')
+  const [startIdx, setStartIdx] = useState(0)
+  const [ipsWindow, setIpsWindow] = useState(1)
 
-  // The mutation returns {task_id, status, result, error} - initially result is null
+  // Fetch model test set info
+  const { data: testInfo } = useModelTestInfo(modelId || null)
+  const { data: ipsBoundsData } = useIPSBounds(modelId || null, ipsWindow)
+  const { data: ipsRef } = useIPSReference(modelId || null, ipsWindow)
+
+  // CF generation
+  const cfMutation = useCounterfactualRun()
   const [result, setResult] = useState<CounterfactualResult | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
 
-  // After mutation succeeds with a task_id, connect to SSE to get the final result
+  // Reset state on model change
+  useEffect(() => {
+    setStartIdx(0)
+    setResult(null)
+    setStreamError(null)
+  }, [modelId])
+
+  // Set default start_idx to middle of valid range
+  useEffect(() => {
+    if (testInfo && startIdx === 0) {
+      const mid = Math.floor((testInfo.valid_start_idx + testInfo.valid_end_idx) / 2)
+      setStartIdx(mid)
+    }
+  }, [testInfo, startIdx])
+
+  // Compute window dates from startIdx + testInfo
+  const windowInfo = useMemo(() => {
+    if (!testInfo) return null
+    const L = testInfo.input_chunk_length
+    const H = testInfo.output_chunk_length
+    const dates = testInfo.test_dates
+
+    const predStartDate = dates[startIdx] ?? ''
+    const predEndIdx = Math.min(startIdx + H - 1, dates.length - 1)
+    const predEndDate = dates[predEndIdx] ?? ''
+
+    // Context = L days before predStart in the full dataset
+    // Since test_dates starts from the test set, context may extend before test set
+    const contextStartIdx = Math.max(0, startIdx - L)
+    const contextStartDate = dates[contextStartIdx] ?? ''
+    const contextEndDate = dates[Math.max(0, startIdx - 1)] ?? predStartDate
+
+    return {
+      contextStart: contextStartDate,
+      contextEnd: contextEndDate,
+      predStart: predStartDate,
+      predEnd: predEndDate,
+      L,
+      H,
+    }
+  }, [testInfo, startIdx])
+
+  // SSE streaming for CF result
   useEffect(() => {
     if (!cfMutation.data?.task_id) return
     if (cfMutation.data.status === 'done' && cfMutation.data.result) {
-      // Synchronous result - no need to stream
       setResult(cfMutation.data)
       return
     }
@@ -43,7 +89,7 @@ export default function CounterfactualPage() {
       try {
         const data = JSON.parse(event.data)
         setResult((prev) => prev ? { ...prev, status: 'running', progress: data } : prev)
-      } catch { /* ignore parse errors */ }
+      } catch { /* ignore */ }
     })
 
     es.addEventListener('done', (event) => {
@@ -55,7 +101,7 @@ export default function CounterfactualPage() {
           result: data.result ?? null,
           error: data.error ?? null,
         })
-      } catch { /* ignore parse errors */ }
+      } catch { /* ignore */ }
       setIsStreaming(false)
       es.close()
     })
@@ -64,9 +110,7 @@ export default function CounterfactualPage() {
       try {
         const data = JSON.parse((event as MessageEvent).data) as { error?: string }
         setStreamError(data.error ?? 'Erreur inconnue')
-        setResult((prev) =>
-          prev ? { ...prev, status: 'error', error: data.error ?? 'Erreur inconnue' } : null,
-        )
+        setResult((prev) => prev ? { ...prev, status: 'error', error: data.error ?? 'Erreur inconnue' } : null)
       } catch {
         setStreamError('Connexion au serveur perdue')
       }
@@ -75,7 +119,6 @@ export default function CounterfactualPage() {
     })
 
     es.onerror = () => {
-      // EventSource auto-reconnects, but if it fails completely:
       if (es.readyState === EventSource.CLOSED) {
         setStreamError('Connexion au serveur perdue')
         setIsStreaming(false)
@@ -89,8 +132,7 @@ export default function CounterfactualPage() {
   }, [cfMutation.data])
 
   const handleSubmit = useCallback(
-    (config: CFFormConfig) => {
-      setModelId(config.model_id)
+    (config: CFFormData) => {
       setResult(null)
       setStreamError(null)
       cfMutation.mutate({
@@ -99,7 +141,7 @@ export default function CounterfactualPage() {
         target_ips_class: config.target_ips_class,
         from_ips_class: config.from_ips_class,
         to_ips_class: config.to_ips_class,
-        modifications: config.modifications,
+        start_idx: config.start_idx,
         lambda_prox: config.lambda_prox,
         n_iter: config.n_iter,
         lr: config.lr,
@@ -107,8 +149,6 @@ export default function CounterfactualPage() {
         k_sigma: config.k_sigma,
         lambda_smooth: config.lambda_smooth,
         cc_rate: config.cc_rate,
-        device: config.device,
-        seed: config.seed,
       })
     },
     [cfMutation],
@@ -127,17 +167,22 @@ export default function CounterfactualPage() {
 
   const isLoading = cfMutation.isPending || isStreaming
   const innerResult = result?.result ?? null
-  const hasConvergence = innerResult?.convergence && innerResult.convergence.length > 0
 
-  const rightTabs: { key: RightTab; label: string }[] = [
-    { key: 'ips', label: 'IPS' },
-    { key: 'radar', label: 'Radar' },
-    { key: 'convergence', label: 'Convergence' },
-    { key: 'pastas', label: 'Pastas' },
-  ]
+  // Build ref_stats as Record<string, [number, number]> for IPSMonthlyGrid
+  const refStatsForGrid = useMemo(() => {
+    if (!ipsRef?.ref_stats) return {}
+    const out: Record<string, [number, number]> = {}
+    for (const [k, v] of Object.entries(ipsRef.ref_stats)) {
+      if (Array.isArray(v) && v.length >= 2) {
+        out[k] = [v[0] as number, v[1] as number]
+      }
+    }
+    return out
+  }, [ipsRef])
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary mb-1">Analyse contrefactuelle</h1>
@@ -156,17 +201,14 @@ export default function CounterfactualPage() {
         )}
       </div>
 
+      {/* Error banner */}
       {(cfMutation.isError || streamError || result?.error) && (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4 flex items-center justify-between">
           <p className="text-sm text-accent-red">
             Erreur : {streamError ?? result?.error ?? (cfMutation.error as Error)?.message}
           </p>
           <button
-            onClick={() => {
-              cfMutation.reset()
-              setStreamError(null)
-              setResult(null)
-            }}
+            onClick={() => { cfMutation.reset(); setStreamError(null); setResult(null) }}
             className="text-xs text-accent-cyan hover:underline"
           >
             Fermer
@@ -174,68 +216,110 @@ export default function CounterfactualPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Config form */}
-        <div className="lg:col-span-3">
-          <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-            <CFConfigForm onSubmit={handleSubmit} isPending={isLoading} />
-          </div>
-        </div>
-
-        {/* Center: Results */}
-        <div className="lg:col-span-5">
-          <CFResultView
-            result={result}
-            isLoading={isLoading}
-          />
-        </div>
-
-        {/* Right: Panels */}
-        <div className="lg:col-span-4">
-          <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-            {/* Right tab bar */}
-            <div className="flex border-b border-white/10 mb-4">
-              {rightTabs.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setRightTab(t.key)}
-                  className={`px-3 py-1.5 text-xs transition-colors ${
-                    rightTab === t.key
-                      ? 'border-b-2 border-accent-cyan text-accent-cyan'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {rightTab === 'ips' && <IPSPanel modelId={modelId} />}
-
-            {rightTab === 'radar' && (
-              innerResult?.theta && Object.keys(innerResult.theta).length > 0 ? (
-                <RadarPlot theta={innerResult.theta} className="h-[350px]" />
-              ) : (
-                <p className="text-xs text-text-secondary italic text-center py-8">
-                  Les parametres theta apparaitront ici apres la generation du contrefactuel.
-                </p>
-              )
-            )}
-
-            {rightTab === 'convergence' && (
-              hasConvergence ? (
-                <ConvergencePlot lossHistory={innerResult!.convergence!} className="h-[350px]" />
-              ) : (
-                <p className="text-xs text-text-secondary italic text-center py-8">
-                  La courbe de convergence apparaitra ici apres la generation du contrefactuel.
-                </p>
-              )
-            )}
-
-            {rightTab === 'pastas' && <PastasPanel />}
-          </div>
-        </div>
+      {/* Model selector */}
+      <div className="bg-bg-card rounded-xl border border-white/5 p-5">
+        <ModelSelector value={modelId} onChange={setModelId} />
       </div>
+
+      {/* Test set overview with IPS bands + window slider */}
+      {modelId && testInfo && (
+        <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary">Set de test — selection de la fenetre</h3>
+            {windowInfo && (
+              <p className="text-xs text-text-secondary">
+                Contexte: {windowInfo.contextStart} → {windowInfo.contextEnd} ({windowInfo.L}j)
+                {' | '}
+                Prediction: {windowInfo.predStart} → {windowInfo.predEnd} ({windowInfo.H}j)
+              </p>
+            )}
+          </div>
+
+          {/* IPS Bands Chart */}
+          <IPSBandsChart
+            testDates={testInfo.test_dates}
+            testValues={testInfo.test_values}
+            ipsBounds={ipsBoundsData?.bounds ?? []}
+            ipsColors={ipsBoundsData?.colors ?? {}}
+            ipsLabels={ipsBoundsData?.classes ?? {}}
+            contextStart={windowInfo?.contextStart ?? ''}
+            contextEnd={windowInfo?.contextEnd ?? ''}
+            predStart={windowInfo?.predStart ?? ''}
+            predEnd={windowInfo?.predEnd ?? ''}
+            cfDates={innerResult?.dates}
+            cfOriginal={innerResult?.original}
+            cfCounterfactual={innerResult?.counterfactual}
+            className="h-[350px]"
+          />
+
+          {/* Window slider */}
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-text-secondary shrink-0">Position</span>
+            <input
+              type="range"
+              min={testInfo.valid_start_idx}
+              max={testInfo.valid_end_idx}
+              value={startIdx}
+              onChange={(e) => setStartIdx(Number(e.target.value))}
+              className="flex-1 accent-accent-cyan h-1.5"
+            />
+            <span className="text-xs text-text-primary font-mono w-12 text-right">{startIdx}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Main content: Config sidebar + Results */}
+      {modelId && testInfo && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left: Config */}
+          <div className="lg:col-span-3">
+            <div className="bg-bg-card rounded-xl border border-white/5 p-5">
+              <h3 className="text-sm font-semibold text-text-primary mb-4">Configuration</h3>
+              <CFConfigForm
+                modelId={modelId}
+                startIdx={startIdx}
+                ipsWindow={ipsWindow}
+                onIpsWindowChange={setIpsWindow}
+                onSubmit={handleSubmit}
+                isPending={isLoading}
+              />
+            </div>
+          </div>
+
+          {/* Right: Results */}
+          <div className="lg:col-span-9 space-y-4">
+            <CFResultView
+              result={result}
+              isLoading={isLoading}
+            />
+
+            {/* IPS Monthly Grid — prediction */}
+            {innerResult && Object.keys(refStatsForGrid).length > 0 && (
+              <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                <h4 className="text-sm font-semibold text-text-primary mb-3">Classification IPS mensuelle</h4>
+                <IPSMonthlyGrid
+                  predDates={innerResult.dates}
+                  predValues={innerResult.counterfactual}
+                  gtValues={innerResult.original}
+                  refStats={refStatsForGrid}
+                  ipsLabels={ipsBoundsData?.classes ?? {}}
+                  ipsColors={ipsBoundsData?.colors ?? {}}
+                  label="Contrefactuel vs Original"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* No model selected placeholder */}
+      {!modelId && (
+        <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
+          <p className="text-text-secondary text-sm">
+            Selectionnez un modele entraine pour commencer l'analyse contrefactuelle.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
