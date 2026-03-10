@@ -1,6 +1,42 @@
-import { CFOverlayPlot } from '@/components/charts/CFOverlayPlot'
-import { METRIC_LABELS } from '@/lib/constants'
+import { useState } from 'react'
+import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, Droplets, Thermometer, Clock, Zap } from 'lucide-react'
 import type { CounterfactualResult } from '@/lib/types'
+
+const THETA_LABELS: Record<string, string> = {
+  s_P_DJF: 'Precipitations hiver (DJF)',
+  s_P_MAM: 'Precipitations printemps (MAM)',
+  s_P_JJA: 'Precipitations ete (JJA)',
+  s_P_SON: 'Precipitations automne (SON)',
+  delta_T: 'Temperature (C)',
+  delta_etp: 'Evapotranspiration residuelle',
+  delta_s: 'Decalage temporel (jours)',
+}
+
+function interpretTheta(theta: Record<string, number>): string[] {
+  const lines: string[] = []
+  for (const [key, season] of [
+    ['s_P_DJF', 'hiver'],
+    ['s_P_MAM', 'printemps'],
+    ['s_P_JJA', 'ete'],
+    ['s_P_SON', 'automne'],
+  ] as const) {
+    const v = theta[key]
+    if (v != null && Math.abs(v - 1) > 0.05) {
+      const pct = Math.round((v - 1) * 100)
+      lines.push(`Precipitations ${season} : ${pct > 0 ? '+' : ''}${pct}%`)
+    }
+  }
+  if (theta.delta_T != null && Math.abs(theta.delta_T) > 0.1) {
+    lines.push(`Temperature : ${theta.delta_T > 0 ? '+' : ''}${theta.delta_T.toFixed(1)}C`)
+  }
+  if (theta.delta_etp != null && Math.abs(theta.delta_etp) > 0.01) {
+    lines.push(`ETP residuelle : ${theta.delta_etp > 0 ? '+' : ''}${theta.delta_etp.toFixed(3)}`)
+  }
+  if (theta.delta_s != null && Math.abs(theta.delta_s) > 1) {
+    lines.push(`Decalage temporel : ${theta.delta_s > 0 ? '+' : ''}${Math.round(theta.delta_s)} jours`)
+  }
+  return lines
+}
 
 interface CFResultViewProps {
   result: CounterfactualResult | null
@@ -9,14 +45,17 @@ interface CFResultViewProps {
 }
 
 export function CFResultView({ result, isLoading, className = '' }: CFResultViewProps) {
+  const [showTheta, setShowTheta] = useState(false)
+  const [showConvergence, setShowConvergence] = useState(false)
+
   if (isLoading) {
     return (
       <div className={`bg-bg-card rounded-xl border border-white/5 p-6 ${className}`}>
         <div className="animate-pulse space-y-4">
           <div className="h-4 bg-bg-hover rounded w-1/3" />
-          <div className="h-[300px] bg-bg-hover rounded-lg" />
+          <div className="h-8 bg-bg-hover rounded w-2/3" />
           <p className="text-xs text-text-secondary text-center">
-            {result?.status === 'pending' ? 'En attente de traitement...' : 'Génération en cours...'}
+            {result?.status === 'pending' ? 'En attente de traitement...' : 'Generation en cours...'}
           </p>
         </div>
       </div>
@@ -26,64 +65,166 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
   if (result?.error) {
     return (
       <div className={`bg-bg-card rounded-xl border border-accent-red/20 p-6 ${className}`}>
-        <p className="text-sm text-accent-red">Erreur : {result.error}</p>
+        <div className="flex items-center gap-2 mb-2">
+          <XCircle className="w-5 h-5 text-accent-red" />
+          <span className="text-sm font-semibold text-accent-red">Echec</span>
+        </div>
+        <p className="text-sm text-text-secondary">{result.error}</p>
       </div>
     )
   }
 
   if (!result || !result.result) {
     return (
-      <div
-        className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}
-      >
+      <div className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}>
         <p className="text-text-secondary text-sm">
-          Configurez et lancez une analyse contrefactuelle pour voir les résultats.
+          Configurez et lancez une analyse contrefactuelle pour voir les resultats.
         </p>
       </div>
     )
   }
 
   const inner = result.result
+  const metrics = inner.metrics ?? {}
+  const theta = inner.theta ?? {}
+  const converged = metrics.converged === true || metrics.converged === 'true'
+  const wallTime = typeof metrics.wall_clock_s === 'number' ? metrics.wall_clock_s : 0
+  const nIter = typeof metrics.n_iter === 'number' ? metrics.n_iter : 0
+  const bestLoss = typeof metrics.best_loss === 'number' ? metrics.best_loss : null
+
+  const interpretation = interpretTheta(theta)
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs text-text-secondary uppercase">
-            Méthode : {inner.method}
-          </h4>
+    <div className={`space-y-3 ${className}`}>
+      {/* Status banner */}
+      <div className={`rounded-lg p-3 flex items-center gap-3 ${
+        converged
+          ? 'bg-emerald-500/10 border border-emerald-500/20'
+          : 'bg-amber-500/10 border border-amber-500/20'
+      }`}>
+        {converged ? (
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+        ) : (
+          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm font-semibold ${converged ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {converged ? 'Converge' : 'Convergence partielle'}
+          </span>
+          <span className="text-xs text-text-secondary ml-2">
+            {inner.method.toUpperCase()} | {nIter} iterations | {wallTime.toFixed(1)}s
+          </span>
         </div>
-        <CFOverlayPlot result={result} className="h-[350px]" />
       </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {Object.entries(inner.metrics).map(([key, val]) => (
-          <div key={key} className="bg-bg-card rounded-lg p-3 border border-white/5 text-center">
-            <p className="text-[10px] text-text-secondary uppercase">
-              {METRIC_LABELS[key] ?? key}
-            </p>
-            <p className="text-base font-bold text-text-primary">{val.toFixed(4)}</p>
-          </div>
-        ))}
+      {/* Plausibility indicators */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-bg-card rounded-lg p-3 border border-white/5 text-center">
+          <Zap className="w-4 h-4 text-accent-cyan mx-auto mb-1" />
+          <p className="text-[10px] text-text-secondary uppercase">Convergence</p>
+          <p className="text-sm font-bold text-text-primary">
+            {converged ? 'Oui' : 'Partielle'}
+          </p>
+        </div>
+        <div className="bg-bg-card rounded-lg p-3 border border-white/5 text-center">
+          <Droplets className="w-4 h-4 text-accent-indigo mx-auto mb-1" />
+          <p className="text-[10px] text-text-secondary uppercase">Loss finale</p>
+          <p className="text-sm font-bold text-text-primary">
+            {bestLoss != null ? bestLoss.toFixed(4) : '—'}
+          </p>
+        </div>
       </div>
 
-      {/* Theta values */}
-      {inner.theta && Object.keys(inner.theta).length > 0 && (
+      {/* Interpretation */}
+      {interpretation.length > 0 && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-          <h4 className="text-xs text-text-secondary uppercase mb-2">Paramètres Theta</h4>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(inner.theta).map(([key, val]) => (
-              <span
-                key={key}
-                className="text-xs px-2 py-1 rounded-lg bg-accent-indigo/10 border border-accent-indigo/20 text-accent-indigo"
-              >
-                {key}: {val.toFixed(3)}
-              </span>
+          <h4 className="text-xs text-text-secondary uppercase mb-2 flex items-center gap-1.5">
+            <Thermometer className="w-3.5 h-3.5" />
+            Interpretation
+          </h4>
+          <ul className="space-y-1.5">
+            {interpretation.map((line, i) => (
+              <li key={i} className="text-sm text-text-primary flex items-start gap-2">
+                <span className="text-accent-cyan mt-0.5">{'>'}</span>
+                {line}
+              </li>
             ))}
-          </div>
+          </ul>
+        </div>
+      )}
+
+      {/* Theta accordion */}
+      {Object.keys(theta).length > 0 && (
+        <div className="bg-bg-card rounded-xl border border-white/5">
+          <button
+            onClick={() => setShowTheta(!showTheta)}
+            className="w-full px-4 py-3 flex items-center gap-2 text-xs text-text-secondary uppercase hover:text-text-primary transition-colors"
+          >
+            {showTheta ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            <Clock className="w-3.5 h-3.5" />
+            Parametres optimises (theta)
+          </button>
+          {showTheta && (
+            <div className="px-4 pb-4 space-y-2">
+              {Object.entries(theta).map(([key, val]) => (
+                <div key={key} className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">{THETA_LABELS[key] ?? key}</span>
+                  <span className="text-text-primary font-mono">
+                    {typeof val === 'number' ? val.toFixed(4) : String(val)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Convergence accordion */}
+      {inner.convergence && inner.convergence.length > 0 && (
+        <div className="bg-bg-card rounded-xl border border-white/5">
+          <button
+            onClick={() => setShowConvergence(!showConvergence)}
+            className="w-full px-4 py-3 flex items-center gap-2 text-xs text-text-secondary uppercase hover:text-text-primary transition-colors"
+          >
+            {showConvergence ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            Courbe de convergence ({inner.convergence.length} points)
+          </button>
+          {showConvergence && (
+            <div className="px-4 pb-4">
+              <ConvergenceMini losses={inner.convergence} />
+            </div>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+/** Minimal inline convergence chart using a simple SVG sparkline */
+function ConvergenceMini({ losses }: { losses: number[] }) {
+  if (losses.length < 2) return null
+  const w = 400
+  const h = 80
+  const min = Math.min(...losses)
+  const max = Math.max(...losses)
+  const range = max - min || 1
+
+  const points = losses.map((v, i) => {
+    const x = (i / (losses.length - 1)) * w
+    const y = h - ((v - min) / range) * (h - 8) - 4
+    return `${x},${y}`
+  })
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-20">
+      <polyline
+        points={points.join(' ')}
+        fill="none"
+        stroke="#06b6d4"
+        strokeWidth="1.5"
+      />
+      <text x="4" y="12" fontSize="10" fill="#9ca3af">{max.toFixed(3)}</text>
+      <text x="4" y={h - 2} fontSize="10" fill="#9ca3af">{min.toFixed(3)}</text>
+    </svg>
   )
 }
