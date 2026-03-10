@@ -1,184 +1,157 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { ForecastView } from '@/components/forecasting/ForecastView'
-import { MetricsPanel } from '@/components/forecasting/MetricsPanel'
 import { ExplainabilityPanel } from '@/components/forecasting/ExplainabilityPanel'
-import {
-  useForecastSingle,
-  useForecastRolling,
-  useForecastComparison,
-  useForecastGlobal,
-} from '@/hooks/useForecasting'
-import { useDatasets } from '@/hooks/useDatasets'
-import { useModelDetail } from '@/hooks/useModels'
+import { useForecastSingle } from '@/hooks/useForecasting'
+import { useModelDetail, useModelTestInfo } from '@/hooks/useModels'
 
-type ForecastMode = 'single' | 'rolling' | 'comparison' | 'global'
+/** Tooltip descriptions for each metric (matches Streamlit) */
+const METRIC_TOOLTIPS: Record<string, string> = {
+  MAE: 'Mean Absolute Error — erreur moyenne en unites de la variable',
+  RMSE: 'Root Mean Squared Error — penalise davantage les grosses erreurs',
+  sMAPE: 'Symmetric Mean Absolute Percentage Error (%)',
+  WAPE: 'Weighted Absolute Percentage Error (%) — plus stable que MAPE',
+  NRMSE: "Normalized RMSE — % de l'amplitude (max-min)",
+  NSE: 'Nash-Sutcliffe Efficiency — 1=parfait, <0 pire que la moyenne',
+  KGE: 'Kling-Gupta Efficiency — combine correlation, biais, variabilite',
+  Dir_Acc: 'Directional Accuracy — % de directions correctes',
+}
+
+/** Display order for metrics (matches Streamlit) */
+const METRIC_ORDER = ['MAE', 'RMSE', 'NRMSE', 'sMAPE', 'WAPE', 'NSE', 'KGE', 'Dir_Acc']
+
+/** Color coding for metric values */
+function metricColor(key: string, value: number): string {
+  const lowerBetter = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE']
+  const higherBetter = ['NSE', 'KGE', 'Dir_Acc']
+  if (lowerBetter.includes(key)) return value < 0.1 ? 'text-accent-green' : value > 1 ? 'text-accent-red' : 'text-text-primary'
+  if (higherBetter.includes(key)) return value > 0.7 ? 'text-accent-green' : value < 0 ? 'text-accent-red' : 'text-text-primary'
+  return 'text-text-primary'
+}
+
+/** Format metric value with suffix */
+function formatMetric(key: string, value: number): string {
+  const pctMetrics = ['sMAPE', 'WAPE', 'NRMSE', 'Dir_Acc']
+  return `${value.toFixed(4)}${pctMetrics.includes(key) ? '%' : ''}`
+}
 
 export default function ForecastingPage() {
   const [modelId, setModelId] = useState('')
-  const [datasetId, setDatasetId] = useState('')
-  const [horizon, setHorizon] = useState(30)
-  const [startDate, setStartDate] = useState('')
-  const [stride, setStride] = useState(1)
-  const [mode, setMode] = useState<ForecastMode>('single')
+  const [sliderIdx, setSliderIdx] = useState<number | null>(null)
   const [hyperparamsOpen, setHyperparamsOpen] = useState(false)
 
-  const { data: datasets } = useDatasets()
   const { data: modelDetail } = useModelDetail(modelId || null)
+  const { data: testInfo } = useModelTestInfo(modelId || null)
+  const forecastMutation = useForecastSingle()
 
-  const singleMutation = useForecastSingle()
-  const rollingMutation = useForecastRolling()
-  const comparisonMutation = useForecastComparison()
-  const globalMutation = useForecastGlobal()
-
-  const modes: { key: ForecastMode; label: string; description: string }[] = [
-    { key: 'single', label: 'Unique', description: 'Prevision autoregressive simple' },
-    { key: 'rolling', label: 'Glissant', description: 'Fenetres glissantes avec stride configurable' },
-    { key: 'comparison', label: 'Comparaison', description: 'Autoregressif vs one-step' },
-    { key: 'global', label: 'Global', description: 'Prevision sur tout le dataset' },
-  ]
-
-  // The active mutation depends on the mode
-  const activeMutation = useMemo(() => {
-    switch (mode) {
-      case 'single':
-        return singleMutation
-      case 'rolling':
-        return rollingMutation
-      case 'comparison':
-        return comparisonMutation
-      case 'global':
-        return globalMutation
+  // Reset slider when model changes
+  useEffect(() => {
+    if (testInfo) {
+      setSliderIdx(testInfo.valid_start_idx)
+    } else {
+      setSliderIdx(null)
     }
-  }, [mode, singleMutation, rollingMutation, comparisonMutation, globalMutation])
+    forecastMutation.reset()
+  }, [modelId, testInfo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const needsStartDate = mode === 'rolling' || mode === 'comparison'
-  const needsHorizon = mode === 'single' || mode === 'rolling' || mode === 'comparison'
-  const needsDataset = mode === 'single'
-  const needsStride = mode === 'rolling'
+  // Auto-trigger prediction when slider changes (debounced to avoid spam)
+  useEffect(() => {
+    if (!modelId || !testInfo || sliderIdx === null) return
+    const startDate = testInfo.test_dates[sliderIdx]
+    if (!startDate) return
 
-  // Extract chunk lengths from model hyperparams
-  const inputChunkLength = useMemo(() => {
-    const hp = modelDetail?.hyperparams
-    if (!hp) return undefined
-    const val = hp['input_chunk_length'] ?? hp['input_length']
-    return typeof val === 'number' ? val : undefined
-  }, [modelDetail])
+    const timer = setTimeout(() => {
+      forecastMutation.mutate({
+        model_id: modelId,
+        start_date: startDate,
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [modelId, sliderIdx]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const outputChunkLength = useMemo(() => {
-    const hp = modelDetail?.hyperparams
-    if (!hp) return undefined
-    const val = hp['output_chunk_length'] ?? hp['output_length']
-    return typeof val === 'number' ? val : undefined
-  }, [modelDetail])
+  const inputChunkLength = testInfo?.input_chunk_length
+  const outputChunkLength = testInfo?.output_chunk_length
 
-  // Test set date range for slider (from model detail or result)
-  const testDateRange = useMemo(() => {
-    const hp = modelDetail?.hyperparams
-    if (!hp) return null
-    const testStart = hp['test_start_date'] as string | undefined
-    const testEnd = hp['test_end_date'] as string | undefined
-    if (testStart && testEnd) return { min: testStart, max: testEnd }
-    return null
-  }, [modelDetail])
-
-  // Dataset split sizes from hyperparams
-  const datasetSplits = useMemo(() => {
-    const hp = modelDetail?.hyperparams
-    if (!hp) return null
-    const trainSize = hp['train_size'] ?? hp['n_train']
-    const valSize = hp['val_size'] ?? hp['n_val']
-    const testSize = hp['test_size'] ?? hp['n_test']
-    if (trainSize != null || valSize != null || testSize != null) {
+  // Use one-step metrics/predictions (exact, as in Streamlit)
+  const result = forecastMutation.data ?? null
+  const displayResult = useMemo(() => {
+    if (!result) return null
+    // If one-step predictions available, use those for display
+    if (result.predictions_onestep) {
       return {
-        train: trainSize as number | undefined,
-        val: valSize as number | undefined,
-        test: testSize as number | undefined,
+        ...result,
+        predictions: result.predictions_onestep,
+        metrics: result.metrics_onestep ?? result.metrics,
       }
     }
-    return null
-  }, [modelDetail])
-
-  const canRun = (): boolean => {
-    if (!modelId) return false
-    if (needsDataset && !datasetId) return false
-    if (needsStartDate && !startDate) return false
-    return true
-  }
-
-  const handleRun = () => {
-    if (!canRun()) return
-
-    switch (mode) {
-      case 'single':
-        singleMutation.mutate({
-          model_id: modelId,
-          ...(datasetId ? { dataset_id: datasetId } : {}),
-          ...(horizon ? { horizon } : {}),
-          ...(startDate ? { start_date: startDate } : {}),
-        })
-        break
-      case 'rolling':
-        rollingMutation.mutate({
-          model_id: modelId,
-          start_date: startDate,
-          forecast_horizon: horizon,
-          stride,
-        })
-        break
-      case 'comparison':
-        comparisonMutation.mutate({
-          model_id: modelId,
-          start_date: startDate,
-          forecast_horizon: horizon,
-        })
-        break
-      case 'global':
-        globalMutation.mutate({
-          model_id: modelId,
-        })
-        break
-    }
-  }
-
-  const result = activeMutation.data ?? null
-  const isPending = activeMutation.isPending
-  const isError = activeMutation.isError
-  const error = activeMutation.error
-
-  // Prediction window text
-  const predictionWindowText = useMemo(() => {
-    if (!result || result.dates.length === 0) return null
-    const start = result.dates[0]
-    const end = result.dates[result.dates.length - 1]
-    const days = result.dates.length
-    return `Prediction : ${new Date(start).toLocaleDateString('fr-FR')} → ${new Date(end).toLocaleDateString('fr-FR')} (${days}j)`
+    return result
   }, [result])
+
+  const isPending = forecastMutation.isPending
+  const isError = forecastMutation.isError
+  const error = forecastMutation.error
+
+  // Compute window dates for display
+  const windowInfo = useMemo(() => {
+    if (!testInfo || sliderIdx === null) return null
+    const startDate = testInfo.test_dates[sliderIdx]
+    const endIdx = Math.min(sliderIdx + testInfo.output_chunk_length - 1, testInfo.test_length - 1)
+    const endDate = testInfo.test_dates[endIdx]
+    const contextStartIdx = Math.max(0, sliderIdx - testInfo.input_chunk_length)
+    const contextStartDate = testInfo.test_dates[contextStartIdx]
+    return {
+      contextStartDate,
+      startDate,
+      endDate,
+      horizon: testInfo.output_chunk_length,
+      inputChunk: testInfo.input_chunk_length,
+    }
+  }, [testInfo, sliderIdx])
+
+  // Relative scale info from actuals
+  const relativeInfo = useMemo(() => {
+    if (!displayResult) return null
+    const actuals = displayResult.actuals.filter((v): v is number => v !== null)
+    if (actuals.length < 4) return null
+    const sorted = [...actuals].sort((a, b) => a - b)
+    const q25 = sorted[Math.floor(sorted.length * 0.25)]
+    const q75 = sorted[Math.floor(sorted.length * 0.75)]
+    const iqr = q75 - q25
+    const scale = iqr > 0 ? iqr : undefined
+    const mae = displayResult.metrics['MAE']
+    const rmse = displayResult.metrics['RMSE']
+    if (!scale || mae == null) return null
+    return {
+      relMAE: (mae / scale) * 100,
+      relRMSE: rmse != null ? (rmse / scale) * 100 : null,
+      scaleLabel: 'IQR',
+      scaleValue: iqr,
+    }
+  }, [displayResult])
 
   // CSV export
   const handleDownloadCSV = useCallback(() => {
-    if (!result) return
-    const lines = ['date,actual,predicted']
-    for (let i = 0; i < result.dates.length; i++) {
-      const date = result.dates[i]
-      const actual = result.actuals[i] != null ? String(result.actuals[i]) : ''
-      const predicted = result.predictions[i] != null ? String(result.predictions[i]) : ''
+    if (!displayResult) return
+    const lines = ['date,ground_truth,prediction']
+    for (let i = 0; i < displayResult.dates.length; i++) {
+      const date = displayResult.dates[i]
+      const actual = displayResult.actuals[i] != null ? String(displayResult.actuals[i]) : ''
+      const predicted = displayResult.predictions[i] != null ? String(displayResult.predictions[i]) : ''
       lines.push(`${date},${actual},${predicted}`)
     }
     const csv = lines.join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    const modelName = modelDetail?.model_name ?? 'model'
-    const dateStr = new Date().toISOString().slice(0, 10)
+    const dateStr = windowInfo?.startDate ? new Date(windowInfo.startDate).toISOString().slice(0, 10) : 'unknown'
     a.href = url
-    a.download = `forecast_${modelName}_${dateStr}.csv`
+    a.download = `prediction_${dateStr}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [result, modelDetail])
+  }, [displayResult, windowInfo])
 
-  // Filtered hyperparams (exclude internal/split keys for the collapsible section)
+  // Filtered hyperparams for collapsible section
   const displayHyperparams = useMemo(() => {
     if (!modelDetail?.hyperparams) return null
     const skipKeys = new Set([
@@ -191,150 +164,43 @@ export default function ForecastingPage() {
     return entries.length > 0 ? entries : null
   }, [modelDetail])
 
+  // Dataset splits
+  const datasetSplits = useMemo(() => {
+    const hp = modelDetail?.hyperparams
+    if (!hp) return null
+    const trainSize = hp['train_size'] ?? hp['n_train']
+    const valSize = hp['val_size'] ?? hp['n_val']
+    const testSize = hp['test_size'] ?? hp['n_test']
+    if (trainSize != null || valSize != null || testSize != null) {
+      return { train: trainSize as number | undefined, val: valSize as number | undefined, test: testSize as number | undefined }
+    }
+    return null
+  }, [modelDetail])
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-text-primary mb-1">Prevision</h1>
         <p className="text-sm text-text-secondary">
-          Prediction piezometrique avec les modeles entraines
+          Prediction piezometrique avec fenetre glissante sur le jeu de test
         </p>
       </div>
 
-      {/* Mode tabs */}
+      {/* Model selection + info panel */}
       <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-        <div className="flex border-b border-white/10 mb-4">
-          {modes.map((m) => (
-            <button
-              key={m.key}
-              onClick={() => setMode(m.key)}
-              className={`px-4 py-2 text-xs transition-colors ${
-                mode === m.key
-                  ? 'border-b-2 border-accent-cyan text-accent-cyan'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              title={m.description}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-xs text-text-secondary mb-4">
-          {modes.find((m) => m.key === mode)?.description}
-        </p>
-
-        {/* Controls - adapt to mode */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div className="md:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Left: Model selector */}
+          <div>
             <ModelSelector value={modelId} onChange={setModelId} />
           </div>
 
-          {needsDataset && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Dataset</label>
-              <select
-                value={datasetId}
-                onChange={(e) => setDatasetId(e.target.value)}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Selectionner</option>
-                {datasets?.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {needsStartDate && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Date de debut</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-
-          {/* Sliding window start date for single mode */}
-          {mode === 'single' && modelId && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">
-                Date de debut (optionnel)
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                min={testDateRange?.min ?? undefined}
-                max={testDateRange?.max ?? undefined}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              />
-              {testDateRange && (
-                <p className="text-[10px] text-text-secondary mt-1">
-                  Test : {new Date(testDateRange.min).toLocaleDateString('fr-FR')} — {new Date(testDateRange.max).toLocaleDateString('fr-FR')}
-                </p>
-              )}
-            </div>
-          )}
-
-          {needsHorizon && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Horizon (jours)</label>
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={horizon}
-                onChange={(e) => setHorizon(Number(e.target.value))}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-
-          {needsStride && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Stride (pas)</label>
-              <input
-                type="number"
-                min={1}
-                max={horizon}
-                value={stride}
-                onChange={(e) => setStride(Number(e.target.value))}
-                className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-
-          <div>
-            <button
-              onClick={handleRun}
-              disabled={isPending || !canRun()}
-              className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
-            >
-              {isPending ? 'Calcul...' : 'Lancer la prevision'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Model Info Panel */}
-      {modelDetail && (
-        <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-text-primary">
-            Informations du modele
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Dataset splits */}
-            {datasetSplits && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  Decoupage du dataset
-                </h4>
+          {/* Center: Dataset info */}
+          {modelDetail && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                Dataset
+              </h4>
+              {datasetSplits && (
                 <div className="space-y-1">
                   {datasetSplits.train != null && (
                     <div className="flex justify-between text-xs">
@@ -355,141 +221,186 @@ export default function ForecastingPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {/* Preprocessing config summary */}
-            {modelDetail.preprocessing_config && Object.keys(modelDetail.preprocessing_config).length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  Pretraitement
-                </h4>
-                <div className="space-y-1">
-                  {Object.entries(modelDetail.preprocessing_config).slice(0, 5).map(([key, val]) => (
-                    <div key={key} className="flex justify-between text-xs">
-                      <span className="text-text-secondary">{key}</span>
-                      <span className="text-text-primary">
-                        {typeof val === 'boolean' ? (val ? 'Oui' : 'Non') : String(val ?? '')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Key hyperparams summary */}
-            {inputChunkLength != null && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  Architecture
-                </h4>
+              )}
+              {testInfo && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Input chunk</span>
-                    <span className="text-text-primary">{inputChunkLength}</span>
+                    <span className="text-text-secondary">Test range</span>
+                    <span className="text-text-primary text-[10px]">
+                      {new Date(testInfo.test_dates[0]).toLocaleDateString('fr-FR')} — {new Date(testInfo.test_dates[testInfo.test_length - 1]).toLocaleDateString('fr-FR')}
+                    </span>
                   </div>
-                  {outputChunkLength != null && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Output chunk</span>
-                      <span className="text-text-primary">{outputChunkLength}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Collapsible hyperparams */}
-          {displayHyperparams && (
-            <div>
-              <button
-                onClick={() => setHyperparamsOpen(!hyperparamsOpen)}
-                className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
-              >
-                {hyperparamsOpen ? (
-                  <ChevronDown className="w-3.5 h-3.5" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5" />
-                )}
-                Hyperparametres ({displayHyperparams.length})
-              </button>
-              {hyperparamsOpen && (
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 bg-white/[0.02] rounded-lg p-3">
-                  {displayHyperparams.map(([key, val]) => (
-                    <div key={key} className="flex justify-between text-xs py-0.5">
-                      <span className="text-text-secondary truncate mr-2">{key}</span>
-                      <span className="text-text-primary font-mono text-[11px] shrink-0">
-                        {typeof val === 'boolean'
-                          ? val ? 'true' : 'false'
-                          : typeof val === 'object'
-                            ? JSON.stringify(val)
-                            : String(val ?? '')}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
           )}
+
+          {/* Right: Model architecture */}
+          {modelDetail && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                Modele
+              </h4>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-secondary">Type</span>
+                  <span className="text-text-primary">{modelDetail.model_type}</span>
+                </div>
+                {inputChunkLength != null && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">Input</span>
+                    <span className="text-text-primary">{inputChunkLength} jours</span>
+                  </div>
+                )}
+                {outputChunkLength != null && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">Horizon</span>
+                    <span className="text-text-primary">{outputChunkLength} jours</span>
+                  </div>
+                )}
+                {modelDetail.preprocessing_config?.normalization != null && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">Scaler</span>
+                    <span className="text-text-primary">{String(modelDetail.preprocessing_config.normalization as string)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Collapsible hyperparams */}
+        {displayHyperparams && (
+          <div className="mt-4 pt-3 border-t border-white/5">
+            <button
+              onClick={() => setHyperparamsOpen(!hyperparamsOpen)}
+              className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
+            >
+              {hyperparamsOpen ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+              Hyperparametres ({displayHyperparams.length})
+            </button>
+            {hyperparamsOpen && (
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 bg-white/[0.02] rounded-lg p-3">
+                {displayHyperparams.map(([key, val]) => (
+                  <div key={key} className="flex justify-between text-xs py-0.5">
+                    <span className="text-text-secondary truncate mr-2">{key}</span>
+                    <span className="text-text-primary font-mono text-[11px] shrink-0">
+                      {typeof val === 'boolean'
+                        ? val ? 'true' : 'false'
+                        : typeof val === 'object'
+                          ? JSON.stringify(val)
+                          : String(val ?? '')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Sliding window slider */}
+      {testInfo && sliderIdx !== null && (
+        <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary">
+              Fenetre glissante sur le jeu de test ({testInfo.output_chunk_length}j de prediction)
+            </h3>
+            {windowInfo && (
+              <p className="text-xs text-text-secondary">
+                {new Date(windowInfo.startDate).toLocaleDateString('fr-FR')} → {new Date(windowInfo.endDate).toLocaleDateString('fr-FR')} ({windowInfo.horizon}j)
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] text-text-secondary whitespace-nowrap">
+              {new Date(testInfo.test_dates[testInfo.valid_start_idx]).toLocaleDateString('fr-FR')}
+            </span>
+            <input
+              type="range"
+              min={testInfo.valid_start_idx}
+              max={testInfo.valid_end_idx}
+              value={sliderIdx}
+              onChange={(e) => setSliderIdx(Number(e.target.value))}
+              className="flex-1 accent-accent-cyan h-2"
+            />
+            <span className="text-[10px] text-text-secondary whitespace-nowrap">
+              {new Date(testInfo.test_dates[testInfo.valid_end_idx]).toLocaleDateString('fr-FR')}
+            </span>
+          </div>
+
+          <p className="text-[10px] text-text-secondary">
+            Input : {testInfo.input_chunk_length} jours de contexte | Prediction : {testInfo.output_chunk_length} jours
+          </p>
         </div>
       )}
 
       {isError && (
-        <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4 flex items-center justify-between">
+        <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4">
           <p className="text-sm text-accent-red">
             Erreur : {(error as Error).message}
           </p>
-          <button
-            onClick={handleRun}
-            className="text-xs text-accent-cyan hover:underline"
-          >
-            Reessayer
-          </button>
         </div>
       )}
 
-      {/* Prediction window info + CSV export */}
-      {result && (
-        <div className="flex items-center justify-between">
-          {predictionWindowText && (
-            <p className="text-xs text-text-secondary">{predictionWindowText}</p>
-          )}
-          <button
-            onClick={handleDownloadCSV}
-            className="flex items-center gap-1.5 text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors px-3 py-1.5 rounded-lg border border-accent-cyan/20 hover:border-accent-cyan/40"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Telecharger CSV
-          </button>
-        </div>
-      )}
-
-      {/* Main content */}
+      {/* Main content: chart + metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart (2/3 width) */}
         <div className="lg:col-span-2">
           <ForecastView
-            result={result}
+            result={displayResult}
             isLoading={isPending}
             inputChunkLength={inputChunkLength}
-            outputChunkLength={outputChunkLength}
             className="min-h-[400px]"
           />
         </div>
-        <div className="space-y-4">
-          {result ? (
-            <>
-              <MetricsPanel metrics={result.metrics} actuals={result.actuals} />
-              {result.metrics_onestep && (
-                <div className="mt-2">
-                  <h4 className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-                    Metriques One-Step
-                  </h4>
-                  <MetricsPanel metrics={result.metrics_onestep} actuals={result.actuals} />
-                </div>
-              )}
 
-              {/* Test set info */}
-              {result.dates.length > 0 && (
+        {/* Metrics panel (1/3 width) */}
+        <div className="space-y-4">
+          {displayResult ? (
+            <>
+              {/* Metrics grid - ordered like Streamlit */}
+              <div className="bg-bg-card rounded-xl border border-white/5 p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-text-primary">Metriques de la fenetre</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {METRIC_ORDER.filter((key) => displayResult.metrics[key] != null).map((key) => {
+                    const val = displayResult.metrics[key]
+                    return (
+                      <div
+                        key={key}
+                        className="bg-bg-hover rounded-lg p-3 text-center group relative"
+                        title={METRIC_TOOLTIPS[key]}
+                      >
+                        <p className="text-[10px] text-text-secondary uppercase mb-1">{key}</p>
+                        <p className={`text-base font-bold ${metricColor(key, val)}`}>
+                          {formatMetric(key, val)}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Relative scale info */}
+                {relativeInfo && (
+                  <div className="bg-bg-hover rounded-lg p-3">
+                    <p className="text-[10px] text-text-secondary">
+                      MAE ≈ <span className="text-text-primary font-medium">{relativeInfo.relMAE.toFixed(1)}%</span>
+                      {relativeInfo.relRMSE != null && (
+                        <> et RMSE ≈ <span className="text-text-primary font-medium">{relativeInfo.relRMSE.toFixed(1)}%</span></>
+                      )}
+                      {' '}de l'echelle ({relativeInfo.scaleLabel} = {relativeInfo.scaleValue.toFixed(4)})
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Window info */}
+              {windowInfo && (
                 <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                   <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide">
                     Fenetre de prevision
@@ -497,24 +408,35 @@ export default function ForecastingPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
                       <span className="text-text-secondary">Debut</span>
-                      <span className="text-text-primary">{new Date(result.dates[0]).toLocaleDateString('fr-FR')}</span>
+                      <span className="text-text-primary">{new Date(windowInfo.startDate).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-text-secondary">Fin</span>
-                      <span className="text-text-primary">{new Date(result.dates[result.dates.length - 1]).toLocaleDateString('fr-FR')}</span>
+                      <span className="text-text-primary">{new Date(windowInfo.endDate).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-text-secondary">Points</span>
-                      <span className="text-text-primary">{result.dates.length}</span>
+                      <span className="text-text-primary">{displayResult.dates.length}</span>
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* CSV export */}
+              <button
+                onClick={handleDownloadCSV}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors px-3 py-2 rounded-lg border border-accent-cyan/20 hover:border-accent-cyan/40"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </button>
             </>
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center min-h-[200px]">
               <p className="text-xs text-text-secondary text-center">
-                Les metriques apparaitront ici apres la prevision.
+                {modelId
+                  ? 'Deplacez le slider pour generer une prevision.'
+                  : 'Selectionnez un modele pour commencer.'}
               </p>
             </div>
           )}
@@ -522,7 +444,7 @@ export default function ForecastingPage() {
       </div>
 
       {/* Explainability */}
-      {modelId && result && (
+      {modelId && displayResult && (
         <ExplainabilityPanel modelId={modelId} />
       )}
     </div>

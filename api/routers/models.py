@@ -137,6 +137,48 @@ async def delete_model(model_id: str):
         raise HTTPException(status_code=500, detail="Failed to delete model")
 
 
+@router.get("/{model_id}/test-info")
+async def get_model_test_info(model_id: str):
+    """Return test set dates and model chunk lengths for the sliding window UI."""
+    registry = _get_model_registry()
+    entry = registry.get_model(model_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    test_df = registry.load_data(entry, "test")
+    if test_df is None:
+        raise HTTPException(status_code=404, detail="Test data not found")
+
+    model = registry.load_model(entry)
+    config = registry.load_model_config(entry)
+    input_chunk = getattr(model, "input_chunk_length", 30)
+    output_chunk = getattr(model, "output_chunk_length", 7)
+
+    test_dates = [d.isoformat() for d in test_df.index]
+    test_len = len(test_dates)
+
+    # Valid slider range
+    valid_start = input_chunk
+    valid_end = max(valid_start, test_len - output_chunk)
+
+    # Target column from config or first column
+    target_col = ""
+    if config:
+        target_col = config.get("columns", {}).get("target", "")
+    if not target_col and len(test_df.columns) > 0:
+        target_col = test_df.columns[0]
+
+    return {
+        "test_dates": test_dates,
+        "test_length": test_len,
+        "input_chunk_length": input_chunk,
+        "output_chunk_length": output_chunk,
+        "valid_start_idx": valid_start,
+        "valid_end_idx": valid_end,
+        "target_column": target_col,
+    }
+
+
 @router.get("/{model_id}/download")
 async def download_model(model_id: str):
     """Download model artifacts as a ZIP archive."""

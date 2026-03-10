@@ -23,6 +23,14 @@ export function useAvailableModels() {
   })
 }
 
+export function useModelTestInfo(modelId: string | null) {
+  return useQuery({
+    queryKey: ['model-test-info', modelId],
+    queryFn: () => api.models.testInfo(modelId!),
+    enabled: !!modelId,
+  })
+}
+
 export function useDeleteModel() {
   const qc = useQueryClient()
   return useMutation({

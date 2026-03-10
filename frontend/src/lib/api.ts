@@ -7,6 +7,7 @@ import type {
   StationInfo,
   ModelSummary,
   ModelDetail,
+  ModelTestInfo,
   TrainingConfig,
   TrainingResult,
   ForecastResult,
@@ -18,10 +19,10 @@ import type {
   IPSReference,
 } from './types'
 
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
   const url = `${API_BASE}${path}`
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 60_000)
+  const timeoutId = setTimeout(() => controller.abort(), init?.timeout ?? 60_000)
   try {
     const res = await fetch(url, {
       ...init,
@@ -45,11 +46,12 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, timeout?: number): Promise<T> {
   return fetchJson<T>(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    timeout,
   })
 }
 
@@ -74,6 +76,10 @@ function transformForecastResult(raw: ForecastResultRaw): ForecastResult {
   const actuals = raw.target?.map(extractValue) ?? []
   const predictions = raw.predictions?.map(extractValue) ?? []
 
+  // Use predictions_exact as fallback for predictions_onestep (comparison endpoint)
+  const onestepRaw = raw.predictions_onestep ?? raw.predictions_exact
+  const onestepMetrics = raw.metrics_onestep ?? raw.metrics_exact
+
   return {
     dates,
     predictions,
@@ -81,8 +87,8 @@ function transformForecastResult(raw: ForecastResultRaw): ForecastResult {
     metrics: raw.metrics ?? {},
     confidence_low: [],
     confidence_high: [],
-    predictions_onestep: raw.predictions_onestep?.map(extractValue) ?? null,
-    metrics_onestep: raw.metrics_onestep ?? null,
+    predictions_onestep: onestepRaw?.map(extractValue) ?? null,
+    metrics_onestep: onestepMetrics ?? null,
     predictions_exact: raw.predictions_exact?.map(extractValue) ?? null,
     metrics_exact: raw.metrics_exact ?? null,
   }
@@ -178,19 +184,20 @@ export const api = {
     delete: (id: string) => deleteJson<{ ok: boolean }>(`/models/${id}`),
     available: () => fetchJson<AvailableModel[]>('/models/available'),
     downloadUrl: (id: string) => `${API_BASE}/models/${id}/download`,
+    testInfo: (id: string) => fetchJson<ModelTestInfo>(`/models/${id}/test-info`),
   },
 
   forecasting: {
     single: (body: { model_id: string; start_date?: string; use_covariates?: boolean; horizon?: number; dataset_id?: string }) =>
       postJson<ForecastResultRaw>('/forecasting/single', body).then(transformForecastResult),
     rolling: (body: { model_id: string; start_date: string; forecast_horizon: number; stride?: number; use_covariates?: boolean }) =>
-      postJson<ForecastResultRaw>('/forecasting/rolling', body).then(transformForecastResult),
+      postJson<ForecastResultRaw>('/forecasting/rolling', body, 300_000).then(transformForecastResult),
     comparison: (body: { model_id: string; start_date: string; forecast_horizon: number; use_covariates?: boolean }) =>
-      postJson<ForecastResultRaw>('/forecasting/comparison', body).then(transformForecastResult),
+      postJson<ForecastResultRaw>('/forecasting/comparison', body, 300_000).then(transformForecastResult),
     global: (body: { model_id: string; use_covariates?: boolean }) =>
-      postJson<ForecastResultRaw>('/forecasting/global', body).then(transformForecastResult),
+      postJson<ForecastResultRaw>('/forecasting/global', body, 300_000).then(transformForecastResult),
     run: (body: { model_id: string; horizon?: number; dataset_id?: string }) =>
-      postJson<ForecastResultRaw>('/forecasting/run', body).then(transformForecastResult),
+      postJson<ForecastResultRaw>('/forecasting/run', body, 300_000).then(transformForecastResult),
   },
 
   explainability: {

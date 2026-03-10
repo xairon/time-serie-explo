@@ -6,37 +6,28 @@ import type { ForecastResult } from '@/lib/types'
 interface ForecastPlotProps {
   result: ForecastResult
   splitIndex?: number
-  /** Start/end date indices for context (input) window highlight */
-  contextWindow?: { start: number; end: number }
-  /** Start/end date indices for prediction window highlight */
-  predictionWindow?: { start: number; end: number }
   /** Input chunk length from model hyperparams */
   inputChunkLength?: number
-  /** Output chunk length from model hyperparams */
-  outputChunkLength?: number
   className?: string
 }
 
 export function ForecastPlot({
   result,
   splitIndex,
-  contextWindow,
-  predictionWindow,
   inputChunkLength,
-  outputChunkLength,
   className = '',
 }: ForecastPlotProps) {
-  const { dates, actuals, predictions, confidence_low, confidence_high } = result
+  const { dates, actuals, predictions } = result
 
   const traces: Data[] = []
 
   // Confidence band
-  if (confidence_low && confidence_high) {
+  if (result.confidence_low?.length && result.confidence_high?.length) {
     traces.push({
       x: [...dates, ...([...dates].reverse())],
       y: [
-        ...(confidence_high as number[]),
-        ...([...(confidence_low as number[])].reverse()),
+        ...(result.confidence_high as number[]),
+        ...([...(result.confidence_low as number[])].reverse()),
       ],
       fill: 'toself',
       fillcolor: 'rgba(99,102,241,0.1)',
@@ -47,28 +38,29 @@ export function ForecastPlot({
     })
   }
 
-  // Actuals (gray line as background context)
+  // Ground truth (blue line — Streamlit: #2E86AB)
   traces.push({
     x: dates,
     y: actuals as number[],
     type: 'scatter',
     mode: 'lines',
     name: 'Observations',
-    line: { color: '#9ca3af', width: 2 },
+    line: { color: '#2E86AB', width: 2 },
   })
 
-  // Predictions (cyan overlay)
+  // Prediction (pink line with markers — Streamlit: #E91E63)
   traces.push({
     x: dates,
     y: predictions as number[],
     type: 'scatter',
-    mode: 'lines',
-    name: result.predictions_onestep ? 'Autoregressif' : 'Predictions',
-    line: { color: '#06b6d4', width: 2 },
+    mode: 'lines+markers',
+    name: 'Prediction',
+    line: { color: '#E91E63', width: 3 },
+    marker: { size: 5 },
   })
 
-  // One-step predictions (comparison mode)
-  if (result.predictions_onestep) {
+  // One-step predictions (comparison mode — if different from main predictions)
+  if (result.predictions_onestep && result.predictions_onestep !== predictions) {
     traces.push({
       x: dates,
       y: result.predictions_onestep as number[],
@@ -82,97 +74,61 @@ export function ForecastPlot({
   const shapes: Partial<Shape>[] = []
   const annotations: Partial<Annotations>[] = []
 
-  // Auto-detect context and prediction windows from split index or predictions
-  let effectiveContextWindow = contextWindow
-  let effectivePredictionWindow = predictionWindow
+  // Auto-detect prediction window from non-null predictions
+  const firstPredIdx = predictions.findIndex((v) => v !== null)
+  let lastPredIdx = predictions.length - 1
+  while (lastPredIdx > firstPredIdx && predictions[lastPredIdx] === null) lastPredIdx--
 
-  if (!effectiveContextWindow) {
-    if (splitIndex !== undefined && splitIndex > 0) {
-      effectiveContextWindow = { start: 0, end: splitIndex }
-    } else {
-      const firstPredIdx = predictions.findIndex((v) => v !== null)
-      if (firstPredIdx > 0) {
-        effectiveContextWindow = { start: 0, end: firstPredIdx }
-      }
+  // Input window rectangle (light blue — Streamlit: rgba(46, 134, 171, 0.15))
+  if (inputChunkLength && firstPredIdx >= 0) {
+    const contextStartIdx = Math.max(0, firstPredIdx - inputChunkLength)
+    if (contextStartIdx < firstPredIdx && dates[contextStartIdx] && dates[firstPredIdx]) {
+      shapes.push({
+        type: 'rect',
+        x0: dates[contextStartIdx],
+        x1: dates[firstPredIdx],
+        y0: 0,
+        y1: 1,
+        yref: 'paper',
+        fillcolor: 'rgba(46, 134, 171, 0.15)',
+        line: { color: 'rgba(46, 134, 171, 0.4)', width: 1 },
+        layer: 'below',
+      })
+      annotations.push({
+        x: dates[contextStartIdx],
+        y: 0,
+        yref: 'paper',
+        text: `Input (${inputChunkLength}j)`,
+        showarrow: false,
+        font: { size: 10, color: 'rgba(46, 134, 171, 0.8)' },
+        xanchor: 'left',
+        yanchor: 'top',
+      })
     }
   }
 
-  if (!effectivePredictionWindow) {
-    if (splitIndex !== undefined && splitIndex < dates.length) {
-      effectivePredictionWindow = { start: splitIndex, end: dates.length - 1 }
-    } else {
-      const firstPredIdx = predictions.findIndex((v) => v !== null)
-      if (firstPredIdx >= 0) {
-        let lastPredIdx = predictions.length - 1
-        while (lastPredIdx > firstPredIdx && predictions[lastPredIdx] === null) lastPredIdx--
-        effectivePredictionWindow = { start: firstPredIdx, end: lastPredIdx }
-      }
-    }
-  }
-
-  // If we have chunk lengths, try to compute windows from predictions
-  if (inputChunkLength && !contextWindow) {
-    const firstPredIdx = predictions.findIndex((v) => v !== null)
-    if (firstPredIdx >= 0) {
-      const contextStart = Math.max(0, firstPredIdx - inputChunkLength)
-      effectiveContextWindow = { start: contextStart, end: firstPredIdx }
-    }
-  }
-
-  if (outputChunkLength && !predictionWindow) {
-    const firstPredIdx = predictions.findIndex((v) => v !== null)
-    if (firstPredIdx >= 0) {
-      const predEnd = Math.min(dates.length - 1, firstPredIdx + outputChunkLength - 1)
-      effectivePredictionWindow = { start: firstPredIdx, end: predEnd }
-    }
-  }
-
-  // Context window rectangle (light blue, 15% opacity)
-  if (effectiveContextWindow && effectiveContextWindow.end > effectiveContextWindow.start) {
-    const contextLen = effectiveContextWindow.end - effectiveContextWindow.start
+  // Prediction window rectangle (yellow — Streamlit: rgba(255, 200, 0, 0.25))
+  if (firstPredIdx >= 0 && lastPredIdx > firstPredIdx) {
+    const predLen = lastPredIdx - firstPredIdx + 1
     shapes.push({
       type: 'rect',
-      x0: dates[effectiveContextWindow.start],
-      x1: dates[effectiveContextWindow.end],
+      x0: dates[firstPredIdx],
+      x1: dates[lastPredIdx],
       y0: 0,
       y1: 1,
       yref: 'paper',
-      fillcolor: 'rgba(59, 130, 246, 0.15)',
-      line: { width: 0 },
+      fillcolor: 'rgba(255, 200, 0, 0.25)',
+      line: { color: 'rgba(255, 200, 0, 0.6)', width: 1 },
       layer: 'below',
     })
     annotations.push({
-      x: dates[Math.floor((effectiveContextWindow.start + effectiveContextWindow.end) / 2)],
-      y: 1,
-      yref: 'paper',
-      text: `Input (${contextLen}j)`,
-      showarrow: false,
-      font: { size: 10, color: 'rgba(147, 197, 253, 0.8)' },
-      yanchor: 'bottom',
-    })
-  }
-
-  // Prediction window rectangle (light orange, 25% opacity)
-  if (effectivePredictionWindow && effectivePredictionWindow.end > effectivePredictionWindow.start) {
-    const predLen = effectivePredictionWindow.end - effectivePredictionWindow.start
-    shapes.push({
-      type: 'rect',
-      x0: dates[effectivePredictionWindow.start],
-      x1: dates[effectivePredictionWindow.end],
-      y0: 0,
-      y1: 1,
-      yref: 'paper',
-      fillcolor: 'rgba(251, 146, 60, 0.25)',
-      line: { width: 0 },
-      layer: 'below',
-    })
-    annotations.push({
-      x: dates[Math.floor((effectivePredictionWindow.start + effectivePredictionWindow.end) / 2)],
+      x: dates[lastPredIdx],
       y: 1,
       yref: 'paper',
       text: `Prediction (${predLen}j)`,
       showarrow: false,
-      font: { size: 10, color: 'rgba(253, 186, 116, 0.9)' },
+      font: { size: 10, color: 'rgba(255, 200, 0, 0.9)' },
+      xanchor: 'right',
       yanchor: 'bottom',
     })
   }
@@ -197,6 +153,14 @@ export function ForecastPlot({
     shapes,
     annotations,
     hovermode: 'x unified',
+    legend: {
+      orientation: 'h',
+      y: 1.02,
+      yanchor: 'bottom',
+      x: 0.5,
+      xanchor: 'center',
+      font: { color: '#9ca3af', size: 11 },
+    },
   }
 
   return (

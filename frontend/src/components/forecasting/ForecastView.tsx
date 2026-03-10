@@ -5,11 +5,10 @@ interface ForecastViewProps {
   result: ForecastResult | null
   isLoading: boolean
   inputChunkLength?: number
-  outputChunkLength?: number
   className?: string
 }
 
-export function ForecastView({ result, isLoading, inputChunkLength, outputChunkLength, className = '' }: ForecastViewProps) {
+export function ForecastView({ result, isLoading, inputChunkLength, className = '' }: ForecastViewProps) {
   if (isLoading) {
     return (
       <div className={`bg-bg-card rounded-xl border border-white/5 p-6 ${className}`}>
@@ -38,7 +37,6 @@ export function ForecastView({ result, isLoading, inputChunkLength, outputChunkL
       <ForecastPlot
         result={result}
         inputChunkLength={inputChunkLength}
-        outputChunkLength={outputChunkLength}
         className="h-[400px]"
       />
     </div>

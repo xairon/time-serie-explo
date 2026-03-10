@@ -144,6 +144,17 @@ export interface ForecastResult {
   metrics_exact: Record<string, number> | null
 }
 
+// Model test set info (for sliding window UI)
+export interface ModelTestInfo {
+  test_dates: string[]
+  test_length: number
+  input_chunk_length: number
+  output_chunk_length: number
+  valid_start_idx: number
+  valid_end_idx: number
+  target_column: string
+}
+
 // Counterfactual - matches backend CFResult schema
 export interface CounterfactualResult {
   task_id: string
