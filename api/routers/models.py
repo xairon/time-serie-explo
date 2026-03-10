@@ -80,7 +80,7 @@ async def list_available_models():
     return results
 
 
-@router.get("/", response_model=list[ModelSummary])
+@router.get("", response_model=list[ModelSummary])
 async def list_models(
     model_type: Optional[str] = Query(None),
     model_name: Optional[str] = Query(None),

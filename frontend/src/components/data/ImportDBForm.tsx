@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { StationInfo } from '@/lib/types'
+import type { StationInfo, DatasetSummary } from '@/lib/types'
 import { Search, MapPin, TrendingUp, Calendar, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 
 interface ImportDBFormProps {
   initialStation?: string
-  onImportSuccess?: (datasetId: string) => void
+  onImportSuccess?: (datasetId: string, dataset: DatasetSummary) => void
 }
 
 export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormProps) {
@@ -126,7 +126,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
     onSuccess: async (data) => {
       await qc.invalidateQueries({ queryKey: ['datasets'] })
       if (onImportSuccess && data?.id) {
-        onImportSuccess(data.id)
+        onImportSuccess(data.id, data)
       }
     },
   })

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Plot from 'react-plotly.js'
 import { useDatasets, useDatasetPreview, useDatasetProfile } from '@/hooks/useDatasets'
+import type { DatasetSummary } from '@/lib/types'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
 import { DatasetCard } from '@/components/cards/DatasetCard'
@@ -58,12 +59,12 @@ export default function DataPage() {
   }
 
   // When dataset changes, update target/covariates
-  const handleDatasetChange = (id: string) => {
+  const handleDatasetChange = (id: string, ds?: DatasetSummary) => {
     setSelectedDatasetId(id)
-    const ds = datasets?.find((d) => d.id === id)
-    if (ds) {
-      setTargetVariable(ds.target_variable || '')
-      setSelectedCovariates(ds.covariates || [])
+    const found = ds ?? datasets?.find((d) => d.id === id)
+    if (found) {
+      setTargetVariable(found.target_variable || '')
+      setSelectedCovariates(found.covariates || [])
     }
   }
 
@@ -188,8 +189,8 @@ export default function DataPage() {
           <div className="bg-bg-card rounded-xl border border-white/5 p-5">
             <ImportDBForm
               initialStation={stationFromUrl ?? undefined}
-              onImportSuccess={(id) => {
-                handleDatasetChange(id)
+              onImportSuccess={(id, ds) => {
+                handleDatasetChange(id, ds)
                 setTab('explore')
               }}
             />

@@ -68,14 +68,14 @@ def _ds_to_summary(ds) -> DatasetSummary:
 # --------------------------------------------------------------------------- #
 
 
-@router.get("/", response_model=list[DatasetSummary])
+@router.get("", response_model=list[DatasetSummary])
 async def list_datasets():
     """List all prepared datasets."""
     registry = _get_registry()
     return [_ds_to_summary(ds) for ds in registry.scan_datasets()]
 
 
-@router.post("/", response_model=DatasetSummary, status_code=201)
+@router.post("", response_model=DatasetSummary, status_code=201)
 async def create_dataset(
     file: UploadFile = File(...),
     name: str = Query(...),
