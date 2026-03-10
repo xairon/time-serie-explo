@@ -10,6 +10,7 @@ import {
   useForecastGlobal,
 } from '@/hooks/useForecasting'
 import { useDatasets } from '@/hooks/useDatasets'
+import { useModelDetail } from '@/hooks/useModels'
 
 type ForecastMode = 'single' | 'rolling' | 'comparison' | 'global'
 
@@ -22,6 +23,7 @@ export default function ForecastingPage() {
   const [mode, setMode] = useState<ForecastMode>('single')
 
   const { data: datasets } = useDatasets()
+  const { data: modelDetail } = useModelDetail(modelId || null)
 
   const singleMutation = useForecast()
   const rollingMutation = useForecastRolling()
@@ -241,6 +243,48 @@ export default function ForecastingPage() {
                     Metriques One-Step
                   </h4>
                   <MetricsPanel metrics={result.metrics_onestep} />
+                </div>
+              )}
+
+              {/* Preprocessing summary */}
+              {modelDetail?.preprocessing_config && Object.keys(modelDetail.preprocessing_config).length > 0 && (
+                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                  <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide">
+                    Pretraitement
+                  </h4>
+                  <div className="space-y-2">
+                    {Object.entries(modelDetail.preprocessing_config).map(([key, val]) => (
+                      <div key={key} className="flex justify-between text-xs">
+                        <span className="text-text-secondary">{key}</span>
+                        <span className="text-text-primary">
+                          {typeof val === 'boolean' ? (val ? 'Oui' : 'Non') : String(val ?? '')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Test set info */}
+              {result.dates.length > 0 && (
+                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                  <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide">
+                    Fenetre de prevision
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-text-secondary">Debut</span>
+                      <span className="text-text-primary">{new Date(result.dates[0]).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-text-secondary">Fin</span>
+                      <span className="text-text-primary">{new Date(result.dates[result.dates.length - 1]).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-text-secondary">Points</span>
+                      <span className="text-text-primary">{result.dates.length}</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </>

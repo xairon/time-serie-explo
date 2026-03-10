@@ -69,7 +69,7 @@ export function CFConfigForm({ onSubmit, isPending }: CFConfigFormProps) {
   const [lambdaSmooth, setLambdaSmooth] = useState(0.1)
 
   // Common
-  const [ccRate, setCcRate] = useState(0.07)
+  const ccRate = 0.07 // Clausius-Clapeyron physical constant
   const [device, setDevice] = useState('auto')
   const [seed, setSeed] = useState(42)
 

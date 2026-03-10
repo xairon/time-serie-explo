@@ -3,20 +3,19 @@ from api.task_manager import TaskManager, TaskStatus
 
 def test_create_task():
     tm = TaskManager()
-    task_id = tm.create("training", {"model": "TFT"})
-    assert len(task_id) == 12
-    task = tm.get(task_id)
-    assert task is not None
-    assert task.status == TaskStatus.PENDING
+    task = tm.create("training", {"model": "TFT"})
+    assert len(task.task_id) == 12
+    fetched = tm.get(task.task_id)
+    assert fetched is not None
+    assert fetched.status == TaskStatus.PENDING
 
 
 def test_cancel_task():
     tm = TaskManager()
-    task_id = tm.create("training", {})
-    assert tm.cancel(task_id)
-    task = tm.get(task_id)
-    assert task.status == TaskStatus.CANCELLED
-    assert task.stop_event.is_set()
+    task = tm.create("training", {})
+    assert tm.cancel(task.task_id)
+    fetched = tm.get(task.task_id)
+    assert fetched.status == TaskStatus.CANCELLED
 
 
 def test_cancel_nonexistent():

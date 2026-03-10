@@ -1,6 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { ExplainResult } from '@/lib/types'
 
 export function useForecast() {
   return useMutation({

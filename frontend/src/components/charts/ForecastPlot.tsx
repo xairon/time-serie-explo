@@ -6,10 +6,14 @@ import type { ForecastResult } from '@/lib/types'
 interface ForecastPlotProps {
   result: ForecastResult
   splitIndex?: number
+  /** Start/end date indices for context (input) window highlight */
+  contextWindow?: { start: number; end: number }
+  /** Start/end date indices for prediction window highlight */
+  predictionWindow?: { start: number; end: number }
   className?: string
 }
 
-export function ForecastPlot({ result, splitIndex, className = '' }: ForecastPlotProps) {
+export function ForecastPlot({ result, splitIndex, contextWindow, predictionWindow, className = '' }: ForecastPlotProps) {
   const { dates, actuals, predictions, confidence_low, confidence_high } = result
 
   const traces: Data[] = []
@@ -64,6 +68,64 @@ export function ForecastPlot({ result, splitIndex, className = '' }: ForecastPlo
   }
 
   const shapes: Partial<Shape>[] = []
+
+  // Auto-detect context and prediction windows from split index or predictions
+  const effectiveContextWindow = contextWindow ?? (() => {
+    if (splitIndex !== undefined && splitIndex > 0) {
+      return { start: 0, end: splitIndex }
+    }
+    // Detect from predictions: context = where predictions are null, prediction = where they exist
+    const firstPredIdx = predictions.findIndex((v) => v !== null)
+    if (firstPredIdx > 0) {
+      return { start: 0, end: firstPredIdx }
+    }
+    return undefined
+  })()
+
+  const effectivePredictionWindow = predictionWindow ?? (() => {
+    if (splitIndex !== undefined && splitIndex < dates.length) {
+      return { start: splitIndex, end: dates.length - 1 }
+    }
+    const firstPredIdx = predictions.findIndex((v) => v !== null)
+    if (firstPredIdx >= 0) {
+      let lastPredIdx = predictions.length - 1
+      while (lastPredIdx > firstPredIdx && predictions[lastPredIdx] === null) lastPredIdx--
+      return { start: firstPredIdx, end: lastPredIdx }
+    }
+    return undefined
+  })()
+
+  // Context window rectangle (light blue background)
+  if (effectiveContextWindow && effectiveContextWindow.end > effectiveContextWindow.start) {
+    shapes.push({
+      type: 'rect',
+      x0: dates[effectiveContextWindow.start],
+      x1: dates[effectiveContextWindow.end],
+      y0: 0,
+      y1: 1,
+      yref: 'paper',
+      fillcolor: 'rgba(59, 130, 246, 0.06)',
+      line: { width: 0 },
+      layer: 'below',
+    })
+  }
+
+  // Prediction window rectangle (light yellow background)
+  if (effectivePredictionWindow && effectivePredictionWindow.end > effectivePredictionWindow.start) {
+    shapes.push({
+      type: 'rect',
+      x0: dates[effectivePredictionWindow.start],
+      x1: dates[effectivePredictionWindow.end],
+      y0: 0,
+      y1: 1,
+      yref: 'paper',
+      fillcolor: 'rgba(234, 179, 8, 0.06)',
+      line: { width: 0 },
+      layer: 'below',
+    })
+  }
+
+  // Split line
   if (splitIndex !== undefined && splitIndex < dates.length) {
     shapes.push({
       type: 'line',

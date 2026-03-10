@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import Plot from 'react-plotly.js'
 import { useDatasets, useDatasetPreview, useDatasetProfile } from '@/hooks/useDatasets'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
@@ -8,8 +9,10 @@ import { DataTable } from '@/components/data/DataTable'
 import { DataProfiler } from '@/components/data/DataProfiler'
 import { TimeseriesPlot } from '@/components/charts/TimeseriesPlot'
 import { CorrelationMatrix } from '@/components/charts/CorrelationMatrix'
+import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 
 type Tab = 'import' | 'explore' | 'config'
+type ExploreSubTab = 'apercu' | 'qualite' | 'series' | 'correlation'
 
 export default function DataPage() {
   const [searchParams] = useSearchParams()
@@ -25,6 +28,7 @@ export default function DataPage() {
     }
   }, [stationFromUrl])
 
+  const [exploreSubTab, setExploreSubTab] = useState<ExploreSubTab>('apercu')
   const [targetVariable, setTargetVariable] = useState('')
   const [selectedCovariates, setSelectedCovariates] = useState<string[]>([])
   const [fillMethod, setFillMethod] = useState('interpolate')
@@ -120,6 +124,38 @@ export default function DataPage() {
     return { labels, matrix }
   }, [profile])
 
+  // Data quality stats derived from profile
+  const qualityStats = useMemo(() => {
+    if (!profile) return null
+    const totalRows = profile.shape?.[0] ?? 0
+    const columns = Object.keys(profile.missing ?? {})
+    const missingPerColumn = columns.map((col) => ({
+      column: col,
+      missing: profile.missing?.[col] ?? 0,
+      completeness: totalRows > 0 ? ((totalRows - (profile.missing?.[col] ?? 0)) / totalRows) * 100 : 0,
+    }))
+    const totalMissing = columns.reduce((sum, col) => sum + (profile.missing?.[col] ?? 0), 0)
+    const overallCompleteness = totalRows > 0 && columns.length > 0
+      ? ((totalRows * columns.length - totalMissing) / (totalRows * columns.length)) * 100
+      : 0
+    return {
+      totalRows,
+      totalColumns: columns.length,
+      missingPerColumn,
+      overallCompleteness,
+    }
+  }, [profile])
+
+  // Date range from selected dataset
+  const dateRange = selectedDataset?.date_range
+
+  const exploreSubTabs: { key: ExploreSubTab; label: string }[] = [
+    { key: 'apercu', label: 'Apercu' },
+    { key: 'qualite', label: 'Qualite' },
+    { key: 'series', label: 'Serie temporelle' },
+    { key: 'correlation', label: 'Correlation' },
+  ]
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
@@ -201,37 +237,165 @@ export default function DataPage() {
           {/* Detail view when dataset selected */}
           {selectedDataset && (
             <>
-              <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <h3 className="text-sm font-semibold text-text-primary mb-3">
-                  Apercu des donnees
-                </h3>
-                <DataTable columns={previewColumns} rows={previewRows} />
+              {/* Sub-tabs */}
+              <div className="flex border-b border-white/10">
+                {exploreSubTabs.map((st) => (
+                  <button
+                    key={st.key}
+                    onClick={() => setExploreSubTab(st.key)}
+                    className={`px-4 py-2 text-xs transition-colors ${
+                      exploreSubTab === st.key
+                        ? 'border-b-2 border-accent-cyan text-accent-cyan'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <DataProfiler stats={profileStats} />
-              </div>
+              {/* Apercu sub-tab */}
+              {exploreSubTab === 'apercu' && (
+                <>
+                  <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">
+                      Apercu des donnees
+                    </h3>
+                    <DataTable columns={previewColumns} rows={previewRows} />
+                  </div>
+                  <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                    <DataProfiler stats={profileStats} />
+                  </div>
+                </>
+              )}
 
-              <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <h3 className="text-sm font-semibold text-text-primary mb-3">Serie temporelle</h3>
-                <TimeseriesPlot
-                  dates={timeseriesData.dates}
-                  values={timeseriesData.values}
-                  label={timeseriesData.label || selectedDataset.target_variable}
-                  className="h-[300px]"
-                />
-              </div>
+              {/* Qualite sub-tab */}
+              {exploreSubTab === 'qualite' && qualityStats && (
+                <div className="space-y-4">
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Lignes</p>
+                      <p className="text-2xl font-bold text-text-primary">{qualityStats.totalRows.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Colonnes</p>
+                      <p className="text-2xl font-bold text-text-primary">{qualityStats.totalColumns}</p>
+                    </div>
+                    <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Completude globale</p>
+                      <p className={`text-2xl font-bold ${qualityStats.overallCompleteness >= 95 ? 'text-accent-green' : qualityStats.overallCompleteness >= 80 ? 'text-yellow-400' : 'text-accent-red'}`}>
+                        {qualityStats.overallCompleteness.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Plage temporelle</p>
+                      <p className="text-sm font-medium text-text-primary mt-1">
+                        {dateRange && dateRange.length >= 2
+                          ? `${new Date(dateRange[0]).toLocaleDateString('fr-FR')} — ${new Date(dateRange[1]).toLocaleDateString('fr-FR')}`
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <h3 className="text-sm font-semibold text-text-primary mb-3">
-                  Matrice de correlation
-                </h3>
-                <CorrelationMatrix
-                  labels={correlationData.labels}
-                  matrix={correlationData.matrix}
-                  className="h-[400px]"
-                />
-              </div>
+                  {/* Missing values bar chart */}
+                  <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">Valeurs manquantes par colonne</h3>
+                    <div className="h-[300px]">
+                      <Plot
+                        data={[
+                          {
+                            x: qualityStats.missingPerColumn.map((c) => c.column),
+                            y: qualityStats.missingPerColumn.map((c) => c.missing),
+                            type: 'bar' as const,
+                            marker: {
+                              color: qualityStats.missingPerColumn.map((c) =>
+                                c.missing === 0 ? '#22c55e' : c.completeness >= 95 ? '#06b6d4' : c.completeness >= 80 ? '#eab308' : '#ef4444'
+                              ),
+                            },
+                            text: qualityStats.missingPerColumn.map((c) => `${c.missing} (${(100 - c.completeness).toFixed(1)}%)`),
+                            textposition: 'auto' as const,
+                          },
+                        ]}
+                        layout={{
+                          ...darkLayout,
+                          xaxis: { ...darkLayout.xaxis, title: { text: 'Colonne' }, tickangle: -45 },
+                          yaxis: { ...darkLayout.yaxis, title: { text: 'Valeurs manquantes' } },
+                          margin: { t: 20, r: 20, b: 80, l: 60 },
+                        }}
+                        config={plotlyConfig}
+                        useResizeHandler
+                        style={{ width: '100%', height: '100%' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Completeness per column table */}
+                  <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">Completude par colonne</h3>
+                    <div className="overflow-x-auto rounded-lg border border-white/5">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-bg-hover">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Colonne</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Type</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Manquantes</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Completude</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase w-48"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {qualityStats.missingPerColumn.map((c) => (
+                            <tr key={c.column} className="border-t border-white/5 hover:bg-bg-hover/50">
+                              <td className="px-3 py-1.5 text-text-primary font-medium">{c.column}</td>
+                              <td className="px-3 py-1.5 text-text-secondary text-xs">{profile?.dtypes?.[c.column] ?? '—'}</td>
+                              <td className="px-3 py-1.5 text-text-secondary text-right">{c.missing.toLocaleString()}</td>
+                              <td className={`px-3 py-1.5 text-right font-medium ${c.completeness >= 95 ? 'text-accent-green' : c.completeness >= 80 ? 'text-yellow-400' : 'text-accent-red'}`}>
+                                {c.completeness.toFixed(1)}%
+                              </td>
+                              <td className="px-3 py-1.5">
+                                <div className="h-2 bg-bg-hover rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${c.completeness >= 95 ? 'bg-accent-green' : c.completeness >= 80 ? 'bg-yellow-400' : 'bg-accent-red'}`}
+                                    style={{ width: `${c.completeness}%` }}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Serie temporelle sub-tab */}
+              {exploreSubTab === 'series' && (
+                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-text-primary mb-3">Serie temporelle</h3>
+                  <TimeseriesPlot
+                    dates={timeseriesData.dates}
+                    values={timeseriesData.values}
+                    label={timeseriesData.label || selectedDataset.target_variable}
+                    className="h-[300px]"
+                  />
+                </div>
+              )}
+
+              {/* Correlation sub-tab */}
+              {exploreSubTab === 'correlation' && (
+                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+                  <h3 className="text-sm font-semibold text-text-primary mb-3">
+                    Matrice de correlation
+                  </h3>
+                  <CorrelationMatrix
+                    labels={correlationData.labels}
+                    matrix={correlationData.matrix}
+                    className="h-[400px]"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
