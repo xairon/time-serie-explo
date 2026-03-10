@@ -9,6 +9,7 @@ export function useCounterfactualRun() {
       target_ips_class?: string
       from_ips_class?: string
       to_ips_class?: string
+      start_idx?: number
       modifications?: Record<string, number>
       lambda_prox?: number
       n_iter?: number

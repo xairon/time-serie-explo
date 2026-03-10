@@ -537,7 +537,7 @@ async def ips_bounds(
         raise HTTPException(status_code=404, detail="Test data not found")
 
     # Get IPS reference (reuse existing endpoint logic)
-    ref_response = await ips_reference(model_id=model_id, window=window)
+    ref_response = await ips_reference(model_id=model_id, window=window, aquifer_type=None)
     ref_stats_raw = ref_response.get("ref_stats", {})
     ref_stats = {int(k): tuple(v) for k, v in ref_stats_raw.items()}
 

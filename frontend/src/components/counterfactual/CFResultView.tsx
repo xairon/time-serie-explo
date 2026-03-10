@@ -87,10 +87,11 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
   const inner = result.result
   const metrics = inner.metrics ?? {}
   const theta = inner.theta ?? {}
-  const converged = metrics.converged === true || metrics.converged === 'true'
-  const wallTime = typeof metrics.wall_clock_s === 'number' ? metrics.wall_clock_s : 0
-  const nIter = typeof metrics.n_iter === 'number' ? metrics.n_iter : 0
-  const bestLoss = typeof metrics.best_loss === 'number' ? metrics.best_loss : null
+  const m = metrics as Record<string, unknown>
+  const converged = m.converged === true || m.converged === 'true'
+  const wallTime = typeof m.wall_clock_s === 'number' ? m.wall_clock_s : 0
+  const nIter = typeof m.n_iter === 'number' ? m.n_iter : 0
+  const bestLoss = typeof m.best_loss === 'number' ? m.best_loss : null
 
   const interpretation = interpretTheta(theta)
 
