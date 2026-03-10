@@ -143,7 +143,10 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
         if valid_end <= 0:
             raise ValueError(f"Test set too short ({test_len}) for horizon H={H_model}")
 
-        start_idx = min(valid_end // 2, valid_end)
+        if req.start_idx is not None and 0 <= req.start_idx <= valid_end:
+            start_idx = req.start_idx
+        else:
+            start_idx = min(valid_end // 2, valid_end)
 
         # Compute lookback position in full df
         window_pred_start = test_df.index[start_idx]
@@ -439,45 +442,6 @@ async def generate_comet(req: CFGenerateRequest):
     return CFResult(task_id=task.task_id, status=task.status.value)
 
 
-@router.get("/{task_id}/stream")
-async def stream_cf_progress(task_id: str):
-    """SSE stream for counterfactual generation progress."""
-    from sse_starlette.sse import EventSourceResponse
-
-    task = task_manager.get(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    async def event_generator():
-        metrics_file = Path(task.metrics_file) if task.metrics_file else None
-        terminal_states = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
-
-        while True:
-            current_status = task.status
-
-            if metrics_file and metrics_file.exists():
-                try:
-                    with open(metrics_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    yield {"event": "progress", "data": json.dumps(clean_nans(data))}
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-            if current_status in terminal_states:
-                final = {
-                    "status": current_status.value,
-                    "error": task.error,
-                }
-                if task.result:
-                    final["result"] = task.result
-                yield {"event": "done", "data": json.dumps(clean_nans(final))}
-                return
-
-            await asyncio.sleep(1.0)
-
-    return EventSourceResponse(event_generator())
-
-
 @router.get("/ips-reference")
 async def ips_reference(
     model_id: str = Query(...),
@@ -527,6 +491,83 @@ async def ips_reference(
     return clean_nans(result)
 
 
+@router.get("/ips-bounds")
+async def ips_bounds(
+    model_id: str = Query(...),
+    window: int = Query(1, ge=1, le=12),
+):
+    """Return monthly IPS class bounds (m NGF) for the test set date range."""
+    from dashboard.utils.model_registry import ModelRegistry
+    from dashboard.utils.counterfactual.ips import (
+        compute_ips_reference_n,
+        compute_monthly_ips_bounds,
+        IPS_CLASSES,
+    )
+    import pandas as pd
+
+    # Human-readable labels for IPS classes
+    ips_labels = {
+        "very_low": "Très bas",
+        "low": "Bas",
+        "moderately_low": "Modérément bas",
+        "normal": "Normal",
+        "moderately_high": "Modérément haut",
+        "high": "Haut",
+        "very_high": "Très haut",
+    }
+    # Colors for IPS classes (red → green spectrum)
+    ips_colors = {
+        "very_low": "#d73027",
+        "low": "#fc8d59",
+        "moderately_low": "#fee08b",
+        "normal": "#ffffbf",
+        "moderately_high": "#d9ef8b",
+        "high": "#91cf60",
+        "very_high": "#1a9850",
+    }
+
+    registry = ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
+    entry = registry.get_model(model_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    # Load test data for date range
+    test_df = registry.load_data(entry, "test")
+    if test_df is None:
+        raise HTTPException(status_code=404, detail="Test data not found")
+
+    # Get IPS reference (reuse existing endpoint logic)
+    ref_response = await ips_reference(model_id=model_id, window=window)
+    ref_stats_raw = ref_response.get("ref_stats", {})
+    ref_stats = {int(k): tuple(v) for k, v in ref_stats_raw.items()}
+
+    # Compute bounds
+    bounds_df = compute_monthly_ips_bounds(test_df.index, ref_stats)
+    if bounds_df.empty:
+        return {"bounds": [], "classes": ips_labels, "colors": ips_colors}
+
+    # Serialize
+    rows = []
+    for _, row in bounds_df.iterrows():
+        r = {
+            "month_start": row["month_start"].isoformat(),
+            "month_end": row["month_end"].isoformat(),
+            "month": int(row["month"]),
+            "mu": float(row["mu"]),
+            "sigma": float(row["sigma"]),
+        }
+        for cls_name in IPS_CLASSES:
+            r[f"{cls_name}_lower"] = float(row[f"{cls_name}_lower"])
+            r[f"{cls_name}_upper"] = float(row[f"{cls_name}_upper"])
+        rows.append(r)
+
+    return {
+        "bounds": rows,
+        "classes": ips_labels,
+        "colors": ips_colors,
+    }
+
+
 @router.post("/pastas-validate")
 async def pastas_validate(req: PastasValidateRequest):
     """Run Pastas dual validation on a counterfactual result."""
@@ -565,3 +606,42 @@ async def pastas_validate(req: PastasValidateRequest):
 
     except ImportError as exc:
         raise HTTPException(status_code=501, detail=f"Pastas not available: {exc}")
+
+
+@router.get("/{task_id}/stream")
+async def stream_cf_progress(task_id: str):
+    """SSE stream for counterfactual generation progress."""
+    from sse_starlette.sse import EventSourceResponse
+
+    task = task_manager.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    async def event_generator():
+        metrics_file = Path(task.metrics_file) if task.metrics_file else None
+        terminal_states = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+
+        while True:
+            current_status = task.status
+
+            if metrics_file and metrics_file.exists():
+                try:
+                    with open(metrics_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    yield {"event": "progress", "data": json.dumps(clean_nans(data))}
+                except (json.JSONDecodeError, OSError):
+                    pass
+
+            if current_status in terminal_states:
+                final = {
+                    "status": current_status.value,
+                    "error": task.error,
+                }
+                if task.result:
+                    final["result"] = task.result
+                yield {"event": "done", "data": json.dumps(clean_nans(final))}
+                return
+
+            await asyncio.sleep(1.0)
+
+    return EventSourceResponse(event_generator())

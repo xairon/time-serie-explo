@@ -24,6 +24,8 @@ class CFGenerateRequest(BaseModel):
     # COMET-specific
     k_sigma: float = 4.0
     lambda_smooth: float = 0.1
+    # Position in test set (None = auto middle)
+    start_idx: Optional[int] = None
     # Perturbation modifiers (for frontend compatibility)
     modifications: dict[str, float] = Field(default_factory=dict)
 
