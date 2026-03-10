@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAvailableModels } from '@/hooks/useModels'
 import { useDatasets } from '@/hooks/useDatasets'
-import type { TrainingConfig } from '@/lib/types'
+import type { TrainingConfig, AvailableModel } from '@/lib/types'
+
+const LOSS_FUNCTIONS = [
+  { value: 'MAE', label: 'MAE (Mean Absolute Error)' },
+  { value: 'MSE', label: 'MSE (Mean Squared Error)' },
+  { value: 'Huber', label: 'Huber' },
+  { value: 'Quantile', label: 'Quantile' },
+  { value: 'RMSE', label: 'RMSE (Root Mean Squared Error)' },
+]
 
 interface ModelConfigFormProps {
   onSubmit: (config: TrainingConfig) => void
@@ -16,10 +24,24 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const [datasetId, setDatasetId] = useState('')
   const [station, setStation] = useState('')
   const [maxEpochs, setMaxEpochs] = useState(100)
+  const [earlyStopping, setEarlyStopping] = useState(true)
   const [patience, setPatience] = useState(10)
   const [trainSplit, setTrainSplit] = useState(0.7)
   const [valSplit, setValSplit] = useState(0.15)
+  const [lossFunction, setLossFunction] = useState('MAE')
   const [hyperparams, setHyperparams] = useState<Record<string, unknown>>({})
+
+  // Group models by category
+  const modelsByCategory = useMemo(() => {
+    if (!availableModels) return new Map<string, AvailableModel[]>()
+    const groups = new Map<string, AvailableModel[]>()
+    for (const m of availableModels) {
+      const cat = m.category || 'Autre'
+      if (!groups.has(cat)) groups.set(cat, [])
+      groups.get(cat)!.push(m)
+    }
+    return groups
+  }, [availableModels])
 
   // Set defaults when available models load
   useEffect(() => {
@@ -44,18 +66,22 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   }, [modelType, availableModels])
 
   const selectedDataset = datasets?.find((d) => d.id === datasetId)
+  const selectedModel = availableModels?.find((m) => m.name === modelType)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({
       dataset_id: datasetId,
-      model_type: modelType,
+      model_name: modelType,
       hyperparams,
-      train_split: trainSplit,
-      val_split: valSplit,
-      max_epochs: maxEpochs,
-      early_stopping_patience: patience,
-      station: station || null,
+      train_ratio: trainSplit,
+      val_ratio: valSplit,
+      n_epochs: maxEpochs,
+      early_stopping: earlyStopping,
+      early_stopping_patience: earlyStopping ? patience : 0,
+      station_name: station || null,
+      use_covariates: true,
+      loss_function: lossFunction,
     })
   }
 
@@ -66,9 +92,9 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-text-primary">Configuration du modèle</h3>
+      <h3 className="text-sm font-semibold text-text-primary">Configuration du modele</h3>
 
-      {/* Model type */}
+      {/* Model type - grouped by category */}
       <div>
         <label className="block text-xs text-text-secondary mb-1">Architecture</label>
         {modelsLoading ? (
@@ -79,16 +105,20 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             onChange={(e) => setModelType(e.target.value)}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
-            {availableModels?.map((m) => (
-              <option key={m.name} value={m.name}>
-                {m.name} — {m.category}
-              </option>
+            {[...modelsByCategory.entries()].map(([category, models]) => (
+              <optgroup key={category} label={category}>
+                {models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         )}
-        {availableModels?.find((m) => m.name === modelType)?.description && (
+        {selectedModel?.description && (
           <p className="text-[10px] text-text-secondary mt-1">
-            {availableModels.find((m) => m.name === modelType)!.description}
+            {selectedModel.description}
           </p>
         )}
       </div>
@@ -132,6 +162,22 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         </div>
       )}
 
+      {/* Loss function */}
+      <div>
+        <label className="block text-xs text-text-secondary mb-1">Fonction de perte</label>
+        <select
+          value={lossFunction}
+          onChange={(e) => setLossFunction(e.target.value)}
+          className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+        >
+          {LOSS_FUNCTIONS.map((lf) => (
+            <option key={lf.value} value={lf.value}>
+              {lf.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Splits */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -160,36 +206,49 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         </div>
       </div>
 
-      {/* Epochs / Patience */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-text-secondary mb-1">Epochs max</label>
+      {/* Epochs */}
+      <div>
+        <label className="block text-xs text-text-secondary mb-1">Epochs max</label>
+        <input
+          type="number"
+          min={1}
+          max={1000}
+          value={maxEpochs}
+          onChange={(e) => setMaxEpochs(Number(e.target.value))}
+          className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Early stopping toggle + patience */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
-            type="number"
-            min={1}
-            max={1000}
-            value={maxEpochs}
-            onChange={(e) => setMaxEpochs(Number(e.target.value))}
-            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+            type="checkbox"
+            checked={earlyStopping}
+            onChange={(e) => setEarlyStopping(e.target.checked)}
+            className="w-4 h-4 rounded border-white/10 bg-bg-input text-accent-cyan focus:ring-accent-cyan/50"
           />
-        </div>
-        <div>
-          <label className="block text-xs text-text-secondary mb-1">Patience</label>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={patience}
-            onChange={(e) => setPatience(Number(e.target.value))}
-            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
-          />
-        </div>
+          <span className="text-xs text-text-secondary">Early stopping</span>
+        </label>
+        {earlyStopping && (
+          <div>
+            <label className="block text-xs text-text-secondary mb-1">Patience</label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={patience}
+              onChange={(e) => setPatience(Number(e.target.value))}
+              className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+        )}
       </div>
 
       {/* Dynamic hyperparams */}
       {Object.keys(hyperparams).length > 0 && (
         <div>
-          <label className="block text-xs text-text-secondary mb-2">Hyperparamètres</label>
+          <label className="block text-xs text-text-secondary mb-2">Hyperparametres</label>
           <div className="space-y-2">
             {Object.entries(hyperparams).map(([key, val]) => (
               <div key={key} className="flex items-center gap-2">
@@ -211,7 +270,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         disabled={isPending || !modelType || !datasetId}
         className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
       >
-        {isPending ? 'Lancement...' : "Lancer l'entraînement"}
+        {isPending ? 'Lancement...' : "Lancer l'entrainement"}
       </button>
     </form>
   )

@@ -293,6 +293,8 @@ async def profile_dataset(dataset_id: str):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Dataset data file not found")
 
+    import numpy as np
+
     # Basic profiling without heavy dependencies
     columns_profile = {}
     for col in df.columns:
@@ -308,9 +310,39 @@ async def profile_dataset(dataset_id: str):
             }
         columns_profile[col] = col_stats
 
+    # Correlation matrix for numeric columns
+    numeric_df = df.select_dtypes(include=["number"])
+    correlation = None
+    if len(numeric_df.columns) >= 2:
+        try:
+            corr = numeric_df.corr()
+            correlation = clean_nans({col: {c: float(v) for c, v in row.items()} for col, row in corr.items()})
+        except Exception:
+            pass
+
+    # Timeseries data: sample for plotting (max 2000 points)
+    timeseries_data = None
+    try:
+        import pandas as pd
+
+        ts_df = df.copy()
+        if hasattr(ts_df.index, 'to_pydatetime') or isinstance(ts_df.index, pd.DatetimeIndex):
+            step = max(1, len(ts_df) // 2000)
+            sampled = ts_df.iloc[::step]
+            dates = [str(d) for d in sampled.index]
+            series = {}
+            for col in numeric_df.columns[:10]:  # Max 10 series
+                vals = sampled[col].tolist() if col in sampled.columns else []
+                series[col] = clean_nans(vals)
+            timeseries_data = {"dates": dates, "series": series}
+    except Exception:
+        pass
+
     return DatasetProfile(
         columns=columns_profile,
         shape=list(df.shape),
         dtypes={col: str(dtype) for col, dtype in df.dtypes.items()},
         missing={col: int(df[col].isna().sum()) for col in df.columns},
+        correlation=correlation,
+        timeseries_data=timeseries_data,
     )

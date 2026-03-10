@@ -21,7 +21,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
     )
   }
 
-  const selected = models.find((m) => m.id === value)
+  const selected = models.find((m) => m.model_id === value)
 
   return (
     <div className="space-y-2">
@@ -33,8 +33,8 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
       >
         <option value="">Sélectionner un modèle</option>
         {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name} ({m.model_type})
+          <option key={m.model_id} value={m.model_id}>
+            {m.model_name} ({m.model_type})
           </option>
         ))}
       </select>

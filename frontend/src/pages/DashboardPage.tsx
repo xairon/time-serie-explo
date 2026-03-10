@@ -120,7 +120,7 @@ export default function DashboardPage() {
         ) : models && models.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {models.map((m) => (
-              <ModelCard key={m.id} model={m} />
+              <ModelCard key={m.model_id} model={m} />
             ))}
           </div>
         ) : (

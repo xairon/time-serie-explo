@@ -14,6 +14,6 @@ export function useStartTraining() {
 
 export function useStopTraining() {
   return useMutation({
-    mutationFn: (taskId: string) => api.training.stop(taskId),
+    mutationFn: (taskId: string) => api.training.cancel(taskId),
   })
 }

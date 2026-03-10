@@ -35,3 +35,5 @@ class AvailableModel(BaseModel):
     name: str
     is_torch: bool
     description: str = ""
+    category: str = ""
+    default_hyperparams: dict[str, Any] = Field(default_factory=dict)

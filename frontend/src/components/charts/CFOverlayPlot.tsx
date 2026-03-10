@@ -9,7 +9,9 @@ interface CFOverlayPlotProps {
 }
 
 export function CFOverlayPlot({ result, className = '' }: CFOverlayPlotProps) {
-  const { dates, original, counterfactual } = result
+  const inner = result.result
+  if (!inner) return null
+  const { dates, original, counterfactual } = inner
 
   const layout: Partial<Layout> = {
     ...darkLayout,

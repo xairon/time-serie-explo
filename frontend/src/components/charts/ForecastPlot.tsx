@@ -41,15 +41,27 @@ export function ForecastPlot({ result, splitIndex, className = '' }: ForecastPlo
     line: { color: '#e5e7eb', width: 2 },
   })
 
-  // Predictions
+  // Predictions (autoregressive)
   traces.push({
     x: dates,
     y: predictions as number[],
     type: 'scatter',
     mode: 'lines',
-    name: 'Prédictions',
+    name: result.predictions_onestep ? 'Autoregressif' : 'Prédictions',
     line: { color: '#06b6d4', width: 2 },
   })
+
+  // One-step predictions (comparison mode)
+  if (result.predictions_onestep) {
+    traces.push({
+      x: dates,
+      y: result.predictions_onestep as number[],
+      type: 'scatter',
+      mode: 'lines',
+      name: 'One-step',
+      line: { color: '#a78bfa', width: 2, dash: 'dot' },
+    })
+  }
 
   const shapes: Partial<Shape>[] = []
   if (splitIndex !== undefined && splitIndex < dates.length) {

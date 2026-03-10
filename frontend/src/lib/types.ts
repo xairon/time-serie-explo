@@ -20,6 +20,24 @@ export interface DatasetSummary {
   station_column: string | null
 }
 
+export interface DatasetPreview {
+  columns: string[]
+  rows: Record<string, unknown>[]
+  total_rows: number
+}
+
+export interface DatasetProfile {
+  columns: Record<string, Record<string, unknown>>
+  shape: number[]
+  dtypes: Record<string, string>
+  missing: Record<string, number>
+  correlation: Record<string, Record<string, number>> | null
+  timeseries_data: {
+    dates: string[]
+    series: Record<string, (number | null)[]>
+  } | null
+}
+
 // Station metadata (from dim_piezo_stations)
 export interface StationInfo {
   code_bss: string
@@ -41,38 +59,78 @@ export interface StationInfo {
   qualite_tendance: string | null
 }
 
-// Models
+// Models - matches backend ModelSummary schema
 export interface ModelSummary {
-  id: string
-  name: string
+  model_id: string
+  model_name: string
   model_type: string
-  station: string | null
-  metrics: Record<string, number>
+  stations: string[]
+  primary_station: string | null
   created_at: string
-  mlflow_run_id: string | null
+  metrics: Record<string, number>
+  data_source: string | null
 }
 
-// Training
+export interface ModelDetail extends ModelSummary {
+  run_id: string
+  hyperparams: Record<string, unknown>
+  preprocessing_config: Record<string, unknown>
+  display_name: string
+}
+
+// Training - matches backend TrainingRequest schema
 export interface TrainingConfig {
   dataset_id: string
-  model_type: string
+  model_name: string
   hyperparams: Record<string, unknown>
-  train_split: number
-  val_split: number
-  max_epochs: number
+  train_ratio: number
+  val_ratio: number
+  n_epochs: number | null
+  early_stopping: boolean
   early_stopping_patience: number
-  station: string | null
+  station_name: string | null
+  use_covariates: boolean
+  loss_function: string
 }
 
 export interface TrainingMetrics {
-  epoch: number
+  current_epoch: number
   total_epochs: number
   train_loss: number | null
   val_loss: number | null
   best_val_loss: number | null
+  status?: string
 }
 
-// Forecasting
+export interface TrainingResult {
+  task_id: string
+  status: string
+  metrics: Record<string, number> | null
+  metrics_sliding: Record<string, number> | null
+  model_name: string | null
+  station: string | null
+  error: string | null
+}
+
+// Forecasting - backend returns predictions as list of {time, column: value} dicts
+export interface ForecastTimePoint {
+  time: string
+  [key: string]: unknown
+}
+
+export interface ForecastResultRaw {
+  predictions: ForecastTimePoint[]
+  target: ForecastTimePoint[]
+  metrics: Record<string, number>
+  horizon: number | null
+  predictions_onestep: ForecastTimePoint[] | null
+  metrics_onestep: Record<string, number> | null
+  predictions_exact: ForecastTimePoint[] | null
+  metrics_exact: Record<string, number> | null
+  forecast_windows: ForecastTimePoint[][] | null
+}
+
+// Transformed forecast result for UI consumption
 export interface ForecastResult {
   dates: string[]
   predictions: (number | null)[]
@@ -80,21 +138,61 @@ export interface ForecastResult {
   metrics: Record<string, number>
   confidence_low: (number | null)[]
   confidence_high: (number | null)[]
+  predictions_onestep: (number | null)[] | null
+  metrics_onestep: Record<string, number> | null
+  predictions_exact: (number | null)[] | null
+  metrics_exact: Record<string, number> | null
 }
 
-// Counterfactual
+// Counterfactual - matches backend CFResult schema
 export interface CounterfactualResult {
-  original: number[]
-  counterfactual: number[]
-  dates: string[]
-  theta: Record<string, number>
-  metrics: Record<string, number>
+  task_id: string
+  status: string
+  result: {
+    method: string
+    original: number[]
+    counterfactual: number[]
+    dates: string[]
+    theta: Record<string, number>
+    metrics: Record<string, number>
+    convergence?: number[]
+    best_trial?: Record<string, unknown>
+  } | null
+  error: string | null
 }
 
-// Available model architectures
+// Available model architectures - matches backend AvailableModel schema
 export interface AvailableModel {
   name: string
+  is_torch: boolean
   description: string
   category: string
   default_hyperparams: Record<string, unknown>
+}
+
+// Explainability
+export interface ExplainResult {
+  method: string
+  success: boolean
+  feature_importance: Record<string, number> | null
+  feature_names: string[] | null
+  temporal_importance: number[] | null
+  attention_weights: number[][] | null
+  shap_values: number[][] | null
+  gradient_attributions: number[][] | null
+  encoder_importance: Record<string, number> | null
+  decoder_importance: Record<string, number> | null
+  model_type: string | null
+  error_message: string | null
+}
+
+// IPS Reference
+export interface IPSReference {
+  model_id: string
+  window: number
+  ref_stats: Record<string, unknown>
+  mu_target: number | null
+  sigma_target: number | null
+  n_years: number | null
+  validation: Record<string, unknown> | null
 }

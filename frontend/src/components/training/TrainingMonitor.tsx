@@ -19,7 +19,7 @@ export function TrainingMonitor({
   onCancel,
 }: TrainingMonitorProps) {
   const progress = metrics
-    ? Math.round((metrics.epoch / metrics.total_epochs) * 100)
+    ? Math.round((metrics.current_epoch / metrics.total_epochs) * 100)
     : 0
 
   return (
@@ -55,7 +55,7 @@ export function TrainingMonitor({
         <div>
           <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
             <span>
-              Epoch {metrics.epoch} / {metrics.total_epochs}
+              Epoch {metrics.current_epoch} / {metrics.total_epochs}
             </span>
             <span>{progress}%</span>
           </div>

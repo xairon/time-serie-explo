@@ -43,6 +43,8 @@ class DatasetProfile(BaseModel):
     shape: list[int]
     dtypes: dict[str, str]
     missing: dict[str, int]
+    correlation: Optional[dict[str, dict[str, float]]] = None
+    timeseries_data: Optional[dict[str, Any]] = None
 
 
 class ImportDBRequest(BaseModel):

@@ -52,6 +52,13 @@ def _load_model_for_explain(model_id: str):
 # --------------------------------------------------------------------------- #
 
 
+@router.get("/{model_id}/feature-importance", response_model=ExplainResult)
+async def feature_importance_get(model_id: str):
+    """GET endpoint for feature importance (correlation method)."""
+    req = ExplainRequest(model_id=model_id, method="correlation")
+    return await feature_importance(req)
+
+
 @router.post("/feature-importance", response_model=ExplainResult)
 async def feature_importance(req: ExplainRequest):
     """Compute feature importance (correlation or permutation)."""

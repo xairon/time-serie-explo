@@ -35,16 +35,46 @@ def _get_model_registry():
 
 @router.get("/available", response_model=list[AvailableModel])
 async def list_available_models():
-    """List available model architectures."""
+    """List available model architectures with categories and default hyperparams."""
     from dashboard.utils.model_factory import ModelFactory
+
+    # Try to load model configs for default hyperparams
+    try:
+        from dashboard.models_config import ALL_MODELS, MODEL_CATEGORIES
+    except ImportError:
+        ALL_MODELS = {}
+        MODEL_CATEGORIES = {}
+
+    # Build category lookup
+    category_lookup = {}
+    for cat, model_list in MODEL_CATEGORIES.items() if isinstance(MODEL_CATEGORIES, dict) else []:
+        for model_name in model_list:
+            category_lookup[model_name] = cat
 
     results = []
     for name in ModelFactory.get_available_models():
+        is_torch = ModelFactory.is_torch_model(name)
+        category = category_lookup.get(name, "Deep Learning" if is_torch else "Baselines")
+
+        # Get default hyperparams from model config
+        model_config = ALL_MODELS.get(name, {}) if isinstance(ALL_MODELS, dict) else {}
+        default_hp = {}
+        if isinstance(model_config, dict):
+            for k, v in model_config.items():
+                if k not in ("description", "category", "name"):
+                    # For tuple ranges (min, max, default), use default
+                    if isinstance(v, (list, tuple)) and len(v) == 3:
+                        default_hp[k] = v[2]
+                    else:
+                        default_hp[k] = v
+
         results.append(
             AvailableModel(
                 name=name,
-                is_torch=ModelFactory.is_torch_model(name),
-                description=f"{'Deep Learning' if ModelFactory.is_torch_model(name) else 'Global Baseline'} model",
+                is_torch=is_torch,
+                description=f"{'Deep Learning' if is_torch else 'Global Baseline'} model",
+                category=category,
+                default_hyperparams=default_hp,
             )
         )
     return results

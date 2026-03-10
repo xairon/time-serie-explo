@@ -69,6 +69,12 @@ def _load_model_and_data(model_id: str):
 # --------------------------------------------------------------------------- #
 
 
+@router.post("/run", response_model=ForecastResult)
+async def run_forecast(req: ForecastRequest):
+    """Convenience endpoint - alias for /single forecast."""
+    return await single_forecast(req)
+
+
 @router.post("/single", response_model=ForecastResult)
 async def single_forecast(req: ForecastRequest):
     """Generate a single-window forecast from a given start date."""
@@ -76,12 +82,16 @@ async def single_forecast(req: ForecastRequest):
 
     from dashboard.utils.forecasting import generate_single_window_forecast
 
-    model, full_df, target_col, cov_cols, preproc, scalers, is_global, *_ = _load_model_and_data(req.model_id)
+    model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = _load_model_and_data(req.model_id)
 
-    try:
-        start_date = pd.Timestamp(req.start_date)
-    except Exception:
-        raise HTTPException(status_code=400, detail=f"Invalid start_date: {req.start_date}")
+    if req.start_date:
+        try:
+            start_date = pd.Timestamp(req.start_date)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Invalid start_date: {req.start_date}")
+    else:
+        # Default to test set start
+        start_date = test_df.index[0] if test_df is not None and len(test_df) > 0 else full_df.index[len(full_df) // 2]
 
     try:
         pred_auto, pred_onestep, target_series, metrics_auto, metrics_onestep, horizon = (

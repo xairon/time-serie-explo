@@ -219,6 +219,28 @@ async def cancel_training(task_id: str):
     return {"status": "cancelled", "task_id": task_id}
 
 
+@router.get("/{task_id}/status", response_model=TrainingResult)
+async def training_status(task_id: str):
+    """Get the current status and result of a training task."""
+    task = task_manager.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    result = TrainingResult(
+        task_id=task.task_id,
+        status=task.status.value,
+        error=task.error,
+    )
+
+    if task.result:
+        result.metrics = task.result.get("metrics")
+        result.metrics_sliding = task.result.get("metrics_sliding")
+        result.model_name = task.result.get("model_name")
+        result.station = task.result.get("station")
+
+    return result
+
+
 @router.get("/history", response_model=list[TrainingStatus])
 async def training_history():
     """List all training tasks."""

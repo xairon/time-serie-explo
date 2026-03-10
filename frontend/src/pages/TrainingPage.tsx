@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { API_BASE } from '@/lib/constants'
+import { api } from '@/lib/api'
 import { useSSE } from '@/hooks/useSSE'
 import { useStartTraining, useStopTraining } from '@/hooks/useTraining'
 import { useModels } from '@/hooks/useModels'
@@ -23,7 +24,7 @@ export default function TrainingPage() {
   const sse = useSSE<TrainingMetrics>(sseUrl)
 
   // Track loss history when SSE data updates
-  const lastEpoch = sse.data?.epoch ?? 0
+  const lastEpoch = sse.data?.current_epoch ?? 0
   if (sse.data) {
     if (
       sse.data.train_loss !== null &&
@@ -134,7 +135,7 @@ export default function TrainingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-hover">
-                  {['Nom', 'Architecture', 'Station', 'Date', ...Object.keys(METRIC_LABELS).slice(0, 4)].map(
+                  {['Nom', 'Architecture', 'Station', 'Date', ...Object.keys(METRIC_LABELS).slice(0, 4), ''].map(
                     (h) => (
                       <th
                         key={h}
@@ -148,10 +149,10 @@ export default function TrainingPage() {
               </thead>
               <tbody>
                 {models.map((m) => (
-                  <tr key={m.id} className="border-t border-white/5 hover:bg-bg-hover/50">
-                    <td className="px-3 py-1.5 text-text-primary">{m.name}</td>
+                  <tr key={m.model_id} className="border-t border-white/5 hover:bg-bg-hover/50">
+                    <td className="px-3 py-1.5 text-text-primary">{m.model_name}</td>
                     <td className="px-3 py-1.5 text-text-primary">{m.model_type}</td>
-                    <td className="px-3 py-1.5 text-text-secondary">{m.station ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-text-secondary">{m.primary_station ?? '—'}</td>
                     <td className="px-3 py-1.5 text-text-secondary text-xs">
                       {new Date(m.created_at).toLocaleDateString('fr-FR')}
                     </td>
@@ -162,6 +163,15 @@ export default function TrainingPage() {
                           {m.metrics[key]?.toFixed(4) ?? '—'}
                         </td>
                       ))}
+                    <td className="px-3 py-1.5">
+                      <a
+                        href={api.models.downloadUrl(m.model_id)}
+                        className="text-xs text-accent-cyan hover:underline"
+                        download
+                      >
+                        Télécharger
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>

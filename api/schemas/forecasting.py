@@ -11,9 +11,11 @@ class ForecastRequest(BaseModel):
     """Request for a single-window forecast."""
 
     model_id: str
-    start_date: str
+    start_date: Optional[str] = None
     use_covariates: bool = True
     freq: str = "D"
+    horizon: Optional[int] = None
+    dataset_id: Optional[str] = None
 
 
 class RollingForecastRequest(BaseModel):

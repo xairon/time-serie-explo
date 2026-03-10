@@ -1,12 +1,13 @@
 import { useState } from 'react'
+import { useIPSReference } from '@/hooks/useCounterfactual'
 
 interface IPSClassification {
   month: string
-  level: 'très bas' | 'bas' | 'modérément bas' | 'autour de la moyenne' | 'modérément haut' | 'haut' | 'très haut'
+  level: string
 }
 
 interface IPSPanelProps {
-  classifications?: IPSClassification[]
+  modelId: string | null
   className?: string
 }
 
@@ -22,8 +23,47 @@ const levelColors: Record<string, string> = {
 
 const WINDOWS = [1, 3, 6, 12] as const
 
-export function IPSPanel({ classifications, className = '' }: IPSPanelProps) {
+/**
+ * Classify a z-score (standardized value) into an IPS level.
+ */
+function classifyZScore(z: number): string {
+  if (z <= -2) return 'très bas'
+  if (z <= -1) return 'bas'
+  if (z <= -0.5) return 'modérément bas'
+  if (z <= 0.5) return 'autour de la moyenne'
+  if (z <= 1) return 'modérément haut'
+  if (z <= 2) return 'haut'
+  return 'très haut'
+}
+
+/**
+ * Transform ref_stats from API into classifications for the table.
+ * ref_stats is expected to be a dict keyed by month (or period label) with stat values.
+ */
+function transformRefStats(
+  refStats: Record<string, unknown>,
+  mu: number | null,
+  sigma: number | null,
+): IPSClassification[] {
+  if (!refStats || !mu || !sigma || sigma === 0) return []
+
+  return Object.entries(refStats).map(([month, value]) => {
+    const numVal = typeof value === 'number' ? value : Number(value)
+    const z = (numVal - mu) / sigma
+    return {
+      month,
+      level: classifyZScore(z),
+    }
+  })
+}
+
+export function IPSPanel({ modelId, className = '' }: IPSPanelProps) {
   const [window, setWindow] = useState<(typeof WINDOWS)[number]>(3)
+  const { data: ipsData, isLoading, isError } = useIPSReference(modelId, window)
+
+  const classifications = ipsData
+    ? transformRefStats(ipsData.ref_stats, ipsData.mu_target, ipsData.sigma_target)
+    : []
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -46,8 +86,33 @@ export function IPSPanel({ classifications, className = '' }: IPSPanelProps) {
         ))}
       </div>
 
+      {/* Loading state */}
+      {isLoading && modelId && (
+        <div className="animate-pulse space-y-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-6 bg-bg-hover rounded" />
+          ))}
+        </div>
+      )}
+
+      {/* Error state */}
+      {isError && modelId && (
+        <p className="text-xs text-accent-red italic">
+          Erreur lors du chargement des données IPS.
+        </p>
+      )}
+
+      {/* Info about n_years and validation */}
+      {ipsData && (
+        <div className="flex gap-3 text-[10px] text-text-secondary">
+          {ipsData.n_years != null && <span>{ipsData.n_years} années de référence</span>}
+          {ipsData.mu_target != null && <span>mu={ipsData.mu_target.toFixed(3)}</span>}
+          {ipsData.sigma_target != null && <span>sigma={ipsData.sigma_target.toFixed(3)}</span>}
+        </div>
+      )}
+
       {/* Classification table */}
-      {classifications && classifications.length > 0 ? (
+      {!isLoading && classifications.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border border-white/5">
           <table className="w-full text-xs">
             <thead>
@@ -74,10 +139,13 @@ export function IPSPanel({ classifications, className = '' }: IPSPanelProps) {
           </table>
         </div>
       ) : (
-        <p className="text-xs text-text-secondary italic">
-          Aucune classification IPS disponible. Lancez une analyse contrefactuelle pour obtenir les
-          résultats.
-        </p>
+        !isLoading && (
+          <p className="text-xs text-text-secondary italic">
+            {modelId
+              ? 'Aucune classification IPS disponible pour ce modèle.'
+              : 'Sélectionnez un modèle et lancez une analyse contrefactuelle pour obtenir les résultats IPS.'}
+          </p>
+        )
       )}
 
       {/* Legend */}

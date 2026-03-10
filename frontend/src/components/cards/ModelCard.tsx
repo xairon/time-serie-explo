@@ -20,10 +20,10 @@ export function ModelCard({ model }: ModelCardProps) {
           <GraduationCap className="w-4 h-4" style={{ color }} />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-text-primary truncate">{model.name}</h3>
+          <h3 className="text-sm font-semibold text-text-primary truncate">{model.model_name}</h3>
           <p className="text-xs text-text-secondary mt-0.5">
             {model.model_type}
-            {model.station ? ` — ${model.station}` : ''}
+            {model.primary_station ? ` — ${model.primary_station}` : ''}
           </p>
         </div>
       </div>

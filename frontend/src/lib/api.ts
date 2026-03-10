@@ -2,18 +2,26 @@ import { API_BASE } from './constants'
 import type {
   HealthStatus,
   DatasetSummary,
+  DatasetPreview,
+  DatasetProfile,
   StationInfo,
   ModelSummary,
+  ModelDetail,
   TrainingConfig,
+  TrainingResult,
   ForecastResult,
+  ForecastResultRaw,
+  ForecastTimePoint,
   CounterfactualResult,
   AvailableModel,
+  ExplainResult,
+  IPSReference,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30_000)
+  const timeoutId = setTimeout(() => controller.abort(), 60_000)
   try {
     const res = await fetch(url, {
       ...init,
@@ -47,6 +55,37 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 async function deleteJson<T>(path: string): Promise<T> {
   return fetchJson<T>(path, { method: 'DELETE' })
+}
+
+// --- Transform helpers ---
+
+/** Extract value from a serialized TimeSeries point {time, col: value} */
+function extractValue(point: ForecastTimePoint): number | null {
+  for (const [key, val] of Object.entries(point)) {
+    if (key !== 'time' && typeof val === 'number') return val
+    if (key !== 'time' && val === null) return null
+  }
+  return null
+}
+
+/** Transform backend ForecastResultRaw to frontend ForecastResult */
+function transformForecastResult(raw: ForecastResultRaw): ForecastResult {
+  const dates = raw.target?.map((p) => p.time) ?? raw.predictions?.map((p) => p.time) ?? []
+  const actuals = raw.target?.map(extractValue) ?? []
+  const predictions = raw.predictions?.map(extractValue) ?? []
+
+  return {
+    dates,
+    predictions,
+    actuals,
+    metrics: raw.metrics ?? {},
+    confidence_low: [],
+    confidence_high: [],
+    predictions_onestep: raw.predictions_onestep?.map(extractValue) ?? null,
+    metrics_onestep: raw.metrics_onestep ?? null,
+    predictions_exact: raw.predictions_exact?.map(extractValue) ?? null,
+    metrics_exact: raw.metrics_exact ?? null,
+  }
 }
 
 export const api = {
@@ -103,6 +142,9 @@ export const api = {
         return res.json() as Promise<DatasetSummary>
       }),
     delete: (id: string) => deleteJson<{ ok: boolean }>(`/datasets/${id}`),
+    preview: (id: string, n: number = 50) =>
+      fetchJson<DatasetPreview>(`/datasets/${id}/preview?n=${n}`),
+    profile: (id: string) => fetchJson<DatasetProfile>(`/datasets/${id}/profile`),
     importDB: (body: {
       table_name: string
       schema_name: string
@@ -119,46 +161,72 @@ export const api = {
     start: (config: TrainingConfig) =>
       postJson<{ task_id: string }>('/training/start', config),
     status: (taskId: string) =>
-      fetchJson<{ status: string; metrics?: Record<string, number> }>(`/training/${taskId}/status`),
-    stop: (taskId: string) =>
-      postJson<{ ok: boolean }>(`/training/${taskId}/stop`, {}),
+      fetchJson<TrainingResult>(`/training/${taskId}/status`),
+    cancel: (taskId: string) =>
+      postJson<{ status: string; task_id: string }>(`/training/${taskId}/cancel`, {}),
     stream: (taskId: string) =>
       new EventSource(`${API_BASE}/training/${taskId}/stream`),
-    availableModels: () =>
-      fetchJson<AvailableModel[]>('/training/models'),
+    history: () =>
+      fetchJson<{ task_id: string; status: string; config: Record<string, unknown>; created_at: number }[]>(
+        '/training/history',
+      ),
   },
 
   models: {
     list: () => fetchJson<ModelSummary[]>('/models'),
-    get: (id: string) => fetchJson<ModelSummary>(`/models/${id}`),
+    get: (id: string) => fetchJson<ModelDetail>(`/models/${id}`),
     delete: (id: string) => deleteJson<{ ok: boolean }>(`/models/${id}`),
+    available: () => fetchJson<AvailableModel[]>('/models/available'),
+    downloadUrl: (id: string) => `${API_BASE}/models/${id}/download`,
   },
 
   forecasting: {
-    run: (body: { model_id: string; horizon: number; dataset_id: string }) =>
-      postJson<ForecastResult>('/forecasting/run', body),
+    single: (body: { model_id: string; start_date?: string; use_covariates?: boolean; horizon?: number; dataset_id?: string }) =>
+      postJson<ForecastResultRaw>('/forecasting/single', body).then(transformForecastResult),
+    rolling: (body: { model_id: string; start_date: string; forecast_horizon: number; stride?: number; use_covariates?: boolean }) =>
+      postJson<ForecastResultRaw>('/forecasting/rolling', body).then(transformForecastResult),
+    comparison: (body: { model_id: string; start_date: string; forecast_horizon: number; use_covariates?: boolean }) =>
+      postJson<ForecastResultRaw>('/forecasting/comparison', body).then(transformForecastResult),
+    global: (body: { model_id: string; use_covariates?: boolean }) =>
+      postJson<ForecastResultRaw>('/forecasting/global', body).then(transformForecastResult),
+    run: (body: { model_id: string; horizon?: number; dataset_id?: string }) =>
+      postJson<ForecastResultRaw>('/forecasting/run', body).then(transformForecastResult),
   },
 
   explainability: {
     featureImportance: (modelId: string) =>
-      fetchJson<{ features: string[]; importances: number[] }>(
-        `/explainability/${modelId}/feature-importance`,
-      ),
-    shap: (modelId: string) =>
-      fetchJson<{ shap_values: number[][]; feature_names: string[] }>(
-        `/explainability/${modelId}/shap`,
-      ),
-    attention: (modelId: string) =>
-      fetchJson<{ attention_weights: number[][] }>(
-        `/explainability/${modelId}/attention`,
-      ),
+      fetchJson<ExplainResult>(`/explainability/${modelId}/feature-importance`),
+    featureImportancePost: (body: { model_id: string; method: string; n_permutations?: number }) =>
+      postJson<ExplainResult>('/explainability/feature-importance', body),
+    attention: (body: { model_id: string }) =>
+      postJson<ExplainResult>('/explainability/attention', body),
+    shap: (body: { model_id: string; n_samples?: number }) =>
+      postJson<ExplainResult>('/explainability/shap', body),
+    gradients: (body: { model_id: string; method?: string; target_step?: number; n_steps?: number }) =>
+      postJson<ExplainResult>('/explainability/gradients', body),
   },
 
   counterfactual: {
     run: (body: {
       model_id: string
-      dataset_id: string
-      modifications: Record<string, number>
+      method?: string
+      target_ips_class?: string
+      from_ips_class?: string
+      to_ips_class?: string
+      modifications?: Record<string, number>
+      lambda_prox?: number
+      n_iter?: number
+      lr?: number
+      cc_rate?: number
+      device?: string
+      n_trials?: number
+      seed?: number
+      k_sigma?: number
+      lambda_smooth?: number
     }) => postJson<CounterfactualResult>('/counterfactual/run', body),
+    stream: (taskId: string) =>
+      new EventSource(`${API_BASE}/counterfactual/${taskId}/stream`),
+    ipsReference: (modelId: string, window: number = 3) =>
+      fetchJson<IPSReference>(`/counterfactual/ips-reference?model_id=${modelId}&window=${window}`),
   },
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useDatasets } from '@/hooks/useDatasets'
+import { useDatasets, useDatasetPreview, useDatasetProfile } from '@/hooks/useDatasets'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
 import { DatasetCard } from '@/components/cards/DatasetCard'
@@ -63,31 +63,69 @@ export default function DataPage() {
     }
   }
 
-  // Preview data placeholders (populated by real API data when available)
-  const previewColumns = selectedDataset
-    ? ['date', selectedDataset.target_variable, ...selectedDataset.covariates.slice(0, 3)]
-    : []
-  const previewRows: (string | number | null)[][] = []
+  // Fetch real preview and profile data for the selected dataset
+  const { data: preview } = useDatasetPreview(selectedDatasetId || null)
+  const { data: profile } = useDatasetProfile(selectedDatasetId || null)
 
-  const mockStats = selectedDataset
-    ? [selectedDataset.target_variable, ...selectedDataset.covariates].map((col) => ({
-        column: col,
-        count: selectedDataset.n_rows,
-        mean: null as number | null,
-        std: null as number | null,
-        min: null as number | null,
-        max: null as number | null,
-        missing: 0,
-        missingPct: 0,
-      }))
-    : []
+  // Transform preview data for DataTable
+  const previewColumns = preview?.columns ?? []
+  const previewRows: (string | number | null)[][] = useMemo(() => {
+    if (!preview?.columns || !preview?.rows) return []
+    return preview.rows.map((row) =>
+      preview.columns.map((col) => {
+        const val = row[col]
+        if (val === null || val === undefined) return null
+        if (typeof val === 'string' || typeof val === 'number') return val
+        return String(val)
+      }),
+    )
+  }, [preview])
+
+  // Transform profile data for DataProfiler
+  const profileStats = useMemo(() => {
+    if (!profile?.columns) return []
+    return Object.entries(profile.columns).map(([column, info]) => ({
+      column,
+      count: typeof info.count === 'number' ? info.count : 0,
+      mean: typeof info.mean === 'number' ? info.mean : null,
+      std: typeof info.std === 'number' ? info.std : null,
+      min: typeof info.min === 'number' ? info.min : null,
+      max: typeof info.max === 'number' ? info.max : null,
+      missing: profile.missing?.[column] ?? 0,
+      missingPct:
+        profile.shape?.[0] && profile.shape[0] > 0
+          ? ((profile.missing?.[column] ?? 0) / profile.shape[0]) * 100
+          : 0,
+    }))
+  }, [profile])
+
+  // Extract first numeric series for TimeseriesPlot
+  const timeseriesData = useMemo(() => {
+    if (!profile?.timeseries_data) return { dates: [] as string[], values: [] as (number | null)[], label: '' }
+    const { dates, series } = profile.timeseries_data
+    // Prefer the target variable, fall back to first available series
+    const targetKey = selectedDataset?.target_variable
+    const seriesKey = targetKey && series[targetKey] ? targetKey : Object.keys(series)[0]
+    if (!seriesKey) return { dates: [] as string[], values: [] as (number | null)[], label: '' }
+    return { dates, values: series[seriesKey], label: seriesKey }
+  }, [profile, selectedDataset])
+
+  // Transform correlation data for CorrelationMatrix
+  const correlationData = useMemo(() => {
+    if (!profile?.correlation) return { labels: [] as string[], matrix: [] as number[][] }
+    const labels = Object.keys(profile.correlation)
+    const matrix = labels.map((row) =>
+      labels.map((col) => profile.correlation![row]?.[col] ?? 0),
+    )
+    return { labels, matrix }
+  }, [profile])
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Données</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Donnees</h1>
         <p className="text-sm text-text-secondary">
-          Importation, exploration et configuration des données
+          Importation, exploration et configuration des donnees
         </p>
       </div>
 
@@ -155,7 +193,7 @@ export default function DataPage() {
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
               <p className="text-sm text-text-secondary">
-                Aucun dataset. Importez des données depuis l'onglet Importer.
+                Aucun dataset. Importez des donnees depuis l'onglet Importer.
               </p>
             </div>
           )}
@@ -165,30 +203,34 @@ export default function DataPage() {
             <>
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-3">
-                  Aperçu des données
+                  Apercu des donnees
                 </h3>
                 <DataTable columns={previewColumns} rows={previewRows} />
               </div>
 
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <DataProfiler stats={mockStats} />
+                <DataProfiler stats={profileStats} />
               </div>
 
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                <h3 className="text-sm font-semibold text-text-primary mb-3">Série temporelle</h3>
+                <h3 className="text-sm font-semibold text-text-primary mb-3">Serie temporelle</h3>
                 <TimeseriesPlot
-                  dates={[]}
-                  values={[]}
-                  label={selectedDataset.target_variable}
+                  dates={timeseriesData.dates}
+                  values={timeseriesData.values}
+                  label={timeseriesData.label || selectedDataset.target_variable}
                   className="h-[300px]"
                 />
               </div>
 
               <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-3">
-                  Matrice de corrélation
+                  Matrice de correlation
                 </h3>
-                <CorrelationMatrix labels={[]} matrix={[]} className="h-[400px]" />
+                <CorrelationMatrix
+                  labels={correlationData.labels}
+                  matrix={correlationData.matrix}
+                  className="h-[400px]"
+                />
               </div>
             </>
           )}
@@ -206,7 +248,7 @@ export default function DataPage() {
               onChange={(e) => handleDatasetChange(e.target.value)}
               className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
             >
-              <option value="">Sélectionner un dataset</option>
+              <option value="">Selectionner un dataset</option>
               {datasets?.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name} ({d.n_rows} lignes)
@@ -254,17 +296,17 @@ export default function DataPage() {
               </div>
 
               <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
-                <h3 className="text-sm font-semibold text-text-primary">Prétraitement</h3>
+                <h3 className="text-sm font-semibold text-text-primary">Pretraitement</h3>
                 <div>
                   <label className="block text-xs text-text-secondary mb-1">
-                    Méthode de remplissage des valeurs manquantes
+                    Methode de remplissage des valeurs manquantes
                   </label>
                   <select
                     value={fillMethod}
                     onChange={(e) => setFillMethod(e.target.value)}
                     className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
                   >
-                    <option value="interpolate">Interpolation linéaire</option>
+                    <option value="interpolate">Interpolation lineaire</option>
                     <option value="ffill">Forward fill</option>
                     <option value="bfill">Backward fill</option>
                     <option value="drop">Supprimer</option>
@@ -289,7 +331,7 @@ export default function DataPage() {
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
               <p className="text-sm text-text-secondary">
-                Sélectionnez un dataset pour configurer les variables.
+                Selectionnez un dataset pour configurer les variables.
               </p>
             </div>
           )}

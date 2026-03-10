@@ -11,6 +11,6 @@ export function useModels() {
 export function useAvailableModels() {
   return useQuery({
     queryKey: ['available-models'],
-    queryFn: api.training.availableModels,
+    queryFn: api.models.available,
   })
 }

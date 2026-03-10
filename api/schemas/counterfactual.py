@@ -11,6 +11,7 @@ class CFGenerateRequest(BaseModel):
     """Request for counterfactual generation (PhysCF, Optuna, or COMET)."""
 
     model_id: str
+    method: str = "physcf"  # physcf, optuna, or comet
     target_ips_class: str = "normal"  # IPS class target
     lambda_prox: float = 0.1
     n_iter: int = 500
@@ -23,6 +24,8 @@ class CFGenerateRequest(BaseModel):
     # COMET-specific
     k_sigma: float = 4.0
     lambda_smooth: float = 0.1
+    # Perturbation modifiers (for frontend compatibility)
+    modifications: dict[str, float] = Field(default_factory=dict)
 
 
 class CFResult(BaseModel):
