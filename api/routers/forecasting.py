@@ -84,6 +84,9 @@ async def single_forecast(req: ForecastRequest):
 
     model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = _load_model_and_data(req.model_id)
 
+    # Auto-detect use_covariates: only use if covariates exist in data
+    use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
+
     if req.start_date:
         try:
             start_date = pd.Timestamp(req.start_date)
@@ -99,11 +102,11 @@ async def single_forecast(req: ForecastRequest):
                 model=model,
                 full_df=full_df,
                 target_col=target_col,
-                covariate_cols=cov_cols if req.use_covariates else None,
+                covariate_cols=cov_cols if use_cov else None,
                 preprocessing_config=preproc,
                 scalers=scalers,
                 start_date=start_date,
-                use_covariates=req.use_covariates,
+                use_covariates=use_cov,
                 already_processed=True,
                 is_global_model=is_global,
                 freq=req.freq,
@@ -175,6 +178,7 @@ async def rolling_forecast(req: RollingForecastRequest):
     from dashboard.utils.forecasting import generate_rolling_forecast
 
     model, full_df, target_col, cov_cols, preproc, scalers, *_ = _load_model_and_data(req.model_id)
+    use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
     try:
         start_date = pd.Timestamp(req.start_date)
@@ -186,13 +190,13 @@ async def rolling_forecast(req: RollingForecastRequest):
             model=model,
             full_df=full_df,
             target_col=target_col,
-            covariate_cols=cov_cols if req.use_covariates else None,
+            covariate_cols=cov_cols if use_cov else None,
             preprocessing_config=preproc,
             scalers=scalers,
             start_date=start_date,
             forecast_horizon=req.forecast_horizon,
             stride=req.stride,
-            use_covariates=req.use_covariates,
+            use_covariates=use_cov,
             freq=req.freq,
         )
     except Exception as exc:
@@ -215,6 +219,7 @@ async def comparison_forecast(req: ComparisonForecastRequest):
     from dashboard.utils.forecasting import generate_comparison_forecast
 
     model, full_df, target_col, cov_cols, preproc, scalers, *_ = _load_model_and_data(req.model_id)
+    use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
     try:
         start_date = pd.Timestamp(req.start_date)
@@ -227,12 +232,12 @@ async def comparison_forecast(req: ComparisonForecastRequest):
                 model=model,
                 full_df=full_df,
                 target_col=target_col,
-                covariate_cols=cov_cols if req.use_covariates else None,
+                covariate_cols=cov_cols if use_cov else None,
                 preprocessing_config=preproc,
                 scalers=scalers,
                 start_date=start_date,
                 forecast_horizon=req.forecast_horizon,
-                use_covariates=req.use_covariates,
+                use_covariates=use_cov,
                 freq=req.freq,
             )
         )
@@ -258,6 +263,7 @@ async def global_forecast(req: GlobalForecastRequest):
     model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = (
         _load_model_and_data(req.model_id)
     )
+    use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
     history_df = pd.concat([train_df, val_df])
     history_df = history_df[~history_df.index.duplicated(keep="first")].sort_index()
@@ -268,10 +274,10 @@ async def global_forecast(req: GlobalForecastRequest):
             history_df=history_df,
             target_df=test_df,
             target_col=target_col,
-            covariate_cols=cov_cols if req.use_covariates else None,
+            covariate_cols=cov_cols if use_cov else None,
             preprocessing_config=preproc,
             scalers=scalers,
-            use_covariates=req.use_covariates,
+            use_covariates=use_cov,
             freq=req.freq,
         )
     except Exception as exc:
