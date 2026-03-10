@@ -16,7 +16,11 @@ import type {
   CounterfactualResult,
   AvailableModel,
   ExplainResult,
+  LagImportanceResult,
+  ResidualAnalysisResult,
+  SeasonalityResult,
   IPSReference,
+  IPSBoundsResponse,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -55,8 +59,25 @@ async function postJson<T>(path: string, body: unknown, timeout?: number): Promi
   })
 }
 
-async function deleteJson<T>(path: string): Promise<T> {
-  return fetchJson<T>(path, { method: 'DELETE' })
+async function deleteJson(path: string): Promise<void> {
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, { method: 'DELETE' })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      const body = await res.json() as { detail?: unknown }
+      detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+    } catch { /* ignore */ }
+    throw new Error(`API ${res.status}${detail ? `: ${detail}` : ''}`)
+  }
+}
+
+async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return fetchJson<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 // --- Transform helpers ---
@@ -147,7 +168,9 @@ export const api = {
         if (!res.ok) throw new Error(`API ${res.status}`)
         return res.json() as Promise<DatasetSummary>
       }),
-    delete: (id: string) => deleteJson<{ ok: boolean }>(`/datasets/${id}`),
+    update: (id: string, body: { target_variable?: string; covariates?: string[]; preprocessing?: Record<string, unknown> }) =>
+      patchJson<DatasetSummary>(`/datasets/${id}`, body),
+    delete: (id: string) => deleteJson(`/datasets/${id}`),
     preview: (id: string, n: number = 50) =>
       fetchJson<DatasetPreview>(`/datasets/${id}/preview?n=${n}`),
     profile: (id: string) => fetchJson<DatasetProfile>(`/datasets/${id}/profile`),
@@ -181,7 +204,7 @@ export const api = {
   models: {
     list: () => fetchJson<ModelSummary[]>('/models'),
     get: (id: string) => fetchJson<ModelDetail>(`/models/${id}`),
-    delete: (id: string) => deleteJson<{ ok: boolean }>(`/models/${id}`),
+    delete: (id: string) => deleteJson(`/models/${id}`),
     available: () => fetchJson<AvailableModel[]>('/models/available'),
     downloadUrl: (id: string) => `${API_BASE}/models/${id}/download`,
     testInfo: (id: string) => fetchJson<ModelTestInfo>(`/models/${id}/test-info`),
@@ -205,12 +228,20 @@ export const api = {
       fetchJson<ExplainResult>(`/explainability/${modelId}/feature-importance`),
     featureImportancePost: (body: { model_id: string; method: string; n_permutations?: number }) =>
       postJson<ExplainResult>('/explainability/feature-importance', body),
+    permutationImportance: (body: { model_id: string; n_permutations?: number }) =>
+      postJson<ExplainResult>('/explainability/feature-importance', { ...body, method: 'permutation' }),
     attention: (body: { model_id: string }) =>
       postJson<ExplainResult>('/explainability/attention', body),
     shap: (body: { model_id: string; n_samples?: number }) =>
       postJson<ExplainResult>('/explainability/shap', body),
     gradients: (body: { model_id: string; method?: string; target_step?: number; n_steps?: number }) =>
       postJson<ExplainResult>('/explainability/gradients', body),
+    lagImportance: (modelId: string) =>
+      fetchJson<LagImportanceResult>(`/explainability/${modelId}/lag-importance`),
+    residuals: (modelId: string) =>
+      fetchJson<ResidualAnalysisResult>(`/explainability/${modelId}/residuals`),
+    seasonality: (modelId: string) =>
+      fetchJson<SeasonalityResult>(`/explainability/${modelId}/seasonality`),
   },
 
   counterfactual: {
@@ -220,6 +251,7 @@ export const api = {
       target_ips_class?: string
       from_ips_class?: string
       to_ips_class?: string
+      start_idx?: number
       modifications?: Record<string, number>
       lambda_prox?: number
       n_iter?: number
@@ -235,5 +267,7 @@ export const api = {
       new EventSource(`${API_BASE}/counterfactual/${taskId}/stream`),
     ipsReference: (modelId: string, window: number = 3) =>
       fetchJson<IPSReference>(`/counterfactual/ips-reference?model_id=${modelId}&window=${window}`),
+    ipsBounds: (modelId: string, window: number = 1) =>
+      fetchJson<IPSBoundsResponse>(`/counterfactual/ips-bounds?model_id=${modelId}&window=${window}`),
   },
 }

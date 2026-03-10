@@ -88,7 +88,7 @@ export interface TrainingConfig {
   n_epochs: number | null
   early_stopping: boolean
   early_stopping_patience: number
-  station_name: string | null
+  station_name?: string
   use_covariates: boolean
   loss_function: string
 }
@@ -99,7 +99,11 @@ export interface TrainingMetrics {
   train_loss: number | null
   val_loss: number | null
   best_val_loss: number | null
+  train_losses?: (number | null)[]
+  val_losses?: (number | null)[]
   status?: string
+  elapsed_seconds?: number
+  eta_seconds?: number | null
 }
 
 export interface TrainingResult {
@@ -147,6 +151,7 @@ export interface ForecastResult {
 // Model test set info (for sliding window UI)
 export interface ModelTestInfo {
   test_dates: string[]
+  test_values: (number | null)[]
   test_length: number
   input_chunk_length: number
   output_chunk_length: number
@@ -185,7 +190,7 @@ export interface AvailableModel {
 export interface ExplainResult {
   method: string
   success: boolean
-  feature_importance: Record<string, number> | null
+  feature_importance: Record<string, number | null> | null
   feature_names: string[] | null
   temporal_importance: number[] | null
   attention_weights: number[][] | null
@@ -197,6 +202,38 @@ export interface ExplainResult {
   error_message: string | null
 }
 
+// Lag Importance (autocorrelation)
+export interface LagImportanceResult {
+  lags: number[]
+  autocorrelations: number[]
+  partial_autocorrelations: number[] | null
+  significant_lags: number[] | null
+}
+
+// Residual Analysis
+export interface ResidualAnalysisResult {
+  mean_error: number
+  std_error: number
+  skewness: number | null
+  kurtosis: number | null
+  normality_pvalue: number | null
+  acf_lag1: number | null
+  bias_status: string
+  residuals: number[] | null
+  dates: string[] | null
+}
+
+// Seasonality Detection
+export interface SeasonalityResult {
+  detected_periods: number[]
+  period_strengths: Record<string, number> | null
+  decomposition: { trend: number[]; seasonal: number[]; residual: number[] } | null
+  decomposition_dates: string[] | null
+  variance_trend: number | null
+  variance_seasonal: number | null
+  variance_residual: number | null
+}
+
 // IPS Reference
 export interface IPSReference {
   model_id: string
@@ -206,4 +243,32 @@ export interface IPSReference {
   sigma_target: number | null
   n_years: number | null
   validation: Record<string, unknown> | null
+}
+
+// IPS Bounds (per-month class bounds in physical units)
+export interface IPSBoundsRow {
+  month_start: string
+  month_end: string
+  month: number
+  mu: number
+  sigma: number
+  [key: string]: unknown // {cls}_lower, {cls}_upper
+}
+
+export interface IPSBoundsResponse {
+  bounds: IPSBoundsRow[]
+  classes: Record<string, string>  // key -> label FR
+  colors: Record<string, string>   // key -> hex color
+}
+
+// Typed inner result from CF generation
+export interface CFInnerResult {
+  method: string
+  original: number[]
+  counterfactual: number[]
+  dates: string[]
+  theta: Record<string, number>
+  metrics: Record<string, number | boolean | string>
+  convergence?: number[]
+  best_trial?: Record<string, unknown>
 }

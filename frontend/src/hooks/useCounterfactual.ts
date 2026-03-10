@@ -30,3 +30,11 @@ export function useIPSReference(modelId: string | null, window: number = 3) {
     enabled: !!modelId,
   })
 }
+
+export function useIPSBounds(modelId: string | null, window: number = 1) {
+  return useQuery({
+    queryKey: ['ips-bounds', modelId, window],
+    queryFn: () => api.counterfactual.ipsBounds(modelId!, window),
+    enabled: !!modelId,
+  })
+}
