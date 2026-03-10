@@ -18,7 +18,7 @@ export function TrainingResults({ metrics, mlflowRunId, className = '' }: Traini
             <p className="text-[10px] text-text-secondary uppercase">
               {METRIC_LABELS[key] ?? key}
             </p>
-            <p className="text-base font-bold text-text-primary">{val.toFixed(4)}</p>
+            <p className="text-base font-bold text-text-primary">{val != null ? val.toFixed(4) : '—'}</p>
           </div>
         ))}
       </div>

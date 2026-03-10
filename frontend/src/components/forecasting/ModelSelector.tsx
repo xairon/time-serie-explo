@@ -41,6 +41,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
       {selected && (
         <div className="flex flex-wrap gap-1.5 mt-1">
           {Object.entries(selected.metrics)
+            .filter(([key, val]) => val != null && typeof val === 'number' && !key.startsWith('system/') && !key.startsWith('sliding_'))
             .slice(0, 3)
             .map(([key, val]) => (
               <span
@@ -48,7 +49,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                 className="text-[10px] px-2 py-0.5 rounded-full border border-white/10"
                 style={{ color: MODEL_COLORS[selected.model_type] ?? '#06b6d4' }}
               >
-                {key}: {val.toFixed(4)}
+                {key}: {(val as number).toFixed(4)}
               </span>
             ))}
         </div>

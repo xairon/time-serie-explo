@@ -36,7 +36,7 @@ export function MetricsPanel({ metrics, className = '' }: MetricsPanelProps) {
               <p className="text-[10px] text-text-secondary uppercase mb-1">
                 {METRIC_LABELS[key] ?? key}
               </p>
-              <p className={`text-lg font-bold ${colorClass}`}>{val.toFixed(4)}</p>
+              <p className={`text-lg font-bold ${colorClass}`}>{val != null ? val.toFixed(4) : '—'}</p>
             </div>
           )
         })}

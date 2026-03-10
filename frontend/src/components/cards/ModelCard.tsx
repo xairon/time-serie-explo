@@ -8,7 +8,9 @@ interface ModelCardProps {
 
 export function ModelCard({ model }: ModelCardProps) {
   const color = MODEL_COLORS[model.model_type] ?? '#06b6d4'
-  const topMetrics = Object.entries(model.metrics).slice(0, 3)
+  const topMetrics = Object.entries(model.metrics)
+    .filter(([key, val]) => val != null && typeof val === 'number' && !key.startsWith('system/') && !key.startsWith('sliding_'))
+    .slice(0, 3)
 
   return (
     <div className="bg-bg-card rounded-xl p-4 border border-white/5 hover:border-accent-cyan/20 transition-colors">
@@ -34,7 +36,7 @@ export function ModelCard({ model }: ModelCardProps) {
               key={key}
               className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 text-text-secondary"
             >
-              {METRIC_LABELS[key] ?? key}: {val.toFixed(4)}
+              {METRIC_LABELS[key] ?? key}: {(val as number).toFixed(4)}
             </span>
           ))}
         </div>
