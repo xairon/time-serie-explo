@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Plot from 'react-plotly.js'
-import { useDatasets, useDatasetPreview, useDatasetProfile } from '@/hooks/useDatasets'
+import { useDatasets, useDatasetPreview, useDatasetProfile, useDeleteDataset } from '@/hooks/useDatasets'
 import type { DatasetSummary } from '@/lib/types'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
 import { ImportCSVForm } from '@/components/data/ImportCSVForm'
@@ -20,6 +20,7 @@ export default function DataPage() {
   const stationFromUrl = searchParams.get('station')
   const [tab, setTab] = useState<Tab>('import')
   const { data: datasets, isLoading } = useDatasets()
+  const deleteMutation = useDeleteDataset()
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('')
 
   // If navigated with ?station=, ensure we're on import tab and clear the param
@@ -66,6 +67,16 @@ export default function DataPage() {
       setTargetVariable(found.target_variable || '')
       setSelectedCovariates(found.covariates || [])
     }
+  }
+
+  const handleDeleteDataset = (id: string) => {
+    const ds = datasets?.find((d) => d.id === id)
+    if (!confirm(`Supprimer le dataset "${ds?.name ?? id}" ?`)) return
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        if (selectedDatasetId === id) setSelectedDatasetId('')
+      },
+    })
   }
 
   // Fetch real preview and profile data for the selected dataset
@@ -223,7 +234,11 @@ export default function DataPage() {
                       : 'hover:ring-1 hover:ring-white/20 rounded-xl'
                   }`}
                 >
-                  <DatasetCard dataset={ds} />
+                  <DatasetCard
+                    dataset={ds}
+                    onDelete={handleDeleteDataset}
+                    isDeleting={deleteMutation.isPending}
+                  />
                 </button>
               ))}
             </div>

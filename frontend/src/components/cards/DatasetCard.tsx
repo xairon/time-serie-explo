@@ -1,11 +1,13 @@
-import { Database } from 'lucide-react'
+import { Database, Trash2 } from 'lucide-react'
 import type { DatasetSummary } from '@/lib/types'
 
 interface DatasetCardProps {
   dataset: DatasetSummary
+  onDelete?: (id: string) => void
+  isDeleting?: boolean
 }
 
-export function DatasetCard({ dataset }: DatasetCardProps) {
+export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps) {
   const [dateStart, dateEnd] = dataset.date_range
 
   return (
@@ -21,9 +23,25 @@ export function DatasetCard({ dataset }: DatasetCardProps) {
             {dataset.n_rows.toLocaleString('fr-FR')} lignes
           </p>
         </div>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-secondary uppercase">
-          {dataset.source_file.startsWith('db://') ? 'DB' : 'CSV'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-hover text-text-secondary uppercase">
+            {dataset.source_file.startsWith('db://') ? 'DB' : 'CSV'}
+          </span>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(dataset.id)
+              }}
+              disabled={isDeleting}
+              className="p-1 rounded hover:bg-accent-red/10 text-text-secondary hover:text-accent-red transition-colors disabled:opacity-50"
+              title="Supprimer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-text-secondary">
         <span>Cible : {dataset.target_variable}</span>

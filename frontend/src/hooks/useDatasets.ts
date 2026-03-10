@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 export function useDatasets() {
@@ -29,5 +29,15 @@ export function useDatasetProfile(id: string | null) {
     queryKey: ['dataset-profile', id],
     queryFn: () => api.datasets.profile(id!),
     enabled: !!id,
+  })
+}
+
+export function useDeleteDataset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.datasets.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets'] })
+    },
   })
 }
