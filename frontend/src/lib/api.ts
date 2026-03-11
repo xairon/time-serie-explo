@@ -21,6 +21,7 @@ import type {
   SeasonalityResult,
   IPSReference,
   IPSBoundsResponse,
+  PastasValidationResult,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -249,6 +250,7 @@ export const api = {
       model_id: string
       method?: string
       target_ips_class?: string
+      target_ips_classes?: Record<string, string>
       from_ips_class?: string
       to_ips_class?: string
       start_idx?: number
@@ -269,5 +271,7 @@ export const api = {
       fetchJson<IPSReference>(`/counterfactual/ips-reference?model_id=${modelId}&window=${window}`),
     ipsBounds: (modelId: string, window: number = 1) =>
       fetchJson<IPSBoundsResponse>(`/counterfactual/ips-bounds?model_id=${modelId}&window=${window}`),
+    pastasValidate: (body: { model_id: string; cf_task_id: string; gamma?: number }) =>
+      postJson<PastasValidationResult>('/counterfactual/pastas-validate', body),
   },
 }
