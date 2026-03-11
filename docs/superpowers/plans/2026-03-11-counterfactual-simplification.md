@@ -515,7 +515,7 @@ export function CFTargetSelector({
 
       {/* Info: dual method */}
       <p className="text-[10px] text-text-secondary/50 bg-bg-hover/20 rounded px-2 py-1.5">
-        PhysCF (physique) et COMET (baseline) seront lances en parallele.
+        PhysCF (gradient continu) et CoMTE (substitution de features) seront lances en parallele.
       </p>
 
       {/* Advanced hyperparams */}
@@ -535,9 +535,9 @@ export function CFTargetSelector({
             <SliderParam label="n_iter" value={nIter} min={50} max={2000} step={10} onChange={setNIter} integer />
             <SliderParam label="lr" value={lr} min={0.001} max={0.1} step={0.001} onChange={setLr} />
             <div className="border-t border-white/5 my-2" />
-            <p className="text-[10px] text-text-secondary/50 uppercase">COMET</p>
-            <SliderParam label="k_sigma" value={kSigma} min={1} max={10} step={1} onChange={setKSigma} integer />
-            <SliderParam label="lambda_smooth" value={lambdaSmooth} min={0.01} max={1.0} step={0.01} onChange={setLambdaSmooth} />
+            <p className="text-[10px] text-text-secondary/50 uppercase">CoMTE</p>
+            <SliderParam label="num_distractors" value={numDistractors} min={1} max={20} step={1} onChange={setNumDistractors} integer />
+            <SliderParam label="tau" value={tau} min={0.1} max={1.0} step={0.1} onChange={setTau} />
           </div>
         )}
       </div>

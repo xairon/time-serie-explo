@@ -243,8 +243,10 @@ def param_count(method: str, lookback: int = 365) -> int:
     """Number of optimizable parameters per method."""
     if method in ("physcf", "physcf_gradient", "physcf_optuna"):
         return 7  # 4 seasonal P + 1 T + 1 ETP + 1 shift
+    elif method == "comte":
+        return 3  # CoMTE: binary mask over C=3 features (discrete)
     elif method in ("comet_hydro", "comet"):
-        return lookback * 3
+        return lookback * 3  # Legacy COMET: L*3 continuous parameters
     raise ValueError(f"Unknown CF method: {method}")
 
 

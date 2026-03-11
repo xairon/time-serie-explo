@@ -41,7 +41,7 @@ Le travail consiste à :
 | `counterfactual/ips.py` | 15+ fonctions (`compute_ips_reference()`, `classify_prediction_monthly()`, `validate_ips_data()`...) | `dict`/`DataFrame` → conversion simple |
 | `counterfactual/physcf_optim.py` | `generate_counterfactual()` | `CounterfactualResult` → serializer |
 | `counterfactual/optuna_optim.py` | `generate_counterfactual_optuna()` | idem |
-| `counterfactual/comet_hydro.py` | `generate_counterfactual_comet()` | idem (attention : prend `s_obs_norm` pas `s_obs_phys`) |
+| `counterfactual/comte.py` | `generate_counterfactual_comte()` — CoMTE (Ates et al. 2021) | idem (feature swapping discret, prend `s_obs_norm` + `df_train_val` pour distracteurs) |
 | `counterfactual/darts_adapter.py` | `DartsModelAdapter`, `StandaloneGRUAdapter` | Interne |
 | `counterfactual/pastas_validation.py` | `PastasWrapper`, `validate_with_pastas()`, `run_dual_validation_for_results()` | `dict` → JSON (numpy → `.tolist()`) |
 | `counterfactual/viz.py` | `plot_cf_overlay()`, `plot_theta_radar()`, `compute_seasonal_summary()`, `build_cf_export_df()` | `go.Figure.to_json()` ou data-only |
@@ -167,7 +167,7 @@ dashboard/utils/              <- EXISTANT (partagé Streamlit + API)
 ### Counterfactual (5)
 - `POST /api/v1/counterfactual/ips-reference` — (via `compute_all_ips_references()`)
 - `POST /api/v1/counterfactual/ips-classify` — (via `classify_prediction_monthly()`)
-- `POST /api/v1/counterfactual/generate` — (via `generate_counterfactual()` / `_optuna()` / `_comet()`) — background task
+- `POST /api/v1/counterfactual/generate` — (via `generate_counterfactual()` / `_optuna()` / `_comte()`) — background task
 - `POST /api/v1/counterfactual/generate-batch` — multi-méthode en parallèle — background task
 - `POST /api/v1/counterfactual/pastas-validate` — (via `run_dual_validation_for_results()`) — background task
 
@@ -376,7 +376,7 @@ Ces fonctions bloquent trop longtemps pour une réponse HTTP synchrone :
 | `run_optuna_study()` | minutes → heures | `threading.Thread` + SSE |
 | `generate_counterfactual()` (PhysCF) | 10-60s | `asyncio.run_in_executor()` + poll |
 | `generate_counterfactual_optuna()` | 30-120s | idem |
-| `generate_counterfactual_comet()` | 20-120s | idem |
+| `generate_counterfactual_comte()` (CoMTE) | 1-30s | idem (recherche exhaustive 2^3 × k) |
 | `run_dual_validation_for_results()` (Pastas) | 10-120s | idem |
 | `compute_shap_importance()` | 5-60s | idem |
 | `compute_permutation_importance()` | 5-30s | idem |

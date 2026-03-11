@@ -12,7 +12,7 @@ import { api } from '@/lib/api'
 import { computeMonthlyIps, computeQualityGate, type MonthIps, type QualityVerdict } from '@/lib/ips'
 import type { CounterfactualResult } from '@/lib/types'
 
-const METHODS = ['physcf', 'comet'] as const
+const METHODS = ['physcf', 'comte'] as const
 
 /** Start SSE stream for a CF task, with generation guard to prevent stale overwrites */
 function startCFStream(
@@ -151,10 +151,10 @@ export default function CounterfactualPage() {
     if (!currentWindowData || !forecastMutation.data) return null
     const forecastDates = forecastMutation.data.dates
     const forecastPreds = forecastMutation.data.predictions
-    const dateSet = new Set(currentWindowData.dates)
+    const dateSet = new Set(currentWindowData.dates.map(d => d.slice(0, 10)))
     const aligned: number[] = []
     for (let i = 0; i < forecastDates.length; i++) {
-      if (dateSet.has(forecastDates[i]) && forecastPreds[i] !== null) {
+      if (dateSet.has(forecastDates[i]?.slice(0, 10)) && forecastPreds[i] !== null) {
         aligned.push(forecastPreds[i] as number)
       }
     }
@@ -204,8 +204,8 @@ export default function CounterfactualPage() {
         n_iter: config.n_iter,
         lr: config.lr,
         cc_rate: config.cc_rate,
-        k_sigma: config.k_sigma,
-        lambda_smooth: config.lambda_smooth,
+        num_distractors: config.num_distractors,
+        tau: config.tau,
       }
 
       for (const method of METHODS) {
@@ -354,6 +354,8 @@ export default function CounterfactualPage() {
               results={results}
               streaming={streaming}
               modelId={modelId}
+              gtDates={currentWindowData?.dates}
+              gtValues={currentWindowData?.values}
             />
           </div>
         </div>

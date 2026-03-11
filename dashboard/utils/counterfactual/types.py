@@ -17,13 +17,14 @@ class CounterfactualResult(TypedDict, total=False):
         method, y_cf, s_cf_norm, loss_history, converged, wall_clock_s, n_params
 
     Optional keys (method-specific):
-        s_cf_phys: Physical stresses (PhysCF only, None for COMET)
-        theta_star: Interpretable params (PhysCF only, None for COMET)
+        s_cf_phys: Physical stresses (PhysCF only)
+        theta_star: Interpretable params (PhysCF: 7 physics params, CoMTE: feature mask)
         target_history: Per-iteration target loss
-        prox_history: Per-iteration proximity loss (gradient only)
-        n_iter: Number of iterations (gradient/COMET)
-        n_trials: Number of Optuna trials
-        best_loss: Best loss found (Optuna)
+        prox_history: Per-iteration proximity loss (gradient PhysCF only)
+        n_iter: Number of iterations (gradient) or evaluations (CoMTE)
+        n_trials: Number of Optuna trials or distractors used (CoMTE)
+        best_loss: Best loss found
+        comte_info: CoMTE-specific info (swapped features, distractor class, etc.)
     """
 
     method: str

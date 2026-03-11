@@ -7,7 +7,7 @@ from .perturbation import PerturbationLayer
 from .darts_adapter import DartsModelAdapter
 from .physcf_optim import generate_counterfactual
 from .optuna_optim import generate_counterfactual_optuna
-from .comet_hydro import generate_counterfactual_comet
+from .comte import generate_counterfactual_comte
 from .types import CounterfactualResult
 from .ips import (
     IPS_CLASSES,
@@ -72,7 +72,7 @@ __all__ = [
     "DartsModelAdapter",
     "generate_counterfactual",
     "generate_counterfactual_optuna",
-    "generate_counterfactual_comet",
+    "generate_counterfactual_comte",
     "IPS_CLASSES",
     "IPS_ORDER",
     "IPS_WINDOWS",

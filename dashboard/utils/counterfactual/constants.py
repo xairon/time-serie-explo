@@ -35,7 +35,7 @@ IPS_LABELS: dict[str, str] = {
 CF_METHOD_COLORS: dict[str, str] = {
     "PhysCF (gradient)": "#FF6B35",
     "PhysCF (Optuna)":   "#9B59B6",
-    "COMET-Hydro":       "#2ECC71",
+    "CoMTE":             "#2ECC71",
 }
 
 # Month -> season name mapping

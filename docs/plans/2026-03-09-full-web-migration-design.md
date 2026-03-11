@@ -89,7 +89,7 @@ Frontend (React 19 + TS)     Backend (FastAPI)          Services
 ### /api/v1/counterfactual
 - `POST /generate` — PhysCF (physics-based)
 - `POST /generate-optuna` — Optuna optimization
-- `POST /generate-comet` — COMET hydrologique
+- `POST /generate-comte` — CoMTE (Ates et al. 2021)
 - `GET /ips-reference` — IPS reference pour une station
 - `POST /pastas-validate` — validation duale Pastas + TFT
 

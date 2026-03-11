@@ -1444,7 +1444,7 @@ Wraps `dashboard/utils/counterfactual/`.
 
 - `POST /api/v1/counterfactual/generate` — calls `physcf_optim.generate_counterfactual()`, returns via TaskManager (long-running)
 - `POST /api/v1/counterfactual/generate-optuna` — calls `optuna_optim.generate_counterfactual_optuna()`
-- `POST /api/v1/counterfactual/generate-comet` — calls `comet_hydro.generate_counterfactual_comet()`
+- `POST /api/v1/counterfactual/generate-comte` — calls `comte.generate_counterfactual_comte()`
 - `GET /api/v1/counterfactual/ips-reference` — calls `ips.compute_ips_reference()`
 - `POST /api/v1/counterfactual/pastas-validate` — calls `pastas_validation.run_dual_validation_for_results()`
 
@@ -1758,7 +1758,7 @@ export const api = {
   counterfactual: {
     generate: (params: any) => postJson<any>('/counterfactual/generate', params),
     generateOptuna: (params: any) => postJson<any>('/counterfactual/generate-optuna', params),
-    generateComet: (params: any) => postJson<any>('/counterfactual/generate-comet', params),
+    generateComte: (params: any) => postJson<any>('/counterfactual/generate-comte', params),
     ipsReference: (stationCode: string) => fetchJson<any>(`/counterfactual/ips-reference?station=${stationCode}`),
     pastasValidate: (params: any) => postJson<any>('/counterfactual/pastas-validate', params),
   },
@@ -1968,7 +1968,7 @@ export function useSSE<T>(url: string | null) {
 - Create: `frontend/src/hooks/useCounterfactual.ts`
 
 **Key features:**
-- Method selection tabs: PhysCF | Optuna | COMET
+- Method selection tabs: PhysCF | Optuna | CoMTE
 - Configuration panel (perturbation targets, constraints, presets)
 - Generation button → TaskManager + SSE for progress
 - CF overlay plot: original vs counterfactual time series

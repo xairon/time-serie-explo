@@ -27,7 +27,7 @@ The current multi-class per-month CF target configuration is:
    - Display current IPS class (uniform = GT class since concordant)
    - +1 / -1 class transition buttons
    - One step at a time (no multi-class jumps)
-5. Click "Generer" → PhysCF + COMET in parallel (SSE)
+5. Click "Generer" → PhysCF + CoMTE in parallel (SSE)
 6. Results in tabs (unchanged)
 7. Pastas validation button (unchanged)
 ```
@@ -70,7 +70,7 @@ New component `CFTargetSelector` replaces `CFConfigForm`:
 │                                         │
 │ ▸ Hyperparametres avances               │
 │   PhysCF: lambda_prox, n_iter, lr       │
-│   COMET: k_sigma, lambda_smooth         │
+│   CoMTE: num_distractors, tau            │
 │                                         │
 │ [▶ Generer le contrefactuel]            │
 └─────────────────────────────────────────┘
@@ -136,7 +136,7 @@ Add a generation counter (`generationRef`) incremented on each submit. SSE event
 
 ### What Stays
 
-- PhysCF + COMET parallel execution
+- PhysCF + CoMTE parallel execution
 - SSE streaming with progress
 - Tabbed results view (CFResultView)
 - Pastas validation
@@ -152,7 +152,7 @@ All scientific foundations have been audited and verified:
 | IPS z-score thresholds (7 classes) | Standard BRGM | Seguin (2014) RP-64147-FR, Seguin (2016) RP-67249-FR |
 | Clausius-Clapeyron rate (cc=0.07) | Textbook value | Standard atmospheric physics, ~7%/K |
 | PhysCF 7 parameters | Physically interpretable | 4 seasonal P, 1 T, 1 ETP residual, 1 temporal shift |
-| COMET L×3 free parameters | Baseline without physics | No CC coupling, no seasonal structure |
+| CoMTE C=3 binary mask | Ates et al. 2021 discrete feature swapping | No CC coupling, distractor-based |
 | Pastas Gamma + FlexModel | Standard choices | Collenteur et al. (2019), Groundwater |
 | Pastas gamma=1.5 threshold | Reasonable heuristic | No published standard; already configurable |
 | Quality gate (IPS concordance) | Novel but sound | Pre-check ensures CF operates on a faithful model window |
@@ -165,11 +165,11 @@ All scientific foundations have been audited and verified:
 - `lr = 0.02` — learning rate
 - `cc_rate = 0.07` — Clausius-Clapeyron coupling (fixed, not exposed)
 
-### COMET
-- `k_sigma = 4.0` — perturbation clamp (±4σ in normalized space)
-- `lambda_smooth = 0.1` — temporal smoothness weight
+### CoMTE
+- `num_distractors = 5` — number of nearest distractors (k)
+- `tau = 0.5` — in-band fraction threshold
 
-Note: `n_iter` and `lr` are shared controls in the UI (same slider for both methods). The backend schema defaults differ (COMET: n_iter=1000, lr=0.01 vs PhysCF: n_iter=500, lr=0.02), but the UI-submitted values override both. This is acceptable since users tune for their specific case.
+Note: `n_iter` and `lr` are PhysCF-only controls. CoMTE uses discrete combinatorial search (no gradient optimization), so it only needs `num_distractors` and `tau`.
 
 ### Month Grouping
 

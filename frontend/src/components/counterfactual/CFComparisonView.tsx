@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import Plot from 'react-plotly.js'
-import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, ShieldCheck, Thermometer } from 'lucide-react'
+import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, ShieldCheck, Thermometer, Shuffle } from 'lucide-react'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { CounterfactualResult, PastasValidationResult } from '@/lib/types'
 import { api } from '@/lib/api'
@@ -39,40 +39,84 @@ interface CFComparisonViewProps {
   results: Record<string, CounterfactualResult | null>
   streaming: Record<string, boolean>
   modelId: string
+  /** Ground truth (observed) values for the prediction window */
+  gtDates?: string[]
+  gtValues?: number[]
 }
 
-export function CFComparisonView({ results, streaming, modelId }: CFComparisonViewProps) {
+export function CFComparisonView({ results, streaming, modelId, gtDates, gtValues }: CFComparisonViewProps) {
   const [showTheta, setShowTheta] = useState(false)
   const [pastasResults, setPastasResults] = useState<Record<string, PastasValidationResult | null>>({})
   const [pastasLoading, setPastasLoading] = useState<Record<string, boolean>>({})
 
   const physcf = results.physcf?.result ?? null
-  const comet = results.comet?.result ?? null
+  const comte = results.comte?.result ?? null
   const physcfError = results.physcf?.error ?? null
-  const cometError = results.comet?.error ?? null
-  const anyRunning = streaming.physcf || streaming.comet
-  const anyResult = physcf || comet
+  const comteError = results.comte?.error ?? null
+  const anyRunning = streaming.physcf || streaming.comte
+  const anyResult = physcf || comte
 
   // Metrics extraction
   const physcfMetrics = physcf?.metrics as Record<string, unknown> | undefined
-  const cometMetrics = comet?.metrics as Record<string, unknown> | undefined
+  const comteMetrics = comte?.metrics as Record<string, unknown> | undefined
+  const comteInfo = comte?.comte_info
 
-  // Overlay chart: GT + predictions + CF PhysCF + CF COMET
+  // Common metrics computed identically for both methods
+  const commonMetrics = useMemo(() => {
+    const compute = (r: typeof physcf) => {
+      if (!r) return null
+      const orig = r.original
+      const cf = r.counterfactual
+      const n = Math.min(orig.length, cf.length)
+      if (n === 0) return null
+      let sumDiff = 0, sumSqDiff = 0, maxDev = 0, sumOrig = 0, sumCf = 0
+      for (let i = 0; i < n; i++) {
+        const d = cf[i] - orig[i]
+        sumDiff += d
+        sumSqDiff += d * d
+        maxDev = Math.max(maxDev, Math.abs(d))
+        sumOrig += orig[i]
+        sumCf += cf[i]
+      }
+      return {
+        meanShift: sumDiff / n,
+        rmse: Math.sqrt(sumSqDiff / n),
+        maxDeviation: maxDev,
+        meanOrig: sumOrig / n,
+        meanCf: sumCf / n,
+      }
+    }
+    return { physcf: compute(physcf), comte: compute(comte) }
+  }, [physcf, comte])
+
+  // Overlay chart: GT + predictions + CF PhysCF + CF CoMTE
   const traces = useMemo(() => {
     if (!anyResult) return []
-    const ref = physcf ?? comet
+    const ref = physcf ?? comte
     if (!ref) return []
 
     const t: Plotly.Data[] = []
 
-    // Ground truth (original)
+    // Ground truth (observed values)
+    if (gtDates?.length && gtValues?.length) {
+      t.push({
+        x: gtDates,
+        y: gtValues,
+        name: 'Observe (GT)',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#10b981', width: 2 },
+      })
+    }
+
+    // Model prediction without perturbation (factual baseline for CF comparison)
     t.push({
       x: ref.dates,
       y: ref.original,
-      name: 'Observe (GT)',
+      name: 'Modele (sans perturbation)',
       type: 'scatter',
       mode: 'lines',
-      line: { color: 'rgba(255,255,255,0.8)', width: 2 },
+      line: { color: '#06b6d4', width: 2, dash: 'dash' },
     })
 
     // CF PhysCF
@@ -87,12 +131,12 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
       })
     }
 
-    // CF COMET
-    if (comet) {
+    // CF CoMTE
+    if (comte) {
       t.push({
-        x: comet.dates,
-        y: comet.counterfactual,
-        name: 'CF COMET',
+        x: comte.dates,
+        y: comte.counterfactual,
+        name: 'CF CoMTE',
         type: 'scatter',
         mode: 'lines',
         line: { color: '#a78bfa', width: 2 },
@@ -100,7 +144,7 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
     }
 
     return t
-  }, [physcf, comet, anyResult])
+  }, [physcf, comte, anyResult, gtDates, gtValues])
 
   const layout = useMemo<Partial<Plotly.Layout>>(() => ({
     ...darkLayout,
@@ -114,7 +158,7 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
 
   // Pastas validation for both methods
   const handlePastasValidate = useCallback(async () => {
-    for (const method of ['physcf', 'comet'] as const) {
+    for (const method of ['physcf', 'comte'] as const) {
       const r = results[method]
       if (!r?.task_id || !modelId) continue
       setPastasLoading((prev) => ({ ...prev, [method]: true }))
@@ -131,8 +175,8 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
     }
   }, [results, modelId])
 
-  const anyPastasLoading = pastasLoading.physcf || pastasLoading.comet
-  const hasPastas = pastasResults.physcf || pastasResults.comet
+  const anyPastasLoading = pastasLoading.physcf || pastasLoading.comte
+  const hasPastas = pastasResults.physcf || pastasResults.comte
 
   // Loading state
   if (anyRunning && !anyResult) {
@@ -148,10 +192,10 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
                 PhysCF en cours...
               </span>
             )}
-            {streaming.comet && (
+            {streaming.comte && (
               <span className="text-xs text-amber-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                COMET en cours...
+                CoMTE en cours...
               </span>
             )}
           </div>
@@ -160,7 +204,7 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
     )
   }
 
-  if (!anyResult && !physcfError && !cometError) {
+  if (!anyResult && !physcfError && !comteError) {
     return (
       <div className="bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center">
         <p className="text-text-secondary text-sm">
@@ -179,10 +223,10 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
           <span className="text-sm text-red-400">PhysCF : {physcfError}</span>
         </div>
       )}
-      {cometError && (
+      {comteError && (
         <div className="bg-bg-card rounded-xl border border-red-500/20 p-3 flex items-center gap-2">
           <XCircle className="w-4 h-4 text-red-400 shrink-0" />
-          <span className="text-sm text-red-400">COMET : {cometError}</span>
+          <span className="text-sm text-red-400">CoMTE : {comteError}</span>
         </div>
       )}
 
@@ -195,10 +239,10 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
               PhysCF en cours...
             </span>
           )}
-          {streaming.comet && (
+          {streaming.comte && (
             <span className="text-xs text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded">
               <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              COMET en cours...
+              CoMTE en cours...
             </span>
           )}
         </div>
@@ -218,93 +262,259 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
         </div>
       )}
 
-      {/* 2. Metrics comparison table */}
-      {anyResult && (
+      {/* 2. Comparaison exhaustive */}
+      {anyResult && (() => {
+        // Compute winners for each comparable metric
+        const inBand = comteInfo?.in_band_fraction ?? null
+        const physcfTarget = physcfMetrics?.target_loss_final as number | null ?? null
+        // For CoMTE, target_loss = 1 - in_band_fraction
+        const comteTarget = inBand !== null ? (1 - inBand) : null
+
+        const w = {
+          target: pickWinner(physcfTarget, comteTarget, true),
+          rmse: pickWinner(commonMetrics.physcf?.rmse, commonMetrics.comte?.rmse, true),
+          maxDev: pickWinner(commonMetrics.physcf?.maxDeviation, commonMetrics.comte?.maxDeviation, true),
+          time: pickWinner(physcfMetrics?.wall_clock_s as number | null, comteMetrics?.wall_clock_s as number | null, true),
+          params: pickWinner(physcfMetrics?.n_params as number | null, comteMetrics?.n_params as number | null, true),
+        }
+        // Score: count wins per method
+        const vals = Object.values(w)
+        const pWins = vals.filter(v => v === 'physcf').length
+        const cWins = vals.filter(v => v === 'comte').length
+        const overall: 'physcf' | 'comte' | null = pWins > cWins ? 'physcf' : cWins > pWins ? 'comte' : null
+
+        return (
         <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-          <h4 className="text-sm font-semibold text-text-primary mb-3">Metriques comparees</h4>
+          {/* Verdict banner */}
+          {overall && physcf && comte && (
+            <div className={`rounded-lg px-3 py-2 mb-4 flex items-center justify-between text-sm ${
+              overall === 'physcf'
+                ? 'bg-orange-500/10 border border-orange-500/20'
+                : 'bg-purple-500/10 border border-purple-500/20'
+            }`}>
+              <span className={overall === 'physcf' ? 'text-orange-400' : 'text-purple-400'}>
+                {overall === 'physcf' ? 'PhysCF' : 'CoMTE'} domine sur {Math.max(pWins, cWins)}/{vals.filter(v => v !== null).length} criteres comparables
+              </span>
+              <span className="text-text-secondary text-xs">
+                PhysCF {pWins} — {cWins} CoMTE
+              </span>
+            </div>
+          )}
+
+          <h4 className="text-sm font-semibold text-text-primary mb-3">Comparaison exhaustive</h4>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10">
                   <th className="text-left text-text-secondary py-2 pr-4 font-medium"></th>
                   <th className="text-center text-orange-400 py-2 px-3 font-medium">PhysCF</th>
-                  <th className="text-center text-purple-400 py-2 px-3 font-medium">COMET</th>
+                  <th className="text-center text-purple-400 py-2 px-3 font-medium">CoMTE</th>
                 </tr>
               </thead>
               <tbody className="text-text-primary font-mono text-xs">
+                {/* --- Convergence & target --- */}
+                <SectionHeader label="Objectif (cible IPS)" />
                 <MetricRow
                   label="Convergence"
-                  physcf={physcfMetrics?.converged === true ? 'Oui' : physcf ? 'Partielle' : '\u2014'}
-                  comet={cometMetrics?.converged === true ? 'Oui' : comet ? 'Partielle' : '\u2014'}
+                  physcf={fmtConvergence(physcfMetrics)}
+                  comte={comte ? (inBand !== null ? `${Math.round(inBand * 100)}% in-band` : '\u2014') : '\u2014'}
                   highlight
+                  winner={w.target}
                 />
                 <MetricRow
-                  label="Loss finale"
-                  physcf={formatNum(physcfMetrics?.best_loss)}
-                  comet={formatNum(cometMetrics?.best_loss)}
+                  label="Score cible"
+                  physcf={formatNum(physcfTarget)}
+                  comte={inBand !== null ? `${(inBand * 100).toFixed(1)}%` : '\u2014'}
+                  winner={w.target}
+                />
+                {/* --- Approche --- */}
+                <SectionHeader label="Approche" />
+                <MetricRow
+                  label="Type"
+                  physcf="Gradient continu"
+                  comte="Substitution discrete"
                 />
                 <MetricRow
-                  label="Iterations"
+                  label="Espace"
+                  physcf="7 params physiques"
+                  comte={`${comteInfo?.swapped_features?.length ?? '?'} features substituees`}
+                />
+                {/* --- Impact sur la sortie --- */}
+                <SectionHeader label="Impact sur la sortie" />
+                <MetricRow
+                  label="Shift moyen (m)"
+                  physcf={commonMetrics.physcf ? fmtSigned(commonMetrics.physcf.meanShift) : '\u2014'}
+                  comte={commonMetrics.comte ? fmtSigned(commonMetrics.comte.meanShift) : '\u2014'}
+                />
+                <MetricRow
+                  label="RMSE factuel \u2192 CF"
+                  physcf={commonMetrics.physcf?.rmse.toFixed(4) ?? '\u2014'}
+                  comte={commonMetrics.comte?.rmse.toFixed(4) ?? '\u2014'}
+                  winner={w.rmse}
+                />
+                <MetricRow
+                  label="Deviation max (m)"
+                  physcf={commonMetrics.physcf?.maxDeviation.toFixed(4) ?? '\u2014'}
+                  comte={commonMetrics.comte?.maxDeviation.toFixed(4) ?? '\u2014'}
+                  winner={w.maxDev}
+                />
+                <MetricRow
+                  label="Moyenne factuelle (m)"
+                  physcf={commonMetrics.physcf?.meanOrig.toFixed(3) ?? '\u2014'}
+                  comte={commonMetrics.comte?.meanOrig.toFixed(3) ?? '\u2014'}
+                />
+                <MetricRow
+                  label="Moyenne CF (m)"
+                  physcf={commonMetrics.physcf?.meanCf.toFixed(3) ?? '\u2014'}
+                  comte={commonMetrics.comte?.meanCf.toFixed(3) ?? '\u2014'}
+                />
+                {/* --- Cout d'optimisation --- */}
+                <SectionHeader label="Cout d'optimisation" />
+                <MetricRow
+                  label="Evaluations"
                   physcf={formatInt(physcfMetrics?.n_iter)}
-                  comet={formatInt(cometMetrics?.n_iter)}
+                  comte={comteInfo ? String(comteInfo.n_candidates_evaluated) : '\u2014'}
                 />
                 <MetricRow
                   label="Temps (s)"
                   physcf={formatNum(physcfMetrics?.wall_clock_s, 1)}
-                  comet={formatNum(cometMetrics?.wall_clock_s, 1)}
+                  comte={formatNum(comteMetrics?.wall_clock_s, 1)}
+                  winner={w.time}
                 />
                 <MetricRow
-                  label="Parametres"
-                  physcf={physcf ? '7' : '\u2014'}
-                  comet={comet ? `${comet.counterfactual.length}\u00d73` : '\u2014'}
+                  label="Parametres/features"
+                  physcf={physcf ? '7 (contraints)' : '\u2014'}
+                  comte={comteInfo ? `${comteInfo.swapped_features.length}/${comteInfo.best_mask?.length ?? 3}` : '\u2014'}
+                  winner={w.params}
                 />
               </tbody>
             </table>
           </div>
         </div>
-      )}
+        )
+      })()}
 
-      {/* 3. PhysCF interpretation */}
-      {physcf?.theta && Object.keys(physcf.theta).length > 0 && (
-        <div className="bg-bg-card rounded-xl border border-white/5">
-          <button
-            onClick={() => setShowTheta(!showTheta)}
-            className="w-full px-4 py-3 flex items-center gap-2 text-xs text-text-secondary uppercase hover:text-text-primary transition-colors"
-          >
-            {showTheta ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            <Thermometer className="w-3.5 h-3.5" />
-            Interpretation physique (PhysCF)
-          </button>
-          {showTheta && (
-            <div className="px-4 pb-4 space-y-3">
-              {/* Interpretation */}
-              {(() => {
-                const interp = interpretTheta(physcf.theta)
-                if (interp.length === 0) return null
-                return (
-                  <ul className="space-y-1">
-                    {interp.map((line, i) => (
-                      <li key={i} className="text-sm text-text-primary flex items-start gap-2">
-                        <span className="text-accent-cyan mt-0.5">&gt;</span>
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                )
-              })()}
-              {/* Raw theta values */}
-              <div className="border-t border-white/5 pt-2 space-y-1">
-                {Object.entries(physcf.theta).map(([key, val]) => (
-                  <div key={key} className="flex items-center justify-between text-xs">
-                    <span className="text-text-secondary">{THETA_LABELS[key] ?? key}</span>
-                    <span className="text-text-primary font-mono">
-                      {typeof val === 'number' ? val.toFixed(4) : String(val)}
-                    </span>
+      {/* 3. Method-specific details — side by side */}
+      {anyResult && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* PhysCF card */}
+          <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+            <h4 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
+              <Thermometer className="w-4 h-4" />
+              PhysCF
+              <span className="text-[10px] font-normal text-text-secondary">7 params contraints physiquement</span>
+            </h4>
+            {physcf ? (
+              <div className="space-y-3">
+                <div className="space-y-1 text-xs">
+                  <MethodMetric label="Contrainte CC" value="0.07/K" hint="Clausius-Clapeyron" />
+                  <MethodMetric label="Espace" value="Physique" hint="P saisonnier, \u0394T, \u0394ETP, \u0394s" />
+                  <MethodMetric label="\u03bb prox" value={physcf.convergence?.length ? 'actif' : '\u2014'} hint="distance a l'identite" />
+                </div>
+
+                {/* Theta interpretation */}
+                {physcf.theta && Object.keys(physcf.theta).length > 0 && (
+                  <div className="border-t border-white/5 pt-2">
+                    <button
+                      onClick={() => setShowTheta(!showTheta)}
+                      className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors mb-2"
+                    >
+                      {showTheta ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                      <Thermometer className="w-3 h-3" />
+                      Interpretation physique
+                    </button>
+                    {showTheta && (
+                      <div className="space-y-2">
+                        {(() => {
+                          const interp = interpretTheta(physcf.theta)
+                          if (interp.length === 0) return null
+                          return (
+                            <ul className="space-y-0.5">
+                              {interp.map((line, i) => (
+                                <li key={i} className="text-xs text-text-primary flex items-start gap-1.5">
+                                  <span className="text-accent-cyan mt-0.5">&gt;</span>
+                                  {line}
+                                </li>
+                              ))}
+                            </ul>
+                          )
+                        })()}
+                        <div className="space-y-0.5">
+                          {Object.entries(physcf.theta).map(([key, val]) => (
+                            <div key={key} className="flex items-center justify-between text-[11px]">
+                              <span className="text-text-secondary">{THETA_LABELS[key] ?? key}</span>
+                              <span className="text-text-primary font-mono">
+                                {typeof val === 'number' ? val.toFixed(4) : String(val)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            ) : physcfError ? (
+              <p className="text-xs text-red-400">{physcfError}</p>
+            ) : (
+              <p className="text-xs text-text-secondary">En attente...</p>
+            )}
+          </div>
+
+          {/* CoMTE card */}
+          <div className="bg-bg-card rounded-xl border border-white/5 p-4">
+            <h4 className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
+              <Shuffle className="w-4 h-4" />
+              CoMTE
+              <span className="text-[10px] font-normal text-text-secondary">Ates et al. 2021 — substitution de features</span>
+            </h4>
+            {comte ? (
+              <div className="space-y-3">
+                <div className="space-y-1 text-xs">
+                  <MethodMetric label="Algorithme" value="Recherche exhaustive" hint={`2^${comteInfo?.best_mask?.length ?? 3} combinaisons`} />
+                  <MethodMetric label="Distracteurs" value={`${comteInfo?.n_distractors_used ?? '?'}/${comteInfo?.n_distractors_available ?? '?'}`} hint={`classe ${comteInfo?.distractor_class ?? '?'}`} />
+                  <MethodMetric label="In-band" value={comteInfo ? `${Math.round(comteInfo.in_band_fraction * 100)}%` : '\u2014'} hint={`seuil ${comteInfo?.tau ? Math.round(comteInfo.tau * 100) : 50}%`} />
+                  <MethodMetric label="Features" value={comteInfo?.swapped_features?.join(', ') || 'aucune'} />
+                </div>
+
+                {/* CoMTE explanation */}
+                {comteInfo?.explanation && (
+                  <div className="border-t border-white/5 pt-2">
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      {comteInfo.explanation}
+                    </p>
+                  </div>
+                )}
+
+                {/* Feature mask visualization */}
+                {comteInfo?.best_mask && (
+                  <div className="border-t border-white/5 pt-2">
+                    <p className="text-[10px] uppercase tracking-wider text-text-secondary/60 font-semibold mb-1.5">
+                      Masque de features
+                    </p>
+                    <div className="flex gap-2">
+                      {(comte?.theta && Object.keys(comte.theta).length > 0 ? Object.keys(comte.theta) : ['precip', 'temp', 'evap']).slice(0, comteInfo.best_mask.length).map((name, idx) => (
+                        <div
+                          key={name}
+                          className={`px-2 py-1 rounded text-[11px] font-mono ${
+                            comteInfo.best_mask[idx] === 1
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : 'bg-bg-hover text-text-secondary/40 border border-white/5'
+                          }`}
+                        >
+                          {name} {comteInfo.best_mask[idx] === 1 ? '\u2713' : '\u2717'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : comteError ? (
+              <p className="text-xs text-red-400">{comteError}</p>
+            ) : (
+              <p className="text-xs text-text-secondary">En attente...</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -341,29 +551,34 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
                   <tr className="border-b border-white/10">
                     <th className="text-left text-text-secondary py-2 pr-4 font-medium"></th>
                     <th className="text-center text-orange-400 py-2 px-3 font-medium">PhysCF</th>
-                    <th className="text-center text-purple-400 py-2 px-3 font-medium">COMET</th>
+                    <th className="text-center text-purple-400 py-2 px-3 font-medium">CoMTE</th>
                   </tr>
                 </thead>
                 <tbody className="text-text-primary font-mono text-xs">
                   <tr className="border-b border-white/5">
                     <td className="py-2 pr-4 text-text-secondary">Verdict</td>
                     <PastasCell result={pastasResults.physcf} />
-                    <PastasCell result={pastasResults.comet} />
+                    <PastasCell result={pastasResults.comte} />
                   </tr>
                   <MetricRow
                     label="RMSE CF"
                     physcf={pastasResults.physcf?.status !== 'error' ? pastasResults.physcf?.rmse_cf.toFixed(4) ?? '\u2014' : '\u2014'}
-                    comet={pastasResults.comet?.status !== 'error' ? pastasResults.comet?.rmse_cf.toFixed(4) ?? '\u2014' : '\u2014'}
+                    comte={pastasResults.comte?.status !== 'error' ? pastasResults.comte?.rmse_cf.toFixed(4) ?? '\u2014' : '\u2014'}
+                    winner={pickWinner(
+                      pastasResults.physcf?.status !== 'error' ? pastasResults.physcf?.rmse_cf : null,
+                      pastasResults.comte?.status !== 'error' ? pastasResults.comte?.rmse_cf : null,
+                      true,
+                    )}
                   />
                   <MetricRow
                     label="RMSE baseline"
                     physcf={pastasResults.physcf?.status !== 'error' ? pastasResults.physcf?.rmse_0.toFixed(4) ?? '\u2014' : '\u2014'}
-                    comet={pastasResults.comet?.status !== 'error' ? pastasResults.comet?.rmse_0.toFixed(4) ?? '\u2014' : '\u2014'}
+                    comte={pastasResults.comte?.status !== 'error' ? pastasResults.comte?.rmse_0.toFixed(4) ?? '\u2014' : '\u2014'}
                   />
                   <MetricRow
-                    label={`Seuil \u03b5 (\u03b3=${pastasResults.physcf?.gamma ?? pastasResults.comet?.gamma ?? 1.5})`}
+                    label={`Seuil \u03b5 (\u03b3=${pastasResults.physcf?.gamma ?? pastasResults.comte?.gamma ?? 1.5})`}
                     physcf={pastasResults.physcf?.status !== 'error' ? pastasResults.physcf?.epsilon.toFixed(4) ?? '\u2014' : '\u2014'}
-                    comet={pastasResults.comet?.status !== 'error' ? pastasResults.comet?.epsilon.toFixed(4) ?? '\u2014' : '\u2014'}
+                    comte={pastasResults.comte?.status !== 'error' ? pastasResults.comte?.epsilon.toFixed(4) ?? '\u2014' : '\u2014'}
                   />
                 </tbody>
               </table>
@@ -382,14 +597,31 @@ export function CFComparisonView({ results, streaming, modelId }: CFComparisonVi
   )
 }
 
-function MetricRow({ label, physcf, comet, highlight }: { label: string; physcf: string; comet: string; highlight?: boolean }) {
+/** winner: 'physcf' | 'comte' | null — highlights the better cell in green */
+function MetricRow({ label, physcf, comte, highlight, winner }: {
+  label: string; physcf: string; comte: string; highlight?: boolean; winner?: 'physcf' | 'comte' | null
+}) {
+  const pCls = winner === 'physcf' ? 'text-emerald-400 font-semibold' : winner === 'comte' ? 'text-text-secondary/60' : ''
+  const cCls = winner === 'comte' ? 'text-emerald-400 font-semibold' : winner === 'physcf' ? 'text-text-secondary/60' : ''
   return (
     <tr className="border-b border-white/5">
       <td className="py-2 pr-4 text-text-secondary">{label}</td>
-      <td className={`text-center py-2 px-3 ${highlight ? 'font-semibold' : ''}`}>{physcf}</td>
-      <td className={`text-center py-2 px-3 ${highlight ? 'font-semibold' : ''}`}>{comet}</td>
+      <td className={`text-center py-2 px-3 ${highlight ? 'font-semibold' : ''} ${pCls}`}>{physcf}</td>
+      <td className={`text-center py-2 px-3 ${highlight ? 'font-semibold' : ''} ${cCls}`}>{comte}</td>
     </tr>
   )
+}
+
+/** Compare two numeric metric values. lower=true means lower is better. */
+function pickWinner(
+  a: unknown, b: unknown, lower: boolean,
+): 'physcf' | 'comte' | null {
+  const va = typeof a === 'number' ? a : null
+  const vb = typeof b === 'number' ? b : null
+  if (va === null || vb === null) return null
+  if (Math.abs(va - vb) < 1e-10) return null
+  if (lower) return va < vb ? 'physcf' : 'comte'
+  return va > vb ? 'physcf' : 'comte'
 }
 
 function PastasCell({ result }: { result: PastasValidationResult | null | undefined }) {
@@ -402,6 +634,44 @@ function PastasCell({ result }: { result: PastasValidationResult | null | undefi
         {result.accepted ? 'Valide' : 'Rejete'}
       </span>
     </td>
+  )
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <tr>
+      <td colSpan={3} className="pt-3 pb-1 text-[10px] uppercase tracking-wider text-text-secondary/60 font-semibold">
+        {label}
+      </td>
+    </tr>
+  )
+}
+
+function fmtConvergence(metrics: Record<string, unknown> | undefined): string {
+  if (!metrics) return '\u2014'
+  const converged = metrics.converged
+  const target = metrics.target_loss_final
+  if (converged === true) return 'Oui (< 1e-4)'
+  if (typeof target === 'number') {
+    if (target < 0.01) return `Quasi (${target.toFixed(4)})`
+    return `Non (${target.toFixed(4)})`
+  }
+  return 'Non'
+}
+
+function fmtSigned(v: number, decimals = 4): string {
+  return (v > 0 ? '+' : '') + v.toFixed(decimals)
+}
+
+function MethodMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-text-secondary">{label}</span>
+      <span className="text-text-primary font-mono">
+        {value}
+        {hint && <span className="text-text-secondary/50 font-sans ml-1">({hint})</span>}
+      </span>
+    </div>
   )
 }
 

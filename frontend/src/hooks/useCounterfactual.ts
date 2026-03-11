@@ -6,20 +6,15 @@ export function useCounterfactualRun() {
     mutationFn: (body: {
       model_id: string
       method?: string
-      target_ips_class?: string
-      from_ips_class?: string
-      to_ips_class?: string
+      target_ips_classes?: Record<string, string>
       start_idx?: number
-      modifications?: Record<string, number>
       lambda_prox?: number
       n_iter?: number
       lr?: number
       cc_rate?: number
-      device?: string
       n_trials?: number
-      seed?: number
-      k_sigma?: number
-      lambda_smooth?: number
+      num_distractors?: number
+      tau?: number
     }) => api.counterfactual.run(body),
   })
 }

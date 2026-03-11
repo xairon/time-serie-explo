@@ -170,9 +170,23 @@ export interface CounterfactualResult {
     counterfactual: number[]
     dates: string[]
     theta: Record<string, number>
-    metrics: Record<string, number>
+    metrics: Record<string, number | boolean | null>
     convergence?: number[]
+    target_history?: number[]
+    prox_history?: number[]
+    smooth_history?: number[]
     best_trial?: Record<string, unknown>
+    comte_info?: {
+      swapped_features: string[]
+      distractor_class: string
+      n_distractors_available: number
+      n_distractors_used: number
+      in_band_fraction: number
+      best_mask: number[]
+      n_candidates_evaluated: number
+      tau: number
+      explanation: string
+    }
   } | null
   error: string | null
 }
@@ -261,14 +275,15 @@ export interface IPSBoundsResponse {
   colors: Record<string, string>   // key -> hex color
 }
 
-// Typed inner result from CF generation
-export interface CFInnerResult {
-  method: string
-  original: number[]
-  counterfactual: number[]
-  dates: string[]
-  theta: Record<string, number>
-  metrics: Record<string, number | boolean | string>
-  convergence?: number[]
-  best_trial?: Record<string, unknown>
+// Pastas dual validation result
+export interface PastasValidationResult {
+  model_id: string
+  cf_task_id: string
+  gamma: number
+  accepted: boolean
+  rmse_cf: number
+  rmse_0: number
+  epsilon: number
+  status: string
+  message?: string
 }

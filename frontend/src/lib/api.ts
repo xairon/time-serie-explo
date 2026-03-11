@@ -262,8 +262,8 @@ export const api = {
       device?: string
       n_trials?: number
       seed?: number
-      k_sigma?: number
-      lambda_smooth?: number
+      num_distractors?: number
+      tau?: number
     }) => postJson<CounterfactualResult>('/counterfactual/run', body),
     stream: (taskId: string) =>
       new EventSource(`${API_BASE}/counterfactual/${taskId}/stream`),

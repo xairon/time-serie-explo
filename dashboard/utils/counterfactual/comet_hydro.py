@@ -87,7 +87,8 @@ def generate_counterfactual_comet(
             "theta_star": None,
             "loss_history": [],
             "target_history": [],
-            "prox_history": None,
+            "prox_history": [],
+            "smooth_history": [],
             "converged": False,
             "wall_clock_s": 0.0,
             "n_params": L * len(stress_cols),
@@ -103,6 +104,8 @@ def generate_counterfactual_comet(
 
     loss_history = []
     target_history = []
+    prox_history = []
+    smooth_history = []
     start_time = time.time()
 
     for i in range(n_iter):
@@ -126,6 +129,8 @@ def generate_counterfactual_comet(
 
         loss_history.append(loss.item())
         target_history.append(l_target.item())
+        prox_history.append(l_prox.item())
+        smooth_history.append(l_smooth.item())
 
     elapsed = time.time() - start_time
 
@@ -163,7 +168,8 @@ def generate_counterfactual_comet(
         "theta_star": None,
         "loss_history": loss_history,
         "target_history": target_history,
-        "prox_history": None,
+        "prox_history": prox_history,
+        "smooth_history": smooth_history,
         "converged": converged,
         "wall_clock_s": elapsed,
         "n_params": L * len(stress_cols),

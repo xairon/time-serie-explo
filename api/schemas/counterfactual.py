@@ -8,11 +8,16 @@ from pydantic import BaseModel, Field
 
 
 class CFGenerateRequest(BaseModel):
-    """Request for counterfactual generation (PhysCF, Optuna, or COMET)."""
+    """Request for counterfactual generation (PhysCF, Optuna, or CoMTE)."""
 
     model_id: str
-    method: str = "physcf"  # physcf, optuna, or comet
-    target_ips_class: str = "normal"  # IPS class target
+    method: str = "physcf"  # physcf, optuna, or comte
+    target_ips_class: str = "normal"  # IPS class target (applies to all months)
+    target_ips_classes: dict[str, str] = Field(
+        default_factory=dict,
+        description='Per-month IPS class overrides. Key = month number "1"-"12", value = IPS class name. '
+        "Takes priority over target_ips_class. Empty dict = use target_ips_class for all months.",
+    )
     lambda_prox: float = 0.1
     n_iter: int = 500
     lr: float = 0.02
@@ -21,7 +26,10 @@ class CFGenerateRequest(BaseModel):
     # Optuna-specific
     n_trials: int = 200
     seed: int = 42
-    # COMET-specific
+    # CoMTE-specific (Ates et al. 2021)
+    num_distractors: int = 5  # k nearest neighbors from target class pool
+    tau: float = 0.5  # in-band fraction threshold for success
+    # Legacy COMET params (kept for backwards compat, unused by CoMTE)
     k_sigma: float = 4.0
     lambda_smooth: float = 0.1
     # Position in test set (None = auto middle)
