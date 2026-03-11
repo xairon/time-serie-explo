@@ -4,7 +4,7 @@ import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { CFConfigForm } from '@/components/counterfactual/CFConfigForm'
 import type { CFFormData } from '@/components/counterfactual/CFConfigForm'
 import { CFResultView } from '@/components/counterfactual/CFResultView'
-import { IPSBandsChart } from '@/components/counterfactual/IPSBandsChart'
+import { TestSetOverview } from '@/components/charts/TestSetOverview'
 import IPSMonthlyGrid from '@/components/counterfactual/IPSMonthlyGrid'
 import { useCounterfactualRun, useIPSBounds, useIPSReference } from '@/hooks/useCounterfactual'
 import { useModelTestInfo } from '@/hooks/useModels'
@@ -235,21 +235,14 @@ export default function CounterfactualPage() {
             )}
           </div>
 
-          {/* IPS Bands Chart */}
-          <IPSBandsChart
+          {/* Test set chart with window highlight */}
+          <TestSetOverview
             testDates={testInfo.test_dates}
             testValues={testInfo.test_values}
-            ipsBounds={ipsBoundsData?.bounds ?? []}
-            ipsColors={ipsBoundsData?.colors ?? {}}
-            ipsLabels={ipsBoundsData?.classes ?? {}}
-            contextStart={windowInfo?.contextStart ?? ''}
-            contextEnd={windowInfo?.contextEnd ?? ''}
-            predStart={windowInfo?.predStart ?? ''}
-            predEnd={windowInfo?.predEnd ?? ''}
-            cfDates={innerResult?.dates}
-            cfOriginal={innerResult?.original}
-            cfCounterfactual={innerResult?.counterfactual}
-            className="h-[350px]"
+            sliderIdx={startIdx}
+            inputChunkLength={testInfo.input_chunk_length}
+            outputChunkLength={testInfo.output_chunk_length}
+            className="h-[300px]"
           />
 
           {/* Window slider */}
