@@ -65,10 +65,20 @@ export default function CounterfactualPage() {
       contextEnd: contextEndDate,
       predStart: predStartDate,
       predEnd: predEndDate,
+      predStartIdx: startIdx,
+      predEndIdx,
       L,
       H,
     }
   }, [testInfo, startIdx])
+
+  // Extract current prediction window dates/values for IPS classification
+  const currentWindowData = useMemo(() => {
+    if (!testInfo || !windowInfo) return null
+    const dates = testInfo.test_dates.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
+    const values = testInfo.test_values.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
+    return { dates, values: values.filter((v): v is number => v !== null) }
+  }, [testInfo, windowInfo])
 
   // SSE streaming for CF result
   useEffect(() => {
@@ -258,6 +268,19 @@ export default function CounterfactualPage() {
             />
             <span className="text-xs text-text-primary font-mono w-12 text-right">{startIdx}</span>
           </div>
+
+          {/* IPS classification of current window (observed data) */}
+          {currentWindowData && currentWindowData.dates.length > 0 && Object.keys(refStatsForGrid).length > 0 && (
+            <IPSMonthlyGrid
+              predDates={currentWindowData.dates}
+              predValues={currentWindowData.values}
+              gtValues={currentWindowData.values}
+              refStats={refStatsForGrid}
+              ipsLabels={ipsBoundsData?.classes ?? {}}
+              ipsColors={ipsBoundsData?.colors ?? {}}
+              label="Classification IPS de la fenetre selectionnee"
+            />
+          )}
         </div>
       )}
 
