@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { classifyZ } from '@/lib/ips'
+import type { MonthConcordance } from '@/lib/ips'
 
 interface IPSMonthlyGridProps {
   predDates: string[]
@@ -8,23 +10,7 @@ interface IPSMonthlyGridProps {
   ipsLabels: Record<string, string>
   ipsColors: Record<string, string>
   label?: string
-}
-
-const IPS_CLASSES: [string, number, number][] = [
-  ['very_low', -Infinity, -1.28],
-  ['low', -1.28, -0.84],
-  ['moderately_low', -0.84, -0.25],
-  ['normal', -0.25, 0.25],
-  ['moderately_high', 0.25, 0.84],
-  ['high', 0.84, 1.28],
-  ['very_high', 1.28, Infinity],
-]
-
-function classifyZScore(z: number): string {
-  for (const [cls, lo, hi] of IPS_CLASSES) {
-    if (z >= lo && z < hi) return cls
-  }
-  return 'normal'
+  concordance?: MonthConcordance[]
 }
 
 interface MonthData {
@@ -87,7 +73,7 @@ function groupByMonth(
       const [mu, sigma] = stats
       if (sigma > 0) {
         predZ = (predMean - mu) / sigma
-        predClass = classifyZScore(predZ)
+        predClass = classifyZ(predZ)
       }
     }
 
@@ -95,7 +81,7 @@ function groupByMonth(
       const [mu, sigma] = stats
       if (sigma > 0) {
         gtZ = (gtMean - mu) / sigma
-        gtClass = classifyZScore(gtZ)
+        gtClass = classifyZ(gtZ)
       }
     }
 
@@ -138,11 +124,17 @@ export default function IPSMonthlyGrid({
   ipsLabels,
   ipsColors,
   label,
+  concordance,
 }: IPSMonthlyGridProps) {
   const months = useMemo(
     () => groupByMonth(predDates, predValues, gtValues, refStats),
     [predDates, predValues, gtValues, refStats],
   )
+
+  const concordanceMap = useMemo(() => {
+    if (!concordance) return null
+    return new Map(concordance.map((c) => [c.yearMonth, c]))
+  }, [concordance])
 
   if (months.length === 0) return null
 
@@ -155,31 +147,45 @@ export default function IPSMonthlyGrid({
         {months.map((m) => (
           <div
             key={m.key}
-            className="bg-bg-card rounded-lg border border-white/5 p-3 flex-shrink-0 min-w-[120px] flex flex-col items-center gap-1.5"
+            className="bg-bg-card rounded-lg border border-white/5 p-3 flex-shrink-0 min-w-[150px] flex flex-col items-center gap-1.5"
           >
             <span className="text-xs text-text-secondary">{m.monthLabel}</span>
 
-            {m.predClass && (
-              <IPSBadge cls={m.predClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
-            )}
+            <div className="flex gap-3 w-full justify-center">
+              {/* GT column */}
+              {m.gtClass && (
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px] font-medium text-text-secondary">Observe</span>
+                  <IPSBadge cls={m.gtClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
+                  {m.gtZ !== null && (
+                    <span className="text-[10px] text-text-secondary">
+                      z = {m.gtZ.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {m.predZ !== null && (
-              <span className="text-[10px] text-text-secondary">
-                z = {m.predZ.toFixed(2)}
-              </span>
-            )}
+              {/* Pred column */}
+              {m.predClass && (
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[10px] font-medium text-text-secondary">Modele</span>
+                  <IPSBadge cls={m.predClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
+                  {m.predZ !== null && (
+                    <span className="text-[10px] text-text-secondary">
+                      z = {m.predZ.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
 
-            {m.gtClass && (
-              <div className="mt-1 flex flex-col items-center gap-0.5">
-                <span className="text-[10px] text-text-secondary">Observ.</span>
-                <IPSBadge cls={m.gtClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
-                {m.gtZ !== null && (
-                  <span className="text-[10px] text-text-secondary">
-                    z = {m.gtZ.toFixed(2)}
-                  </span>
-                )}
-              </div>
-            )}
+            {/* Concordance indicator */}
+            {concordanceMap?.has(m.key) && (() => {
+              const c = concordanceMap.get(m.key)!
+              const icon = c.status === 'exact' ? '\u2713' : c.status === 'adjacent' ? '\u2248' : '\u2717'
+              const color = c.status === 'exact' ? 'text-emerald-400' : c.status === 'adjacent' ? 'text-amber-400' : 'text-red-400'
+              return <span className={`text-xs font-bold ${color}`}>{icon}</span>
+            })()}
           </div>
         ))}
       </div>
