@@ -35,6 +35,7 @@ dependencies = [
     "optuna-dashboard>=0.13.0",
     "mlflow>=3.8.0",
     "pastas>=1.0.0",
+    "ruptures>=1.1.0",
     "sqlparse>=0.4.0",
     "numba>=0.57.0",
 ]
