@@ -8,6 +8,7 @@ const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 const CounterfactualPage = lazy(() => import('./pages/CounterfactualPage'))
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
+const PumpingDetectionPage = lazy(() => import('./pages/PumpingDetectionPage'))
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -81,6 +82,14 @@ export const router = createBrowserRouter([
         element: (
           <SuspenseWrapper>
             <ObservatoryPage />
+          </SuspenseWrapper>
+        ),
+      },
+      {
+        path: '/pumping-detection',
+        element: (
+          <SuspenseWrapper>
+            <PumpingDetectionPage />
           </SuspenseWrapper>
         ),
       },

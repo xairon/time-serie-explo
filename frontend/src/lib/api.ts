@@ -245,6 +245,19 @@ export const api = {
       fetchJson<SeasonalityResult>(`/explainability/${modelId}/seasonality`),
   },
 
+  pumpingDetection: {
+    analyze: (body: { dataset_id: string; config?: Record<string, unknown> }) =>
+      postJson<{ task_id: string }>('/pumping-detection/analyze', body),
+    stream: (taskId: string) =>
+      new EventSource(`${API_BASE}/pumping-detection/${taskId}/stream`),
+    results: (taskId: string) =>
+      fetchJson<Record<string, unknown>>(`/pumping-detection/${taskId}/results`),
+    cancel: (taskId: string) =>
+      postJson<{ status: string }>(`/pumping-detection/${taskId}/cancel`, {}),
+    bnpeContext: (lat: number, lon: number, radiusKm: number = 5) =>
+      fetchJson<Record<string, unknown>>(`/pumping-detection/bnpe-context?lat=${lat}&lon=${lon}&radius_km=${radiusKm}`),
+  },
+
   counterfactual: {
     run: (body: {
       model_id: string

@@ -7,6 +7,7 @@ import {
   TrendingUp,
   GitBranch,
   Map,
+  Droplets,
   Menu,
   X,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/forecasting', icon: TrendingUp, label: 'Forecasting' },
   { to: '/counterfactual', icon: GitBranch, label: 'Counterfactual' },
   { to: '/observatory', icon: Map, label: 'Observatory' },
+  { to: '/pumping-detection', icon: Droplets, label: 'Détection Pompage' },
 ] as const
 
 export function TopNav() {
