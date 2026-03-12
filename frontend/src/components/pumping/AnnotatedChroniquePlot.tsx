@@ -87,11 +87,10 @@ export function AnnotatedChroniquePlot({
       tickfont: { color: '#94a3b8' },
     },
     yaxis: {
-      title: { text: 'Niveau (m NGF)' },
+      title: { text: 'Niveau (m NGF)', font: { color: '#94a3b8' } },
       gridcolor: 'rgba(255,255,255,0.05)',
       linecolor: 'rgba(255,255,255,0.1)',
       tickfont: { color: '#94a3b8' },
-      titlefont: { color: '#94a3b8' },
     },
     shapes,
     annotations,
