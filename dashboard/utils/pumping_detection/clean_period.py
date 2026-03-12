@@ -48,12 +48,29 @@ class CleanPeriodSelector:
         """
         residuals_clean = residuals.dropna()
 
+        best_mask = None
+        best_windows: list = []
+        best_total = 0
+        best_sigma = self.n_sigma
+
         for sigma_mult in [self.n_sigma, 3.0, 4.0]:
             mask = self._compute_mask(residuals_clean, sigma_mult)
             windows = self._merge_windows(mask)
             total_clean = mask.sum()
             if total_clean >= self.min_total_days:
                 return self._build_result(residuals, mask, windows, f"auto_{sigma_mult}sigma")
+            if windows and total_clean > best_total:
+                best_mask = mask
+                best_windows = windows
+                best_total = total_clean
+                best_sigma = sigma_mult
+
+        # Use best auto-detection if it found at least one valid window,
+        # otherwise fall back to seasonal heuristic.
+        if best_mask is not None:
+            return self._build_result(
+                residuals, best_mask, best_windows, f"auto_{best_sigma}sigma_partial"
+            )
 
         mask = self._seasonal_heuristic(residuals)
         windows = self._merge_windows(mask)
@@ -67,7 +84,10 @@ class CleanPeriodSelector:
         lb_clean = pd.Series(False, index=residuals.index)
         half_win = self.rolling_window // 2
 
-        step = half_win // 2
+        # Step of 10 days provides dense enough sampling to detect clean windows
+        # while marking the inner half (±half_win//2) of each passing window.
+        step = 10
+        spread = half_win // 2
         for i in range(half_win, len(residuals) - half_win, step):
             window = residuals.iloc[max(0, i - half_win):i + half_win]
             if len(window) < self.max_lag + 1:
@@ -77,8 +97,8 @@ class CleanPeriodSelector:
                 pval = lb["lb_pvalue"].iloc[0]
                 if pval > self.alpha:
                     # Mark the inner half of the window as clean
-                    start_idx = max(0, i - step)
-                    end_idx = min(len(residuals), i + step)
+                    start_idx = max(0, i - spread)
+                    end_idx = min(len(residuals), i + spread)
                     lb_clean.iloc[start_idx:end_idx] = True
             except Exception:
                 continue
