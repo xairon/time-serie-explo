@@ -11,7 +11,7 @@ from api.cache import get_redis, pool as redis_pool
 from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
-from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection
+from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ app.include_router(forecasting.router)
 app.include_router(explainability.router)
 app.include_router(counterfactual.router)
 app.include_router(db_introspection.router)
+app.include_router(pumping_detection.router)
 
 
 def _check_gpu() -> dict:
