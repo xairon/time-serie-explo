@@ -3,11 +3,10 @@ import pandas as pd
 import pytest
 from unittest.mock import MagicMock
 
-from dashboard.utils.pumping_detection.ml_layer import MLAnalyzer
-
 
 class TestFilterToClean:
     def test_longest_clean_segment(self):
+        from dashboard.utils.pumping_detection.ml_layer import MLAnalyzer
         analyzer = MLAnalyzer()
         dates = pd.date_range("2020-01-01", periods=100, freq="D")
         mask = pd.Series(False, index=dates)
@@ -25,6 +24,7 @@ class TestFilterToClean:
         assert call_args[1] == pd.Timestamp("2020-03-30")
 
     def test_no_clean_segment_returns_none(self):
+        from dashboard.utils.pumping_detection.ml_layer import MLAnalyzer
         analyzer = MLAnalyzer()
         dates = pd.date_range("2020-01-01", periods=50, freq="D")
         mask = pd.Series(False, index=dates)
