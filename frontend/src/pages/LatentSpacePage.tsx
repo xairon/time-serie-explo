@@ -386,15 +386,9 @@ export default function LatentSpacePage() {
         )}
       </div>
 
-      {/* Profiling tab */}
-      {activeTab === 'profiling' ? (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <ClusterProfiling domain={domain} hideUnclassified={hideUnclassified} />
-        </div>
-      ) : (
-      /* Main content: filter sidebar + scatter + detail */
+      {/* Main content: filter sidebar + (scatter or profiling) + detail */}
       <div className="flex gap-4 flex-1 min-h-0">
-        {/* Filter sidebar */}
+        {/* Filter sidebar — always visible */}
         <div className="shrink-0 overflow-y-auto">
           <FilterPanel
             domain={domain}
@@ -409,92 +403,99 @@ export default function LatentSpacePage() {
           />
         </div>
 
-        {/* Scatter + controls */}
-        <div className="flex-1 flex flex-col min-w-0 gap-2">
-          {/* Empty state */}
-          {scatterPoints.length === 0 && !computeMutation.isPending ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-text-muted text-sm">
-                  {stations.length > 0
-                    ? 'Computing UMAP projection...'
-                    : 'No station embeddings found.'}
-                </p>
-                {stations.length > 0 && (
-                  <button
-                    onClick={handleRecalculate}
-                    className="bg-accent-cyan text-white px-4 py-2 rounded-lg text-sm hover:bg-accent-cyan/90 transition-colors"
-                  >
-                    Compute now
-                  </button>
-                )}
+        {activeTab === 'profiling' ? (
+          <div className="flex-1 min-w-0 overflow-y-auto">
+            <ClusterProfiling domain={domain} hideUnclassified={hideUnclassified} />
+          </div>
+        ) : (
+          <>
+            {/* Scatter + controls */}
+            <div className="flex-1 flex flex-col min-w-0 gap-2">
+              {/* Empty state */}
+              {scatterPoints.length === 0 && !computeMutation.isPending ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-text-muted text-sm">
+                      {stations.length > 0
+                        ? 'Computing UMAP projection...'
+                        : 'No station embeddings found.'}
+                    </p>
+                    {stations.length > 0 && (
+                      <button
+                        onClick={handleRecalculate}
+                        className="bg-accent-cyan text-white px-4 py-2 rounded-lg text-sm hover:bg-accent-cyan/90 transition-colors"
+                      >
+                        Compute now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : highlightedCount === 0 && hasActiveFilters ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-text-muted text-sm">
+                    No stations match the selected filters.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0">
+                  <EmbeddingScatter
+                    points={scatterPoints}
+                    mode={mode}
+                    colorBy={colorBy}
+                    onPointClick={handleStationSelect}
+                    loading={computeMutation.isPending}
+                    className="h-full"
+                  />
+                </div>
+              )}
+
+              {/* Controls bar */}
+              <div className="shrink-0 bg-bg-card rounded-xl border border-white/5 px-3 py-1">
+                <UMAPControls
+                  mode={mode}
+                  onModeChange={setMode}
+                  level={level}
+                  onLevelChange={(l) => {
+                    setLevel(l)
+                    setComputedPoints(null)
+                    setSubsampled(null)
+                  }}
+                  umapParams={umapParams}
+                  onUmapParamsChange={setUmapParams}
+                  clusteringParams={clusteringParams}
+                  onClusteringParamsChange={setClusteringParams}
+                  onRecalculate={handleRecalculate}
+                  onReset={handleReset}
+                  isComputing={computeMutation.isPending}
+                  yearRange={yearRange}
+                  onYearRangeChange={setYearRange}
+                  season={season}
+                  onSeasonChange={setSeason}
+                />
               </div>
             </div>
-          ) : highlightedCount === 0 && hasActiveFilters ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-text-muted text-sm">
-                No stations match the selected filters.
-              </p>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-0">
-              <EmbeddingScatter
-                points={scatterPoints}
-                mode={mode}
-                colorBy={colorBy}
-                onPointClick={handleStationSelect}
-                loading={computeMutation.isPending}
-                className="h-full"
-              />
-            </div>
-          )}
 
-          {/* Controls bar */}
-          <div className="shrink-0 bg-bg-card rounded-xl border border-white/5 px-3 py-1">
-            <UMAPControls
-              mode={mode}
-              onModeChange={setMode}
-              level={level}
-              onLevelChange={(l) => {
-                setLevel(l)
-                setComputedPoints(null)
-                setSubsampled(null)
-              }}
-              umapParams={umapParams}
-              onUmapParamsChange={setUmapParams}
-              clusteringParams={clusteringParams}
-              onClusteringParamsChange={setClusteringParams}
-              onRecalculate={handleRecalculate}
-              onReset={handleReset}
-              isComputing={computeMutation.isPending}
-              yearRange={yearRange}
-              onYearRangeChange={setYearRange}
-              season={season}
-              onSeasonChange={setSeason}
-            />
-          </div>
-        </div>
-
-        {/* Right sidebar: station detail + quality metrics */}
-        <div className="shrink-0 flex flex-col gap-3 overflow-y-auto">
-          {selectedStation && (
-            <StationDetail
-              domain={domain}
-              stationId={selectedStation}
-              stationMeta={selectedStationMeta}
-              onClose={() => {
-                setSelectedStation(null)
-                setFilters({})
-              }}
-              onNeighborClick={handleStationSelect}
-            />
-          )}
-          {qualityMetrics && (
-            <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
-          )}
-        </div>
+            {/* Right sidebar: station detail + quality metrics */}
+            <div className="shrink-0 flex flex-col gap-3 overflow-y-auto">
+              {selectedStation && (
+                <StationDetail
+                  domain={domain}
+                  stationId={selectedStation}
+                  stationMeta={selectedStationMeta}
+                  onClose={() => {
+                    setSelectedStation(null)
+                    setFilters({})
+                  }}
+                  onNeighborClick={handleStationSelect}
+                />
+              )}
+              {qualityMetrics && (
+                <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
+              )}
+            </div>
+          </>
+        )}
       </div>
-      )}
     </div>
   )
 }

@@ -15,6 +15,7 @@ export function TemporalPrototypes({ prototypes }: TemporalPrototypesProps) {
   const protos = prototypes as {
     cluster_id: number
     medoid_id: string
+    n_members: number
     dates: string[]
     medoid_values: (number | null)[]
     p10: (number | null)[]
@@ -22,6 +23,22 @@ export function TemporalPrototypes({ prototypes }: TemporalPrototypesProps) {
   }[]
 
   if (protos.length === 0) return null
+
+  // Compute shared Y-axis range across all prototypes
+  let yMin = Infinity
+  let yMax = -Infinity
+  for (const proto of protos) {
+    for (const arr of [proto.medoid_values, proto.p10, proto.p90]) {
+      for (const v of arr) {
+        if (v != null && isFinite(v)) {
+          if (v < yMin) yMin = v
+          if (v > yMax) yMax = v
+        }
+      }
+    }
+  }
+  const yPad = (yMax - yMin) * 0.05
+  const sharedYRange: [number, number] = [yMin - yPad, yMax + yPad]
 
   const cols = Math.min(4, protos.length)
   const rows = Math.ceil(protos.length / cols)
@@ -67,7 +84,7 @@ export function TemporalPrototypes({ prototypes }: TemporalPrototypesProps) {
     } as Data)
 
     annotations.push({
-      text: `Cluster ${proto.cluster_id} — ${proto.medoid_id}`,
+      text: `Cluster ${proto.cluster_id} (n=${proto.n_members}) — ${proto.medoid_id}`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       xref: `${xaxis} domain` as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,6 +117,7 @@ export function TemporalPrototypes({ prototypes }: TemporalPrototypesProps) {
     ;(layout as Record<string, unknown>)[yKey] = {
       ...darkLayout.yaxis,
       tickfont: { size: 9 },
+      range: sharedYRange,
     }
   })
 

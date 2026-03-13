@@ -20,10 +20,11 @@ class ConcordanceMetric(BaseModel):
 class ClusterPrototype(BaseModel):
     cluster_id: int
     medoid_id: str
+    n_members: int
     dates: list[str]
-    medoid_values: list[float]
-    p10: list[float]
-    p90: list[float]
+    medoid_values: list[float | None]
+    p10: list[float | None]
+    p90: list[float | None]
 
 
 class FeatureFingerprint(BaseModel):

@@ -583,7 +583,7 @@ async def get_profiling(
             for k, v in concordance.items()
         ],
         prototypes=[
-            ClusterPrototype(cluster_id=cid, **data)
+            ClusterPrototype(cluster_id=cid, n_members=len(cluster_members.get(cid, [])), **data)
             for cid, data in sorted(prototypes.items())
         ],
         fingerprints=[
