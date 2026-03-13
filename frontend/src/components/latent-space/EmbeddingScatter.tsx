@@ -52,7 +52,7 @@ export function EmbeddingScatter({
     if (mode === '3d') {
       traces.push({
         type: 'scatter3d',
-        name: 'Autres',
+        name: 'Others',
         x: others.map((p) => (p.coords as [number, number, number])[0]),
         y: others.map((p) => (p.coords as [number, number, number])[1]),
         z: others.map((p) => (p.coords as [number, number, number])[2]),
@@ -65,7 +65,7 @@ export function EmbeddingScatter({
     } else {
       traces.push({
         type: 'scattergl',
-        name: 'Autres',
+        name: 'Others',
         x: others.map((p) => p.coords[0]),
         y: others.map((p) => p.coords[1]),
         mode: 'markers',
@@ -208,7 +208,7 @@ export function EmbeddingScatter({
         <div className="absolute inset-0 flex items-center justify-center bg-bg-card/70 rounded-xl z-10">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
-            <span className="text-text-secondary text-sm">Calcul UMAP en cours...</span>
+            <span className="text-text-secondary text-sm">Computing UMAP...</span>
           </div>
         </div>
       )}

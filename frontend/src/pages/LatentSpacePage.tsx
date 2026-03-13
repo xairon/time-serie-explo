@@ -198,7 +198,7 @@ export default function LatentSpacePage() {
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
-          <span className="text-text-secondary text-sm">Chargement des embeddings...</span>
+          <span className="text-text-secondary text-sm">Loading embeddings...</span>
         </div>
       </div>
     )
@@ -210,15 +210,15 @@ export default function LatentSpacePage() {
       <div className="flex items-center justify-center h-full">
         <div className="bg-bg-card rounded-xl border border-white/5 p-8 flex flex-col items-center gap-4 max-w-md">
           <AlertTriangle className="w-10 h-10 text-accent-red" />
-          <p className="text-text-primary text-center">Base de données BRGM indisponible</p>
+          <p className="text-text-primary text-center">BRGM database unavailable</p>
           <p className="text-text-muted text-sm text-center">
-            Impossible de charger les embeddings. Vérifiez la connexion à brgm-postgres.
+            Unable to load embeddings. Check brgm-postgres connection.
           </p>
           <button
             onClick={() => refetch()}
             className="bg-accent-cyan text-white px-4 py-2 rounded-lg text-sm hover:bg-accent-cyan/90 transition-colors"
           >
-            Réessayer
+            Retry
           </button>
         </div>
       </div>
@@ -241,7 +241,7 @@ export default function LatentSpacePage() {
                 : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
             }`}
           >
-            Piézométrie
+            Piezometry
           </button>
           <button
             onClick={() => handleDomainChange('hydro')}
@@ -251,7 +251,7 @@ export default function LatentSpacePage() {
                 : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
             }`}
           >
-            Hydrométrie
+            Hydrometry
           </button>
         </div>
 
@@ -266,14 +266,14 @@ export default function LatentSpacePage() {
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>
               {scatterPoints.length.toLocaleString()} / {subsampled.from.toLocaleString()} points
-              (sous-échantillonné)
+              (subsampled)
             </span>
           </div>
         )}
 
         {computeMutation.isError && (
           <span className="text-accent-red text-xs">
-            Erreur UMAP: {(computeMutation.error as Error)?.message ?? 'erreur inconnue'}
+            UMAP error: {(computeMutation.error as Error)?.message ?? 'unknown error'}
           </span>
         )}
       </div>
@@ -298,13 +298,13 @@ export default function LatentSpacePage() {
           {scatterPoints.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-text-muted text-sm">
-                Aucune station avec des coordonnées UMAP pré-calculées.
+                No stations with pre-computed UMAP coordinates.
               </p>
             </div>
           ) : highlightedCount === 0 && hasActiveFilters ? (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-text-muted text-sm">
-                Aucune station ne correspond aux filtres sélectionnés.
+                No stations match the selected filters.
               </p>
             </div>
           ) : (

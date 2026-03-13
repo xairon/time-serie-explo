@@ -17,7 +17,7 @@ function SuspenseWrapper({ children }: { children: React.ReactNode }) {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-full text-text-secondary">
-          Chargement...
+          Loading...
         </div>
       }
     >
@@ -30,7 +30,7 @@ function NotFound() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4">
       <h1 className="text-4xl font-bold text-text-primary">404</h1>
-      <p className="text-text-secondary">Page non trouvée</p>
+      <p className="text-text-secondary">Page not found</p>
     </div>
   )
 }

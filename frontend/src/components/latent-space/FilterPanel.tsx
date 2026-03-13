@@ -14,17 +14,17 @@ interface FilterPanelProps {
 }
 
 const PIEZO_ATTRS = [
-  { key: 'libelle_eh', label: 'Libellé' },
-  { key: 'milieu_eh', label: 'Milieu' },
-  { key: 'theme_eh', label: 'Thème' },
-  { key: 'etat_eh', label: 'État' },
-  { key: 'departement', label: 'Département' },
+  { key: 'libelle_eh', label: 'Label' },
+  { key: 'milieu_eh', label: 'Medium' },
+  { key: 'theme_eh', label: 'Theme' },
+  { key: 'etat_eh', label: 'State' },
+  { key: 'departement', label: 'Department' },
   { key: 'cluster_id', label: 'Cluster' },
 ]
 
 const HYDRO_ATTRS = [
-  { key: 'nom_cours_eau', label: "Cours d'eau" },
-  { key: 'departement', label: 'Département' },
+  { key: 'nom_cours_eau', label: 'Waterway' },
+  { key: 'departement', label: 'Department' },
   { key: 'cluster_id', label: 'Cluster' },
 ]
 
@@ -77,12 +77,12 @@ export function FilterPanel({
   return (
     <div className="flex flex-col gap-4 w-60">
       <div className="flex items-center justify-between">
-        <span className="text-text-primary text-sm font-medium">Filtres</span>
+        <span className="text-text-primary text-sm font-medium">Filters</span>
         <button
           onClick={handleReset}
           className="text-text-muted text-xs hover:text-text-secondary transition-colors"
         >
-          Réinitialiser
+          Reset
         </button>
       </div>
 
@@ -97,7 +97,7 @@ export function FilterPanel({
               value={String(filters[key] ?? '')}
               onChange={(e) => handleFilterChange(key, e.target.value)}
             >
-              <option value="">Tous</option>
+              <option value="">All</option>
               {values.map((v) => (
                 <option key={String(v)} value={String(v)}>
                   {String(v)}
@@ -109,7 +109,7 @@ export function FilterPanel({
       })}
 
       <div className="border-t border-white/5 pt-4 flex flex-col gap-1">
-        <label className="text-text-muted text-xs">Colorer par</label>
+        <label className="text-text-muted text-xs">Color by</label>
         <select
           className={selectClass}
           value={colorBy}

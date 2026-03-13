@@ -2,9 +2,9 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { Waypoints, GitCompareArrows, Droplets } from 'lucide-react'
 
 const LAB_TABS = [
-  { to: '/lab/latent-space', icon: Waypoints, label: 'Espace Latent' },
-  { to: '/lab/counterfactual', icon: GitCompareArrows, label: 'Contrefactuel' },
-  { to: '/lab/pumping-detection', icon: Droplets, label: 'Détection Pompage' },
+  { to: '/lab/latent-space', icon: Waypoints, label: 'Latent Space' },
+  { to: '/lab/counterfactual', icon: GitCompareArrows, label: 'Counterfactual' },
+  { to: '/lab/pumping-detection', icon: Droplets, label: 'Pumping Detection' },
 ] as const
 
 export default function LabLayout() {

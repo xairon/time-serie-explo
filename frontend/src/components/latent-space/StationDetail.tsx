@@ -31,7 +31,7 @@ export function StationDetail({ domain, stationId, onClose }: StationDetailProps
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-text-muted text-xs mb-0.5">Station sélectionnée</p>
+          <p className="text-text-muted text-xs mb-0.5">Selected station</p>
           <p className="text-text-primary text-sm font-medium leading-snug break-all">
             {stationId}
           </p>
@@ -39,7 +39,7 @@ export function StationDetail({ domain, stationId, onClose }: StationDetailProps
         <button
           onClick={onClose}
           className="shrink-0 p-1 text-text-muted hover:text-text-primary hover:bg-bg-hover rounded transition-colors"
-          aria-label="Fermer"
+          aria-label="Close"
         >
           <X className="w-4 h-4" />
         </button>
@@ -50,7 +50,7 @@ export function StationDetail({ domain, stationId, onClose }: StationDetailProps
       {/* Neighbors list */}
       <div className="flex flex-col gap-1">
         <p className="text-text-muted text-xs font-medium uppercase tracking-wide mb-1">
-          Stations similaires
+          Similar stations
         </p>
 
         {isLoading ? (
@@ -63,7 +63,7 @@ export function StationDetail({ domain, stationId, onClose }: StationDetailProps
             ))}
           </div>
         ) : !data || !(data as Record<string, unknown>).neighbors || ((data as Record<string, unknown>).neighbors as unknown[]).length === 0 ? (
-          <p className="text-text-muted text-sm">Aucune station similaire trouvée.</p>
+          <p className="text-text-muted text-sm">No similar stations found.</p>
         ) : (
           <div className="flex flex-col divide-y divide-white/5">
             {((data as Record<string, unknown>).neighbors as Array<{ id: string; distance: number; metadata: Record<string, unknown> }>).map(

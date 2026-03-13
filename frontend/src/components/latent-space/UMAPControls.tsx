@@ -101,11 +101,11 @@ export function UMAPControls({
 
       {/* Level toggle */}
       <div className="flex flex-col gap-1">
-        <span className="text-text-muted text-xs">Niveau</span>
+        <span className="text-text-muted text-xs">Level</span>
         <ToggleGroup
           options={[
             { key: 'stations', label: 'Stations' },
-            { key: 'windows', label: 'Fenêtres' },
+            { key: 'windows', label: 'Windows' },
           ]}
           value={level}
           onChange={onLevelChange}
@@ -231,7 +231,7 @@ export function UMAPControls({
       {level === 'windows' && onYearRangeChange && yearRange && (
         <>
           <div className="flex flex-col gap-1">
-            <span className="text-text-muted text-xs">Année début</span>
+            <span className="text-text-muted text-xs">Start year</span>
             <input
               type="number"
               className={inputClass}
@@ -240,7 +240,7 @@ export function UMAPControls({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-text-muted text-xs">Année fin</span>
+            <span className="text-text-muted text-xs">End year</span>
             <input
               type="number"
               className={inputClass}
@@ -253,7 +253,7 @@ export function UMAPControls({
 
       {level === 'windows' && onSeasonChange && (
         <div className="flex flex-col gap-1">
-          <span className="text-text-muted text-xs">Saison</span>
+          <span className="text-text-muted text-xs">Season</span>
           <div className="flex rounded-lg overflow-hidden border border-white/10">
             <button
               onClick={() => onSeasonChange(null)}
@@ -263,7 +263,7 @@ export function UMAPControls({
                   : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
               }`}
             >
-              Tout
+              All
             </button>
             {SEASONS.map(({ key, label }) => (
               <button
@@ -288,7 +288,7 @@ export function UMAPControls({
           onClick={onReset}
           className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary border border-white/10 rounded-lg hover:bg-bg-hover transition-colors"
         >
-          Réinitialiser
+          Reset
         </button>
         <button
           onClick={onRecalculate}
@@ -298,10 +298,10 @@ export function UMAPControls({
           {isComputing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Calcul...
+              Computing...
             </>
           ) : (
-            'Recalculer'
+            'Recompute'
           )}
         </button>
       </div>
