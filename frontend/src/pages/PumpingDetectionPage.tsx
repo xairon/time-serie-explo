@@ -29,7 +29,7 @@ function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-text-secondary">Fenêtre (jours)</span>
+        <span className="text-xs text-text-secondary">Window (days)</span>
         <input
           type="number"
           min={7}
@@ -189,7 +189,7 @@ export default function PumpingDetectionPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold text-text-primary">Détection de Pompage</h1>
+            <h1 className="text-xl font-bold text-text-primary">Pumping Detection</h1>
             <p className="text-sm text-text-secondary mt-0.5">
               Analyse multi-couches des artefacts de pompage sur chronique piézométrique
             </p>
@@ -210,7 +210,7 @@ export default function PumpingDetectionPage() {
                 disabled={datasetsLoading || detection.isAnalyzing}
                 className="bg-bg-primary border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/40 disabled:opacity-50"
               >
-                <option value="">-- Sélectionner --</option>
+                <option value="">-- Select --</option>
                 {(datasets ?? []).map(d => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -244,7 +244,7 @@ export default function PumpingDetectionPage() {
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan text-sm hover:bg-accent-cyan/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     <Play className="w-4 h-4" />
-                    Analyser
+                    Analyze
                   </button>
                 </>
               )}
@@ -258,7 +258,7 @@ export default function PumpingDetectionPage() {
               className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
             >
               {configOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              Configuration avancée
+              Advanced settings
             </button>
             {configOpen && (
               <ConfigPanel config={config} onChange={setConfig} />

@@ -16,7 +16,7 @@ export default function DashboardPage() {
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold text-text-primary mb-1">Dashboard</h1>
-        <p className="text-sm text-text-secondary">Vue d'ensemble de la plateforme Junon</p>
+        <p className="text-sm text-text-secondary">Junon platform overview</p>
       </div>
 
       {/* Status cards */}
@@ -30,7 +30,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatusCard
             label="GPU"
-            value={health?.gpu?.available ? health.gpu.device ?? 'Disponible' : 'Indisponible'}
+            value={health?.gpu?.available ? health.gpu.device ?? 'Available' : 'Unavailable'}
             icon={Cpu}
             status={health?.gpu?.available ? 'ok' : 'error'}
           />
@@ -41,14 +41,14 @@ export default function DashboardPage() {
             status="neutral"
           />
           <StatusCard
-            label="Modèles"
+            label="Models"
             value={models?.length ?? 0}
             icon={GraduationCap}
             status="neutral"
           />
           <StatusCard
             label="Redis"
-            value={health?.redis === 'ok' ? 'Connecté' : 'Hors ligne'}
+            value={health?.redis === 'ok' ? 'Connected' : 'Offline'}
             icon={Server}
             status={health?.redis === 'ok' ? 'ok' : 'error'}
           />
@@ -63,7 +63,7 @@ export default function DashboardPage() {
             to="/data"
             className="text-xs text-accent-cyan hover:underline"
           >
-            Gérer les données
+            Manage data
           </Link>
         </div>
 
@@ -85,12 +85,12 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <Database className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">Aucun dataset importé</p>
+            <p className="text-sm text-text-secondary mb-3">No datasets imported</p>
             <Link
               to="/data"
               className="text-sm text-accent-cyan hover:underline"
             >
-              Importer des données
+              Import data
             </Link>
           </div>
         )}
@@ -99,12 +99,12 @@ export default function DashboardPage() {
       {/* Models section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Modèles entraînés</h2>
+          <h2 className="text-lg font-semibold text-text-primary">Trained models</h2>
           <Link
             to="/training"
             className="text-xs text-accent-cyan hover:underline"
           >
-            Entraîner un modèle
+            Train a model
           </Link>
         </div>
 
@@ -126,12 +126,12 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <GraduationCap className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">Aucun modèle entraîné</p>
+            <p className="text-sm text-text-secondary mb-3">No trained models</p>
             <Link
               to="/training"
               className="text-sm text-accent-cyan hover:underline"
             >
-              Démarrer un entraînement
+              Start training
             </Link>
           </div>
         )}

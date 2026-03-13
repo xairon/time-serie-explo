@@ -57,7 +57,7 @@ export default function TrainingPage() {
       if (val_loss !== null) msg += ` | val_loss: ${val_loss.toFixed(5)}`
       if (best_val_loss !== null) msg += ` | best: ${best_val_loss.toFixed(5)}`
     } else {
-      msg += 'Preparation des donnees...'
+      msg += 'Preparing data...'
     }
     setLogs((prev) => [...prev, msg])
   }, [sse.data?.current_epoch, sse.data?.status])
@@ -66,11 +66,11 @@ export default function TrainingPage() {
   useEffect(() => {
     const timestamp = new Date().toLocaleTimeString('fr-FR')
     if (sse.status === 'connected') {
-      setLogs((prev) => [...prev, `[${timestamp}] Connexion SSE etablie`])
+      setLogs((prev) => [...prev, `[${timestamp}] SSE connection established`])
     } else if (sse.status === 'done') {
-      setLogs((prev) => [...prev, `[${timestamp}] Entrainement termine`])
+      setLogs((prev) => [...prev, `[${timestamp}] Training complete`])
     } else if (sse.status === 'error') {
-      setLogs((prev) => [...prev, `[${timestamp}] Erreur: ${sse.error ?? 'connexion perdue'}`])
+      setLogs((prev) => [...prev, `[${timestamp}] Error: ${sse.error ?? 'connection lost'}`])
     }
   }, [sse.status])
 
@@ -79,22 +79,14 @@ export default function TrainingPage() {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Track loss history when SSE data updates
-  const lastEpoch = sse.data?.current_epoch ?? 0
-  if (sse.data) {
-    if (
-      sse.data.train_loss !== null &&
-      trainLossHistory.length < lastEpoch
-    ) {
-      setTrainLossHistory((prev) => [...prev, sse.data!.train_loss!])
-    }
-    if (
-      sse.data.val_loss !== null &&
-      valLossHistory.length < lastEpoch
-    ) {
-      setValLossHistory((prev) => [...prev, sse.data!.val_loss!])
-    }
-  }
+  // Use full loss arrays from SSE (sent by backend from MetricsFileCallback)
+  useEffect(() => {
+    if (!sse.data) return
+    const tl = (sse.data.train_losses ?? []).filter((v): v is number => v !== null)
+    const vl = (sse.data.val_losses ?? []).filter((v): v is number => v !== null)
+    if (tl.length > 0) setTrainLossHistory(tl)
+    if (vl.length > 0) setValLossHistory(vl)
+  }, [sse.data?.current_epoch])
 
   // Detect training done - fetch full result including sliding metrics
   if (sse.status === 'done' && !finalResult && taskId) {
@@ -134,7 +126,7 @@ export default function TrainingPage() {
 
   const handleDeleteModel = useCallback(
     (modelId: string) => {
-      if (window.confirm('Supprimer ce modele ?')) {
+      if (window.confirm('Delete this model?')) {
         deleteMutation.mutate(modelId)
       }
     },
@@ -149,7 +141,7 @@ export default function TrainingPage() {
       <div>
         <h1 className="text-2xl font-bold text-text-primary mb-1">Entrainement</h1>
         <p className="text-sm text-text-secondary">
-          Configurer et lancer l'entrainement de modeles de prevision
+          Configure and launch forecast model training
         </p>
       </div>
 
@@ -162,7 +154,7 @@ export default function TrainingPage() {
           />
           {startMutation.isError && (
             <p className="mt-3 text-xs text-accent-red">
-              Erreur : {(startMutation.error as Error).message}
+              Error: {(startMutation.error as Error).message}
             </p>
           )}
         </div>
@@ -181,7 +173,7 @@ export default function TrainingPage() {
           ) : (
             <div className="flex items-center justify-center h-full min-h-[300px]">
               <p className="text-sm text-text-secondary">
-                Configurez le modele et lancez l'entrainement pour voir le moniteur en temps reel.
+                Configure the model and start training to see the real-time monitor.
               </p>
             </div>
           )}
@@ -195,7 +187,7 @@ export default function TrainingPage() {
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-text-primary mr-4">Phase :</h3>
             {(['preparing', 'training', 'completed'] as const).map((p, i) => {
-              const labels = { preparing: 'Preparation', training: 'Entrainement', completed: 'Termine' }
+              const labels = { preparing: 'Preparation', training: 'Training', completed: 'Done' }
               const isActive = phase === p
               const isPast = (phase === 'training' && p === 'preparing') ||
                 (phase === 'completed' && (p === 'preparing' || p === 'training'))
@@ -224,7 +216,7 @@ export default function TrainingPage() {
             {phase === 'error' && (
               <div className="flex items-center gap-1.5 ml-4">
                 <div className="w-3 h-3 rounded-full border-2 border-accent-red bg-accent-red/30" />
-                <span className="text-xs text-accent-red font-medium">Erreur</span>
+                <span className="text-xs text-accent-red font-medium">Error</span>
               </div>
             )}
           </div>
@@ -234,10 +226,10 @@ export default function TrainingPage() {
             <h4 className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Logs</h4>
             <div className="bg-bg-primary rounded-lg border border-white/5 p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-text-secondary space-y-0.5">
               {logs.length === 0 ? (
-                <p className="text-text-secondary/50">En attente des logs...</p>
+                <p className="text-text-secondary/50">Waiting for logs...</p>
               ) : (
                 logs.map((log, i) => (
-                  <div key={i} className={`${log.includes('Erreur') || log.includes('error') ? 'text-accent-red' : log.includes('termine') || log.includes('Termine') ? 'text-accent-green' : ''}`}>
+                  <div key={i} className={`${log.includes('Error') || log.includes('error') ? 'text-accent-red' : log.includes('complete') || log.includes('Complete') ? 'text-accent-green' : ''}`}>
                     {log}
                   </div>
                 ))
@@ -262,7 +254,7 @@ export default function TrainingPage() {
       {models && models.length > 0 && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-3">
-            Historique des entrainements
+            Training history
           </h3>
           <div className="overflow-x-auto rounded-lg border border-white/5">
             <table className="w-full text-sm">
@@ -329,7 +321,7 @@ export default function TrainingPage() {
                           className="text-xs text-accent-cyan hover:underline"
                           download
                         >
-                          Telecharger
+                          Download
                         </a>
                         <button
                           type="button"
@@ -337,7 +329,7 @@ export default function TrainingPage() {
                           disabled={deleteMutation.isPending}
                           className="text-xs text-accent-red/70 hover:text-accent-red transition-colors disabled:opacity-50"
                         >
-                          Supprimer
+                          Delete
                         </button>
                       </div>
                     </td>

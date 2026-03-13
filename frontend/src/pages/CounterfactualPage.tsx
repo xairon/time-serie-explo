@@ -61,7 +61,7 @@ function startCFStream(
       const data = JSON.parse((event as MessageEvent).data) as { error?: string }
       setResults((prev) => ({
         ...prev,
-        [method]: { task_id: taskId, status: 'error', result: null, error: data.error ?? 'Erreur inconnue' },
+        [method]: { task_id: taskId, status: 'error', result: null, error: data.error ?? 'Unknown error' },
       }))
     } catch {
       setResults((prev) => ({
@@ -253,7 +253,7 @@ export default function CounterfactualPage() {
         <div>
           <h1 className="text-2xl font-bold text-text-primary mb-1">Analyse contrefactuelle</h1>
           <p className="text-sm text-text-secondary">
-            Simulation de scenarios alternatifs pour comprendre l'impact des covariables
+            Simulate alternative scenarios to understand covariate impact
           </p>
         </div>
         {hasAnyResult && (
@@ -365,7 +365,7 @@ export default function CounterfactualPage() {
       {!modelId && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
           <p className="text-text-secondary text-sm">
-            Selectionnez un modele entraine pour commencer l'analyse contrefactuelle.
+            Select a trained model to start counterfactual analysis.
           </p>
         </div>
       )}

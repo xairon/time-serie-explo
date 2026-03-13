@@ -2,14 +2,15 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { ForecastView } from '@/components/forecasting/ForecastView'
+import { TestSetOverview } from '@/components/charts/TestSetOverview'
 import { ExplainabilityPanel } from '@/components/forecasting/ExplainabilityPanel'
 import { useForecastSingle } from '@/hooks/useForecasting'
 import { useModelDetail, useModelTestInfo } from '@/hooks/useModels'
 
 /** Tooltip descriptions for each metric (matches Streamlit) */
 const METRIC_TOOLTIPS: Record<string, string> = {
-  MAE: 'Mean Absolute Error — erreur moyenne en unites de la variable',
-  RMSE: 'Root Mean Squared Error — penalise davantage les grosses erreurs',
+  MAE: 'Mean Absolute Error — average error in variable units',
+  RMSE: 'Root Mean Squared Error — penalizes large errors more',
   sMAPE: 'Symmetric Mean Absolute Percentage Error (%)',
   WAPE: 'Weighted Absolute Percentage Error (%) — plus stable que MAPE',
   NRMSE: "Normalized RMSE — % de l'amplitude (max-min)",
@@ -340,15 +341,33 @@ export default function ForecastingPage() {
         </div>
       )}
 
+      {/* Full test set overview with sliding window */}
+      {testInfo && testInfo.test_values && sliderIdx !== null && (
+        <div className="bg-bg-card rounded-xl border border-white/5 p-5">
+          <h3 className="text-sm font-semibold text-text-primary mb-2">
+            Test set overview
+          </h3>
+          <TestSetOverview
+            testDates={testInfo.test_dates}
+            testValues={testInfo.test_values}
+            sliderIdx={sliderIdx}
+            inputChunkLength={testInfo.input_chunk_length}
+            outputChunkLength={testInfo.output_chunk_length}
+            windowResult={displayResult}
+            className="h-[250px]"
+          />
+        </div>
+      )}
+
       {isError && (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4">
           <p className="text-sm text-accent-red">
-            Erreur : {(error as Error).message}
+            Error: {(error as Error).message}
           </p>
         </div>
       )}
 
-      {/* Main content: chart + metrics */}
+      {/* Window detail: chart + metrics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart (2/3 width) */}
         <div className="lg:col-span-2">
@@ -411,7 +430,7 @@ export default function ForecastingPage() {
                       <span className="text-text-primary">{new Date(windowInfo.startDate).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Fin</span>
+                      <span className="text-text-secondary">End</span>
                       <span className="text-text-primary">{new Date(windowInfo.endDate).toLocaleDateString('fr-FR')}</span>
                     </div>
                     <div className="flex justify-between text-xs">

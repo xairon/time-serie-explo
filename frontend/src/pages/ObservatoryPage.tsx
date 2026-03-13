@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ExternalLink, Maximize2, Minimize2, Zap, X } from 'lucide-react'
 
-const OBSERVATORY_URL = `${window.location.protocol}//${window.location.hostname}:49510`
+const OBSERVATORY_URL = `${window.location.protocol}//${window.location.hostname}:49510?active_only=true`
 
 interface StationMessage {
   code: string
@@ -48,7 +48,7 @@ export default function ObservatoryPage() {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-accent-indigo" />
           <span className="text-sm font-medium text-text-primary">Hydro Observatory</span>
-          <span className="text-xs text-text-secondary hidden sm:block">— Observatoire hydrologique France</span>
+          <span className="text-xs text-text-secondary hidden sm:block">— France hydrological observatory</span>
         </div>
         <div className="flex items-center gap-2">
           {selectedStation && (
@@ -59,7 +59,7 @@ export default function ObservatoryPage() {
                 className="flex items-center gap-1 text-xs font-medium text-white bg-accent-cyan/80 hover:bg-accent-cyan px-2 py-0.5 rounded transition-colors"
               >
                 <Zap className="w-3 h-3" />
-                Importer & Analyser
+                Import & Analyze
               </button>
               <button onClick={() => setSelectedStation(null)} className="text-text-secondary hover:text-text-primary">
                 <X className="w-3 h-3" />
@@ -78,7 +78,7 @@ export default function ObservatoryPage() {
           <button
             onClick={() => setFullscreen(!fullscreen)}
             className="flex items-center gap-1 text-xs text-text-secondary hover:text-accent-cyan transition-colors"
-            title={fullscreen ? 'Réduire' : 'Plein écran'}
+            title={fullscreen ? 'Minimize' : 'Fullscreen'}
           >
             {fullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
