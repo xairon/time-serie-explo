@@ -62,11 +62,11 @@ export function StationDetail({ domain, stationId, onClose }: StationDetailProps
               </div>
             ))}
           </div>
-        ) : !data || (Array.isArray(data) && data.length === 0) ? (
+        ) : !data || !(data as Record<string, unknown>).neighbors || ((data as Record<string, unknown>).neighbors as unknown[]).length === 0 ? (
           <p className="text-text-muted text-sm">Aucune station similaire trouvée.</p>
         ) : (
           <div className="flex flex-col divide-y divide-white/5">
-            {(data as Array<{ id: string; distance: number; metadata: Record<string, unknown> }>).map(
+            {((data as Record<string, unknown>).neighbors as Array<{ id: string; distance: number; metadata: Record<string, unknown> }>).map(
               (neighbor, idx) => {
                 const secondary = getSecondaryMeta(domain, neighbor.metadata ?? {})
                 return (
