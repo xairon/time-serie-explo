@@ -449,50 +449,52 @@ export default function LatentSpacePage() {
                 </div>
               )}
 
-              {/* Controls bar */}
-              <div className="shrink-0 bg-bg-card rounded-xl border border-white/5 px-3 py-1">
-                <UMAPControls
-                  mode={mode}
-                  onModeChange={setMode}
-                  level={level}
-                  onLevelChange={(l) => {
-                    setLevel(l)
-                    setComputedPoints(null)
-                    setSubsampled(null)
-                  }}
-                  umapParams={umapParams}
-                  onUmapParamsChange={setUmapParams}
-                  clusteringParams={clusteringParams}
-                  onClusteringParamsChange={setClusteringParams}
-                  onRecalculate={handleRecalculate}
-                  onReset={handleReset}
-                  isComputing={computeMutation.isPending}
-                  yearRange={yearRange}
-                  onYearRangeChange={setYearRange}
-                  season={season}
-                  onSeasonChange={setSeason}
-                />
+              {/* Controls bar + quality metrics */}
+              <div className="shrink-0 flex gap-2 items-start">
+                <div className="flex-1 bg-bg-card rounded-xl border border-white/5 px-3 py-1">
+                  <UMAPControls
+                    mode={mode}
+                    onModeChange={setMode}
+                    level={level}
+                    onLevelChange={(l) => {
+                      setLevel(l)
+                      setComputedPoints(null)
+                      setSubsampled(null)
+                    }}
+                    umapParams={umapParams}
+                    onUmapParamsChange={setUmapParams}
+                    clusteringParams={clusteringParams}
+                    onClusteringParamsChange={setClusteringParams}
+                    onRecalculate={handleRecalculate}
+                    onReset={handleReset}
+                    isComputing={computeMutation.isPending}
+                    yearRange={yearRange}
+                    onYearRangeChange={setYearRange}
+                    season={season}
+                    onSeasonChange={setSeason}
+                  />
+                </div>
+                {qualityMetrics && (
+                  <div className="shrink-0 w-56">
+                    <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right sidebar: station detail + quality metrics */}
-            {(selectedStation || qualityMetrics) && (
-              <div className="shrink-0 w-72 flex flex-col gap-3 overflow-y-auto">
-                {selectedStation && (
-                  <StationDetail
-                    domain={domain}
-                    stationId={selectedStation}
-                    stationMeta={selectedStationMeta}
-                    onClose={() => {
-                      setSelectedStation(null)
-                      setFilters({})
-                    }}
-                    onNeighborClick={handleStationSelect}
-                  />
-                )}
-                {qualityMetrics && (
-                  <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
-                )}
+            {/* Right sidebar: station detail only */}
+            {selectedStation && (
+              <div className="shrink-0 w-72 overflow-y-auto">
+                <StationDetail
+                  domain={domain}
+                  stationId={selectedStation}
+                  stationMeta={selectedStationMeta}
+                  onClose={() => {
+                    setSelectedStation(null)
+                    setFilters({})
+                  }}
+                  onNeighborClick={handleStationSelect}
+                />
               </div>
             )}
           </>

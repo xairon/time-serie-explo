@@ -71,7 +71,7 @@ export function QualityMetrics({ metrics }: QualityMetricsProps) {
   const viz = metrics.umap_visualization
 
   return (
-    <div className="bg-bg-card rounded-xl border border-white/5 p-3 flex flex-col gap-2 w-full shrink-0 overflow-y-auto text-xs">
+    <div className="bg-bg-card rounded-xl border border-white/5 p-3 flex flex-col gap-2 shrink-0 overflow-y-auto text-xs">
       <span className="text-text-primary text-xs font-medium">Pipeline quality</span>
 
       {metrics.n_points != null && (
