@@ -2,6 +2,15 @@ interface ConcordanceTableProps {
   concordance: Record<string, unknown>[]
 }
 
+const KEY_LABELS: Record<string, string> = {
+  milieu_eh: 'Milieu',
+  theme_eh: 'Thème',
+  etat_eh: 'État',
+  nature_eh: 'Nature',
+  departement: 'Département',
+  nom_cours_eau: 'Cours d\'eau',
+}
+
 function metricColor(value: number): string {
   if (value > 0.3) return 'bg-green-500/20 text-green-400'
   if (value > 0.1) return 'bg-amber-500/20 text-amber-400'
@@ -21,9 +30,10 @@ export function ConcordanceTable({ concordance }: ConcordanceTableProps) {
 
   return (
     <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-      <h3 className="text-text-primary text-sm font-medium mb-3">
+      <h3 className="text-text-primary text-sm font-medium mb-1">
         Concordance with Known Labels
       </h3>
+      <p className="text-text-muted text-xs mb-3">How well clusters align with known metadata. Green ({'>'}0.3) = strong agreement, red ({'<'}0.1) = no meaningful alignment.</p>
       <table className="w-full text-xs">
         <thead>
           <tr className="text-text-muted border-b border-white/5">
@@ -38,7 +48,7 @@ export function ConcordanceTable({ concordance }: ConcordanceTableProps) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.key} className="border-b border-white/5 last:border-0">
-              <td className="py-2 pr-4 text-text-secondary">{row.key}</td>
+              <td className="py-2 pr-4 text-text-secondary">{KEY_LABELS[row.key] ?? row.key}</td>
               {(['ari', 'nmi', 'cramers_v'] as const).map((metric) => (
                 <td key={metric} className="text-center py-2 px-2">
                   <span className={`inline-block px-2 py-0.5 rounded text-xs font-mono ${metricColor(row[metric])}`}>

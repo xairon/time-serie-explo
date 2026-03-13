@@ -123,7 +123,8 @@ export function TemporalPrototypes({ prototypes }: TemporalPrototypesProps) {
 
   return (
     <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-      <h3 className="text-text-primary text-sm font-medium mb-3">Temporal Prototypes</h3>
+      <h3 className="text-text-primary text-sm font-medium mb-1">Temporal Prototypes</h3>
+      <p className="text-text-muted text-xs mb-3">Most representative station (medoid) per cluster with P10/P90 envelope showing within-cluster variability.</p>
       <Plot
         data={traces}
         layout={layout}

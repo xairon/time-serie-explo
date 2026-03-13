@@ -10,6 +10,15 @@ interface MetadataDistributionsProps {
 const PIEZO_KEYS = ['milieu_eh', 'theme_eh', 'etat_eh', 'nature_eh', 'departement']
 const HYDRO_KEYS = ['nom_cours_eau', 'departement']
 
+const KEY_LABELS: Record<string, string> = {
+  milieu_eh: 'Milieu',
+  theme_eh: 'Thème',
+  etat_eh: 'État',
+  nature_eh: 'Nature',
+  departement: 'Département',
+  nom_cours_eau: 'Cours d\'eau',
+}
+
 const COLORS = [
   '#06b6d4', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981',
   '#ec4899', '#3b82f6', '#f97316', '#14b8a6', '#a855f7',
@@ -49,8 +58,13 @@ export function MetadataDistributions({ distributions, domain }: MetadataDistrib
     name: val.length > 25 ? val.slice(0, 22) + '...' : val,
     y: sortedClusters.map((c) => `Cluster ${c.cid}`),
     x: sortedClusters.map((c) => c.vals[val] ?? 0),
+    customdata: sortedClusters.map((c) => {
+      const count = c.vals[val] ?? 0
+      const pct = c.total > 0 ? ((count / c.total) * 100).toFixed(1) : '0.0'
+      return pct
+    }),
     marker: { color: COLORS[i % COLORS.length] },
-    hovertemplate: `%{y}<br>${val}: %{x}<extra></extra>`,
+    hovertemplate: `%{y}<br>${val}: %{x} (%{customdata}%)<extra></extra>`,
   }))
 
   const selectClass =
@@ -58,7 +72,7 @@ export function MetadataDistributions({ distributions, domain }: MetadataDistrib
 
   return (
     <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h3 className="text-text-primary text-sm font-medium">Metadata Distributions</h3>
         <select
           className={selectClass}
@@ -66,10 +80,11 @@ export function MetadataDistributions({ distributions, domain }: MetadataDistrib
           onChange={(e) => setSelectedKey(e.target.value)}
         >
           {keys.map((k) => (
-            <option key={k} value={k}>{k}</option>
+            <option key={k} value={k}>{KEY_LABELS[k] ?? k}</option>
           ))}
         </select>
       </div>
+      <p className="text-text-muted text-xs mb-3">Composition of each cluster by metadata category. Similar distributions suggest clusters don't separate on this variable.</p>
       <Plot
         data={traces}
         layout={{

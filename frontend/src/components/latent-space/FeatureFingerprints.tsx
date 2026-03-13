@@ -55,7 +55,8 @@ export function FeatureFingerprints({ fingerprints }: FeatureFingerprintsProps) 
 
   return (
     <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-      <h3 className="text-text-primary text-sm font-medium mb-3">Feature Fingerprints</h3>
+      <h3 className="text-text-primary text-sm font-medium mb-1">Feature Fingerprints</h3>
+      <p className="text-text-muted text-xs mb-3">Radar chart comparing 6 time-series features across clusters (normalized 0-1). Hover for raw values.</p>
       <Plot
         data={traces}
         layout={{

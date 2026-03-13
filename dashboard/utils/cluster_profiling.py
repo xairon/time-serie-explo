@@ -28,7 +28,7 @@ def compute_metadata_distributions(
         for s in stations:
             cid = s.get("cluster_id")
             val = s.get("metadata", {}).get(key)
-            if cid is None or val is None or val == "":
+            if cid is None or cid < 0 or val is None or val == "":
                 continue
             counts[str(cid)][str(val)] += 1
         result[key] = {k: dict(v) for k, v in counts.items()}
