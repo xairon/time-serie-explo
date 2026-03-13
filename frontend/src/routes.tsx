@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -9,6 +9,8 @@ const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 const CounterfactualPage = lazy(() => import('./pages/CounterfactualPage'))
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 const PumpingDetectionPage = lazy(() => import('./pages/PumpingDetectionPage'))
+const LabLayout = lazy(() => import('./pages/LabLayout'))
+const LatentSpacePage = lazy(() => import('./pages/LatentSpacePage'))
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -70,14 +72,6 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: '/counterfactual',
-        element: (
-          <SuspenseWrapper>
-            <CounterfactualPage />
-          </SuspenseWrapper>
-        ),
-      },
-      {
         path: '/observatory',
         element: (
           <SuspenseWrapper>
@@ -86,12 +80,50 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: '/pumping-detection',
+        path: '/lab',
         element: (
           <SuspenseWrapper>
-            <PumpingDetectionPage />
+            <LabLayout />
           </SuspenseWrapper>
         ),
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/lab/latent-space" replace />,
+          },
+          {
+            path: 'latent-space',
+            element: (
+              <SuspenseWrapper>
+                <LatentSpacePage />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'counterfactual',
+            element: (
+              <SuspenseWrapper>
+                <CounterfactualPage />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'pumping-detection',
+            element: (
+              <SuspenseWrapper>
+                <PumpingDetectionPage />
+              </SuspenseWrapper>
+            ),
+          },
+        ],
+      },
+      {
+        path: '/counterfactual',
+        element: <Navigate to="/lab/counterfactual" replace />,
+      },
+      {
+        path: '/pumping-detection',
+        element: <Navigate to="/lab/pumping-detection" replace />,
       },
       {
         path: '*',
