@@ -476,23 +476,25 @@ export default function LatentSpacePage() {
             </div>
 
             {/* Right sidebar: station detail + quality metrics */}
-            <div className="shrink-0 flex flex-col gap-3 overflow-y-auto">
-              {selectedStation && (
-                <StationDetail
-                  domain={domain}
-                  stationId={selectedStation}
-                  stationMeta={selectedStationMeta}
-                  onClose={() => {
-                    setSelectedStation(null)
-                    setFilters({})
-                  }}
-                  onNeighborClick={handleStationSelect}
-                />
-              )}
-              {qualityMetrics && (
-                <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
-              )}
-            </div>
+            {(selectedStation || qualityMetrics) && (
+              <div className="shrink-0 w-72 flex flex-col gap-3 overflow-y-auto">
+                {selectedStation && (
+                  <StationDetail
+                    domain={domain}
+                    stationId={selectedStation}
+                    stationMeta={selectedStationMeta}
+                    onClose={() => {
+                      setSelectedStation(null)
+                      setFilters({})
+                    }}
+                    onNeighborClick={handleStationSelect}
+                  />
+                )}
+                {qualityMetrics && (
+                  <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
