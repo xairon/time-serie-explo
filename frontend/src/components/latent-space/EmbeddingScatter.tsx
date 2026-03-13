@@ -83,7 +83,7 @@ export function EmbeddingScatter({
       // Single trace with continuous color scale
       const altValues = highlighted.map((p) => (p.metadata['altitude'] as number) ?? 0)
       const hoverMeta = highlighted.map((p) => {
-        const keys = Object.keys(p.metadata).slice(0, 3)
+        const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
         return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
       })
 
@@ -128,7 +128,7 @@ export function EmbeddingScatter({
       const groups = new Map<string, EmbeddingPoint[]>()
       for (const p of highlighted) {
         const key =
-          colorBy === 'cluster_label'
+          colorBy === 'cluster_label' || colorBy === 'cluster_id'
             ? String(p.cluster_label)
             : String(p.metadata[colorBy] ?? 'N/A')
         if (!groups.has(key)) groups.set(key, [])
