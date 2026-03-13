@@ -24,3 +24,13 @@ export function useComputeUMAP() {
     mutationFn: (body: Record<string, unknown>) => api.latentSpace.compute(body),
   })
 }
+
+export function useClusterProfiling(domain: string, hideUnclassified: boolean) {
+  return useQuery({
+    queryKey: ['latent-space', 'profiling', domain, hideUnclassified],
+    queryFn: () => api.latentSpace.profiling(domain, hideUnclassified),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    enabled: !!domain,
+  })
+}

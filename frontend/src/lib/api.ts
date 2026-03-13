@@ -265,6 +265,11 @@ export const api = {
       postJson<Record<string, unknown>>('/latent-space/compute', body, 120_000),
     similar: (domain: string, stationId: string, k: number = 10) =>
       fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}`),
+    profiling: (domain: string, hideUnclassified: boolean = false) =>
+      fetchJson<Record<string, unknown>>(
+        `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}`,
+        { timeout: 60_000 },
+      ),
   },
 
   counterfactual: {
