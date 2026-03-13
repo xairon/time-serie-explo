@@ -258,6 +258,15 @@ export const api = {
       fetchJson<Record<string, unknown>>(`/pumping-detection/bnpe-context?lat=${lat}&lon=${lon}&radius_km=${radiusKm}`),
   },
 
+  latentSpace: {
+    stations: (domain: string) =>
+      fetchJson<{ stations: Array<Record<string, unknown>> }>(`/latent-space/stations/${domain}`),
+    compute: (body: Record<string, unknown>) =>
+      postJson<Record<string, unknown>>('/latent-space/compute', body, 120_000),
+    similar: (domain: string, stationId: string, k: number = 10) =>
+      fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}`),
+  },
+
   counterfactual: {
     run: (body: {
       model_id: string
