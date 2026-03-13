@@ -12,7 +12,6 @@ class EmbeddingFilters(BaseModel):
     etat_eh: str | None = None
     nature_eh: str | None = None
     departement: str | None = None
-    region: str | None = None
     cluster_id: int | None = None
 
 
@@ -58,7 +57,6 @@ class StationMetadata(BaseModel):
     libelle_eh: str | None = None
     departement: str | None = None
     nom_departement: str | None = None
-    region: str | None = None
     altitude: float | None = None
     nom_cours_eau: str | None = None
     statut_station: str | None = None

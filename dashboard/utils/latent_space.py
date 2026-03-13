@@ -17,6 +17,65 @@ from sqlalchemy import text
 
 _VALID_DOMAINS = {"piezo", "hydro"}
 
+# BDLISA code → label mappings (Sandre referential)
+_MILIEU_EH: dict[str, str] = {
+    "1": "Poreux",
+    "2": "Fissuré",
+    "3": "Karstique",
+    "4": "Double porosité fissuré et poreux",
+    "5": "Double porosité karstique et poreux",
+    "6": "Double porosité karstique et fissuré",
+    "8": "Milieu composite",
+    "9": "Milieu non applicable",
+    "X": "Indéterminé",
+}
+
+_THEME_EH: dict[str, str] = {
+    "0": "Indifférencié",
+    "1": "Sédimentaire",
+    "2": "Sédimentaire",
+    "3": "Socle",
+    "4": "Volcanique",
+    "5": "Alluvial",
+}
+
+_ETAT_EH: dict[str, str] = {
+    "1": "Libre seul",
+    "2": "Libre et captif",
+    "3": "Captif seul",
+    "4": "Libre ou captif",
+    "5": "Libre et captif affleurant",
+    "6": "Captif sous couverture non aquifère",
+    "X": "Indéterminé",
+}
+
+_NATURE_EH: dict[str, str] = {
+    "0": "Entité hydrogéologique",
+    "3": "Système aquifère",
+    "4": "Domaine hydrogéologique",
+    "5": "Système aquifère",
+    "6": "Unité aquifère",
+    "7": "Unité semi-perméable",
+}
+
+
+def _decode_eh(code: str | None, mapping: dict[str, str]) -> str | None:
+    """Decode a BDLISA code to its label."""
+    if code is None:
+        return None
+    return mapping.get(str(code), str(code))
+
+
+def decode_eh_metadata(meta: dict[str, Any]) -> dict[str, Any]:
+    """Decode BDLISA codes to human-readable labels in a metadata dict."""
+    out = dict(meta)
+    out["milieu_eh"] = _decode_eh(meta.get("milieu_eh"), _MILIEU_EH)
+    out["theme_eh"] = _decode_eh(meta.get("theme_eh"), _THEME_EH)
+    out["etat_eh"] = _decode_eh(meta.get("etat_eh"), _ETAT_EH)
+    out["nature_eh"] = _decode_eh(meta.get("nature_eh"), _NATURE_EH)
+    return out
+
+
 _SEASON_MONTHS: dict[str, list[int]] = {
     "DJF": [12, 1, 2],
     "MAM": [3, 4, 5],
@@ -64,7 +123,6 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
             tme.nature_eh,
             s.code_departement    AS departement,
             s.nom_departement,
-            s.code_region         AS region,
             s.altitude_station    AS altitude,
             e.cluster_id,
             e.n_windows,
@@ -113,9 +171,6 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
         if _get(filters, 'departement'):
             where_clauses.append("s.code_departement = :departement")
             params["departement"] = _get(filters, 'departement')
-        if _get(filters, 'region'):
-            where_clauses.append("s.code_region = :region")
-            params["region"] = _get(filters, 'region')
         if _get(filters, 'cluster_id') is not None:
             where_clauses.append("e.cluster_id = :cluster_id")
             params["cluster_id"] = _get(filters, 'cluster_id')
@@ -123,7 +178,7 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
     else:  # hydro
         select_cols = """
             e.code_station        AS id,
-            s.libelle_cours_eau   AS nom_cours_eau,
+            s.nom_cours_eau,
             s.code_departement    AS departement,
             s.nom_departement,
             s.statut_station,
@@ -148,9 +203,6 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
         if _get(filters, 'departement'):
             where_clauses.append("s.code_departement = :departement")
             params["departement"] = _get(filters, 'departement')
-        if _get(filters, 'region'):
-            where_clauses.append("s.code_region = :region")
-            params["region"] = _get(filters, 'region')
         if _get(filters, 'cluster_id') is not None:
             where_clauses.append("e.cluster_id = :cluster_id")
             params["cluster_id"] = _get(filters, 'cluster_id')

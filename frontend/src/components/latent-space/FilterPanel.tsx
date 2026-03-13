@@ -19,7 +19,6 @@ const PIEZO_ATTRS = [
   { key: 'theme_eh', label: 'Thème' },
   { key: 'etat_eh', label: 'État' },
   { key: 'departement', label: 'Département' },
-  { key: 'region', label: 'Région' },
   { key: 'cluster_id', label: 'Cluster' },
 ]
 

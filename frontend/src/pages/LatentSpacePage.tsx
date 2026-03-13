@@ -147,7 +147,6 @@ export default function LatentSpacePage() {
         ...(filters.etat_eh ? { etat_eh: filters.etat_eh } : {}),
         ...(filters.nature_eh ? { nature_eh: filters.nature_eh } : {}),
         ...(filters.departement ? { departement: filters.departement } : {}),
-        ...(filters.region ? { region: filters.region } : {}),
         ...(filters.cluster_id ? { cluster_id: Number(filters.cluster_id) } : {}),
         ...(filters.nom_cours_eau ? { nom_cours_eau: filters.nom_cours_eau } : {}),
       },

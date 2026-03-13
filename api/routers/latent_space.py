@@ -36,17 +36,20 @@ _TOP_LIBELLE = 12
 
 
 def _row_to_station_metadata_piezo(row) -> StationMetadata:
-    return StationMetadata(
-        libelle_eh=getattr(row, "libelle_eh", None),
-        milieu_eh=getattr(row, "milieu_eh", None),
-        theme_eh=getattr(row, "theme_eh", None),
-        etat_eh=getattr(row, "etat_eh", None),
-        nature_eh=getattr(row, "nature_eh", None),
-        departement=getattr(row, "departement", None),
-        nom_departement=getattr(row, "nom_departement", None),
-        region=getattr(row, "region", None),
-        altitude=getattr(row, "altitude", None),
-    )
+    from dashboard.utils.latent_space import decode_eh_metadata
+
+    raw = {
+        "libelle_eh": getattr(row, "libelle_eh", None),
+        "milieu_eh": getattr(row, "milieu_eh", None),
+        "theme_eh": getattr(row, "theme_eh", None),
+        "etat_eh": getattr(row, "etat_eh", None),
+        "nature_eh": getattr(row, "nature_eh", None),
+        "departement": getattr(row, "departement", None),
+        "nom_departement": getattr(row, "nom_departement", None),
+        "altitude": getattr(row, "altitude", None),
+    }
+    decoded = decode_eh_metadata(raw)
+    return StationMetadata(**decoded)
 
 
 def _row_to_station_metadata_hydro(row) -> StationMetadata:
@@ -196,7 +199,8 @@ async def compute_latent_space(
         window_starts.append(str(getattr(row, "window_start", None) or ""))
         window_ends.append(str(getattr(row, "window_end", None) or ""))
         if domain == "piezo":
-            meta = {
+            from dashboard.utils.latent_space import decode_eh_metadata
+            meta = decode_eh_metadata({
                 "libelle_eh": getattr(row, "libelle_eh", None),
                 "milieu_eh": getattr(row, "milieu_eh", None),
                 "theme_eh": getattr(row, "theme_eh", None),
@@ -204,10 +208,9 @@ async def compute_latent_space(
                 "nature_eh": getattr(row, "nature_eh", None),
                 "departement": getattr(row, "departement", None),
                 "nom_departement": getattr(row, "nom_departement", None),
-                "region": getattr(row, "region", None),
                 "altitude": getattr(row, "altitude", None),
                 "station_id": str(row.id),
-            }
+            })
         else:
             meta = {
                 "nom_cours_eau": getattr(row, "nom_cours_eau", None),
@@ -290,7 +293,6 @@ async def compute_latent_space(
             nature_eh=meta_dict.get("nature_eh"),
             departement=meta_dict.get("departement"),
             nom_departement=meta_dict.get("nom_departement"),
-            region=meta_dict.get("region"),
             altitude=meta_dict.get("altitude"),
             nom_cours_eau=meta_dict.get("nom_cours_eau"),
             statut_station=meta_dict.get("statut_station"),
