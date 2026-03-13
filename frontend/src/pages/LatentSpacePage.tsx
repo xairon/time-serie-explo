@@ -36,8 +36,14 @@ export default function LatentSpacePage() {
   const [mode, setMode] = useState<Mode>('2d')
   const [level, setLevel] = useState<Level>('stations')
   const [umapParams, setUmapParams] = useState({ n_neighbors: 15, min_dist: 0.1 })
-  const [clusteringParams, setClusteringParams] = useState({
-    method: 'hdbscan' as const,
+  const [clusteringParams, setClusteringParams] = useState<{
+    method: 'hdbscan' | 'kmeans'
+    min_cluster_size: number
+    min_samples: number
+    n_clusters: number
+    n_umap_dims: number
+  }>({
+    method: 'hdbscan',
     min_cluster_size: 10,
     min_samples: 5,
     n_clusters: 8,
@@ -58,7 +64,7 @@ export default function LatentSpacePage() {
   // Extract raw stations from API response
   const stations = useMemo(() => {
     if (!stationsData) return []
-    return (stationsData.stations ?? []) as StationRaw[]
+    return (stationsData.stations ?? []) as unknown as StationRaw[]
   }, [stationsData])
 
   // Apply client-side filters for highlight

@@ -25,6 +25,13 @@ _SEASON_MONTHS: dict[str, list[int]] = {
 }
 
 
+def _get(obj: Any, key: str, default: Any = None) -> Any:
+    """Get attribute from Pydantic model or dict."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 def build_station_query(domain: str, filters) -> tuple[Any, dict]:
     """Build SQL query for station-level embeddings.
 
@@ -85,33 +92,33 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
         """
         id_col = "e.code_bss"
 
-        if filters.station_ids:
+        if _get(filters, 'station_ids'):
             where_clauses.append(f"{id_col} = ANY(:station_ids)")
-            params["station_ids"] = list(filters.station_ids)
-        if filters.libelle_eh:
+            params["station_ids"] = list(_get(filters, 'station_ids'))
+        if _get(filters, 'libelle_eh'):
             where_clauses.append("tme.libelle_eh ILIKE :libelle_eh")
-            params["libelle_eh"] = f"%{filters.libelle_eh}%"
-        if filters.milieu_eh:
+            params["libelle_eh"] = f"%{_get(filters, 'libelle_eh')}%"
+        if _get(filters, 'milieu_eh'):
             where_clauses.append("tme.milieu_eh = :milieu_eh")
-            params["milieu_eh"] = filters.milieu_eh
-        if filters.theme_eh:
+            params["milieu_eh"] = _get(filters, 'milieu_eh')
+        if _get(filters, 'theme_eh'):
             where_clauses.append("tme.theme_eh = :theme_eh")
-            params["theme_eh"] = filters.theme_eh
-        if filters.etat_eh:
+            params["theme_eh"] = _get(filters, 'theme_eh')
+        if _get(filters, 'etat_eh'):
             where_clauses.append("tme.etat_eh = :etat_eh")
-            params["etat_eh"] = filters.etat_eh
-        if filters.nature_eh:
+            params["etat_eh"] = _get(filters, 'etat_eh')
+        if _get(filters, 'nature_eh'):
             where_clauses.append("tme.nature_eh = :nature_eh")
-            params["nature_eh"] = filters.nature_eh
-        if filters.departement:
+            params["nature_eh"] = _get(filters, 'nature_eh')
+        if _get(filters, 'departement'):
             where_clauses.append("s.code_departement = :departement")
-            params["departement"] = filters.departement
-        if filters.region:
+            params["departement"] = _get(filters, 'departement')
+        if _get(filters, 'region'):
             where_clauses.append("s.code_region = :region")
-            params["region"] = filters.region
-        if filters.cluster_id is not None:
+            params["region"] = _get(filters, 'region')
+        if _get(filters, 'cluster_id') is not None:
             where_clauses.append("e.cluster_id = :cluster_id")
-            params["cluster_id"] = filters.cluster_id
+            params["cluster_id"] = _get(filters, 'cluster_id')
 
     else:  # hydro
         select_cols = """
@@ -135,18 +142,18 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
         """
         id_col = "e.code_station"
 
-        if filters.station_ids:
+        if _get(filters, 'station_ids'):
             where_clauses.append(f"{id_col} = ANY(:station_ids)")
-            params["station_ids"] = list(filters.station_ids)
-        if filters.departement:
+            params["station_ids"] = list(_get(filters, 'station_ids'))
+        if _get(filters, 'departement'):
             where_clauses.append("s.code_departement = :departement")
-            params["departement"] = filters.departement
-        if filters.region:
+            params["departement"] = _get(filters, 'departement')
+        if _get(filters, 'region'):
             where_clauses.append("s.code_region = :region")
-            params["region"] = filters.region
-        if filters.cluster_id is not None:
+            params["region"] = _get(filters, 'region')
+        if _get(filters, 'cluster_id') is not None:
             where_clauses.append("e.cluster_id = :cluster_id")
-            params["cluster_id"] = filters.cluster_id
+            params["cluster_id"] = _get(filters, 'cluster_id')
 
     where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
     sql = text(f"SELECT {select_cols} FROM {from_clause} {where_sql}")
@@ -194,12 +201,12 @@ def build_window_query(
     """
     from_clause = f"ml.{domain}_window_embeddings w"
 
-    if filters.station_ids:
+    if _get(filters, 'station_ids'):
         where_clauses.append(f"w.{id_col} = ANY(:station_ids)")
-        params["station_ids"] = list(filters.station_ids)
-    if filters.cluster_id is not None:
+        params["station_ids"] = list(_get(filters, 'station_ids'))
+    if _get(filters, 'cluster_id') is not None:
         where_clauses.append("w.cluster_id = :cluster_id")
-        params["cluster_id"] = filters.cluster_id
+        params["cluster_id"] = _get(filters, 'cluster_id')
     if year_min is not None:
         where_clauses.append("EXTRACT(YEAR FROM w.window_start) >= :year_min")
         params["year_min"] = year_min
@@ -366,17 +373,20 @@ def compute_clustering(
             min_dist=0.0,
             metric="cosine",
         )
-        hparams = params.hdbscan
+        hparams = params.hdbscan if hasattr(params, 'hdbscan') else params.get('hdbscan', params)
+        mcs = hparams.min_cluster_size if hasattr(hparams, 'min_cluster_size') else hparams.get('min_cluster_size', 10)
+        ms = hparams.min_samples if hasattr(hparams, 'min_samples') else hparams.get('min_samples', 5)
         clusterer = HDBSCAN(
-            min_cluster_size=hparams.min_cluster_size,
-            min_samples=hparams.min_samples,
+            min_cluster_size=mcs,
+            min_samples=ms,
         )
         labels = clusterer.fit_predict(reduced)
 
     elif method == "kmeans":
-        kparams = params.kmeans
+        kparams = params.kmeans if hasattr(params, 'kmeans') else params.get('kmeans', params)
+        nc = kparams.n_clusters if hasattr(kparams, 'n_clusters') else kparams.get('n_clusters', 8)
         clusterer = KMeans(
-            n_clusters=kparams.n_clusters,
+            n_clusters=nc,
             random_state=42,
             n_init=10,
         )
