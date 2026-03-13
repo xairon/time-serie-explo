@@ -5,9 +5,8 @@ import {
   Database,
   GraduationCap,
   TrendingUp,
-  GitBranch,
+  FlaskConical,
   Map,
-  Droplets,
   Menu,
   X,
 } from 'lucide-react'
@@ -18,9 +17,8 @@ const NAV_ITEMS = [
   { to: '/data', icon: Database, label: 'Data' },
   { to: '/training', icon: GraduationCap, label: 'Training' },
   { to: '/forecasting', icon: TrendingUp, label: 'Forecasting' },
-  { to: '/counterfactual', icon: GitBranch, label: 'Counterfactual' },
   { to: '/observatory', icon: Map, label: 'Observatory' },
-  { to: '/pumping-detection', icon: Droplets, label: 'Détection Pompage' },
+  { to: '/lab', icon: FlaskConical, label: 'Laboratoire' },
 ] as const
 
 export function TopNav() {
