@@ -48,7 +48,7 @@ export function PastasPanel({ metrics, residuals, acf, pacf, changepointDates }:
   if (!hasMetrics && !hasResiduals && !hasAcf) {
     return (
       <div className="flex items-center justify-center h-40 text-text-secondary text-sm">
-        En attente des résultats Pastas…
+        Waiting for Pastas results...
       </div>
     )
   }
@@ -71,7 +71,7 @@ export function PastasPanel({ metrics, residuals, acf, pacf, changepointDates }:
           y: residuals!.map(r => r.value),
           type: 'scatter',
           mode: 'lines',
-          name: 'Résidus',
+          name: 'Residuals',
           line: { color: '#a78bfa', width: 1 },
           hovertemplate: '%{x}<br>%{y:.4f}<extra></extra>',
         },
@@ -118,7 +118,7 @@ export function PastasPanel({ metrics, residuals, acf, pacf, changepointDates }:
           data={residualTraces}
           layout={{
             ...DARK_BASE,
-            title: { text: 'Résidus Pastas', font: { color: '#e2e8f0', size: 13 } },
+            title: { text: 'Pastas residuals', font: { color: '#e2e8f0', size: 13 } },
             xaxis: DARK_AXIS,
             yaxis: DARK_AXIS,
             shapes: residualShapes,
@@ -135,7 +135,7 @@ export function PastasPanel({ metrics, residuals, acf, pacf, changepointDates }:
           data={acfTraces}
           layout={{
             ...DARK_BASE,
-            title: { text: 'ACF / PACF des résidus', font: { color: '#e2e8f0', size: 13 } },
+            title: { text: 'ACF / PACF of residuals', font: { color: '#e2e8f0', size: 13 } },
             xaxis: { ...DARK_AXIS, title: { text: 'Lag' } },
             yaxis: DARK_AXIS,
             barmode: 'group',

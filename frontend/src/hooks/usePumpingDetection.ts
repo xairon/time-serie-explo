@@ -63,10 +63,10 @@ export function usePumpingDetection() {
       try {
         const data = JSON.parse(e.data) as { recoverable?: boolean; error_message?: string }
         if (!data.recoverable) {
-          setState(prev => ({ ...prev, status: 'error', error: data.error_message ?? 'Erreur inconnue' }))
+          setState(prev => ({ ...prev, status: 'error', error: data.error_message ?? 'Unknown error' }))
         }
       } catch {
-        setState(prev => ({ ...prev, status: 'error', error: 'Connexion SSE perdue' }))
+        setState(prev => ({ ...prev, status: 'error', error: 'SSE connection lost' }))
       }
     })
 

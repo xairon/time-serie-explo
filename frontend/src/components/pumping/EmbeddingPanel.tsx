@@ -22,10 +22,10 @@ export function EmbeddingPanel() {
       </div>
 
       <div className="space-y-1">
-        <p className="text-text-primary font-medium text-sm">Analyse par embeddings non disponible</p>
+        <p className="text-text-primary font-medium text-sm">Embedding analysis not available</p>
         <p className="text-text-secondary text-xs max-w-xs">
-          L'encodeur SoftCLT / TS2Vec n'est pas encore entraîné sur ce jeu de données.
-          La visualisation UMAP sera disponible après une phase de pré-entraînement contrastif.
+          The SoftCLT / TS2Vec encoder has not yet been trained on this dataset.
+          UMAP visualization will be available after a contrastive pre-training phase.
         </p>
       </div>
 
@@ -33,7 +33,7 @@ export function EmbeddingPanel() {
         className="w-48 h-28 rounded-lg bg-bg-primary/40 border border-white/5 flex items-center justify-center opacity-30"
         aria-hidden="true"
       >
-        <span className="text-xs text-text-secondary">UMAP — bientôt disponible</span>
+        <span className="text-xs text-text-secondary">UMAP — coming soon</span>
       </div>
     </div>
   )

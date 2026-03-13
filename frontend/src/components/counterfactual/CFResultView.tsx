@@ -3,37 +3,37 @@ import { CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronRight, Droplet
 import type { CounterfactualResult } from '@/lib/types'
 
 const THETA_LABELS: Record<string, string> = {
-  s_P_DJF: 'Precipitations hiver (DJF)',
-  s_P_MAM: 'Precipitations printemps (MAM)',
-  s_P_JJA: 'Precipitations ete (JJA)',
-  s_P_SON: 'Precipitations automne (SON)',
+  s_P_DJF: 'Winter precipitation (DJF)',
+  s_P_MAM: 'Spring precipitation (MAM)',
+  s_P_JJA: 'Summer precipitation (JJA)',
+  s_P_SON: 'Autumn precipitation (SON)',
   delta_T: 'Temperature (C)',
-  delta_etp: 'Evapotranspiration residuelle',
-  delta_s: 'Decalage temporel (jours)',
+  delta_etp: 'Residual evapotranspiration',
+  delta_s: 'Time lag (days)',
 }
 
 function interpretTheta(theta: Record<string, number>): string[] {
   const lines: string[] = []
   for (const [key, season] of [
-    ['s_P_DJF', 'hiver'],
-    ['s_P_MAM', 'printemps'],
-    ['s_P_JJA', 'ete'],
-    ['s_P_SON', 'automne'],
+    ['s_P_DJF', 'winter'],
+    ['s_P_MAM', 'spring'],
+    ['s_P_JJA', 'summer'],
+    ['s_P_SON', 'autumn'],
   ] as const) {
     const v = theta[key]
     if (v != null && Math.abs(v - 1) > 0.05) {
       const pct = Math.round((v - 1) * 100)
-      lines.push(`Precipitations ${season} : ${pct > 0 ? '+' : ''}${pct}%`)
+      lines.push(`${season.charAt(0).toUpperCase() + season.slice(1)} precipitation: ${pct > 0 ? '+' : ''}${pct}%`)
     }
   }
   if (theta.delta_T != null && Math.abs(theta.delta_T) > 0.1) {
-    lines.push(`Temperature : ${theta.delta_T > 0 ? '+' : ''}${theta.delta_T.toFixed(1)}C`)
+    lines.push(`Temperature: ${theta.delta_T > 0 ? '+' : ''}${theta.delta_T.toFixed(1)}C`)
   }
   if (theta.delta_etp != null && Math.abs(theta.delta_etp) > 0.01) {
-    lines.push(`ETP residuelle : ${theta.delta_etp > 0 ? '+' : ''}${theta.delta_etp.toFixed(3)}`)
+    lines.push(`Residual ETP: ${theta.delta_etp > 0 ? '+' : ''}${theta.delta_etp.toFixed(3)}`)
   }
   if (theta.delta_s != null && Math.abs(theta.delta_s) > 1) {
-    lines.push(`Decalage temporel : ${theta.delta_s > 0 ? '+' : ''}${Math.round(theta.delta_s)} jours`)
+    lines.push(`Time lag: ${theta.delta_s > 0 ? '+' : ''}${Math.round(theta.delta_s)} days`)
   }
   return lines
 }
@@ -55,7 +55,7 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
           <div className="h-4 bg-bg-hover rounded w-1/3" />
           <div className="h-8 bg-bg-hover rounded w-2/3" />
           <p className="text-xs text-text-secondary text-center">
-            {result?.status === 'pending' ? 'En attente de traitement...' : 'Generation en cours...'}
+            {result?.status === 'pending' ? 'Waiting for processing...' : 'Generating...'}
           </p>
         </div>
       </div>
@@ -67,7 +67,7 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
       <div className={`bg-bg-card rounded-xl border border-accent-red/20 p-6 ${className}`}>
         <div className="flex items-center gap-2 mb-2">
           <XCircle className="w-5 h-5 text-accent-red" />
-          <span className="text-sm font-semibold text-accent-red">Echec</span>
+          <span className="text-sm font-semibold text-accent-red">Failed</span>
         </div>
         <p className="text-sm text-text-secondary">{result.error}</p>
       </div>
@@ -78,7 +78,7 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
     return (
       <div className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}>
         <p className="text-text-secondary text-sm">
-          Configurez et lancez une analyse contrefactuelle pour voir les resultats.
+          Configure and run a counterfactual analysis to see results.
         </p>
       </div>
     )
@@ -110,7 +110,7 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
         )}
         <div className="flex-1 min-w-0">
           <span className={`text-sm font-semibold ${converged ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {converged ? 'Converge' : 'Convergence partielle'}
+            {converged ? 'Converged' : 'Partial convergence'}
           </span>
           <span className="text-xs text-text-secondary ml-2">
             {inner.method.toUpperCase()} | {nIter} iterations | {wallTime.toFixed(1)}s
@@ -124,12 +124,12 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
           <Zap className="w-4 h-4 text-accent-cyan mx-auto mb-1" />
           <p className="text-[10px] text-text-secondary uppercase">Convergence</p>
           <p className="text-sm font-bold text-text-primary">
-            {converged ? 'Oui' : 'Partielle'}
+            {converged ? 'Yes' : 'Partial'}
           </p>
         </div>
         <div className="bg-bg-card rounded-lg p-3 border border-white/5 text-center">
           <Droplets className="w-4 h-4 text-accent-indigo mx-auto mb-1" />
-          <p className="text-[10px] text-text-secondary uppercase">Loss finale</p>
+          <p className="text-[10px] text-text-secondary uppercase">Final loss</p>
           <p className="text-sm font-bold text-text-primary">
             {bestLoss != null ? bestLoss.toFixed(4) : '—'}
           </p>
@@ -163,7 +163,7 @@ export function CFResultView({ result, isLoading, className = '' }: CFResultView
           >
             {showTheta ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             <Clock className="w-3.5 h-3.5" />
-            Parametres optimises (theta)
+            Optimized parameters (theta)
           </button>
           {showTheta && (
             <div className="px-4 pb-4 space-y-2">

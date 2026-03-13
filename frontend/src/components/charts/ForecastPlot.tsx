@@ -149,7 +149,7 @@ export function ForecastPlot({
   const layout: Partial<Layout> = {
     ...darkLayout,
     xaxis: { ...darkLayout.xaxis, title: { text: 'Date' } },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Niveau piezometrique' } },
+    yaxis: { ...darkLayout.yaxis, title: { text: 'Piezometric level' } },
     shapes,
     annotations,
     hovermode: 'x unified',

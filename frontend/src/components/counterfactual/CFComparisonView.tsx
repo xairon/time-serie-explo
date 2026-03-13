@@ -6,32 +6,32 @@ import type { CounterfactualResult, PastasValidationResult } from '@/lib/types'
 import { api } from '@/lib/api'
 
 const THETA_LABELS: Record<string, string> = {
-  s_P_DJF: 'Precipitations hiver (DJF)',
-  s_P_MAM: 'Precipitations printemps (MAM)',
-  s_P_JJA: 'Precipitations ete (JJA)',
-  s_P_SON: 'Precipitations automne (SON)',
+  s_P_DJF: 'Winter precipitation (DJF)',
+  s_P_MAM: 'Spring precipitation (MAM)',
+  s_P_JJA: 'Summer precipitation (JJA)',
+  s_P_SON: 'Autumn precipitation (SON)',
   delta_T: 'Temperature (\u00b0C)',
-  delta_etp: 'ETP residuelle',
-  delta_s: 'Decalage temporel (jours)',
+  delta_etp: 'Residual ETP',
+  delta_s: 'Time lag (days)',
 }
 
 function interpretTheta(theta: Record<string, number>): string[] {
   const lines: string[] = []
   for (const [key, season] of [
-    ['s_P_DJF', 'hiver'], ['s_P_MAM', 'printemps'], ['s_P_JJA', 'ete'], ['s_P_SON', 'automne'],
+    ['s_P_DJF', 'winter'], ['s_P_MAM', 'spring'], ['s_P_JJA', 'summer'], ['s_P_SON', 'autumn'],
   ] as const) {
     const v = theta[key]
     if (v != null && Math.abs(v - 1) > 0.05) {
       const pct = Math.round((v - 1) * 100)
-      lines.push(`Precipitations ${season} : ${pct > 0 ? '+' : ''}${pct}%`)
+      lines.push(`${season.charAt(0).toUpperCase() + season.slice(1)} precipitation: ${pct > 0 ? '+' : ''}${pct}%`)
     }
   }
   if (theta.delta_T != null && Math.abs(theta.delta_T) > 0.1)
-    lines.push(`Temperature : ${theta.delta_T > 0 ? '+' : ''}${theta.delta_T.toFixed(1)}\u00b0C`)
+    lines.push(`Temperature: ${theta.delta_T > 0 ? '+' : ''}${theta.delta_T.toFixed(1)}\u00b0C`)
   if (theta.delta_etp != null && Math.abs(theta.delta_etp) > 0.01)
-    lines.push(`ETP residuelle : ${theta.delta_etp > 0 ? '+' : ''}${theta.delta_etp.toFixed(3)}`)
+    lines.push(`Residual ETP: ${theta.delta_etp > 0 ? '+' : ''}${theta.delta_etp.toFixed(3)}`)
   if (theta.delta_s != null && Math.abs(theta.delta_s) > 1)
-    lines.push(`Decalage temporel : ${theta.delta_s > 0 ? '+' : ''}${Math.round(theta.delta_s)} jours`)
+    lines.push(`Time lag: ${theta.delta_s > 0 ? '+' : ''}${Math.round(theta.delta_s)} days`)
   return lines
 }
 
@@ -151,7 +151,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
     height: 320,
     margin: { t: 30, b: 40, l: 50, r: 20 },
     xaxis: { ...darkLayout.xaxis, type: 'date' },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Niveau (m)', standoff: 8 } },
+    yaxis: { ...darkLayout.yaxis, title: { text: 'Level (m)', standoff: 8 } },
     legend: { orientation: 'h' as const, y: 1.12, x: 0, font: { size: 11, color: '#9ca3af' } },
     showlegend: true,
   }), [])
@@ -189,13 +189,13 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             {streaming.physcf && (
               <span className="text-xs text-amber-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                PhysCF en cours...
+                PhysCF running...
               </span>
             )}
             {streaming.comte && (
               <span className="text-xs text-amber-400 flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                CoMTE en cours...
+                CoMTE running...
               </span>
             )}
           </div>
@@ -208,7 +208,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
     return (
       <div className="bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center">
         <p className="text-text-secondary text-sm">
-          Configurez et lancez une analyse contrefactuelle pour voir les resultats.
+          Configure and run a counterfactual analysis to see results.
         </p>
       </div>
     )
@@ -236,13 +236,13 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
           {streaming.physcf && (
             <span className="text-xs text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded">
               <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              PhysCF en cours...
+              PhysCF running...
             </span>
           )}
           {streaming.comte && (
             <span className="text-xs text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded">
               <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              CoMTE en cours...
+              CoMTE running...
             </span>
           )}
         </div>
@@ -251,7 +251,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
       {/* 1. Overlay chart */}
       {traces.length > 0 && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-          <h4 className="text-sm font-semibold text-text-primary mb-2">Comparaison des contrefactuels</h4>
+          <h4 className="text-sm font-semibold text-text-primary mb-2">Counterfactual comparison</h4>
           <Plot
             data={traces}
             layout={layout}
@@ -293,7 +293,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                 : 'bg-purple-500/10 border border-purple-500/20'
             }`}>
               <span className={overall === 'physcf' ? 'text-orange-400' : 'text-purple-400'}>
-                {overall === 'physcf' ? 'PhysCF' : 'CoMTE'} domine sur {Math.max(pWins, cWins)}/{vals.filter(v => v !== null).length} criteres comparables
+                {overall === 'physcf' ? 'PhysCF' : 'CoMTE'} leads on {Math.max(pWins, cWins)}/{vals.filter(v => v !== null).length} comparable criteria
               </span>
               <span className="text-text-secondary text-xs">
                 PhysCF {pWins} — {cWins} CoMTE
@@ -301,7 +301,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             </div>
           )}
 
-          <h4 className="text-sm font-semibold text-text-primary mb-3">Comparaison exhaustive</h4>
+          <h4 className="text-sm font-semibold text-text-primary mb-3">Exhaustive comparison</h4>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -313,7 +313,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
               </thead>
               <tbody className="text-text-primary font-mono text-xs">
                 {/* --- Convergence & target --- */}
-                <SectionHeader label="Objectif (cible IPS)" />
+                <SectionHeader label="Target (IPS target)" />
                 <MetricRow
                   label="Convergence"
                   physcf={fmtConvergence(physcfMetrics)}
@@ -322,67 +322,67 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                   winner={w.target}
                 />
                 <MetricRow
-                  label="Score cible"
+                  label="Target score"
                   physcf={formatNum(physcfTarget)}
                   comte={inBand !== null ? `${(inBand * 100).toFixed(1)}%` : '\u2014'}
                   winner={w.target}
                 />
                 {/* --- Approche --- */}
-                <SectionHeader label="Approche" />
+                <SectionHeader label="Approach" />
                 <MetricRow
                   label="Type"
-                  physcf="Gradient continu"
-                  comte="Substitution discrete"
+                  physcf="Continuous gradient"
+                  comte="Discrete substitution"
                 />
                 <MetricRow
-                  label="Espace"
-                  physcf="7 params physiques"
-                  comte={`${comteInfo?.swapped_features?.length ?? '?'} features substituees`}
+                  label="Space"
+                  physcf="7 physical params"
+                  comte={`${comteInfo?.swapped_features?.length ?? '?'} substituted features`}
                 />
                 {/* --- Impact sur la sortie --- */}
-                <SectionHeader label="Impact sur la sortie" />
+                <SectionHeader label="Impact on output" />
                 <MetricRow
-                  label="Shift moyen (m)"
+                  label="Mean shift (m)"
                   physcf={commonMetrics.physcf ? fmtSigned(commonMetrics.physcf.meanShift) : '\u2014'}
                   comte={commonMetrics.comte ? fmtSigned(commonMetrics.comte.meanShift) : '\u2014'}
                 />
                 <MetricRow
-                  label="RMSE factuel \u2192 CF"
+                  label="RMSE factual \u2192 CF"
                   physcf={commonMetrics.physcf?.rmse.toFixed(4) ?? '\u2014'}
                   comte={commonMetrics.comte?.rmse.toFixed(4) ?? '\u2014'}
                   winner={w.rmse}
                 />
                 <MetricRow
-                  label="Deviation max (m)"
+                  label="Max deviation (m)"
                   physcf={commonMetrics.physcf?.maxDeviation.toFixed(4) ?? '\u2014'}
                   comte={commonMetrics.comte?.maxDeviation.toFixed(4) ?? '\u2014'}
                   winner={w.maxDev}
                 />
                 <MetricRow
-                  label="Moyenne factuelle (m)"
+                  label="Factual mean (m)"
                   physcf={commonMetrics.physcf?.meanOrig.toFixed(3) ?? '\u2014'}
                   comte={commonMetrics.comte?.meanOrig.toFixed(3) ?? '\u2014'}
                 />
                 <MetricRow
-                  label="Moyenne CF (m)"
+                  label="CF mean (m)"
                   physcf={commonMetrics.physcf?.meanCf.toFixed(3) ?? '\u2014'}
                   comte={commonMetrics.comte?.meanCf.toFixed(3) ?? '\u2014'}
                 />
                 {/* --- Cout d'optimisation --- */}
-                <SectionHeader label="Cout d'optimisation" />
+                <SectionHeader label="Optimization cost" />
                 <MetricRow
                   label="Evaluations"
                   physcf={formatInt(physcfMetrics?.n_iter)}
                   comte={comteInfo ? String(comteInfo.n_candidates_evaluated) : '\u2014'}
                 />
                 <MetricRow
-                  label="Temps (s)"
+                  label="Time (s)"
                   physcf={formatNum(physcfMetrics?.wall_clock_s, 1)}
                   comte={formatNum(comteMetrics?.wall_clock_s, 1)}
                   winner={w.time}
                 />
                 <MetricRow
-                  label="Parametres/features"
+                  label="Parameters/features"
                   physcf={physcf ? '7 (contraints)' : '\u2014'}
                   comte={comteInfo ? `${comteInfo.swapped_features.length}/${comteInfo.best_mask?.length ?? 3}` : '\u2014'}
                   winner={w.params}
@@ -402,14 +402,14 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             <h4 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
               <Thermometer className="w-4 h-4" />
               PhysCF
-              <span className="text-[10px] font-normal text-text-secondary">7 params contraints physiquement</span>
+              <span className="text-[10px] font-normal text-text-secondary">7 physically constrained params</span>
             </h4>
             {physcf ? (
               <div className="space-y-3">
                 <div className="space-y-1 text-xs">
-                  <MethodMetric label="Contrainte CC" value="0.07/K" hint="Clausius-Clapeyron" />
-                  <MethodMetric label="Espace" value="Physique" hint="P saisonnier, \u0394T, \u0394ETP, \u0394s" />
-                  <MethodMetric label="\u03bb prox" value={physcf.convergence?.length ? 'actif' : '\u2014'} hint="distance a l'identite" />
+                  <MethodMetric label="CC constraint" value="0.07/K" hint="Clausius-Clapeyron" />
+                  <MethodMetric label="Space" value="Physics" hint="seasonal P, \u0394T, \u0394ETP, \u0394s" />
+                  <MethodMetric label="\u03bb prox" value={physcf.convergence?.length ? 'active' : '\u2014'} hint="distance to identity" />
                 </div>
 
                 {/* Theta interpretation */}
@@ -421,7 +421,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                     >
                       {showTheta ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                       <Thermometer className="w-3 h-3" />
-                      Interpretation physique
+                      Physical interpretation
                     </button>
                     {showTheta && (
                       <div className="space-y-2">
@@ -457,7 +457,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             ) : physcfError ? (
               <p className="text-xs text-red-400">{physcfError}</p>
             ) : (
-              <p className="text-xs text-text-secondary">En attente...</p>
+              <p className="text-xs text-text-secondary">Waiting...</p>
             )}
           </div>
 
@@ -471,10 +471,10 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             {comte ? (
               <div className="space-y-3">
                 <div className="space-y-1 text-xs">
-                  <MethodMetric label="Algorithme" value="Recherche exhaustive" hint={`2^${comteInfo?.best_mask?.length ?? 3} combinaisons`} />
-                  <MethodMetric label="Distracteurs" value={`${comteInfo?.n_distractors_used ?? '?'}/${comteInfo?.n_distractors_available ?? '?'}`} hint={`classe ${comteInfo?.distractor_class ?? '?'}`} />
-                  <MethodMetric label="In-band" value={comteInfo ? `${Math.round(comteInfo.in_band_fraction * 100)}%` : '\u2014'} hint={`seuil ${comteInfo?.tau ? Math.round(comteInfo.tau * 100) : 50}%`} />
-                  <MethodMetric label="Features" value={comteInfo?.swapped_features?.join(', ') || 'aucune'} />
+                  <MethodMetric label="Algorithm" value="Exhaustive search" hint={`2^${comteInfo?.best_mask?.length ?? 3} combinations`} />
+                  <MethodMetric label="Distractors" value={`${comteInfo?.n_distractors_used ?? '?'}/${comteInfo?.n_distractors_available ?? '?'}`} hint={`class ${comteInfo?.distractor_class ?? '?'}`} />
+                  <MethodMetric label="In-band" value={comteInfo ? `${Math.round(comteInfo.in_band_fraction * 100)}%` : '\u2014'} hint={`threshold ${comteInfo?.tau ? Math.round(comteInfo.tau * 100) : 50}%`} />
+                  <MethodMetric label="Features" value={comteInfo?.swapped_features?.join(', ') || 'none'} />
                 </div>
 
                 {/* CoMTE explanation */}
@@ -490,7 +490,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                 {comteInfo?.best_mask && (
                   <div className="border-t border-white/5 pt-2">
                     <p className="text-[10px] uppercase tracking-wider text-text-secondary/60 font-semibold mb-1.5">
-                      Masque de features
+                      Feature mask
                     </p>
                     <div className="flex gap-2">
                       {(comte?.theta && Object.keys(comte.theta).length > 0 ? Object.keys(comte.theta) : ['precip', 'temp', 'evap']).slice(0, comteInfo.best_mask.length).map((name, idx) => (
@@ -512,7 +512,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             ) : comteError ? (
               <p className="text-xs text-red-400">{comteError}</p>
             ) : (
-              <p className="text-xs text-text-secondary">En attente...</p>
+              <p className="text-xs text-text-secondary">Waiting...</p>
             )}
           </div>
         </div>
@@ -532,7 +532,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                 disabled={anyPastasLoading}
                 className="text-xs bg-accent-indigo/20 text-accent-indigo px-3 py-1.5 rounded-lg hover:bg-accent-indigo/30 disabled:opacity-50 transition-colors"
               >
-                {anyPastasLoading ? 'Validation...' : 'Valider les deux methodes'}
+                {anyPastasLoading ? 'Validating...' : 'Validate both methods'}
               </button>
             )}
           </div>
@@ -587,8 +587,8 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
 
           {!hasPastas && !anyPastasLoading && (
             <p className="text-[10px] text-text-secondary/50">
-              Validation independante par modele hydrologique Pastas (Transfer Function Noise).
-              Compare les predictions CF du TFT avec celles d'un modele physique independant.
+              Independent validation by Pastas hydrological model (Transfer Function Noise).
+              Compares the TFT's CF predictions with those of an independent physical model.
             </p>
           )}
         </div>
@@ -626,12 +626,12 @@ function pickWinner(
 
 function PastasCell({ result }: { result: PastasValidationResult | null | undefined }) {
   if (!result) return <td className="text-center py-2 px-3 text-text-secondary">{'\u2014'}</td>
-  if (result.status === 'error') return <td className="text-center py-2 px-3 text-red-400">Erreur</td>
+  if (result.status === 'error') return <td className="text-center py-2 px-3 text-red-400">Error</td>
   return (
     <td className="text-center py-2 px-3">
       <span className={`inline-flex items-center gap-1 ${result.accepted ? 'text-emerald-400' : 'text-amber-400'}`}>
         {result.accepted ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-        {result.accepted ? 'Valide' : 'Rejete'}
+        {result.accepted ? 'Valid' : 'Rejected'}
       </span>
     </td>
   )
@@ -651,12 +651,12 @@ function fmtConvergence(metrics: Record<string, unknown> | undefined): string {
   if (!metrics) return '\u2014'
   const converged = metrics.converged
   const target = metrics.target_loss_final
-  if (converged === true) return 'Oui (< 1e-4)'
+  if (converged === true) return 'Yes (< 1e-4)'
   if (typeof target === 'number') {
-    if (target < 0.01) return `Quasi (${target.toFixed(4)})`
-    return `Non (${target.toFixed(4)})`
+    if (target < 0.01) return `Near (${target.toFixed(4)})`
+    return `No (${target.toFixed(4)})`
   }
-  return 'Non'
+  return 'No'
 }
 
 function fmtSigned(v: number, decimals = 4): string {

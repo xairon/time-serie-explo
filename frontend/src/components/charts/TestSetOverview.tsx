@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Data, Layout, Shape, Annotations } from 'plotly.js-dist-min'
@@ -19,7 +20,7 @@ interface TestSetOverviewProps {
   className?: string
 }
 
-export function TestSetOverview({
+export const TestSetOverview = memo(function TestSetOverview({
   testDates,
   testValues,
   sliderIdx,
@@ -36,7 +37,7 @@ export function TestSetOverview({
     y: testValues as number[],
     type: 'scatter',
     mode: 'lines',
-    name: 'Jeu de test',
+    name: 'Test set',
     line: { color: '#2E86AB', width: 1.5 },
     hovertemplate: '%{x|%d/%m/%Y}<br>%{y:.4f}<extra></extra>',
   })
@@ -115,9 +116,10 @@ export function TestSetOverview({
     height: 250,
     margin: { t: 20, r: 20, b: 30, l: 50 },
     xaxis: { ...darkLayout.xaxis, title: { text: '' } },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Niveau piezometrique' } },
+    yaxis: { ...darkLayout.yaxis, title: { text: 'Piezometric level' } },
     shapes,
     annotations,
+    datarevision: sliderIdx,
     hovermode: 'x unified',
     legend: {
       orientation: 'h',
@@ -130,15 +132,15 @@ export function TestSetOverview({
   }
 
   return (
-    <div className={className}>
+    <div className={className} style={{ minHeight: 270 }}>
       <Plot
         data={traces}
         layout={layout}
         config={plotlyConfig}
-        useResizeHandler
-        style={{ width: '100%', height: '100%' }}
         revision={sliderIdx}
+        useResizeHandler
+        style={{ width: '100%', height: 270 }}
       />
     </div>
   )
-}
+})

@@ -106,7 +106,7 @@ export function CFTargetSelector({
     return (
       <div className="flex items-center gap-2 text-text-secondary text-sm py-4">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Verification en cours...
+        Verification in progress...
       </div>
     )
   }
@@ -114,7 +114,7 @@ export function CFTargetSelector({
   if (gtIps.length === 0) {
     return (
       <p className="text-[10px] text-text-secondary/40 italic py-2">
-        Selectionnez une fenetre pour configurer la cible
+        Select a window to configure the target
       </p>
     )
   }
@@ -123,7 +123,7 @@ export function CFTargetSelector({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Current IPS display */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">IPS actuel de la fenetre</label>
+        <label className="block text-xs text-text-secondary mb-1">Current IPS of the window</label>
         <div className="flex items-center gap-2">
           <span
             className="px-3 py-1.5 rounded-full text-sm font-medium"
@@ -142,7 +142,7 @@ export function CFTargetSelector({
 
       {/* Transition buttons */}
       <div>
-        <label className="block text-xs text-text-secondary mb-2">Transition de classe</label>
+        <label className="block text-xs text-text-secondary mb-2">Class transition</label>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -151,12 +151,12 @@ export function CFTargetSelector({
             className="flex items-center gap-1 px-3 py-2 rounded-lg border border-white/10 bg-bg-hover/30 hover:bg-bg-hover/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm text-text-primary"
           >
             <ChevronLeft className="w-4 h-4" />
-            Baisser
+            Lower
           </button>
 
           <div className="flex-1 text-center">
             {delta === 0 ? (
-              <span className="text-xs text-text-secondary/50">Aucun changement</span>
+              <span className="text-xs text-text-secondary/50">No change</span>
             ) : (
               <span className="text-xs text-text-secondary">
                 {delta > 0 ? '+' : ''}{delta} classe{Math.abs(delta) > 1 ? 's' : ''}
@@ -170,7 +170,7 @@ export function CFTargetSelector({
             onClick={() => setDelta((d) => d + 1)}
             className="flex items-center gap-1 px-3 py-2 rounded-lg border border-white/10 bg-bg-hover/30 hover:bg-bg-hover/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm text-text-primary"
           >
-            Monter
+            Raise
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -181,7 +181,7 @@ export function CFTargetSelector({
             onClick={() => setDelta(0)}
             className="mt-1 text-[10px] text-text-secondary/50 hover:text-text-secondary underline"
           >
-            Reinitialiser
+            Reset
           </button>
         )}
       </div>
@@ -189,7 +189,7 @@ export function CFTargetSelector({
       {/* Target display */}
       {delta !== 0 && targetMode && (
         <div className="bg-bg-hover/20 rounded-lg p-3">
-          <span className="text-xs text-text-secondary">Cible :</span>
+          <span className="text-xs text-text-secondary">Target:</span>
           <span
             className="ml-2 px-2.5 py-1 rounded-full text-sm font-medium"
             style={{
@@ -204,12 +204,12 @@ export function CFTargetSelector({
 
       {verdict === 'partial' && (
         <p className="text-[10px] text-amber-400/80 bg-amber-500/10 rounded px-2 py-1.5">
-          Attention : le modele diverge de l'observe sur certains mois. Les resultats contrefactuels peuvent etre moins fiables.
+          Warning: the model diverges from the observed on some months. Counterfactual results may be less reliable.
         </p>
       )}
 
       <p className="text-[10px] text-text-secondary/50 bg-bg-hover/20 rounded px-2 py-1.5">
-        PhysCF (gradient continu) et CoMTE (substitution de features) seront lances en parallele.
+        PhysCF (continuous gradient) and CoMTE (feature substitution) will be launched in parallel.
       </p>
 
       {/* Advanced hyperparams */}
@@ -220,7 +220,7 @@ export function CFTargetSelector({
           className="w-full px-3 py-2 flex items-center gap-2 text-xs text-text-secondary hover:text-text-primary transition-colors"
         >
           {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          Hyperparametres avances
+          Advanced hyperparameters
         </button>
         {showAdvanced && (
           <div className="px-3 pb-3 space-y-3">
@@ -231,7 +231,7 @@ export function CFTargetSelector({
             <div className="border-t border-white/5 my-2" />
             <p className="text-[10px] text-text-secondary/50 uppercase">CoMTE</p>
             <SliderParam label="num_distractors (k)" value={numDistractors} min={1} max={20} step={1} onChange={setNumDistractors} integer />
-            <SliderParam label="tau (seuil in-band)" value={tau} min={0.1} max={1.0} step={0.05} onChange={setTau} />
+            <SliderParam label="tau (in-band threshold)" value={tau} min={0.1} max={1.0} step={0.05} onChange={setTau} />
           </div>
         )}
       </div>
@@ -242,7 +242,7 @@ export function CFTargetSelector({
         className="w-full bg-accent-cyan text-white px-4 py-2.5 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium flex items-center justify-center gap-2"
       >
         <Play className="w-4 h-4" />
-        {isPending ? 'Generation...' : delta === 0 ? 'Choisir une direction' : 'Generer le contrefactuel'}
+        {isPending ? 'Generating...' : delta === 0 ? 'Choose a direction' : 'Generate counterfactual'}
       </button>
     </form>
   )

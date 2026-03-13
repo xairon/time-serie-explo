@@ -25,7 +25,7 @@ export function TrainingMonitor({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">Moniteur d'entraînement</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Training monitor</h3>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
@@ -40,12 +40,12 @@ export function TrainingMonitor({
           />
           <span className="text-xs text-text-secondary">
             {status === 'connected'
-              ? 'En cours'
+              ? 'Running'
               : status === 'done'
-                ? 'Terminé'
+                ? 'Completed'
                 : status === 'error'
-                  ? 'Erreur'
-                  : 'En attente'}
+                  ? 'Error'
+                  : 'Waiting'}
           </span>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function TrainingMonitor({
           onClick={onCancel}
           className="w-full bg-bg-hover text-text-primary px-4 py-2 rounded-lg border border-white/10 hover:bg-accent-red/10 hover:text-accent-red transition-colors text-sm"
         >
-          Annuler
+          Cancel
         </button>
       )}
     </div>

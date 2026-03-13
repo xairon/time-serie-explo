@@ -11,7 +11,7 @@ interface MetricsRadarProps {
 
 export function MetricsRadar({
   metrics,
-  label = 'Modèle',
+  label = 'Model',
   color = '#06b6d4',
   className = '',
 }: MetricsRadarProps) {

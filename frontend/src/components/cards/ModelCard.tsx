@@ -36,7 +36,7 @@ export function ModelCard({ model }: ModelCardProps) {
               key={key}
               className="text-[10px] px-2 py-0.5 rounded-full border border-white/10 text-text-secondary"
             >
-              {METRIC_LABELS[key] ?? key}: {(val as number).toFixed(4)}
+              {METRIC_LABELS[key] ?? key}: {typeof val === 'number' ? val.toFixed(4) : String(val)}
             </span>
           ))}
         </div>

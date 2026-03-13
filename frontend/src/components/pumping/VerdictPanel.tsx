@@ -23,20 +23,20 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   if (confidence >= 0.7) {
     return (
       <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-        Élevée ({(confidence * 100).toFixed(0)}%)
+        High ({(confidence * 100).toFixed(0)}%)
       </span>
     )
   }
   if (confidence >= 0.4) {
     return (
       <span className="px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
-        Moyenne ({(confidence * 100).toFixed(0)}%)
+        Medium ({(confidence * 100).toFixed(0)}%)
       </span>
     )
   }
   return (
     <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-      Faible ({(confidence * 100).toFixed(0)}%)
+      Low ({(confidence * 100).toFixed(0)}%)
     </span>
   )
 }
@@ -57,7 +57,7 @@ function ScoreGauge({ score }: { score: number }) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <svg width="160" height="90" viewBox="0 0 160 90" aria-label={`Score global: ${(pct * 100).toFixed(0)}%`}>
+      <svg width="160" height="90" viewBox="0 0 160 90" aria-label={`Global score: ${(pct * 100).toFixed(0)}%`}>
         {/* Background arc */}
         <path
           d="M 25 80 A 55 55 0 0 1 135 80"
@@ -94,7 +94,7 @@ function ScoreGauge({ score }: { score: number }) {
           / 100
         </text>
       </svg>
-      <span className="text-xs text-text-secondary">Score de suspicion global</span>
+      <span className="text-xs text-text-secondary">Global suspicion score</span>
     </div>
   )
 }
@@ -108,7 +108,7 @@ export function VerdictPanel({
   if (globalScore == null && !suspectWindows.length) {
     return (
       <div className="flex items-center justify-center h-32 text-text-secondary text-sm">
-        En attente du verdict de fusion…
+        Waiting for fusion verdict...
       </div>
     )
   }
@@ -128,7 +128,7 @@ export function VerdictPanel({
       {/* Suspect windows */}
       {suspectWindows.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-text-primary">Fenêtres suspectes ({suspectWindows.length})</h3>
+          <h3 className="text-sm font-semibold text-text-primary">Suspect windows ({suspectWindows.length})</h3>
           <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
             {suspectWindows.map((w, i) => (
               <div
@@ -141,7 +141,7 @@ export function VerdictPanel({
                   </p>
                   {w.layers && (
                     <p className="text-xs text-text-secondary mt-0.5">
-                      Couches : {w.layers.join(', ')}
+                      Layers: {w.layers.join(', ')}
                     </p>
                   )}
                 </div>
@@ -155,7 +155,7 @@ export function VerdictPanel({
       {/* Layer concordance */}
       {layerConcordance.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-text-primary">Concordance par couche</h3>
+          <h3 className="text-sm font-semibold text-text-primary">Layer concordance</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {layerConcordance.map((l, i) => (
               <div

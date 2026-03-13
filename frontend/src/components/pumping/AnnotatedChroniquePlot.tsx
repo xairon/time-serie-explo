@@ -41,7 +41,7 @@ function confidenceLine(confidence: number): string {
 export function AnnotatedChroniquePlot({
   data,
   suspectWindows = [],
-  title = 'Chronique piézométrique',
+  title = 'Piezometric chronicle',
   className = '',
 }: AnnotatedChroniquePlotProps) {
   const traces: Data[] = [
@@ -50,7 +50,7 @@ export function AnnotatedChroniquePlot({
       y: data.map(p => p.value),
       type: 'scatter',
       mode: 'lines',
-      name: 'Niveau piézométrique',
+      name: 'Piezometric level',
       line: { color: '#22d3ee', width: 1.5 },
       hovertemplate: '%{x}<br>%{y:.3f} m<extra></extra>',
     },
@@ -87,7 +87,7 @@ export function AnnotatedChroniquePlot({
       tickfont: { color: '#94a3b8' },
     },
     yaxis: {
-      title: { text: 'Niveau (m NGF)', font: { color: '#94a3b8' } },
+      title: { text: 'Level (m NGF)', font: { color: '#94a3b8' } },
       gridcolor: 'rgba(255,255,255,0.05)',
       linecolor: 'rgba(255,255,255,0.1)',
       tickfont: { color: '#94a3b8' },

@@ -30,6 +30,8 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const [valSplit, setValSplit] = useState(0.15)
   const [lossFunction, setLossFunction] = useState('MAE')
   const [hyperparams, setHyperparams] = useState<Record<string, unknown>>({})
+  const [inputChunk, setInputChunk] = useState(30)
+  const [outputChunk, setOutputChunk] = useState(7)
   const [useCovariates, setUseCovariates] = useState(true)
 
   // Group models by category
@@ -58,11 +60,21 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
     }
   }, [datasets, datasetId])
 
-  // Update hyperparams when model type changes
+  // Update hyperparams when model type changes — extract chunk lengths
   useEffect(() => {
     const model = availableModels?.find((m) => m.name === modelType)
     if (model) {
-      setHyperparams(model.default_hyperparams)
+      const hp = { ...model.default_hyperparams }
+      // Extract chunk lengths from hyperparams to top-level controls
+      if (hp.input_chunk_length != null) {
+        setInputChunk(Number(hp.input_chunk_length))
+        delete hp.input_chunk_length
+      }
+      if (hp.output_chunk_length != null) {
+        setOutputChunk(Number(hp.output_chunk_length))
+        delete hp.output_chunk_length
+      }
+      setHyperparams(hp)
     }
   }, [modelType, availableModels])
 
@@ -81,13 +93,17 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
     onSubmit({
       dataset_id: datasetId,
       model_name: modelType,
-      hyperparams,
+      hyperparams: {
+        ...hyperparams,
+        input_chunk_length: inputChunk,
+        output_chunk_length: outputChunk,
+      },
       train_ratio: trainSplit,
       val_ratio: valSplit,
       n_epochs: maxEpochs,
       early_stopping: earlyStopping,
       early_stopping_patience: earlyStopping ? patience : 0,
-      station_name: station || null,
+      station_name: station || undefined,
       use_covariates: useCovariates,
       loss_function: lossFunction,
     })
@@ -105,7 +121,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-text-primary">Configuration du modele</h3>
+      <h3 className="text-sm font-semibold text-text-primary">Model configuration</h3>
 
       {/* Model type - grouped by category */}
       <div>
@@ -152,7 +168,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
           >
             {datasets?.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({d.n_rows} lignes)
+                {d.name} ({d.n_rows} rows)
               </option>
             ))}
           </select>
@@ -163,24 +179,24 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {selectedDataset && (
         <div className="bg-bg-hover rounded-lg p-3 space-y-1.5 border border-white/5">
           <h4 className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-            Informations du dataset
+            Dataset information
           </h4>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div>
-              <span className="text-text-secondary">Cible : </span>
+              <span className="text-text-secondary">Target: </span>
               <span className="text-accent-cyan font-medium">{selectedDataset.target_variable}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Lignes : </span>
-              <span className="text-text-primary">{selectedDataset.n_rows.toLocaleString('fr-FR')}</span>
+              <span className="text-text-secondary">Rows: </span>
+              <span className="text-text-primary">{selectedDataset.n_rows.toLocaleString('en-US')}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Covariables : </span>
+              <span className="text-text-secondary">Covariates: </span>
               <span className="text-text-primary">{selectedDataset.covariates.length}</span>
             </div>
             {selectedDataset.date_range.length >= 2 && (
               <div>
-                <span className="text-text-secondary">Periode : </span>
+                <span className="text-text-secondary">Period: </span>
                 <span className="text-text-primary">
                   {selectedDataset.date_range[0]?.slice(0, 10)} → {selectedDataset.date_range[1]?.slice(0, 10)}
                 </span>
@@ -188,7 +204,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             )}
             {selectedDataset.stations.length > 0 && (
               <div className="col-span-2">
-                <span className="text-text-secondary">Stations : </span>
+                <span className="text-text-secondary">Stations: </span>
                 <span className="text-text-primary">{selectedDataset.stations.length} station(s)</span>
               </div>
             )}
@@ -212,7 +228,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             onChange={(e) => setStation(e.target.value)}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">Toutes les stations</option>
+            <option value="">All stations</option>
             {selectedDataset.stations.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -233,7 +249,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
               className="w-4 h-4 rounded border-white/10 bg-bg-input text-accent-cyan focus:ring-accent-cyan/50"
             />
             <span className="text-xs text-text-secondary">
-              Utiliser les covariables ({selectedDataset.covariates.length} features)
+              Use covariates ({selectedDataset.covariates.length} features)
             </span>
           </label>
         </div>
@@ -241,7 +257,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
       {/* Loss function */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Fonction de perte</label>
+        <label className="block text-xs text-text-secondary mb-1">Loss function</label>
         <select
           value={lossFunction}
           onChange={(e) => setLossFunction(e.target.value)}
@@ -253,6 +269,36 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Chunk lengths — common to all models */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-text-secondary mb-1">
+            Input (context days)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={inputChunk}
+            onChange={(e) => setInputChunk(Number(e.target.value))}
+            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-text-secondary mb-1">
+            Output (prediction horizon)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={outputChunk}
+            onChange={(e) => setOutputChunk(Number(e.target.value))}
+            className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
       </div>
 
       {/* Splits */}
@@ -325,7 +371,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {/* Dynamic hyperparams with proper number inputs */}
       {Object.keys(hyperparams).length > 0 && (
         <div>
-          <label className="block text-xs text-text-secondary mb-2">Hyperparametres</label>
+          <label className="block text-xs text-text-secondary mb-2">Hyperparameters</label>
           <div className="space-y-2">
             {Object.entries(hyperparams).map(([key, val]) => {
               const isNum = isNumericParam(val)
@@ -369,7 +415,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         disabled={isPending || !modelType || !datasetId}
         className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
       >
-        {isPending ? 'Lancement...' : "Lancer l'entrainement"}
+        {isPending ? 'Starting...' : 'Start training'}
       </button>
     </form>
   )

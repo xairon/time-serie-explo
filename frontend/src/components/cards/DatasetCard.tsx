@@ -20,7 +20,7 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
           <h3 className="text-sm font-semibold text-text-primary truncate">{dataset.name}</h3>
           <p className="text-xs text-text-secondary mt-0.5">
             {dataset.stations.length} station{dataset.stations.length > 1 ? 's' : ''} &middot;{' '}
-            {dataset.n_rows.toLocaleString('fr-FR')} lignes
+            {dataset.n_rows.toLocaleString('en-US')} rows
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -36,7 +36,7 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
               }}
               disabled={isDeleting}
               className="p-1 rounded hover:bg-accent-red/10 text-text-secondary hover:text-accent-red transition-colors disabled:opacity-50"
-              title="Supprimer"
+              title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -44,7 +44,7 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-text-secondary">
-        <span>Cible : {dataset.target_variable}</span>
+        <span>Target: {dataset.target_variable}</span>
         <span>
           {dateStart?.slice(0, 10)} — {dateEnd?.slice(0, 10)}
         </span>

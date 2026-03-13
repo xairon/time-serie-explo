@@ -56,7 +56,7 @@ export function useSSE<T>(url: string | null): SSEState<T> {
       setState((prev) => ({
         ...prev,
         status: 'error',
-        error: 'Connexion SSE perdue',
+        error: 'SSE connection lost',
       }))
       es.close()
       esRef.current = null

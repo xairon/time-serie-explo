@@ -182,11 +182,11 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
   const classifLabel = (c: string | null) => {
     if (!c) return null
     const map: Record<string, string> = {
-      TRES_HAUT: 'Tres haut',
-      HAUT: 'Haut',
+      TRES_HAUT: 'Very high',
+      HAUT: 'High',
       NORMAL: 'Normal',
-      BAS: 'Bas',
-      TRES_BAS: 'Tres bas',
+      BAS: 'Low',
+      TRES_BAS: 'Very low',
     }
     return map[c] || c
   }
@@ -194,10 +194,10 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-text-primary">
-        Import piézométrique
+        Piezometric import
       </h3>
       <p className="text-xs text-text-secondary">
-        Recherchez et sélectionnez des stations depuis la base BRGM (hubeau_daily_chroniques)
+        Search and select stations from the BRGM database (hubeau_daily_chroniques)
       </p>
 
       {/* Search bar */}
@@ -208,7 +208,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
-          placeholder="Code BSS, commune, département..."
+          placeholder="BSS code, municipality, department..."
         />
       </div>
 
@@ -220,7 +220,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
         >
           {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          Filtres
+          Filters
         </button>
         <button
           type="button"
@@ -228,7 +228,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           className="flex items-center gap-1 text-xs text-accent-cyan hover:text-accent-cyan/80"
         >
           <Plus className="h-3 w-3" />
-          Coller des codes
+          Paste codes
         </button>
       </div>
 
@@ -240,7 +240,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setDeptFilter(e.target.value)}
             className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
           >
-            <option value="">Département</option>
+            <option value="">Department</option>
             {filters.departements.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
@@ -250,7 +250,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setTendanceFilter(e.target.value)}
             className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
           >
-            <option value="">Tendance</option>
+            <option value="">Trend</option>
             {filters.tendances.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
@@ -260,7 +260,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setAlerteFilter(e.target.value)}
             className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
           >
-            <option value="">Alerte</option>
+            <option value="">Alert</option>
             {filters.alertes.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
@@ -276,7 +276,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setPastedCodes(e.target.value)}
             rows={3}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-xs resize-none"
-            placeholder="Coller des codes BSS (un par ligne ou séparés par des virgules)..."
+            placeholder="Paste BSS codes (one per line or comma-separated)..."
           />
           <button
             type="button"
@@ -284,7 +284,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             disabled={!pastedCodes.trim()}
             className="text-xs bg-accent-cyan/10 text-accent-cyan px-3 py-1 rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50"
           >
-            Ajouter
+            Add
           </button>
         </div>
       )}
@@ -314,7 +314,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
                       </span>
                     )}
                     {station.codes_bdlisa && (
-                      <span className="text-accent-indigo" title="Code BDLISA (entité hydrogéologique)">
+                      <span className="text-accent-indigo" title="BDLISA code (hydrogeological entity)">
                         {station.codes_bdlisa}
                       </span>
                     )}
@@ -327,7 +327,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
                       </span>
                     )}
                     {station.nb_mesures_total != null && (
-                      <span>{Math.round(Number(station.nb_mesures_total)).toLocaleString()} mes.</span>
+                      <span>{Math.round(Number(station.nb_mesures_total)).toLocaleString()} meas.</span>
                     )}
                     {station.amplitude_totale != null && (
                       <span className="flex items-center gap-0.5">
@@ -356,12 +356,12 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
       )}
 
       {searching && (
-        <div className="text-xs text-text-secondary text-center py-4">Recherche...</div>
+        <div className="text-xs text-text-secondary text-center py-4">Searching...</div>
       )}
 
       {searchTerm.length >= 2 && !searching && searchResults?.stations?.length === 0 && (
         <div className="text-xs text-text-secondary text-center py-4">
-          Aucune station trouvée pour « {searchTerm} »
+          No station found for &quot;{searchTerm}&quot;
         </div>
       )}
 
@@ -369,7 +369,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
       {selectedStations.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs text-text-secondary">
-            {selectedStations.length} station(s) sélectionnée(s)
+            {selectedStations.length} station(s) selected
           </div>
           <div className="flex flex-wrap gap-1.5">
             {selectedStations.map((s) => (
@@ -392,7 +392,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           {/* Date range */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Date début</label>
+              <label className="block text-xs text-text-secondary mb-1">Start date</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -401,7 +401,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
               />
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Date fin</label>
+              <label className="block text-xs text-text-secondary mb-1">End date</label>
               <input
                 type="date"
                 value={dateTo}
@@ -413,7 +413,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
 
           {/* Dataset name */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">Nom du dataset</label>
+            <label className="block text-xs text-text-secondary mb-1">Dataset name</label>
             <input
               type="text"
               value={datasetName}
@@ -431,17 +431,17 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
           >
             {importMutation.isPending
-              ? 'Importation...'
-              : `Importer ${selectedStations.length} station(s)`}
+              ? 'Importing...'
+              : `Import ${selectedStations.length} station(s)`}
           </button>
 
           {importMutation.isError && (
             <p className="text-xs text-accent-red">
-              Erreur : {(importMutation.error as Error).message}
+              Error: {(importMutation.error as Error).message}
             </p>
           )}
           {importMutation.isSuccess && (
-            <p className="text-xs text-accent-green">Dataset importé avec succès.</p>
+            <p className="text-xs text-accent-green">Dataset imported successfully.</p>
           )}
         </div>
       )}

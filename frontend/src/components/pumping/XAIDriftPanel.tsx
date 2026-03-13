@@ -31,7 +31,7 @@ export function XAIDriftPanel({ data, isPending }: XAIDriftPanelProps) {
         {isPending ? (
           <>
             <div className="w-8 h-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin" />
-            <span className="text-sm">Analyse XAI en cours (couche 2)…</span>
+            <span className="text-sm">XAI analysis running (layer 2)…</span>
           </>
         ) : (
           <span className="text-sm">En attente des données XAI…</span>
@@ -51,7 +51,7 @@ export function XAIDriftPanel({ data, isPending }: XAIDriftPanelProps) {
         [0.5, 'rgba(124,58,237,0.7)'],
         [1, 'rgba(34,211,238,1)'],
       ],
-      hovertemplate: 'Fenêtre: %{x}<br>Feature: %{y}<br>Attribution: %{z:.4f}<extra></extra>',
+      hovertemplate: 'Window: %{x}<br>Feature: %{y}<br>Attribution: %{z:.4f}<extra></extra>',
     },
   ]
 
@@ -76,7 +76,7 @@ export function XAIDriftPanel({ data, isPending }: XAIDriftPanelProps) {
         data={heatmapTraces}
         layout={{
           ...DARK_BASE,
-          title: { text: 'Attributions par fenêtre temporelle', font: { color: '#e2e8f0', size: 13 } },
+          title: { text: 'Attributions by time window', font: { color: '#e2e8f0', size: 13 } },
           xaxis: { ...DARK_AXIS, tickangle: -45 },
           yaxis: { tickfont: { color: '#94a3b8' } },
           margin: { t: 40, r: 80, b: 80, l: 120 },

@@ -25,9 +25,9 @@ class ErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div role="alert" style={{ padding: 32, textAlign: 'center', color: '#f87171' }}>
-          <h1 style={{ fontSize: 24, marginBottom: 8 }}>Une erreur est survenue</h1>
+          <h1 style={{ fontSize: 24, marginBottom: 8 }}>An error occurred</h1>
           <p style={{ color: '#9ca3af', marginBottom: 16 }}>
-            {this.state.error?.message ?? 'Erreur inconnue'}
+            {this.state.error?.message ?? 'Unknown error'}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -40,7 +40,7 @@ class ErrorBoundary extends Component<
               cursor: 'pointer',
             }}
           >
-            Réessayer
+            Retry
           </button>
         </div>
       )

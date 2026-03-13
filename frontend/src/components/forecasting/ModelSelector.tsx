@@ -41,7 +41,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   if (!models?.length) {
     return (
       <p className="text-xs text-text-secondary italic">
-        Aucun modele entraine. Rendez-vous sur la page Entrainement.
+        No trained models. Go to the Training page.
       </p>
     )
   }
@@ -55,7 +55,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
         ? `RMSE=${rmse.toFixed(4)}`
         : ''
     const dateStr = m.created_at
-      ? new Date(m.created_at).toLocaleDateString('fr-FR')
+      ? new Date(m.created_at).toLocaleDateString('en-US')
       : ''
     const parts = [m.model_name]
     if (metricStr) parts[0] += ` (${metricStr})`
@@ -78,7 +78,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
             }}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">Toutes les stations</option>
+            <option value="">All stations</option>
             {stations.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -90,13 +90,13 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
 
       {/* Model selector */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Modele</label>
+        <label className="block text-xs text-text-secondary mb-1">Model</label>
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
         >
-          <option value="">Selectionner un modele</option>
+          <option value="">Select a model</option>
           {filteredModels.map((m) => (
             <option key={m.model_id} value={m.model_id}>
               {formatLabel(m)}
@@ -116,7 +116,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
               {selectedDetail.model_type}
             </span>
             <span className="text-xs text-text-secondary">
-              {new Date(selectedDetail.created_at).toLocaleDateString('fr-FR', {
+              {new Date(selectedDetail.created_at).toLocaleDateString('en-US', {
                 day: '2-digit',
                 month: 'short',
                 year: 'numeric',
@@ -124,7 +124,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
             </span>
           </div>
           <div className="text-xs text-text-secondary">
-            Station(s) : {selectedDetail.stations.join(', ') || selectedDetail.primary_station || '—'}
+            Station(s): {selectedDetail.stations.join(', ') || selectedDetail.primary_station || '—'}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(selectedDetail.metrics)
@@ -142,7 +142,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
                   className="text-[10px] px-2 py-0.5 rounded-full border border-white/10"
                   style={{ color: MODEL_COLORS[selectedDetail.model_type] ?? '#06b6d4' }}
                 >
-                  {key}: {(val as number).toFixed(4)}
+                  {key}: {typeof val === 'number' ? val.toFixed(4) : String(val)}
                 </span>
               ))}
           </div>
