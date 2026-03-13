@@ -141,7 +141,7 @@ export function EmbeddingScatter({
         colorIdx++
 
         const hoverMeta = groupPoints.map((p) => {
-          const keys = Object.keys(p.metadata).slice(0, 3)
+          const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
           return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
         })
 
