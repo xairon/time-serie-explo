@@ -213,6 +213,8 @@ export default function LatentSpacePage() {
     const siteValue = station.metadata[siteKey]
     if (siteValue && typeof siteValue === 'string') {
       setHighlightedSite(siteValue)
+      // Also apply filter so scatter shows only this site's stations highlighted
+      setFilters({ [siteKey]: siteValue })
     }
   }
 
