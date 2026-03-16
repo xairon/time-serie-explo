@@ -259,19 +259,19 @@ export const api = {
   },
 
   latentSpace: {
-    stations: (domain: string) =>
-      fetchJson<{ stations: Array<Record<string, unknown>> }>(`/latent-space/stations/${domain}`),
+    stations: (domain: string, space: string = 'multi') =>
+      fetchJson<{ stations: Array<Record<string, unknown>> }>(`/latent-space/stations/${domain}?space=${space}`),
     compute: (body: Record<string, unknown>) =>
       postJson<Record<string, unknown>>('/latent-space/compute', body, 120_000),
-    similar: (domain: string, stationId: string, k: number = 10) =>
-      fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}`),
-    profiling: (domain: string, hideUnclassified: boolean = false) =>
+    similar: (domain: string, stationId: string, k: number = 10, space: string = 'multi') =>
+      fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}&space=${space}`),
+    profiling: (domain: string, hideUnclassified: boolean = false, space: string = 'multi') =>
       fetchJson<Record<string, unknown>>(
-        `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}`,
+        `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}&space=${space}`,
         { timeout: 60_000 },
       ),
-    clusteringRuns: (domain: string) =>
-      fetchJson<Array<Record<string, unknown>>>(`/latent-space/clustering-runs/${domain}`),
+    clusteringRuns: (domain: string, space: string = 'multi') =>
+      fetchJson<Array<Record<string, unknown>>>(`/latent-space/clustering-runs/${domain}?space=${space}`),
     clusteringRun: (runId: number) =>
       fetchJson<Record<string, unknown>>(`/latent-space/clustering-run/${runId}`),
   },

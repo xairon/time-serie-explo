@@ -8,6 +8,7 @@ import { ShapExplainability } from './ShapExplainability'
 
 interface ClusterProfilingProps {
   domain: 'piezo' | 'hydro'
+  space: string
   hideUnclassified: boolean
 }
 
@@ -22,8 +23,8 @@ function SkeletonBlock({ label }: { label: string }) {
   )
 }
 
-export function ClusterProfiling({ domain, hideUnclassified }: ClusterProfilingProps) {
-  const { data, isLoading, isError } = useClusterProfiling(domain, hideUnclassified)
+export function ClusterProfiling({ domain, space, hideUnclassified }: ClusterProfilingProps) {
+  const { data, isLoading, isError } = useClusterProfiling(domain, space, hideUnclassified)
 
   if (isLoading) {
     return (

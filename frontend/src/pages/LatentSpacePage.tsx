@@ -48,6 +48,7 @@ export default function LatentSpacePage() {
   const [selectedStation, setSelectedStation] = useState<string | null>(null)
   const [hideUnclassified, setHideUnclassified] = useState(false)
   const [activeTab, setActiveTab] = useState<'scatter' | 'profiling'>('scatter')
+  const [space, setSpace] = useState<'uni' | 'multi'>('multi')
   const [yearRange, setYearRange] = useState<[number, number]>([2015, 2025])
   const [season, setSeason] = useState<string | null>(null)
 
@@ -58,9 +59,9 @@ export default function LatentSpacePage() {
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
 
   // Data fetching
-  const { data: stationsData, isLoading, isError, refetch } = useStationEmbeddings(domain)
+  const { data: stationsData, isLoading, isError, refetch } = useStationEmbeddings(domain, space)
   const computeMutation = useComputeUMAP()
-  const { data: clusteringRuns } = useClusteringRuns(domain)
+  const { data: clusteringRuns } = useClusteringRuns(domain, space)
   const { data: clusteringRunData, isLoading: isRunLoading } = useClusteringRun(selectedRunId)
 
   // Extract raw stations from API response
@@ -206,6 +207,16 @@ export default function LatentSpacePage() {
     }
   }, [clusteringRuns, selectedRunId])
 
+  // Handle space switch
+  function handleSpaceChange(s: 'uni' | 'multi') {
+    setSpace(s)
+    setComputedPoints(null)
+    setSubsampled(null)
+    setQualityMetrics(null)
+    setSelectedStation(null)
+    setSelectedRunId(null)
+  }
+
   // Handle domain switch
   function handleDomainChange(d: Domain) {
     setDomain(d)
@@ -221,6 +232,7 @@ export default function LatentSpacePage() {
   async function handleRecalculate() {
     const body: Record<string, unknown> = {
       domain,
+      space,
       embeddings_type: level,
       filters: {
         ...(filters.libelle_eh ? { libelle_eh: filters.libelle_eh } : {}),
@@ -318,6 +330,27 @@ export default function LatentSpacePage() {
     </div>
   )
 
+  const spaceButtons = (
+    <div className="flex rounded-lg overflow-hidden border border-white/10">
+      <button
+        onClick={() => handleSpaceChange('uni')}
+        className={`px-4 py-2 text-sm transition-colors ${
+          space === 'uni'
+            ? 'bg-accent-cyan/20 text-accent-cyan'
+            : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+        }`}
+      >Univariate</button>
+      <button
+        onClick={() => handleSpaceChange('multi')}
+        className={`px-4 py-2 text-sm transition-colors ${
+          space === 'multi'
+            ? 'bg-accent-cyan/20 text-accent-cyan'
+            : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+        }`}
+      >Multivariate</button>
+    </div>
+  )
+
   const tabButtons = (
     <div className="flex rounded-lg overflow-hidden border border-white/10">
       <button
@@ -349,11 +382,12 @@ export default function LatentSpacePage() {
       <div className="flex flex-col h-full gap-3 p-4 overflow-hidden">
         <div className="flex items-center gap-4 shrink-0">
           {domainButtons}
+          {spaceButtons}
           {tabButtons}
         </div>
 
         {activeTab === 'profiling' ? (
-          <ClusterProfiling domain={domain} hideUnclassified={hideUnclassified} />
+          <ClusterProfiling domain={domain} space={space} hideUnclassified={hideUnclassified} />
         ) : (
           <div className="flex items-center justify-center flex-1">
             <div className="flex flex-col items-center gap-3">
@@ -372,11 +406,12 @@ export default function LatentSpacePage() {
       <div className="flex flex-col h-full gap-3 p-4 overflow-hidden">
         <div className="flex items-center gap-4 shrink-0">
           {domainButtons}
+          {spaceButtons}
           {tabButtons}
         </div>
 
         {activeTab === 'profiling' ? (
-          <ClusterProfiling domain={domain} hideUnclassified={hideUnclassified} />
+          <ClusterProfiling domain={domain} space={space} hideUnclassified={hideUnclassified} />
         ) : (
           <div className="flex items-center justify-center flex-1">
             <div className="bg-bg-card rounded-xl border border-white/5 p-8 flex flex-col items-center gap-4 max-w-md">
@@ -403,6 +438,7 @@ export default function LatentSpacePage() {
       {/* Top bar: domain switch + tab toggle + stats */}
       <div className="flex items-center gap-4 shrink-0">
         {domainButtons}
+        {spaceButtons}
         {tabButtons}
 
         <span className="text-text-muted text-sm">
@@ -475,7 +511,7 @@ export default function LatentSpacePage() {
 
         {activeTab === 'profiling' ? (
           <div className="flex-1 min-w-0 overflow-y-auto">
-            <ClusterProfiling domain={domain} hideUnclassified={hideUnclassified} />
+            <ClusterProfiling domain={domain} space={space} hideUnclassified={hideUnclassified} />
           </div>
         ) : (
           <>

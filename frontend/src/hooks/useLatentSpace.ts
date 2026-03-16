@@ -1,10 +1,10 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-export function useStationEmbeddings(domain: string) {
+export function useStationEmbeddings(domain: string, space: string = 'multi') {
   return useQuery({
-    queryKey: ['latent-space', 'stations', domain],
-    queryFn: () => api.latentSpace.stations(domain),
+    queryKey: ['latent-space', 'stations', domain, space],
+    queryFn: () => api.latentSpace.stations(domain, space),
     staleTime: 5 * 60 * 1000,
     enabled: !!domain,
   })
@@ -25,10 +25,10 @@ export function useComputeUMAP() {
   })
 }
 
-export function useClusteringRuns(domain: string) {
+export function useClusteringRuns(domain: string, space: string = 'multi') {
   return useQuery({
-    queryKey: ['latent-space', 'clustering-runs', domain],
-    queryFn: () => api.latentSpace.clusteringRuns(domain),
+    queryKey: ['latent-space', 'clustering-runs', domain, space],
+    queryFn: () => api.latentSpace.clusteringRuns(domain, space),
     staleTime: 5 * 60 * 1000,
     enabled: !!domain,
   })
@@ -43,10 +43,10 @@ export function useClusteringRun(runId: number | null) {
   })
 }
 
-export function useClusterProfiling(domain: string, hideUnclassified: boolean) {
+export function useClusterProfiling(domain: string, space: string = 'multi', hideUnclassified: boolean = false) {
   return useQuery({
-    queryKey: ['latent-space', 'profiling', domain, hideUnclassified],
-    queryFn: () => api.latentSpace.profiling(domain, hideUnclassified),
+    queryKey: ['latent-space', 'profiling', domain, space, hideUnclassified],
+    queryFn: () => api.latentSpace.profiling(domain, hideUnclassified, space),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     enabled: !!domain,
