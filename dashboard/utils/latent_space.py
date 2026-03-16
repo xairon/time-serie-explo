@@ -255,7 +255,6 @@ def build_window_query(
         w.{id_col}            AS id,
         w.window_start,
         w.window_end,
-        w.cluster_id,
         w.embedding::text     AS embedding_raw
     """
     from_clause = f"ml.{domain}_window_embeddings w"
@@ -263,9 +262,6 @@ def build_window_query(
     if _get(filters, 'station_ids'):
         where_clauses.append(f"w.{id_col} = ANY(:station_ids)")
         params["station_ids"] = list(_get(filters, 'station_ids'))
-    if _get(filters, 'cluster_id') is not None:
-        where_clauses.append("w.cluster_id = :cluster_id")
-        params["cluster_id"] = _get(filters, 'cluster_id')
     if year_min is not None:
         where_clauses.append("EXTRACT(YEAR FROM w.window_start) >= :year_min")
         params["year_min"] = year_min
