@@ -38,18 +38,12 @@ export default function LatentSpacePage() {
   const [mode, setMode] = useState<Mode>('2d')
   const [level, setLevel] = useState<Level>('stations')
   const [umapParams, setUmapParams] = useState({ n_neighbors: 30, min_dist: 0.05 })
-  const [clusteringParams, setClusteringParams] = useState<{
-    method: 'hdbscan' | 'kmeans'
-    min_cluster_size: number
-    min_samples: number
-    n_clusters: number
-    n_umap_dims: number
-  }>({
-    method: 'hdbscan',
-    min_cluster_size: 10,
-    min_samples: 5,
+  const [clusteringParams, setClusteringParams] = useState({
+    method: 'hdbscan' as 'hdbscan' | 'kmeans',
+    min_cluster_size: 25,
+    min_samples: 10,
     n_clusters: 8,
-    n_umap_dims: 10,
+    umap_prereduction: { n_components: 10, n_neighbors: 15, min_dist: 0.0 },
   })
   const [selectedStation, setSelectedStation] = useState<string | null>(null)
   const [hideUnclassified, setHideUnclassified] = useState(false)
@@ -246,7 +240,7 @@ export default function LatentSpacePage() {
       },
       clustering: {
         method: clusteringParams.method,
-        n_umap_dims: clusteringParams.n_umap_dims,
+        umap_prereduction: clusteringParams.umap_prereduction,
         hdbscan: {
           min_cluster_size: clusteringParams.min_cluster_size,
           min_samples: clusteringParams.min_samples,

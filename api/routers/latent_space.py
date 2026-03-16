@@ -270,11 +270,14 @@ async def compute_latent_space(
             min_dist=umap_params.min_dist,
             metric=umap_params.metric,
         )
+        pre = clustering_params.umap_prereduction
         labels, metrics = compute_clustering(
             embeddings_matrix,
             method=clustering_params.method,
             params=clustering_params,
-            n_umap_dims=clustering_params.n_umap_dims,
+            n_umap_dims=pre.n_components,
+            pre_n_neighbors=pre.n_neighbors,
+            pre_min_dist=pre.min_dist,
         )
         # UMAP visualization quality
         umap_viz_quality = compute_umap_quality(

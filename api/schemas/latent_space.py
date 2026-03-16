@@ -31,9 +31,17 @@ class KMeansParams(BaseModel):
     n_clusters: int = Field(default=8, ge=2, le=100)
 
 
+class UMAPPreReductionParams(BaseModel):
+    """UMAP params for dimensionality reduction before HDBSCAN."""
+    n_components: int = Field(default=10, ge=2, le=50)
+    n_neighbors: int = Field(default=15, ge=2, le=100)
+    min_dist: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class ClusteringParams(BaseModel):
     method: Literal["hdbscan", "kmeans"] = "hdbscan"
-    n_umap_dims: int = Field(default=10, ge=2, le=50)
+    n_umap_dims: int = Field(default=10, ge=2, le=50)  # legacy, kept for compat
+    umap_prereduction: UMAPPreReductionParams = UMAPPreReductionParams()
     hdbscan: HDBSCANParams = HDBSCANParams()
     kmeans: KMeansParams = KMeansParams()
 

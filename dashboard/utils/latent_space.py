@@ -414,6 +414,8 @@ def compute_clustering(
     method: str,
     params,
     n_umap_dims: int = 10,
+    pre_n_neighbors: int = 15,
+    pre_min_dist: float = 0.0,
 ) -> tuple[np.ndarray, dict]:
     """Cluster embeddings using HDBSCAN or KMeans.
 
@@ -449,8 +451,8 @@ def compute_clustering(
         reduced = compute_umap(
             embeddings_matrix,
             n_components=n_umap_dims_actual,
-            n_neighbors=15,
-            min_dist=0.0,
+            n_neighbors=pre_n_neighbors,
+            min_dist=pre_min_dist,
             metric="cosine",
         )
         clustering_input = reduced
@@ -458,10 +460,10 @@ def compute_clustering(
         # UMAP pre-reduction quality
         umap_pre_metrics["input_dim"] = int(embeddings_matrix.shape[1])
         umap_pre_metrics["output_dim"] = n_umap_dims_actual
-        umap_pre_metrics["n_neighbors"] = 15
-        umap_pre_metrics["min_dist"] = 0.0
+        umap_pre_metrics["n_neighbors"] = pre_n_neighbors
+        umap_pre_metrics["min_dist"] = pre_min_dist
         umap_pre_quality = compute_umap_quality(
-            embeddings_matrix, reduced, n_neighbors=15,
+            embeddings_matrix, reduced, n_neighbors=pre_n_neighbors,
         )
         umap_pre_metrics.update(umap_pre_quality)
 
