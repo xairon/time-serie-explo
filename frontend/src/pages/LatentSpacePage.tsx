@@ -7,6 +7,7 @@ import { UMAPControls } from '@/components/latent-space/UMAPControls'
 import { StationDetail } from '@/components/latent-space/StationDetail'
 // QualityMetrics now inline in UMAPControls
 import { ClusterProfiling } from '@/components/latent-space/ClusterProfiling'
+import { ClusterLegendBar } from '@/components/latent-space/ClusterLegendBar'
 
 type Domain = 'piezo' | 'hydro'
 type Mode = '2d' | '3d'
@@ -29,6 +30,12 @@ interface ComputedPointRaw {
   window_end?: string
   metadata: Record<string, unknown>
 }
+
+const CATEGORICAL_COLORS = [
+  '#06b6d4', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444',
+  '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#a78bfa',
+  '#84cc16', '#fb7185', '#22d3ee', '#fbbf24', '#60a5fa',
+]
 
 export default function LatentSpacePage() {
   // Core state
@@ -57,6 +64,9 @@ export default function LatentSpacePage() {
   const [subsampled, setSubsampled] = useState<{ from: number } | null>(null)
   const [qualityMetrics, setQualityMetrics] = useState<Record<string, unknown> | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const [highlightedSite, setHighlightedSite] = useState<string | null>(null)
+  const [legendCluster, setLegendCluster] = useState<number | null>(null)
+  const [onlyActive, setOnlyActive] = useState(false)
 
   // Data fetching
   const { data: stationsData, isLoading, isError, refetch } = useStationEmbeddings(domain, space)
@@ -78,6 +88,11 @@ export default function LatentSpacePage() {
       EH_KEYS.some((k) => s.metadata[k] != null && s.metadata[k] !== ''),
     )
   }, [allStations, hideUnclassified, domain])
+
+  const activeStations = useMemo(() => {
+    if (!onlyActive) return stations
+    return stations.filter((s) => (s.n_windows ?? 0) >= 3)
+  }, [stations, onlyActive])
 
   // Apply client-side filters for highlight
   const matchesFilters = useCallback(
@@ -145,7 +160,7 @@ export default function LatentSpacePage() {
     }
 
     // Priority 3: Legacy pre-computed station UMAP coords
-    return stations
+    return activeStations
       .filter((s) => (mode === '3d' ? s.umap_3d : s.umap_2d))
       .map((s) => ({
         id: s.id,
@@ -156,17 +171,29 @@ export default function LatentSpacePage() {
         metadata: s.metadata,
         highlighted: !hasActiveFilters || matchesFilters(s),
       }))
-  }, [stations, allStations, computedPoints, clusteringRunData, mode, hasActiveFilters, matchesFilters])
+  }, [activeStations, allStations, computedPoints, clusteringRunData, mode, hasActiveFilters, matchesFilters])
+
+  const clusterInfo = useMemo(() => {
+    const counts = new Map<number, number>()
+    for (const p of scatterPoints) {
+      counts.set(p.cluster_label, (counts.get(p.cluster_label) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).map(([id, count]) => ({
+      id,
+      color: id === -1 ? '#4b5563' : CATEGORICAL_COLORS[Math.abs(id) % CATEGORICAL_COLORS.length],
+      count,
+    }))
+  }, [scatterPoints])
 
   // Station list for FilterPanel (always from pre-computed, not computed points)
   const stationsForFilter = useMemo(
     () =>
-      stations.map((s) => ({
+      activeStations.map((s) => ({
         id: s.id,
         metadata: s.metadata,
         cluster_id: s.cluster_id,
       })),
-    [stations],
+    [activeStations],
   )
 
   // Selected station metadata for the detail panel
@@ -176,22 +203,25 @@ export default function LatentSpacePage() {
     return s?.metadata as Record<string, unknown> | undefined
   }, [selectedStation, allStations])
 
-  // When a station is selected (click or BSS search), auto-filter by its aquifer (piezo) or waterway (hydro)
   function handleStationSelect(stationId: string) {
     setSelectedStation(stationId)
-    const station = stations.find((s) => s.id === stationId)
+    const station = allStations.find((s) => s.id === stationId)
     if (!station) return
+    const siteKey = domain === 'piezo' ? 'libelle_eh' : 'nom_cours_eau'
+    const siteValue = station.metadata[siteKey]
+    if (siteValue && typeof siteValue === 'string') {
+      setHighlightedSite(siteValue)
+    }
+  }
 
-    if (domain === 'piezo') {
-      const aquifer = station.metadata['libelle_eh']
-      if (aquifer && typeof aquifer === 'string') {
-        setFilters({ libelle_eh: aquifer })
-      }
-    } else {
-      const waterway = station.metadata['nom_cours_eau']
-      if (waterway && typeof waterway === 'string') {
-        setFilters({ nom_cours_eau: waterway })
-      }
+  function handleFilterBySite() {
+    if (!selectedStation) return
+    const station = allStations.find((s) => s.id === selectedStation)
+    if (!station) return
+    const siteKey = domain === 'piezo' ? 'libelle_eh' : 'nom_cours_eau'
+    const siteValue = station.metadata[siteKey]
+    if (siteValue && typeof siteValue === 'string') {
+      setFilters({ [siteKey]: siteValue })
     }
   }
 
@@ -215,6 +245,9 @@ export default function LatentSpacePage() {
     setQualityMetrics(null)
     setSelectedStation(null)
     setSelectedRunId(null)
+    setHighlightedSite(null)
+    setLegendCluster(null)
+    setOnlyActive(false)
   }
 
   // Handle domain switch
@@ -226,6 +259,9 @@ export default function LatentSpacePage() {
     setSubsampled(null)
     setSelectedStation(null)
     setSelectedRunId(null)
+    setHighlightedSite(null)
+    setLegendCluster(null)
+    setOnlyActive(false)
   }
 
   // Handle recalculate
@@ -506,6 +542,8 @@ export default function LatentSpacePage() {
             onStationSelect={handleStationSelect}
             hideUnclassified={hideUnclassified}
             onHideUnclassifiedChange={setHideUnclassified}
+            onlyActive={onlyActive}
+            onOnlyActiveChange={setOnlyActive}
           />
         </div>
 
@@ -548,9 +586,31 @@ export default function LatentSpacePage() {
                     points={scatterPoints}
                     mode={mode}
                     colorBy={colorBy}
+                    domain={domain}
+                    highlightedSite={highlightedSite}
                     onPointClick={handleStationSelect}
                     loading={computeMutation.isPending}
                     className="h-full"
+                  />
+                </div>
+              )}
+
+              {/* Cluster legend */}
+              {scatterPoints.length > 0 && (
+                <div className="shrink-0">
+                  <ClusterLegendBar
+                    clusters={clusterInfo}
+                    selectedCluster={legendCluster}
+                    onSelectCluster={(id) => {
+                      setLegendCluster(id)
+                      if (id !== null) {
+                        setFilters({ cluster_id: id })
+                      } else {
+                        const next = { ...filters }
+                        delete next.cluster_id
+                        setFilters(next)
+                      }
+                    }}
                   />
                 </div>
               )}
@@ -587,13 +647,13 @@ export default function LatentSpacePage() {
               <div className="shrink-0 w-72 overflow-y-auto">
                 <StationDetail
                   domain={domain}
+                  space={space}
                   stationId={selectedStation}
                   stationMeta={selectedStationMeta}
-                  onClose={() => {
-                    setSelectedStation(null)
-                    setFilters({})
-                  }}
+                  clusterLabel={scatterPoints.find(p => p.id === selectedStation)?.cluster_label ?? null}
+                  onClose={() => { setSelectedStation(null); setHighlightedSite(null); setFilters({}) }}
                   onNeighborClick={handleStationSelect}
+                  onFilterBySite={handleFilterBySite}
                 />
               </div>
             )}
