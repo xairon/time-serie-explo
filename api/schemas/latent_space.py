@@ -17,8 +17,8 @@ class EmbeddingFilters(BaseModel):
 
 class UMAPParams(BaseModel):
     n_components: Literal[2, 3] = 2
-    n_neighbors: int = Field(default=15, ge=2, le=200)
-    min_dist: float = Field(default=0.1, ge=0.0, le=1.0)
+    n_neighbors: int = Field(default=30, ge=2, le=200)
+    min_dist: float = Field(default=0.05, ge=0.0, le=1.0)
     metric: str = "cosine"
 
 
@@ -102,3 +102,38 @@ class SimilarStation(BaseModel):
 class SimilarResponse(BaseModel):
     query_id: str
     neighbors: list[SimilarStation]
+
+
+class ClusteringRunSummary(BaseModel):
+    """Summary of a pre-computed clustering run."""
+    id: int
+    domain: str
+    level: str = "stations"
+    method: str = "hdbscan"
+    params: dict
+    metrics: dict
+    n_clusters: int
+    n_stations: int
+    is_default: bool
+    created_at: str | None = None
+
+
+class ClusteringLabel(BaseModel):
+    station_id: str
+    cluster_id: int
+    umap_2d: list[float] | None = None
+    umap_3d: list[float] | None = None
+
+
+class ClusteringRunDetail(BaseModel):
+    """Full clustering run with labels and UMAP coords."""
+    id: int
+    domain: str
+    method: str
+    params: dict
+    metrics: dict
+    n_clusters: int
+    n_stations: int
+    is_default: bool
+    created_at: str | None = None
+    labels: list[ClusteringLabel]

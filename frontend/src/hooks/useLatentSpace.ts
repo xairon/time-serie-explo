@@ -25,6 +25,24 @@ export function useComputeUMAP() {
   })
 }
 
+export function useClusteringRuns(domain: string) {
+  return useQuery({
+    queryKey: ['latent-space', 'clustering-runs', domain],
+    queryFn: () => api.latentSpace.clusteringRuns(domain),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!domain,
+  })
+}
+
+export function useClusteringRun(runId: number | null) {
+  return useQuery({
+    queryKey: ['latent-space', 'clustering-run', runId],
+    queryFn: () => api.latentSpace.clusteringRun(runId!),
+    staleTime: 5 * 60 * 1000,
+    enabled: runId != null,
+  })
+}
+
 export function useClusterProfiling(domain: string, hideUnclassified: boolean) {
   return useQuery({
     queryKey: ['latent-space', 'profiling', domain, hideUnclassified],

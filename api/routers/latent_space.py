@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.database import get_brgm_db
 from api.schemas.cluster_profiling import ProfilingResponse
 from api.schemas.latent_space import (
+    ClusteringRunDetail,
+    ClusteringRunSummary,
     ComputeRequest,
     ComputeResponse,
     ComputedPoint,
@@ -366,6 +368,37 @@ async def get_similar_stations(
         )
 
     return SimilarResponse(query_id=station_id, neighbors=neighbors)
+
+
+# ---------------------------------------------------------------------------
+# Pre-computed clustering runs
+# ---------------------------------------------------------------------------
+
+
+@router.get("/clustering-runs/{domain}", response_model=list[ClusteringRunSummary])
+async def list_clustering_runs(
+    domain: str,
+    session: AsyncSession = Depends(get_brgm_db),
+):
+    """List available pre-computed clustering runs for a domain."""
+    if domain not in _VALID_DOMAINS:
+        raise HTTPException(status_code=400, detail="Invalid domain")
+
+    from dashboard.utils.latent_space import list_clustering_runs as _list_runs
+    return await _list_runs(session, domain)
+
+
+@router.get("/clustering-run/{run_id}", response_model=ClusteringRunDetail)
+async def get_clustering_run(
+    run_id: int,
+    session: AsyncSession = Depends(get_brgm_db),
+):
+    """Load a specific clustering run with all labels and UMAP coords."""
+    from dashboard.utils.latent_space import load_clustering_run as _load_run
+    data = await _load_run(session, run_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Clustering run not found")
+    return data
 
 
 @router.get("/profiling/{domain}", response_model=ProfilingResponse)

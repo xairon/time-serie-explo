@@ -380,6 +380,30 @@ def compute_umap(
     return reducer.fit_transform(embeddings_matrix)
 
 
+def compute_umap_quality(
+    high_dim: np.ndarray,
+    low_dim: np.ndarray,
+    n_neighbors: int = 15,
+) -> dict[str, float]:
+    """Compute UMAP projection quality metrics.
+
+    Returns trustworthiness (how well local neighborhoods are preserved)
+    and continuity scores. Values in [0, 1], higher = better.
+    """
+    from sklearn.manifold import trustworthiness
+
+    metrics: dict[str, float] = {}
+    k = min(n_neighbors, high_dim.shape[0] - 1)
+    if k < 2:
+        return metrics
+    try:
+        tw = trustworthiness(high_dim, low_dim, n_neighbors=k, metric="cosine")
+        metrics["trustworthiness"] = round(float(tw), 4)
+    except Exception:
+        pass
+    return metrics
+
+
 # ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
@@ -408,10 +432,14 @@ def compute_clustering(
     -------
     (labels_array, metrics_dict)
         labels_array: shape (n_samples,), int; -1 = noise for HDBSCAN.
-        metrics_dict: may contain "silhouette_score".
+        metrics_dict: structured as {umap_prereduction: {...}, clustering: {...}}.
     """
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
+
+    umap_pre_metrics: dict[str, Any] = {}
+    clustering_metrics: dict[str, Any] = {}
+    clustering_input = embeddings_matrix  # what clustering actually runs on
 
     if method == "hdbscan":
         from sklearn.cluster import HDBSCAN
@@ -425,6 +453,18 @@ def compute_clustering(
             min_dist=0.0,
             metric="cosine",
         )
+        clustering_input = reduced
+
+        # UMAP pre-reduction quality
+        umap_pre_metrics["input_dim"] = int(embeddings_matrix.shape[1])
+        umap_pre_metrics["output_dim"] = n_umap_dims_actual
+        umap_pre_metrics["n_neighbors"] = 15
+        umap_pre_metrics["min_dist"] = 0.0
+        umap_pre_quality = compute_umap_quality(
+            embeddings_matrix, reduced, n_neighbors=15,
+        )
+        umap_pre_metrics.update(umap_pre_quality)
+
         hparams = params.hdbscan if hasattr(params, 'hdbscan') else params.get('hdbscan', params)
         mcs = hparams.min_cluster_size if hasattr(hparams, 'min_cluster_size') else hparams.get('min_cluster_size', 10)
         ms = hparams.min_samples if hasattr(hparams, 'min_samples') else hparams.get('min_samples', 5)
@@ -443,22 +483,49 @@ def compute_clustering(
             n_init=10,
         )
         labels = clusterer.fit_predict(embeddings_matrix)
+        clustering_metrics["inertia"] = round(float(clusterer.inertia_), 2)
 
     else:
         raise ValueError(f"Unknown clustering method '{method}'. Use 'hdbscan' or 'kmeans'.")
 
-    metrics: dict[str, Any] = {}
+    # Clustering quality metrics
     unique_labels = set(labels)
     non_noise = unique_labels - {-1}
-    if len(non_noise) > 1:
-        # Compute silhouette only on non-noise points
+    n_clusters = len(non_noise)
+    clustering_metrics["n_clusters"] = n_clusters
+    clustering_metrics["method"] = method
+
+    if method == "hdbscan":
+        n_noise = int(np.sum(labels == -1))
+        clustering_metrics["n_noise"] = n_noise
+        clustering_metrics["noise_ratio"] = round(n_noise / len(labels), 4) if len(labels) > 0 else 0.0
+
+    if n_clusters > 1:
         mask = labels != -1
         if mask.sum() > 1:
             try:
-                score = silhouette_score(embeddings_matrix[mask], labels[mask])
-                metrics["silhouette_score"] = float(score)
+                score = silhouette_score(clustering_input[mask], labels[mask])
+                clustering_metrics["silhouette"] = round(float(score), 4)
             except Exception:
                 pass
+            try:
+                from sklearn.metrics import davies_bouldin_score
+                db = davies_bouldin_score(clustering_input[mask], labels[mask])
+                clustering_metrics["davies_bouldin"] = round(float(db), 4)
+            except Exception:
+                pass
+            try:
+                from sklearn.metrics import calinski_harabasz_score
+                ch = calinski_harabasz_score(clustering_input[mask], labels[mask])
+                clustering_metrics["calinski_harabasz"] = round(float(ch), 2)
+            except Exception:
+                pass
+
+    metrics: dict[str, Any] = {
+        "clustering": clustering_metrics,
+    }
+    if umap_pre_metrics:
+        metrics["umap_prereduction"] = umap_pre_metrics
 
     return labels, metrics
 
@@ -528,3 +595,89 @@ def subsample_stratified(
     metadata_sub = [metadata_list[i] for i in selected_indices]
 
     return ids_sub, embeddings_sub, metadata_sub, True, n
+
+
+# ---------------------------------------------------------------------------
+# Pre-computed clustering runs
+# ---------------------------------------------------------------------------
+
+
+async def list_clustering_runs(session, domain: str) -> list[dict]:
+    """List available pre-computed clustering runs for a domain."""
+    result = await session.execute(
+        text("""
+            SELECT id, domain, level, method, params, metrics,
+                   n_clusters, n_stations, is_default, created_at
+            FROM ml.clustering_runs
+            WHERE domain = :domain AND level = 'stations'
+            ORDER BY created_at DESC
+            LIMIT 20
+        """),
+        {"domain": domain},
+    )
+    rows = result.fetchall()
+    return [
+        {
+            "id": r.id,
+            "domain": r.domain,
+            "level": r.level,
+            "method": r.method,
+            "params": r.params,
+            "metrics": r.metrics,
+            "n_clusters": r.n_clusters,
+            "n_stations": r.n_stations,
+            "is_default": r.is_default,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+async def load_clustering_run(session, run_id: int) -> dict:
+    """Load a specific clustering run with all station labels and UMAP coords."""
+    result = await session.execute(
+        text("""
+            SELECT id, domain, level, method, params, metrics,
+                   n_clusters, n_stations, is_default, created_at
+            FROM ml.clustering_runs
+            WHERE id = :run_id
+        """),
+        {"run_id": run_id},
+    )
+    run_row = result.fetchone()
+    if not run_row:
+        return {}
+
+    result = await session.execute(
+        text("""
+            SELECT station_id, cluster_id,
+                   umap_2d_x, umap_2d_y,
+                   umap_3d_x, umap_3d_y, umap_3d_z
+            FROM ml.clustering_labels
+            WHERE run_id = :run_id
+            ORDER BY station_id
+        """),
+        {"run_id": run_id},
+    )
+    label_rows = result.fetchall()
+
+    return {
+        "id": run_row.id,
+        "domain": run_row.domain,
+        "method": run_row.method,
+        "params": run_row.params,
+        "metrics": run_row.metrics,
+        "n_clusters": run_row.n_clusters,
+        "n_stations": run_row.n_stations,
+        "is_default": run_row.is_default,
+        "created_at": run_row.created_at.isoformat() if run_row.created_at else None,
+        "labels": [
+            {
+                "station_id": r.station_id,
+                "cluster_id": r.cluster_id,
+                "umap_2d": [r.umap_2d_x, r.umap_2d_y] if r.umap_2d_x is not None else None,
+                "umap_3d": [r.umap_3d_x, r.umap_3d_y, r.umap_3d_z] if r.umap_3d_x is not None else None,
+            }
+            for r in label_rows
+        ],
+    }

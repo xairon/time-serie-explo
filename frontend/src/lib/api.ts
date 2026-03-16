@@ -270,6 +270,10 @@ export const api = {
         `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}`,
         { timeout: 60_000 },
       ),
+    clusteringRuns: (domain: string) =>
+      fetchJson<Array<Record<string, unknown>>>(`/latent-space/clustering-runs/${domain}`),
+    clusteringRun: (runId: number) =>
+      fetchJson<Record<string, unknown>>(`/latent-space/clustering-run/${runId}`),
   },
 
   counterfactual: {
