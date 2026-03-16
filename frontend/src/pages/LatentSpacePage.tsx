@@ -19,6 +19,7 @@ interface StationRaw {
   umap_3d: [number, number, number] | null
   cluster_id: number | null
   n_windows: number | null
+  last_date: string | null
   metadata: Record<string, unknown>
 }
 
@@ -91,7 +92,8 @@ export default function LatentSpacePage() {
 
   const activeStations = useMemo(() => {
     if (!onlyActive) return stations
-    return stations.filter((s) => (s.n_windows ?? 0) >= 3)
+    // Filter to stations with data from 2024 or later
+    return stations.filter((s) => s.last_date != null && s.last_date >= '2024-01-01')
   }, [stations, onlyActive])
 
   // Apply client-side filters for highlight

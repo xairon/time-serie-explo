@@ -77,6 +77,7 @@ class StationPoint(BaseModel):
     umap_3d: list[float] | None = None
     cluster_id: int | None = None
     n_windows: int | None = None
+    last_date: str | None = None
     metadata: StationMetadata = StationMetadata()
 
 

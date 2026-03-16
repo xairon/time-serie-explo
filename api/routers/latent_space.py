@@ -120,6 +120,7 @@ async def get_stations(
 
         cluster_id = getattr(row, "cluster_id", None)
         n_windows = getattr(row, "n_windows", None)
+        last_date = getattr(row, "last_date", None)
 
         meta = (
             _row_to_station_metadata_piezo(row)
@@ -134,6 +135,7 @@ async def get_stations(
                 umap_3d=umap_3d,
                 cluster_id=int(cluster_id) if cluster_id is not None else None,
                 n_windows=int(n_windows) if n_windows is not None else None,
+                last_date=str(last_date) if last_date is not None else None,
                 metadata=meta,
             )
         )
