@@ -686,3 +686,52 @@ async def load_clustering_run(session, run_id: int) -> dict:
             for r in label_rows
         ],
     }
+
+
+async def load_station_windows(session, domain: str, station_id: str, space: str = "multi") -> list[dict]:
+    """Load window embeddings for a single station, compute UMAP 2D on-the-fly."""
+    import numpy as np
+
+    id_col = "code_bss" if domain == "piezo" else "code_station"
+    table = f"ml.{domain}_window_embeddings"
+
+    result = await session.execute(
+        text(f"""
+            SELECT window_start, window_end, embedding::text AS embedding_raw
+            FROM {table}
+            WHERE {id_col} = :station_id AND space = :space
+            ORDER BY window_start
+        """),
+        {"station_id": station_id, "space": space},
+    )
+    rows = result.fetchall()
+    if not rows:
+        return []
+
+    embeddings = []
+    windows = []
+    for r in rows:
+        emb = [float(x) for x in r.embedding_raw.strip("[]").split(",")]
+        embeddings.append(emb)
+        windows.append({
+            "window_start": str(r.window_start),
+            "window_end": str(r.window_end),
+        })
+
+    emb_array = np.array(embeddings, dtype=np.float32)
+    if len(emb_array) >= 4:
+        import umap
+        nn = min(15, len(emb_array) - 1)
+        coords = umap.UMAP(
+            n_components=2, n_neighbors=nn,
+            min_dist=0.05, metric="cosine", random_state=42,
+        ).fit_transform(emb_array)
+    else:
+        from sklearn.decomposition import PCA
+        coords = PCA(n_components=min(2, emb_array.shape[0])).fit_transform(emb_array)
+
+    for i, w in enumerate(windows):
+        w["umap_x"] = float(coords[i, 0])
+        w["umap_y"] = float(coords[i, 1])
+
+    return windows

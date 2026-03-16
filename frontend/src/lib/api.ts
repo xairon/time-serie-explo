@@ -274,6 +274,8 @@ export const api = {
       fetchJson<Array<Record<string, unknown>>>(`/latent-space/clustering-runs/${domain}?space=${space}`),
     clusteringRun: (runId: number) =>
       fetchJson<Record<string, unknown>>(`/latent-space/clustering-run/${runId}`),
+    stationWindows: (domain: string, stationId: string, space: string = 'multi') =>
+      fetchJson<Record<string, unknown>>(`/latent-space/station-windows/${domain}/${stationId}?space=${space}`),
   },
 
   counterfactual: {

@@ -409,6 +409,21 @@ async def get_clustering_run(
     return data
 
 
+@router.get("/station-windows/{domain}/{station_id}")
+async def get_station_windows(
+    domain: str,
+    station_id: str,
+    space: str = Query("multi"),
+    session: AsyncSession = Depends(get_brgm_db),
+):
+    """Load window embeddings for a station with UMAP 2D coords."""
+    if domain not in _VALID_DOMAINS:
+        raise HTTPException(status_code=400, detail="Invalid domain")
+    from dashboard.utils.latent_space import load_station_windows
+    windows = await load_station_windows(session, domain, station_id, space)
+    return {"station_id": station_id, "windows": windows}
+
+
 @router.get("/profiling/{domain}", response_model=ProfilingResponse)
 async def get_profiling(
     domain: str,

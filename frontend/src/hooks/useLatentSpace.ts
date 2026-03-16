@@ -43,6 +43,15 @@ export function useClusteringRun(runId: number | null) {
   })
 }
 
+export function useStationWindows(domain: string, stationId: string | null, space: string = 'multi') {
+  return useQuery({
+    queryKey: ['latent-space', 'station-windows', domain, stationId, space],
+    queryFn: () => api.latentSpace.stationWindows(domain, stationId!, space),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!stationId,
+  })
+}
+
 export function useClusterProfiling(domain: string, space: string = 'multi', hideUnclassified: boolean = false) {
   return useQuery({
     queryKey: ['latent-space', 'profiling', domain, space, hideUnclassified],
