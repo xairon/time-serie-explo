@@ -13,7 +13,9 @@ interface StationDetailProps {
   onFilterBySite?: () => void
 }
 
-function MetaLine({ label, value }: { label: string; value: unknown }) {
+function m(v: unknown): string | number | null { return v as string | number | null }
+
+function MetaLine({ label, value }: { label: string; value: string | number | null | undefined }) {
   if (value === null || value === undefined || value === '') return null
   return (
     <div className="flex justify-between gap-2 text-xs">
@@ -33,7 +35,7 @@ export function StationDetail({ domain, space, stationId, stationMeta, clusterLa
     | undefined
 
   const siteLabel = domain === 'piezo' ? 'aquifer' : 'waterway'
-  const siteValue = domain === 'piezo' ? stationMeta?.libelle_eh : stationMeta?.nom_cours_eau
+  const siteValue = (domain === 'piezo' ? stationMeta?.libelle_eh : stationMeta?.nom_cours_eau) as string | undefined
 
   return (
     <div className="bg-bg-card rounded-xl border border-white/5 p-3 w-full flex flex-col gap-2.5 overflow-y-auto max-h-full">
@@ -62,19 +64,19 @@ export function StationDetail({ domain, space, stationId, stationMeta, clusterLa
           <div className="flex flex-col gap-0.5 shrink-0">
             {domain === 'piezo' ? (
               <>
-                <MetaLine label="Aquifer" value={stationMeta.libelle_eh} />
-                <MetaLine label="Department" value={stationMeta.departement} />
-                <MetaLine label="Altitude" value={stationMeta.altitude} />
-                <MetaLine label="Windows" value={stationMeta.n_windows} />
-                <MetaLine label="Days" value={stationMeta.n_days} />
+                <MetaLine label="Aquifer" value={m(stationMeta.libelle_eh)} />
+                <MetaLine label="Department" value={m(stationMeta.departement)} />
+                <MetaLine label="Altitude" value={m(stationMeta.altitude)} />
+                <MetaLine label="Windows" value={m(stationMeta.n_windows)} />
+                <MetaLine label="Days" value={m(stationMeta.n_days)} />
               </>
             ) : (
               <>
-                <MetaLine label="Waterway" value={stationMeta.nom_cours_eau} />
-                <MetaLine label="Department" value={stationMeta.departement} />
-                <MetaLine label="Status" value={stationMeta.statut_station} />
-                <MetaLine label="Windows" value={stationMeta.n_windows} />
-                <MetaLine label="Days" value={stationMeta.n_days} />
+                <MetaLine label="Waterway" value={m(stationMeta.nom_cours_eau)} />
+                <MetaLine label="Department" value={m(stationMeta.departement)} />
+                <MetaLine label="Status" value={m(stationMeta.statut_station)} />
+                <MetaLine label="Windows" value={m(stationMeta.n_windows)} />
+                <MetaLine label="Days" value={m(stationMeta.n_days)} />
               </>
             )}
           </div>
