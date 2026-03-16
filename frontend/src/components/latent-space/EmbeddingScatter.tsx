@@ -47,8 +47,15 @@ export function EmbeddingScatter({
   const highlighted = points.filter((p) => p.highlighted)
   const others = points.filter((p) => !p.highlighted)
 
+  // Helper: build hover text from metadata
+  function buildHoverMeta(p: EmbeddingPoint): string {
+    const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
+    return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
+  }
+
   // Non-highlighted points rendered as a single dim trace
   if (others.length > 0) {
+    const othersMeta = others.map(buildHoverMeta)
     if (mode === '3d') {
       traces.push({
         type: 'scatter3d',
@@ -58,8 +65,8 @@ export function EmbeddingScatter({
         z: others.map((p) => (p.coords as [number, number, number])[2]),
         mode: 'markers',
         marker: { size: 3, color: '#4b5563', opacity: 0.15 },
-        customdata: others.map((p) => [p.id, p.metadata]),
-        hovertemplate: '<b>%{customdata[0]}</b><extra></extra>',
+        customdata: others.map((p, i) => [p.id, othersMeta[i]]),
+        hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
         showlegend: true,
       } as Data)
     } else {
@@ -70,8 +77,8 @@ export function EmbeddingScatter({
         y: others.map((p) => p.coords[1]),
         mode: 'markers',
         marker: { size: 4, color: '#4b5563', opacity: 0.15 },
-        customdata: others.map((p) => [p.id, p.metadata]),
-        hovertemplate: '<b>%{customdata[0]}</b><extra></extra>',
+        customdata: others.map((p, i) => [p.id, othersMeta[i]]),
+        hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
         showlegend: true,
       } as Data)
     }
@@ -82,10 +89,7 @@ export function EmbeddingScatter({
     if (isAltitudeColorBy(colorBy)) {
       // Single trace with continuous color scale
       const altValues = highlighted.map((p) => (p.metadata['altitude'] as number) ?? 0)
-      const hoverMeta = highlighted.map((p) => {
-        const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
-        return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
-      })
+      const hoverMeta = highlighted.map(buildHoverMeta)
 
       if (mode === '3d') {
         traces.push({
@@ -140,10 +144,7 @@ export function EmbeddingScatter({
         const color = CATEGORICAL_COLORS[colorIdx % CATEGORICAL_COLORS.length]
         colorIdx++
 
-        const hoverMeta = groupPoints.map((p) => {
-          const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
-          return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
-        })
+        const hoverMeta = groupPoints.map(buildHoverMeta)
 
         if (mode === '3d') {
           traces.push({
@@ -178,9 +179,14 @@ export function EmbeddingScatter({
     dragmode: mode === '2d' ? 'pan' : undefined,
     margin: { t: 20, r: 20, b: 40, l: 40 },
     legend: {
-      bgcolor: 'transparent',
+      bgcolor: 'rgba(0,0,0,0.4)',
       font: { color: '#9ca3af', size: 11 },
       itemsizing: 'constant',
+      orientation: 'h' as const,
+      x: 0,
+      y: 1.02,
+      xanchor: 'left' as const,
+      yanchor: 'bottom' as const,
     },
     hovermode: 'closest',
   }
