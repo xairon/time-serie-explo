@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { useStationEmbeddings, useComputeUMAP } from '@/hooks/useLatentSpace'
+import { useStationEmbeddings, useComputeUMAP, useClusteringRuns, useClusteringRun } from '@/hooks/useLatentSpace'
 import { EmbeddingScatter } from '@/components/latent-space/EmbeddingScatter'
 import { FilterPanel } from '@/components/latent-space/FilterPanel'
 import { UMAPControls } from '@/components/latent-space/UMAPControls'
@@ -61,10 +61,13 @@ export default function LatentSpacePage() {
   const [computedPoints, setComputedPoints] = useState<ComputedPointRaw[] | null>(null)
   const [subsampled, setSubsampled] = useState<{ from: number } | null>(null)
   const [qualityMetrics, setQualityMetrics] = useState<Record<string, unknown> | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
 
   // Data fetching
   const { data: stationsData, isLoading, isError, refetch } = useStationEmbeddings(domain)
   const computeMutation = useComputeUMAP()
+  const { data: clusteringRuns } = useClusteringRuns(domain)
+  const { data: clusteringRunData, isLoading: isRunLoading } = useClusteringRun(selectedRunId)
 
   // Extract raw stations from API response
   const allStations = useMemo(() => {
@@ -99,10 +102,10 @@ export default function LatentSpacePage() {
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== null && v !== '')
 
-  // Build scatter points from pre-computed or computed data
+  // Build scatter points: computed (Recalculate) > clustering run > legacy pre-computed
   const scatterPoints = useMemo(() => {
+    // Priority 1: On-demand computed points (from Recalculate button)
     if (computedPoints) {
-      // Use computed points (all highlighted since server already filtered)
       return computedPoints.map((p) => ({
         id: p.id,
         coords: (mode === '3d' ? p.coords.slice(0, 3) : p.coords.slice(0, 2)) as
@@ -114,7 +117,39 @@ export default function LatentSpacePage() {
       }))
     }
 
-    // Use pre-computed station UMAP coords
+    // Priority 2: Pre-computed clustering run
+    if (clusteringRunData && (clusteringRunData as Record<string, unknown>).labels) {
+      const runLabels = (clusteringRunData as Record<string, unknown>).labels as Array<{
+        station_id: string
+        cluster_id: number
+        umap_2d: [number, number] | null
+        umap_3d: [number, number, number] | null
+      }>
+
+      // Build metadata lookup from station embeddings
+      const metaMap = new Map<string, Record<string, unknown>>()
+      for (const s of allStations) {
+        metaMap.set(s.id, s.metadata)
+      }
+
+      return runLabels
+        .filter((l) => (mode === '3d' ? l.umap_3d : l.umap_2d))
+        .map((l) => ({
+          id: l.station_id,
+          coords: (mode === '3d' ? l.umap_3d! : l.umap_2d!) as
+            | [number, number]
+            | [number, number, number],
+          cluster_label: l.cluster_id,
+          metadata: metaMap.get(l.station_id) ?? {},
+          highlighted: !hasActiveFilters || matchesFilters({
+            id: l.station_id,
+            cluster_id: l.cluster_id,
+            metadata: metaMap.get(l.station_id) ?? {},
+          } as unknown as StationRaw),
+        }))
+    }
+
+    // Priority 3: Legacy pre-computed station UMAP coords
     return stations
       .filter((s) => (mode === '3d' ? s.umap_3d : s.umap_2d))
       .map((s) => ({
@@ -126,7 +161,7 @@ export default function LatentSpacePage() {
         metadata: s.metadata,
         highlighted: !hasActiveFilters || matchesFilters(s),
       }))
-  }, [stations, computedPoints, mode, hasActiveFilters, matchesFilters])
+  }, [stations, allStations, computedPoints, clusteringRunData, mode, hasActiveFilters, matchesFilters])
 
   // Station list for FilterPanel (always from pre-computed, not computed points)
   const stationsForFilter = useMemo(
@@ -165,6 +200,18 @@ export default function LatentSpacePage() {
     }
   }
 
+  // Auto-select default clustering run when available
+  useEffect(() => {
+    if (clusteringRuns && clusteringRuns.length > 0 && selectedRunId == null) {
+      const defaultRun = (clusteringRuns as Array<Record<string, unknown>>).find(
+        (r) => r.is_default,
+      )
+      if (defaultRun) {
+        setSelectedRunId(defaultRun.id as number)
+      }
+    }
+  }, [clusteringRuns, selectedRunId])
+
   // Handle domain switch
   function handleDomainChange(d: Domain) {
     setDomain(d)
@@ -173,6 +220,7 @@ export default function LatentSpacePage() {
     setComputedPoints(null)
     setSubsampled(null)
     setSelectedStation(null)
+    setSelectedRunId(null)
   }
 
   // Handle recalculate
@@ -377,6 +425,34 @@ export default function LatentSpacePage() {
               (subsampled)
             </span>
           </div>
+        )}
+
+        {clusteringRuns && (clusteringRuns as Array<Record<string, unknown>>).length > 0 && activeTab === 'scatter' && (
+          <select
+            className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-accent-cyan/50 transition-colors"
+            value={selectedRunId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value
+              setSelectedRunId(val ? Number(val) : null)
+              setComputedPoints(null)
+              setSubsampled(null)
+              setQualityMetrics(null)
+            }}
+          >
+            <option value="">Legacy (DB column)</option>
+            {(clusteringRuns as Array<Record<string, unknown>>).map((run) => (
+              <option key={run.id as number} value={run.id as number}>
+                {run.is_default ? '\u2605 ' : ''}
+                {(run.method as string).toUpperCase()} — {run.n_clusters as number} clusters
+                {' '}(sil: {((run.metrics as Record<string, number>).silhouette ?? 0).toFixed(2)})
+                {run.is_default ? ' [default]' : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {isRunLoading && (
+          <div className="w-4 h-4 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
         )}
 
         {computeMutation.isError && (
