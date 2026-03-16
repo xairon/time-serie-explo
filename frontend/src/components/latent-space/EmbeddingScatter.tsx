@@ -14,6 +14,8 @@ interface EmbeddingScatterProps {
   points: EmbeddingPoint[]
   mode: '2d' | '3d'
   colorBy: string
+  domain: 'piezo' | 'hydro'
+  highlightedSite?: string | null
   onPointClick?: (id: string) => void
   loading?: boolean
   className?: string
@@ -38,6 +40,8 @@ export function EmbeddingScatter({
   points,
   mode,
   colorBy,
+  domain,
+  highlightedSite,
   onPointClick,
   loading = false,
   className = '',
@@ -47,10 +51,26 @@ export function EmbeddingScatter({
   const highlighted = points.filter((p) => p.highlighted)
   const others = points.filter((p) => !p.highlighted)
 
+  const siteKey = domain === 'piezo' ? 'libelle_eh' : 'nom_cours_eau'
+  const isSiteHighlight = highlightedSite != null && highlightedSite !== ''
+
   // Helper: build hover text from metadata
   function buildHoverMeta(p: EmbeddingPoint): string {
-    const keys = Object.keys(p.metadata).filter((k) => p.metadata[k] != null && p.metadata[k] !== '').slice(0, 3)
-    return keys.map((k) => `${k}: ${p.metadata[k]}`).join('<br>')
+    const m = p.metadata
+    if (domain === 'piezo') {
+      return [
+        m.libelle_eh && String(m.libelle_eh),
+        m.departement && String(m.departement),
+        `Cluster ${p.cluster_label}`,
+        m.n_windows && `${m.n_windows} win`,
+      ].filter(Boolean).join('<br>')
+    }
+    return [
+      m.nom_cours_eau && String(m.nom_cours_eau),
+      m.departement && String(m.departement),
+      `Cluster ${p.cluster_label}`,
+      m.n_windows && `${m.n_windows} win`,
+    ].filter(Boolean).join('<br>')
   }
 
   // Non-highlighted points rendered as a single dim trace
@@ -67,7 +87,7 @@ export function EmbeddingScatter({
         marker: { size: 3, color: '#4b5563', opacity: 0.15 },
         customdata: others.map((p, i) => [p.id, othersMeta[i]]),
         hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
-        showlegend: true,
+        showlegend: false,
       } as Data)
     } else {
       traces.push({
@@ -79,7 +99,7 @@ export function EmbeddingScatter({
         marker: { size: 4, color: '#4b5563', opacity: 0.15 },
         customdata: others.map((p, i) => [p.id, othersMeta[i]]),
         hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
-        showlegend: true,
+        showlegend: false,
       } as Data)
     }
   }
@@ -108,6 +128,7 @@ export function EmbeddingScatter({
           },
           customdata: highlighted.map((p, i) => [p.id, hoverMeta[i]]),
           hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
+          showlegend: false,
         } as Data)
       } else {
         traces.push({
@@ -125,6 +146,7 @@ export function EmbeddingScatter({
           },
           customdata: highlighted.map((p, i) => [p.id, hoverMeta[i]]),
           hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
+          showlegend: false,
         } as Data)
       }
     } else if (isCategorical(colorBy)) {
@@ -154,9 +176,18 @@ export function EmbeddingScatter({
             y: groupPoints.map((p) => (p.coords as [number, number, number])[1]),
             z: groupPoints.map((p) => (p.coords as [number, number, number])[2]),
             mode: 'markers',
-            marker: { size: 5, color, opacity: 0.85 },
+            marker: {
+              size: 5,
+              color: isSiteHighlight
+                ? groupPoints.map(p => String(p.metadata[siteKey] ?? '') === highlightedSite ? color : '#4b5563')
+                : color,
+              opacity: isSiteHighlight
+                ? groupPoints.map(p => String(p.metadata[siteKey] ?? '') === highlightedSite ? 0.85 : 0.08)
+                : 0.85,
+            },
             customdata: groupPoints.map((p, i) => [p.id, hoverMeta[i]]),
             hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
+            showlegend: false,
           } as Data)
         } else {
           traces.push({
@@ -165,9 +196,18 @@ export function EmbeddingScatter({
             x: groupPoints.map((p) => p.coords[0]),
             y: groupPoints.map((p) => p.coords[1]),
             mode: 'markers',
-            marker: { size: 6, color, opacity: 0.85 },
+            marker: {
+              size: 6,
+              color: isSiteHighlight
+                ? groupPoints.map(p => String(p.metadata[siteKey] ?? '') === highlightedSite ? color : '#4b5563')
+                : color,
+              opacity: isSiteHighlight
+                ? groupPoints.map(p => String(p.metadata[siteKey] ?? '') === highlightedSite ? 0.85 : 0.08)
+                : 0.85,
+            },
             customdata: groupPoints.map((p, i) => [p.id, hoverMeta[i]]),
             hovertemplate: '<b>%{customdata[0]}</b><br>%{customdata[1]}<extra></extra>',
+            showlegend: false,
           } as Data)
         }
       }
@@ -178,16 +218,6 @@ export function EmbeddingScatter({
     ...darkLayout,
     dragmode: mode === '2d' ? 'pan' : undefined,
     margin: { t: 20, r: 20, b: 40, l: 40 },
-    legend: {
-      bgcolor: 'rgba(0,0,0,0.4)',
-      font: { color: '#9ca3af', size: 11 },
-      itemsizing: 'constant',
-      orientation: 'h' as const,
-      x: 0,
-      y: 1.02,
-      xanchor: 'left' as const,
-      yanchor: 'bottom' as const,
-    },
     hovermode: 'closest',
   }
 
