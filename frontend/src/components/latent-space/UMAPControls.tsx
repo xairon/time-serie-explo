@@ -31,6 +31,7 @@ interface UMAPControlsProps {
   onYearRangeChange?: (range: [number, number]) => void
   season?: string | null
   onSeasonChange?: (season: string | null) => void
+  qualityMetrics?: Record<string, unknown> | null
 }
 
 const SEASONS = [
@@ -87,6 +88,7 @@ export function UMAPControls({
   onYearRangeChange,
   season,
   onSeasonChange,
+  qualityMetrics,
 }: UMAPControlsProps) {
   const pre = clusteringParams.umap_prereduction
 
@@ -267,6 +269,22 @@ export function UMAPControls({
           </Section>
         </>
       )}
+
+      {/* Quality metrics (compact, inline after recompute) */}
+      {qualityMetrics && (() => {
+        const clust = (qualityMetrics as Record<string, Record<string, unknown>>).clustering as Record<string, number> | undefined
+        return clust ? (
+          <div className="flex items-center gap-2 shrink-0 text-[10px] text-text-muted border-l border-white/10 pl-2">
+            {clust.n_clusters != null && <span>{clust.n_clusters} clusters</span>}
+            {clust.silhouette != null && (
+              <span className={clust.silhouette > 0.3 ? 'text-green-400' : clust.silhouette > 0.1 ? 'text-amber-400' : 'text-red-400'}>
+                sil: {clust.silhouette.toFixed(2)}
+              </span>
+            )}
+            {clust.noise_ratio != null && <span>noise: {(clust.noise_ratio * 100).toFixed(0)}%</span>}
+          </div>
+        ) : null
+      })()}
 
       {/* Actions */}
       <div className="flex items-center gap-2 ml-auto shrink-0">

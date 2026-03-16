@@ -5,7 +5,7 @@ import { EmbeddingScatter } from '@/components/latent-space/EmbeddingScatter'
 import { FilterPanel } from '@/components/latent-space/FilterPanel'
 import { UMAPControls } from '@/components/latent-space/UMAPControls'
 import { StationDetail } from '@/components/latent-space/StationDetail'
-import { QualityMetrics } from '@/components/latent-space/QualityMetrics'
+// QualityMetrics now inline in UMAPControls
 import { ClusterProfiling } from '@/components/latent-space/ClusterProfiling'
 
 type Domain = 'piezo' | 'hydro'
@@ -555,36 +555,30 @@ export default function LatentSpacePage() {
                 </div>
               )}
 
-              {/* Controls bar + quality metrics */}
-              <div className="shrink-0 flex gap-2 items-start">
-                <div className="flex-1 bg-bg-card rounded-xl border border-white/5 px-3 py-1">
-                  <UMAPControls
-                    mode={mode}
-                    onModeChange={setMode}
-                    level={level}
-                    onLevelChange={(l) => {
-                      setLevel(l)
-                      setComputedPoints(null)
-                      setSubsampled(null)
-                    }}
-                    umapParams={umapParams}
-                    onUmapParamsChange={setUmapParams}
-                    clusteringParams={clusteringParams}
-                    onClusteringParamsChange={setClusteringParams}
-                    onRecalculate={handleRecalculate}
-                    onReset={handleReset}
-                    isComputing={computeMutation.isPending}
-                    yearRange={yearRange}
-                    onYearRangeChange={setYearRange}
-                    season={season}
-                    onSeasonChange={setSeason}
-                  />
-                </div>
-                {qualityMetrics && (
-                  <div className="shrink-0 w-56">
-                    <QualityMetrics metrics={qualityMetrics as Record<string, unknown>} />
-                  </div>
-                )}
+              {/* Controls bar — fixed height, no grow */}
+              <div className="shrink-0 bg-bg-card rounded-xl border border-white/5 px-3 py-1 overflow-x-auto">
+                <UMAPControls
+                  mode={mode}
+                  onModeChange={setMode}
+                  level={level}
+                  onLevelChange={(l) => {
+                    setLevel(l)
+                    setComputedPoints(null)
+                    setSubsampled(null)
+                  }}
+                  umapParams={umapParams}
+                  onUmapParamsChange={setUmapParams}
+                  clusteringParams={clusteringParams}
+                  onClusteringParamsChange={setClusteringParams}
+                  onRecalculate={handleRecalculate}
+                  onReset={handleReset}
+                  isComputing={computeMutation.isPending}
+                  yearRange={yearRange}
+                  onYearRangeChange={setYearRange}
+                  season={season}
+                  onSeasonChange={setSeason}
+                  qualityMetrics={qualityMetrics}
+                />
               </div>
             </div>
 
