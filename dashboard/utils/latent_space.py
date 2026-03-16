@@ -91,7 +91,7 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
     return getattr(obj, key, default)
 
 
-def build_station_query(domain: str, filters) -> tuple[Any, dict]:
+def build_station_query(domain: str, filters, space: str = "multi") -> tuple[Any, dict]:
     """Build SQL query for station-level embeddings.
 
     Parameters
@@ -112,6 +112,9 @@ def build_station_query(domain: str, filters) -> tuple[Any, dict]:
 
     params: dict[str, Any] = {}
     where_clauses: list[str] = []
+
+    params["space"] = space
+    where_clauses.append("e.space = :space")
 
     if domain == "piezo":
         select_cols = """
@@ -218,6 +221,7 @@ def build_window_query(
     year_min: int | None,
     year_max: int | None,
     season: str | None,
+    space: str = "multi",
 ) -> tuple[Any, dict]:
     """Build SQL query for window-level embeddings.
 
@@ -241,6 +245,9 @@ def build_window_query(
 
     params: dict[str, Any] = {}
     where_clauses: list[str] = []
+
+    params["space"] = space
+    where_clauses.append("w.space = :space")
 
     id_col = "code_bss" if domain == "piezo" else "code_station"
 
@@ -277,7 +284,7 @@ def build_window_query(
     return sql, params
 
 
-def build_similar_query(domain: str, station_id: str, k: int) -> tuple[Any, dict]:
+def build_similar_query(domain: str, station_id: str, k: int, space: str = "multi") -> tuple[Any, dict]:
     """Build SQL query for nearest-neighbour similarity search using pgvector.
 
     Uses cosine distance operator `<=>`.
@@ -310,14 +317,14 @@ def build_similar_query(domain: str, station_id: str, k: int) -> tuple[Any, dict
         CROSS JOIN (
             SELECT embedding
             FROM {table}
-            WHERE {id_col} = :station_id
+            WHERE {id_col} = :station_id AND space = :space
             LIMIT 1
         ) q
-        WHERE e.{id_col} != :station_id
+        WHERE e.{id_col} != :station_id AND e.space = :space
         ORDER BY distance ASC
         LIMIT :k
     """)
-    params: dict[str, Any] = {"station_id": station_id, "k": k}
+    params: dict[str, Any] = {"station_id": station_id, "k": k, "space": space}
     return sql, params
 
 
@@ -604,18 +611,18 @@ def subsample_stratified(
 # ---------------------------------------------------------------------------
 
 
-async def list_clustering_runs(session, domain: str) -> list[dict]:
+async def list_clustering_runs(session, domain: str, space: str = "multi") -> list[dict]:
     """List available pre-computed clustering runs for a domain."""
     result = await session.execute(
         text("""
             SELECT id, domain, level, method, params, metrics,
                    n_clusters, n_stations, is_default, created_at
             FROM ml.clustering_runs
-            WHERE domain = :domain AND level = 'stations'
+            WHERE domain = :domain AND level = 'stations' AND space = :space
             ORDER BY created_at DESC
             LIMIT 20
         """),
-        {"domain": domain},
+        {"domain": domain, "space": space},
     )
     rows = result.fetchall()
     return [

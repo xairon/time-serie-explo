@@ -84,6 +84,7 @@ def _apply_top_libelle(stations: list[StationPoint]) -> list[StationPoint]:
 @router.get("/stations/{domain}", response_model=StationsResponse)
 async def get_stations(
     domain: str,
+    space: str = Query("multi"),
     session: AsyncSession = Depends(get_brgm_db),
 ) -> StationsResponse:
     """Return station-level UMAP coordinates and metadata from the DB."""
@@ -94,7 +95,7 @@ async def get_stations(
 
     filters = EmbeddingFilters()  # no filters — return all stations
     try:
-        sql, params = build_station_query(domain, filters)
+        sql, params = build_station_query(domain, filters, space=space)
         result = await session.execute(sql, params)
         rows = result.fetchall()
     except Exception as exc:
@@ -146,6 +147,7 @@ async def get_stations(
 @router.post("/compute", response_model=ComputeResponse)
 async def compute_latent_space(
     req: ComputeRequest,
+    space: str = Query("multi"),
     session: AsyncSession = Depends(get_brgm_db),
 ) -> ComputeResponse:
     """Compute on-demand UMAP + clustering for a given set of embeddings."""
@@ -164,7 +166,7 @@ async def compute_latent_space(
     # --- Load embeddings from DB ---
     try:
         if req.embeddings_type == "stations":
-            sql, params = build_station_query(domain, req.filters)
+            sql, params = build_station_query(domain, req.filters, space=space)
         else:
             sql, params = build_window_query(
                 domain,
@@ -172,6 +174,7 @@ async def compute_latent_space(
                 req.year_min,
                 req.year_max,
                 req.season,
+                space=space,
             )
         result = await session.execute(sql, params)
         rows = result.fetchall()
@@ -343,6 +346,7 @@ async def get_similar_stations(
     domain: str,
     station_id: str,
     k: int = Query(default=10, ge=1, le=100),
+    space: str = Query("multi"),
     session: AsyncSession = Depends(get_brgm_db),
 ) -> SimilarResponse:
     """Return the k most similar stations to station_id using cosine distance."""
@@ -352,7 +356,7 @@ async def get_similar_stations(
     from dashboard.utils.latent_space import build_similar_query
 
     try:
-        sql, params = build_similar_query(domain, station_id, k)
+        sql, params = build_similar_query(domain, station_id, k, space=space)
         result = await session.execute(sql, params)
         rows = result.fetchall()
     except Exception as exc:
@@ -381,6 +385,7 @@ async def get_similar_stations(
 @router.get("/clustering-runs/{domain}", response_model=list[ClusteringRunSummary])
 async def list_clustering_runs(
     domain: str,
+    space: str = Query("multi"),
     session: AsyncSession = Depends(get_brgm_db),
 ):
     """List available pre-computed clustering runs for a domain."""
@@ -388,7 +393,7 @@ async def list_clustering_runs(
         raise HTTPException(status_code=400, detail="Invalid domain")
 
     from dashboard.utils.latent_space import list_clustering_runs as _list_runs
-    return await _list_runs(session, domain)
+    return await _list_runs(session, domain, space=space)
 
 
 @router.get("/clustering-run/{run_id}", response_model=ClusteringRunDetail)
@@ -408,6 +413,7 @@ async def get_clustering_run(
 async def get_profiling(
     domain: str,
     hide_unclassified: bool = Query(False),
+    space: str = Query("multi"),
     session: AsyncSession = Depends(get_brgm_db),
 ) -> ProfilingResponse:
     """Compute comprehensive cluster profiling for a domain."""
@@ -427,7 +433,7 @@ async def get_profiling(
 
     # --- Phase 0: Load embeddings + metadata ---
     from api.schemas.latent_space import EmbeddingFilters
-    sql, params = build_station_query(domain, EmbeddingFilters())
+    sql, params = build_station_query(domain, EmbeddingFilters(), space=space)
     result = await session.execute(sql, params)
     rows = result.fetchall()
 

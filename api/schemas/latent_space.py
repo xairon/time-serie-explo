@@ -55,6 +55,7 @@ class ComputeRequest(BaseModel):
     season: Literal["DJF", "MAM", "JJA", "SON"] | None = None
     umap: UMAPParams = UMAPParams()
     clustering: ClusteringParams = ClusteringParams()
+    space: str = "multi"
 
 
 class StationMetadata(BaseModel):
