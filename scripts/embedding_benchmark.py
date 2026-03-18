@@ -524,39 +524,26 @@ def compute_minirocket_embeddings(
     return embeddings, valid_ids
 
 
-def compute_ts2vec_embeddings(
+def _make_windows(
     raw_series: dict[str, np.ndarray],
-    multivariate: bool = False,
-    window_size: int = 365,
-    stride: int = 90,
-    output_dims: int = 320,
-    n_epochs: int = 50,
-) -> tuple[np.ndarray, list[str]]:
-    """TS2Vec contrastive embeddings — same family as SoftCLT.
-
-    Trains a contrastive encoder on the provided windows, then encodes.
-    For uni: input_dims=1. For multi: input_dims=C.
-    """
-    import torch
-    from ts2vec import TS2Vec
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    multivariate: bool,
+    window_size: int,
+    stride: int,
+    label: str = "",
+) -> tuple[list[np.ndarray], list[str]]:
+    """Extract z-scored windows from raw series. Shared by TS2Vec and SoftCLT."""
     windows = []
     window_ids = []
     total = len(raw_series)
-
     for i, (sid, series) in enumerate(raw_series.items()):
-        if (i + 1) % 500 == 0:
-            print(f"    TS2Vec: windowing {i + 1}/{total}...")
-
+        if (i + 1) % 500 == 0 and label:
+            print(f"    {label}: windowing {i + 1}/{total}...")
         if multivariate and series.ndim == 2:
             s = (series - np.nanmean(series, axis=0)) / (np.nanstd(series, axis=0) + 1e-8)
         else:
             s = (series - np.nanmean(series)) / (np.nanstd(series) + 1e-8)
             if s.ndim == 1:
                 s = s[:, np.newaxis]
-
         T = len(s)
         for start in range(0, T - window_size + 1, stride):
             window = s[start : start + window_size]
@@ -565,40 +552,80 @@ def compute_ts2vec_embeddings(
             window = np.nan_to_num(window, nan=0.0)
             windows.append(window)
             window_ids.append(sid)
+    return windows, window_ids
 
-    if not windows:
-        return np.array([]), []
 
+def _train_and_encode_contrastive(
+    windows: list[np.ndarray],
+    window_ids: list[str],
+    output_dims: int,
+    n_epochs: int,
+    method_name: str,
+    use_softclt: bool = False,
+    depth: int = 10,
+    hidden_dims: int = 64,
+    batch_size: int = 32,
+) -> tuple[np.ndarray, list[str]]:
+    """Train a contrastive encoder (TS2Vec or SoftCLT) and compute station embeddings.
+
+    Uses the SAME TSEncoder architecture for both. The only difference is the loss:
+    - TS2Vec: hard hierarchical contrastive loss
+    - SoftCLT: soft contrastive loss (monkey-patched into the same TS2Vec code)
+
+    Source: vendorized from hubeau_data_integration/benchmark/src/embedding_benchmark/vendors/
+    """
+    import sys
+    import torch
+
+    # Add vendor path
+    vendor_dir = str(Path(__file__).parent / "vendors")
+    if vendor_dir not in sys.path:
+        sys.path.insert(0, vendor_dir)
+
+    if use_softclt:
+        # Monkey-patch TS2Vec loss with SoftCLT soft contrastive loss
+        from softclt.losses import hierarchical_contrastive_loss
+        from ts2vec import losses as ts2vec_losses_module
+        ts2vec_losses_module.hierarchical_contrastive_loss = hierarchical_contrastive_loss
+        from ts2vec import ts2vec as ts2vec_module
+        ts2vec_module.hierarchical_contrastive_loss = hierarchical_contrastive_loss
+
+    from ts2vec.ts2vec import TS2Vec
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     n_windows = len(windows)
     input_dims = windows[0].shape[1] if windows[0].ndim == 2 else 1
 
-    # Train on a sample to avoid OOM (TS2Vec only needs representative data)
+    # Train on a sample to avoid OOM
     max_train = min(20000, n_windows)
     rng = np.random.RandomState(42)
     train_idx = rng.choice(n_windows, max_train, replace=False)
     X_train = np.array([windows[i] for i in train_idx], dtype=np.float32)
 
-    print(f"    TS2Vec: training on {max_train}/{n_windows} windows "
-          f"({input_dims} dims, {n_epochs} epochs, {device})...")
+    print(f"    {method_name}: training on {max_train}/{n_windows} windows "
+          f"({input_dims}d, depth={depth}, {n_epochs} epochs, {device})...")
     model = TS2Vec(
         input_dims=input_dims,
         output_dims=output_dims,
+        hidden_dims=hidden_dims,
+        depth=depth,
+        batch_size=batch_size,
         device=device,
     )
     model.fit(X_train, n_epochs=n_epochs, verbose=False)
 
     # Encode in batches and aggregate per station on the fly
-    print(f"    TS2Vec: encoding {n_windows} windows in batches...")
+    print(f"    {method_name}: encoding {n_windows} windows...")
     station_emb_sums: dict[str, np.ndarray] = {}
     station_emb_counts: dict[str, int] = defaultdict(int)
-    batch_size = 5000
+    encode_batch = 5000
 
-    for batch_start in range(0, n_windows, batch_size):
-        batch_end = min(batch_start + batch_size, n_windows)
+    for batch_start in range(0, n_windows, encode_batch):
+        batch_end = min(batch_start + encode_batch, n_windows)
         X_batch = np.array(windows[batch_start:batch_end], dtype=np.float32)
 
         raw_emb = model.encode(X_batch)  # (batch, T, D)
-        emb_pooled = raw_emb.mean(axis=1)  # (batch, D) — mean over time
+        emb_pooled = raw_emb.mean(axis=1)  # (batch, D)
 
         for i, emb in enumerate(emb_pooled):
             sid = window_ids[batch_start + i]
@@ -608,7 +635,13 @@ def compute_ts2vec_embeddings(
             station_emb_counts[sid] += 1
 
         if batch_end % 20000 == 0 or batch_end == n_windows:
-            print(f"    TS2Vec: encoded {batch_end}/{n_windows}")
+            print(f"    {method_name}: encoded {batch_end}/{n_windows}")
+
+    # Restore original TS2Vec loss if we monkey-patched it
+    if use_softclt:
+        from ts2vec.losses import hierarchical_contrastive_loss as original_loss
+        ts2vec_losses_module.hierarchical_contrastive_loss = original_loss
+        ts2vec_module.hierarchical_contrastive_loss = original_loss
 
     valid_ids = sorted(station_emb_sums.keys())
     embeddings = np.array(
@@ -616,6 +649,55 @@ def compute_ts2vec_embeddings(
         dtype=np.float32,
     )
     return embeddings, valid_ids
+
+
+def compute_ts2vec_embeddings(
+    raw_series: dict[str, np.ndarray],
+    multivariate: bool = False,
+    window_size: int = 365,
+    stride: int = 90,
+    output_dims: int = 320,
+    n_epochs: int = 100,
+    depth: int = 10,
+) -> tuple[np.ndarray, list[str]]:
+    """TS2Vec contrastive embeddings (hard contrastive loss).
+
+    Source: vendorized from hubeau_data_integration (same TSEncoder as SoftCLT).
+    """
+    windows, window_ids = _make_windows(
+        raw_series, multivariate, window_size, stride, "TS2Vec"
+    )
+    if not windows:
+        return np.array([]), []
+    return _train_and_encode_contrastive(
+        windows, window_ids, output_dims, n_epochs,
+        method_name="TS2Vec", use_softclt=False, depth=depth,
+    )
+
+
+def compute_softclt_embeddings(
+    raw_series: dict[str, np.ndarray],
+    multivariate: bool = False,
+    window_size: int = 365,
+    stride: int = 90,
+    output_dims: int = 320,
+    n_epochs: int = 100,
+    depth: int = 10,
+) -> tuple[np.ndarray, list[str]]:
+    """SoftCLT contrastive embeddings (soft contrastive loss).
+
+    Same TSEncoder architecture as TS2Vec, only the loss function differs.
+    Source: vendorized from hubeau_data_integration (seunghan96/softclt).
+    """
+    windows, window_ids = _make_windows(
+        raw_series, multivariate, window_size, stride, "SoftCLT"
+    )
+    if not windows:
+        return np.array([]), []
+    return _train_and_encode_contrastive(
+        windows, window_ids, output_dims, n_epochs,
+        method_name="SoftCLT", use_softclt=True, depth=depth,
+    )
 
 
 def compute_random_embeddings(
@@ -1474,22 +1556,22 @@ def evaluate_all_methods(
 
     all_results: list[dict] = []
 
-    # --- 1. Load DB embeddings for reference + metadata ---
-    db_data: dict[str, tuple[np.ndarray, list[str], dict]] = {}
-    all_station_ids: set[str] = set()
+    # --- 1. Load DB metadata (for labels) but NOT embeddings ---
+    # We compute ALL embeddings from scratch for a fair comparison.
     reference_metadata: dict = {}
+    all_station_ids: set[str] = set()
 
     for space in db_spaces:
         try:
-            emb, ids, meta = load_embeddings(engine, domain, space)
-            db_data[space] = (emb, ids, meta)
+            _emb, ids, meta = load_embeddings(engine, domain, space)
             all_station_ids.update(ids)
             if not reference_metadata:
                 reference_metadata = meta
                 reference_metadata["_id_list"] = ids
-            print(f"  DB {space}: {len(ids)} stations, {emb.shape[1]}D")
+            print(f"  DB metadata loaded ({space}): {len(ids)} stations")
+            del _emb  # free memory — we don't use DB embeddings
         except Exception as e:
-            print(f"  WARNING: Could not load DB embeddings for {domain}/{space}: {e}")
+            print(f"  WARNING: Could not load metadata for {domain}/{space}: {e}")
 
     if not all_station_ids:
         print(f"  No station IDs available for {domain} -- aborting")
@@ -1528,67 +1610,77 @@ def evaluate_all_methods(
 
         methods: dict[str, tuple[np.ndarray, list[str]]] = {}
 
-        # --- DB reference (if available for this space) ---
-        if input_space in db_data:
-            emb, ids, _meta = db_data[input_space]
-            methods[f"DB {input_space}"] = (emb, ids)
-
         if not common_raw_ids:
-            print("  No raw series -- only evaluating DB embeddings")
-            if not methods:
-                continue
+            print("  No raw series available — skipping")
+            continue
+
+        if input_space == "uni":
+            raw_data = {sid: raw_uni[sid] for sid in common_raw_ids}
         else:
-            if input_space == "uni":
-                raw_data = {sid: raw_uni[sid] for sid in common_raw_ids}
-            else:
-                raw_data = {sid: raw_multi[sid] for sid in common_raw_ids}
-            raw_ids = sorted(raw_data.keys())
-            is_multi = input_space == "multi"
+            raw_data = {sid: raw_multi[sid] for sid in common_raw_ids}
+        raw_ids = sorted(raw_data.keys())
+        is_multi = input_space == "multi"
 
-            # --- MiniRocket ---
-            print(f"\n  Computing MiniRocket ({input_space})...")
+        # --- MiniRocket (aeon — official pip package) ---
+        print(f"\n  Computing MiniRocket ({input_space})...")
+        try:
+            mr_emb, mr_ids = compute_minirocket_embeddings(
+                raw_data, multivariate=is_multi
+            )
+            if len(mr_ids) > 0:
+                methods[f"MiniRocket ({input_space})"] = (mr_emb, mr_ids)
+                print(f"    MiniRocket: {len(mr_ids)} stations, {mr_emb.shape[1]}D")
+        except Exception as e:
+            print(f"    WARNING: MiniRocket failed: {e}")
+
+        # --- TS2Vec (vendorized from hubeau — hard contrastive loss) ---
+        print(f"\n  Computing TS2Vec ({input_space})...")
+        try:
+            ts_emb, ts_ids = compute_ts2vec_embeddings(
+                raw_data, multivariate=is_multi
+            )
+            if len(ts_ids) > 0:
+                methods[f"TS2Vec ({input_space})"] = (ts_emb, ts_ids)
+                print(f"    TS2Vec: {len(ts_ids)} stations, {ts_emb.shape[1]}D")
+        except Exception as e:
+            print(f"    WARNING: TS2Vec failed: {e}")
+
+        # --- SoftCLT (vendorized from hubeau — soft contrastive loss) ---
+        # Same architecture as TS2Vec, only the loss differs
+        print(f"\n  Computing SoftCLT ({input_space})...")
+        try:
+            sc_emb, sc_ids = compute_softclt_embeddings(
+                raw_data, multivariate=is_multi
+            )
+            if len(sc_ids) > 0:
+                methods[f"SoftCLT ({input_space})"] = (sc_emb, sc_ids)
+                print(f"    SoftCLT: {len(sc_ids)} stations, {sc_emb.shape[1]}D")
+        except Exception as e:
+            print(f"    WARNING: SoftCLT failed: {e}")
+
+        # --- Catch22 (pycatch22 — official pip package, univariate only) ---
+        if input_space == "uni":
+            print(f"\n  Computing Catch22 ({input_space})...")
             try:
-                mr_emb, mr_ids = compute_minirocket_embeddings(
-                    raw_data, multivariate=is_multi
-                )
-                if len(mr_ids) > 0:
-                    methods[f"MiniRocket ({input_space})"] = (mr_emb, mr_ids)
-                    print(f"    MiniRocket: {len(mr_ids)} stations, {mr_emb.shape[1]}D")
-            except Exception as e:
-                print(f"    WARNING: MiniRocket failed: {e}")
-
-            # --- TS2Vec (contrastive, same family as SoftCLT) ---
-            print(f"\n  Computing TS2Vec ({input_space})...")
-            try:
-                ts_emb, ts_ids = compute_ts2vec_embeddings(
-                    raw_data, multivariate=is_multi
-                )
-                if len(ts_ids) > 0:
-                    methods[f"TS2Vec ({input_space})"] = (ts_emb, ts_ids)
-                    print(f"    TS2Vec: {len(ts_ids)} stations, {ts_emb.shape[1]}D")
-            except Exception as e:
-                print(f"    WARNING: TS2Vec failed: {e}")
-
-            # --- Catch22 (univariate only) ---
-            if input_space == "uni":
-                print(f"\n  Computing Catch22 ({input_space})...")
                 c22_emb, c22_ids = compute_catch22_embeddings(raw_data)
                 if len(c22_ids) > 0:
-                    methods[f"Catch22"] = (c22_emb, c22_ids)
+                    methods["Catch22"] = (c22_emb, c22_ids)
                     print(f"    Catch22: {len(c22_ids)} stations, {c22_emb.shape[1]}D")
+            except Exception as e:
+                print(f"    WARNING: Catch22 failed: {e}")
 
-            # --- PCA brut ---
-            print(f"\n  Computing PCA brut ({input_space})...")
-            pca_emb, pca_ids = compute_pca_brut_embeddings(
-                {sid: raw_data[sid] for sid in raw_ids}
-            )
-            if len(pca_ids) > 0:
-                methods[f"PCA brut ({input_space})"] = (pca_emb, pca_ids)
-                print(f"    PCA brut: {len(pca_ids)} stations, {pca_emb.shape[1]}D")
+        # --- PCA brut (sklearn — baseline) ---
+        print(f"\n  Computing PCA brut ({input_space})...")
+        pca_emb, pca_ids = compute_pca_brut_embeddings(
+            {sid: raw_data[sid] for sid in raw_ids}
+        )
+        if len(pca_ids) > 0:
+            methods[f"PCA brut ({input_space})"] = (pca_emb, pca_ids)
+            print(f"    PCA brut: {len(pca_ids)} stations, {pca_emb.shape[1]}D")
 
-            # --- Random baseline ---
-            rand_emb, rand_ids = compute_random_embeddings(raw_ids)
-            methods["Random"] = (rand_emb, rand_ids)
+        # --- Random baseline ---
+        rand_emb, rand_ids = compute_random_embeddings(raw_ids)
+        methods["Random"] = (rand_emb, rand_ids)
 
         # --- Align all methods on common station IDs ---
         common_ids, aligned = _align_to_common_ids(methods)
