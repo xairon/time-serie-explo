@@ -479,8 +479,22 @@ def compute_minirocket_embeddings(
     X_sample = np.array([windows[i] for i in sample_idx], dtype=np.float64)
     X_sample = np.transpose(X_sample, (0, 2, 1)) if X_sample.ndim == 3 else X_sample[:, np.newaxis, :]
 
-    mr = MiniRocket(random_state=42)
-    mr.fit(X_sample)
+    # Save/load MiniRocket fitted transformer (pickle needed for sklearn-like objects)
+    import pickle  # noqa: S403 — local model files only, not untrusted input
+    mr_model_dir = MODELS_DIR
+    mr_model_dir.mkdir(parents=True, exist_ok=True)
+    mr_path = mr_model_dir / f"minirocket_{n_channels}ch.pkl"
+
+    if mr_path.exists():
+        print(f"    MiniRocket: loading saved transformer from {mr_path}")
+        with open(mr_path, "rb") as f:
+            mr = pickle.load(f)  # noqa: S301
+    else:
+        mr = MiniRocket(random_state=42)
+        mr.fit(X_sample)
+        with open(mr_path, "wb") as f:
+            pickle.dump(mr, f)
+        print(f"    MiniRocket: transformer saved to {mr_path}")
 
     # Transform in batches to avoid OOM, then mean-pool per station directly
     # Instead of storing all 9996D features, we transform + aggregate on the fly
@@ -565,6 +579,7 @@ def _train_and_encode_contrastive(
     depth: int = 10,
     hidden_dims: int = 64,
     batch_size: int = 32,
+    model_dir: str | Path | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """Train a contrastive encoder (TS2Vec or SoftCLT) and compute station embeddings.
 
@@ -572,6 +587,7 @@ def _train_and_encode_contrastive(
     - TS2Vec: hard hierarchical contrastive loss
     - SoftCLT: soft contrastive loss (monkey-patched into the same TS2Vec code)
 
+    Models are saved to model_dir for reuse. If a saved model exists, training is skipped.
     Source: vendorized from hubeau_data_integration/benchmark/src/embedding_benchmark/vendors/
     """
     import sys
@@ -596,14 +612,14 @@ def _train_and_encode_contrastive(
     n_windows = len(windows)
     input_dims = windows[0].shape[1] if windows[0].ndim == 2 else 1
 
-    # Train on a sample to avoid OOM
-    max_train = min(20000, n_windows)
-    rng = np.random.RandomState(42)
-    train_idx = rng.choice(n_windows, max_train, replace=False)
-    X_train = np.array([windows[i] for i in train_idx], dtype=np.float32)
+    # Model save/load path
+    if model_dir is not None:
+        model_dir = Path(model_dir)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        model_path = model_dir / f"{method_name.lower().replace(' ', '_')}_{input_dims}d_{depth}depth_{n_epochs}ep.pt"
+    else:
+        model_path = None
 
-    print(f"    {method_name}: training on {max_train}/{n_windows} windows "
-          f"({input_dims}d, depth={depth}, {n_epochs} epochs, {device})...")
     model = TS2Vec(
         input_dims=input_dims,
         output_dims=output_dims,
@@ -612,7 +628,26 @@ def _train_and_encode_contrastive(
         batch_size=batch_size,
         device=device,
     )
-    model.fit(X_train, n_epochs=n_epochs, verbose=False)
+
+    # Try to load existing model
+    if model_path and model_path.exists():
+        print(f"    {method_name}: loading saved model from {model_path}")
+        model.load(str(model_path))
+    else:
+        # Train on a sample to avoid OOM
+        max_train = min(20000, n_windows)
+        rng = np.random.RandomState(42)
+        train_idx = rng.choice(n_windows, max_train, replace=False)
+        X_train = np.array([windows[i] for i in train_idx], dtype=np.float32)
+
+        print(f"    {method_name}: training on {max_train}/{n_windows} windows "
+              f"({input_dims}d, depth={depth}, {n_epochs} epochs, {device})...")
+        model.fit(X_train, n_epochs=n_epochs, verbose=False)
+
+        # Save trained model
+        if model_path:
+            model.save(str(model_path))
+            print(f"    {method_name}: model saved to {model_path}")
 
     # Encode in batches and aggregate per station on the fly
     print(f"    {method_name}: encoding {n_windows} windows...")
@@ -651,6 +686,9 @@ def _train_and_encode_contrastive(
     return embeddings, valid_ids
 
 
+MODELS_DIR = Path("models/benchmark")
+
+
 def compute_ts2vec_embeddings(
     raw_series: dict[str, np.ndarray],
     multivariate: bool = False,
@@ -672,6 +710,7 @@ def compute_ts2vec_embeddings(
     return _train_and_encode_contrastive(
         windows, window_ids, output_dims, n_epochs,
         method_name="TS2Vec", use_softclt=False, depth=depth,
+        model_dir=MODELS_DIR,
     )
 
 
@@ -697,6 +736,7 @@ def compute_softclt_embeddings(
     return _train_and_encode_contrastive(
         windows, window_ids, output_dims, n_epochs,
         method_name="SoftCLT", use_softclt=True, depth=depth,
+        model_dir=MODELS_DIR,
     )
 
 
