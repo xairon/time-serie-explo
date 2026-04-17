@@ -83,7 +83,7 @@ RFUNC_REGISTRY = {
     "Hantush": ps.Hantush,
     "HantushWellModel": ps.HantushWellModel,  # P2
     "DoubleExponential": ps.DoubleExponential,  # P2
-    "FourParam": ps.FourParam,              # P2
+    "FourParam": ps.FourParam,             # P2
     "One": ps.One,
 }
 NOISE_REGISTRY = {
@@ -100,7 +100,7 @@ SOLVER_REGISTRY = {
 ### `builder.py`
 `build_model(request: FitRequest, series: StationSeries) -> ps.Model`
 
-1. Loads the station's piezometric, precipitation, and evapotranspiration series from `dashboard.utils.dataset_registry` using `request.dataset_id`.
+1. Loads the dataset via `dataset_registry.get(request.dataset_id)`. The `PreparedDataset` has a `target_column` (piezometric head) and `covariate_columns`. The request specifies `precip_column` and `evap_column` (which must be in `covariate_columns`) so the builder knows which covariates to wire to the RechargeModel.
 2. Validates series: minimum 365 observations, temporal overlap between observation and stresses, NaN ratio < 20%. Raises `ValueError` with an explicit message on failure.
 3. Instantiates `ps.Model(gwl_series, name=...)`.
 4. Builds `ps.RechargeModel(precip, evap, rfunc=<RF>, recharge=<RechargeModel>)` and adds it.
@@ -170,7 +170,7 @@ Cache invalidation: on `DELETE /models/{run_id}`, evict the cache entry.
 Invariants checked per modification:
 - Dates within the simulation window (warn, do not fail, if partial).
 - `rate_m3d >= 0` and `factor > 0`.
-- For `pumping_synthetic` / `pumping_upload`: station must have `lat/lon` available (required by `WellModel` via distance metadata). If missing, raise `ValueError` → 422.
+- `distance_m > 0` for pumping modifications (distance to the well is user-provided, no lat/lon needed — `WellModel` takes `distances=[d]` directly).
 
 ### `signatures.py` (P2)
 Wraps `ps.stats.signatures.summary(head)` to compute the 30+ hydrological signatures on observed and simulated series. Exposed through `GET /pastas/models/{run_id}/signatures`.
@@ -221,6 +221,9 @@ class SolverConfig(BaseModel):
 
 class FitRequest(BaseModel):
     dataset_id: str
+    station_id: str | None = None         # if multi-station dataset, filter to this station
+    precip_column: str                     # covariate column to use as precipitation
+    evap_column: str                       # covariate column to use as evapotranspiration
     tmin: date | None = None
     tmax: date | None = None
     recharge: RechargeConfig
@@ -268,9 +271,13 @@ class PumpingSynthetic(BaseModel):
     rfunc: Literal["Hantush", "Exponential"] = "Hantush"
     period_days: int = 365               # for seasonal
 
+class PumpingRow(BaseModel):
+    date: date
+    Q_m3d: float
+
 class PumpingUpload(BaseModel):
     type: Literal["pumping_upload"] = "pumping_upload"
-    csv_rows: list[dict]                 # [{"date": "YYYY-MM-DD", "Q_m3d": float}]
+    csv_rows: list[PumpingRow]
     distance_m: float
     rfunc: Literal["Hantush", "Exponential"] = "Hantush"
 
@@ -356,6 +363,9 @@ usePastasCompare(runIds)            // POST /compare, P2
 
 Cache keys align with React Query conventions used elsewhere in the project (`['pastas', 'models', stationId]`, `['pastas', 'model', runId]`, etc.).
 
+### New frontend dependencies
+- `@dnd-kit/core` + `@dnd-kit/sortable` — drag-reorder for ScenarioComposer.
+
 ### Validation
 Frontend uses Zod to validate modification payloads before sending. Server-side validation (Pydantic + builder checks) remains the source of truth.
 
@@ -368,7 +378,7 @@ Validation-at-the-boundary strategy: Pydantic + `builder` + `apply_modification`
 | Missing or short series, too many NaNs, no obs/stress overlap | `builder.build_model` raises `ValueError` | Router returns 422 with the error message. |
 | Solver did not converge or parameters hit their bounds | `model.fit.success` false or `abs(optimal - bound) < eps` | Appended to `FitResponse.warnings`. Frontend shows a yellow banner. Not blocking. |
 | `run_id` not found in MLflow | `MlflowException` | Router returns 404. React Query invalidates the list cache. |
-| Modification requires `lat/lon` but station has none | `apply_modification` raises `ValueError` | 422 with explicit "station has no coordinates" message. |
+| Pumping modification with `distance_m <= 0` | `apply_modification` raises `ValueError` | 422 with explicit "distance must be positive" message. |
 | MCMC run is very long / SSE drops | SSE reconnection logic | The run is persisted to MLflow before the stream ends, so reload recovers it. Client polls `/models/{run_id}` on SSE drop. |
 | Pastas version mismatch on `load_model` | `ModelVersionMismatch` | 409 Conflict with current vs stored version in the response body. |
 | Dataset series changed in DB since fit | `series_hash` tag differs on load | Warning tag on the run listed in `/models`. Not blocking (fit remains reproducible from artifact). |
@@ -406,7 +416,7 @@ Validation-at-the-boundary strategy: Pydantic + `builder` + `apply_modification`
 
 ## Open Questions / Validated at Phase Entry
 
-- **Station coordinates availability** (P3 pre-req): confirmed-but-to-verify existence of `lat/lon` in `gold` schema. Check at start of P3; adjust scope if missing.
+- **Station coordinates availability** (P3 pre-req): `lat/lon` needed only for batch cartography (not for P1/P2 — WellModel uses user-provided distance). Verify existence in `gold` schema at start of P3; adjust scope if missing.
 - **Icon for the Pastas nav entry**: placeholder `Waves`. User can choose differently at implementation time.
 - **Units conversions UI-side**: pumping in m³/d server-side; UI can expose m³/h or L/s via a lightweight converter on the editor (non-normative, cosmetic only).
 - **MCMC chain configuration defaults** (P2): number of walkers, steps, burn-in — to be benchmarked at P2 design time.
