@@ -83,10 +83,10 @@ def get_options() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GET /preview/{code_bss}
+# GET /preview?code_bss=...
 # ---------------------------------------------------------------------------
 
-@router.get("/preview/{code_bss}")
+@router.get("/preview")
 def preview_station(code_bss: str):
     """Return raw series + statistics for a station before fitting."""
     from typing import Any

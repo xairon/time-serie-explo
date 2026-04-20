@@ -290,7 +290,7 @@ export const api = {
 
   pastas: {
     options: () => fetchJson<PastasOptions>('/pastas/options'),
-    preview: (codeBss: string) => fetchJson<PastasStationPreview>(`/pastas/preview/${codeBss}`, { timeout: 30_000 }),
+    preview: (codeBss: string) => fetchJson<PastasStationPreview>(`/pastas/preview?code_bss=${encodeURIComponent(codeBss)}`, { timeout: 30_000 }),
     fit: (body: {
       code_bss: string
       tmin?: string

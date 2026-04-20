@@ -50,7 +50,7 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
         # --- Load from hubeau_daily_chroniques ---
         query = text("""
             SELECT date, niveau_nappe_eau, total_precipitation, potential_evaporation,
-                   nom_commune, code_departement, nom_departement,
+                   temperature_2m, nom_commune, code_departement, nom_departement,
                    station_latitude, station_longitude, altitude_station
             FROM gold.hubeau_daily_chroniques
             WHERE code_bss = :code_bss
