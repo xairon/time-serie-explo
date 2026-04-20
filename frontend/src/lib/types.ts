@@ -346,6 +346,7 @@ export interface PastasStationPreview {
   precip: TimeSeriesData
   evap: TimeSeriesData
   stats: Record<string, number | string | string[]>
+  preset: Record<string, string>
 }
 
 // Pastas comparison

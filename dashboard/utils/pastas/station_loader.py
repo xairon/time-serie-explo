@@ -77,6 +77,21 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
             "altitude": float(meta_row["altitude_station"]) if pd.notna(meta_row.get("altitude_station")) else None,
         }
 
+        # BDLISA info from mapping table
+        bdlisa_query = text("""
+            SELECT codes_bdlisa, nature_eh, milieu_eh
+            FROM gold.int_station_era5_mapping
+            WHERE code_bss = :code_bss
+            LIMIT 1
+        """)
+        with engine.connect() as conn:
+            bdlisa_df = pd.read_sql(bdlisa_query, conn, params={"code_bss": code_bss})
+        if not bdlisa_df.empty:
+            b = bdlisa_df.iloc[0]
+            metadata["codes_bdlisa"] = str(b.get("codes_bdlisa", "")) if pd.notna(b.get("codes_bdlisa")) else None
+            metadata["nature_eh"] = str(b.get("nature_eh", "")) if pd.notna(b.get("nature_eh")) else None
+            metadata["milieu_eh"] = str(b.get("milieu_eh", "")) if pd.notna(b.get("milieu_eh")) else None
+
         # Piezo: irregular, Pastas handles it
         piezo = df["niveau_nappe_eau"].dropna()
         piezo.name = "piezo"

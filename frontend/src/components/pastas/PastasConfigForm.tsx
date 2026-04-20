@@ -4,14 +4,19 @@ const DESCRIPTIONS: Record<string, Record<string, string>> = {
   recharge: {
     Linear: 'P − f·E : excès de précipitation linéaire (von Asmuth 2002)',
     FlexModel: 'Bilan hydrique sol complet : zone racinaire, interception, neige optionnel',
+    Berendrecht: 'Non-linéaire : relation exponentielle stockage-écoulement (Berendrecht 2006)',
+    Peterson: 'Non-linéaire : loi puissance, transformations logarithmiques (Peterson 2014)',
   },
   response: {
     Gamma: '3 paramètres (A, a, n) — réponse retardée, le plus courant',
-    Exponential: '2 paramètres (A, a) — décroissance simple, réponse instantanée',
-    Hantush: '3 paramètres — puits en aquifère confiné, inclut le leaky factor',
+    Exponential: '2 paramètres (A, a) — décroissance simple, réponse rapide',
+    Hantush: '3 paramètres — aquifère confiné, inclut le leaky factor',
+    DoubleExponential: '4 paramètres — deux temps de réponse (karst : conduits + matrice)',
+    FourParam: '4 paramètres (A, a, b, n) — très flexible, comportements complexes',
   },
   noise: {
-    ArNoiseModel: 'AR(1) — corrige l\'autocorrélation des résidus (recommandé)',
+    ArNoiseModel: 'AR(1) — corrige l\'autocorrélation des résidus',
+    ArmaNoiseModel: 'ARMA(1,1) — meilleure modélisation du bruit (recommandé pour le karst)',
     none: 'Pas de modèle de bruit — résidus bruts',
   },
   solver: {

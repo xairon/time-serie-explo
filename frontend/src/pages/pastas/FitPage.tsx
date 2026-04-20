@@ -54,6 +54,18 @@ export default function FitPage() {
     }
   }, [loadedModel])
 
+  // Apply BDLISA preset when preview loads
+  const [presetApplied, setPresetApplied] = useState('')
+  useEffect(() => {
+    if (preview?.preset && preview.code_bss !== presetApplied) {
+      const p = preview.preset as Record<string, string>
+      if (p.recharge) setRecharge(p.recharge)
+      if (p.response) setResponse(p.response)
+      if (p.noise) setNoise(p.noise)
+      setPresetApplied(preview.code_bss)
+    }
+  }, [preview, presetApplied])
+
   const canFit = !!codeBss
 
   async function handleFit() {
@@ -111,7 +123,17 @@ export default function FitPage() {
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-4">Model configuration</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-2">Configuration du modèle</h2>
+          {preview?.preset && (preview.preset as Record<string, string>).label && (
+            <div className="mb-3 flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-accent-cyan font-medium">
+                Config recommandée : {(preview.preset as Record<string, string>).label}
+              </span>
+              <span className="text-[10px] text-text-muted">
+                {(preview.preset as Record<string, string>).description}
+              </span>
+            </div>
+          )}
           <PastasConfigForm
             recharge={recharge}
             onRechargeChange={setRecharge}

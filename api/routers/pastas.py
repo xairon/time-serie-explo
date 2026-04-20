@@ -78,8 +78,8 @@ def _series_to_ts(s: pd.Series) -> TimeSeriesData:
 @router.get("/options")
 def get_options() -> dict:
     """Return available Pastas component options for UI dropdowns."""
-    from dashboard.utils.pastas.config import get_p1_options
-    return get_p1_options()
+    from dashboard.utils.pastas.config import get_options as _get_options
+    return _get_options()
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +112,13 @@ def preview_station(code_bss: str):
         stats["piezo_max_gap_days"] = float(gaps.max())
         stats["piezo_pct_daily"] = round(float((gaps == 1).mean() * 100), 1)
 
+    # BDLISA-based preset
+    from dashboard.utils.pastas.config import get_preset
+    preset = get_preset(
+        station.metadata.get("nature_eh"),
+        station.metadata.get("milieu_eh"),
+    )
+
     return StationPreview(
         code_bss=code_bss,
         metadata=station.metadata,
@@ -119,6 +126,7 @@ def preview_station(code_bss: str):
         precip=_series_to_ts(station.precip),
         evap=_series_to_ts(station.evap),
         stats=stats,
+        preset=preset,
     )
 
 

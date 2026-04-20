@@ -169,3 +169,4 @@ class StationPreview(BaseModel):
     precip: TimeSeriesData
     evap: TimeSeriesData
     stats: dict[str, Any]
+    preset: dict[str, str] = {}
