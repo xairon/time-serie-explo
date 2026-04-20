@@ -48,10 +48,12 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
       )}
 
       {/* Metric cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard label="NSE" value={metrics['nse']} />
+        <MetricCard label="KGE" value={metrics['kge']} />
         <MetricCard label="EVP (%)" value={metrics['evp']} />
         <MetricCard label="RMSE" value={metrics['rmse']} />
-        <MetricCard label="AIC" value={metrics['aic']} />
+        <MetricCard label="R²" value={metrics['rsq']} />
         <MetricCard
           label="Ljung-Box p"
           value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']}

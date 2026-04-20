@@ -67,6 +67,12 @@ def _extract_metrics(model: ps.Model, tmin: Optional[str], tmax: Optional[str]) 
     except Exception:
         metrics["bic"] = float("nan")
 
+    for stat_name in ("nse", "kge", "rsq", "mae"):
+        try:
+            metrics[stat_name] = float(getattr(model.stats, stat_name)(tmin=tmin, tmax=tmax))
+        except Exception:
+            pass
+
     # Ljung-Box on residuals
     try:
         residuals = model.residuals(tmin=tmin, tmax=tmax).dropna()
