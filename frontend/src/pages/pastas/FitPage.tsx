@@ -20,7 +20,7 @@ export default function FitPage() {
   // Config form state
   const [recharge, setRecharge] = useState('Linear')
   const [response, setResponse] = useState('Gamma')
-  const [noise, setNoise] = useState('ArmaModel')
+  const [noise, setNoise] = useState('ArNoiseModel')
   const [solver, setSolver] = useState('LeastSquares')
   const [tmin, setTmin] = useState('')
   const [tmax, setTmax] = useState('')

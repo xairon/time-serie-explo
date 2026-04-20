@@ -81,7 +81,7 @@ export function PastasConfigForm({
             className={selectClass}
             disabled={isLoading}
           >
-            {(options?.noise ?? ['ArmaModel']).map((n) => (
+            {(options?.noise ?? ['ArNoiseModel', 'none']).map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
