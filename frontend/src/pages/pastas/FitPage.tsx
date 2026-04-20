@@ -88,9 +88,10 @@ export default function FitPage() {
           description="Un modèle Pastas relie le niveau piézométrique aux forçages climatiques (pluie, ETP) par une fonction de transfert. Sélectionnez une station, configurez le modèle, et lancez la calibration."
           steps={[
             'Cherchez et sélectionnez une station piézométrique',
-            'Choisissez le modèle de recharge et la fonction de réponse',
-            'Activez la validation pour tester la qualité hors-échantillon',
-            'Cliquez "Fit Model" — les résultats s\'affichent à droite',
+            'Choisissez le modèle de recharge (comment la pluie s\'infiltre) et la fonction de réponse (comment l\'aquifère réagit)',
+            'Activez la validation pour réserver une partie des données en test — le modèle s\'entraîne sur le début et on vérifie qu\'il prédit bien la fin',
+            'Optionnel : ajoutez des stress supplémentaires (pompage, rivière, etc.) si vous avez les données',
+            'Cliquez "Fit Model" — résultats, diagnostics et signatures s\'affichent à droite',
           ]}
           exampleAction={{ label: 'Charger la station exemple (Craie de Champagne)', onClick: loadDemo }}
         />

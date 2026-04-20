@@ -89,7 +89,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
               <MetricCard label="EVP (%)" value={metrics['evp']} />
               <MetricCard label="RMSE" value={metrics['rmse']} />
               <MetricCard label="R²" value={metrics['rsq']} />
-              <MetricCard label="Ljung-Box p" value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']} />
+              <MetricCard label="MAE" value={metrics['mae']} />
             </div>
           </div>
           <div className="bg-bg-primary/50 rounded-lg border border-orange-500/20 p-3">
@@ -118,7 +118,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
           <MetricCard label="EVP (%)" value={metrics['evp']} />
           <MetricCard label="RMSE" value={metrics['rmse']} />
           <MetricCard label="R²" value={metrics['rsq']} />
-          <MetricCard label="Ljung-Box p" value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']} />
+          <MetricCard label="MAE" value={metrics['mae']} />
         </div>
       )}
 

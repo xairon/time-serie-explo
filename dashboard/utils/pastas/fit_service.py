@@ -273,26 +273,28 @@ def run_fit(
     parameters = _extract_parameters(model)
     fit_warnings = _check_warnings(model)
 
-    observed = model.observations(tmin=tmin, tmax=tmax_cal)
-    simulated = model.simulate(tmin=tmin, tmax=tmax_cal)
+    # Simulate over FULL period (cal+val) so the frontend can plot both
+    tmax_full = tmax_obs if val_period else tmax_cal
+    observed = model.observations(tmin=tmin, tmax=tmax_full)
+    simulated = model.simulate(tmin=tmin, tmax=tmax_full)
     residuals = model.residuals(tmin=tmin, tmax=tmax_cal)
 
     # Validation metrics on held-out period
     validation_metrics = None
     if val_period is not None:
         validation_metrics = {}
-        for stat_name in ("nse", "kge", "rsq", "rmse", "evp"):
+        for stat_name in ("nse", "kge", "rsq", "rmse", "evp", "mae"):
             try:
                 val = float(getattr(model.stats, stat_name)(tmin=val_period[0], tmax=val_period[1]))
                 validation_metrics[stat_name] = val
             except Exception:
                 pass
 
-    # Per-stress contributions
+    # Per-stress contributions — full period
     contributions: dict[str, pd.Series] = {}
     for sm_name in model.stressmodels:
         try:
-            contributions[sm_name] = model.get_contribution(sm_name, tmin=tmin, tmax=tmax_cal)
+            contributions[sm_name] = model.get_contribution(sm_name, tmin=tmin, tmax=tmax_full)
         except Exception:
             pass
 
