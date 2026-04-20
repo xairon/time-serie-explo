@@ -2,6 +2,7 @@ import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
+import { ContributionsChart } from '@/components/pastas/ContributionsChart'
 
 interface FitResultsPanelProps {
   result: PastasFitResponse
@@ -25,8 +26,20 @@ const chartLayout: Partial<Layout> = {
 }
 
 export function FitResultsPanel({ result }: FitResultsPanelProps) {
-  const { metrics, parameters, observed, simulated, residuals, step_response, acf, warnings } =
-    result
+  const {
+    metrics,
+    parameters,
+    observed,
+    simulated,
+    residuals,
+    contributions,
+    step_response,
+    acf,
+    warnings,
+    validation_metrics,
+    cal_period,
+    val_period,
+  } = result
 
   const hasStepResponse =
     step_response?.index?.length > 0 && step_response?.values?.length > 0
@@ -47,18 +60,49 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Metric cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <MetricCard label="NSE" value={metrics['nse']} />
-        <MetricCard label="KGE" value={metrics['kge']} />
-        <MetricCard label="EVP (%)" value={metrics['evp']} />
-        <MetricCard label="RMSE" value={metrics['rmse']} />
-        <MetricCard label="R²" value={metrics['rsq']} />
-        <MetricCard
-          label="Ljung-Box p"
-          value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']}
-        />
+      {/* Calibration metric cards */}
+      <div>
+        {(cal_period || validation_metrics) && (
+          <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
+            Calibration
+            {cal_period && (
+              <span className="text-text-muted font-normal normal-case">
+                ({cal_period[0]} → {cal_period[1]})
+              </span>
+            )}
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-3">
+          <MetricCard label="NSE" value={metrics['nse']} />
+          <MetricCard label="KGE" value={metrics['kge']} />
+          <MetricCard label="EVP (%)" value={metrics['evp']} />
+          <MetricCard label="RMSE" value={metrics['rmse']} />
+          <MetricCard label="R²" value={metrics['rsq']} />
+          <MetricCard
+            label="Ljung-Box p"
+            value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']}
+          />
+        </div>
       </div>
+
+      {/* Validation metric cards */}
+      {validation_metrics && (
+        <div>
+          <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
+            Validation
+            {val_period && (
+              <span className="text-text-muted font-normal normal-case">
+                ({val_period[0]} → {val_period[1]})
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <MetricCard label="NSE (val)" value={validation_metrics['nse']} />
+            <MetricCard label="KGE (val)" value={validation_metrics['kge']} />
+            <MetricCard label="RMSE (val)" value={validation_metrics['rmse']} />
+          </div>
+        </div>
+      )}
 
       {/* Parameters table */}
       {parameters.length > 0 && (
@@ -124,11 +168,32 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                 line: { color: '#22d3ee', width: 2 },
               },
             ]}
-            layout={chartLayout}
+            layout={{
+              ...chartLayout,
+              shapes:
+                cal_period && val_period
+                  ? [
+                      {
+                        type: 'line' as const,
+                        x0: cal_period[1],
+                        x1: cal_period[1],
+                        y0: 0,
+                        y1: 1,
+                        yref: 'paper' as const,
+                        line: { color: '#f97316', width: 2, dash: 'dash' as const },
+                      },
+                    ]
+                  : [],
+            }}
             config={plotlyConfig}
             style={{ width: '100%' }}
           />
         </div>
+      )}
+
+      {/* Stress contributions */}
+      {contributions && Object.keys(contributions).length > 0 && (
+        <ContributionsChart contributions={contributions} observed={observed} />
       )}
 
       {/* Residuals */}

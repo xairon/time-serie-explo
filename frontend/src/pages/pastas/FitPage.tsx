@@ -6,6 +6,7 @@ import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
 import { DataPreviewPanel } from '@/components/pastas/DataPreviewPanel'
 import { StationMap } from '@/components/pastas/StationMap'
+import { CalValToggle } from '@/components/pastas/CalValToggle'
 import type { PastasFitResponse } from '@/lib/types'
 
 export default function FitPage() {
@@ -26,6 +27,9 @@ export default function FitPage() {
   const [tmax, setTmax] = useState('')
   const [modelName, setModelName] = useState('')
 
+  // Cal/val split
+  const [valSplit, setValSplit] = useState<number | null>(null)
+
   // Result
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
 
@@ -43,6 +47,7 @@ export default function FitPage() {
         noise: { type: noise },
         solver: { type: solver },
         name: modelName || undefined,
+        val_split: valSplit ?? undefined,
       })
       setFitResult(result)
     } catch {
@@ -75,6 +80,10 @@ export default function FitPage() {
             tmax={tmax}
             onTmaxChange={setTmax}
           />
+        </div>
+
+        <div className="bg-bg-card border border-white/5 rounded-xl p-4">
+          <CalValToggle valSplit={valSplit} onChange={setValSplit} />
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
