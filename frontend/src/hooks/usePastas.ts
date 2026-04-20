@@ -74,3 +74,9 @@ export function usePastasSignatures(runId: string | null) {
     enabled: !!runId,
   })
 }
+
+export function usePastasCompare() {
+  return useMutation({
+    mutationFn: (runIds: string[]) => api.pastas.compare(runIds),
+  })
+}

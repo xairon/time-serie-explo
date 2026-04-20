@@ -14,6 +14,8 @@ from fastapi.responses import FileResponse, Response
 
 from api.config import settings
 from api.schemas.pastas import (
+    CompareRequest,
+    CompareResponse,
     FitParameter,
     FitRequest,
     FitResponse,
@@ -427,6 +429,42 @@ def delete_model(run_id: str) -> dict:
         raise HTTPException(500, f"Failed to delete run: {exc}") from exc
 
     return {"deleted": run_id}
+
+
+# ---------------------------------------------------------------------------
+# POST /compare
+# ---------------------------------------------------------------------------
+
+@router.post("/compare", response_model=CompareResponse)
+def compare_models_endpoint(req: CompareRequest) -> CompareResponse:
+    """Load N models and return side-by-side metrics + aligned series."""
+    from dashboard.utils.pastas.comparison import compare_models
+
+    if len(req.run_ids) < 2 or len(req.run_ids) > 5:
+        raise HTTPException(422, "Provide 2-5 run IDs to compare")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+
+    try:
+        results = compare_models(req.run_ids)
+    except Exception as exc:
+        logger.exception("Comparison failed: %s", exc)
+        raise HTTPException(500, str(exc)) from exc
+
+    return CompareResponse(
+        models=[
+            {
+                "run_id": m["run_id"],
+                "name": m["name"],
+                "code_bss": m["code_bss"],
+                "params": m["params"],
+                "metrics": m["metrics"],
+                "observed": _series_to_ts(m["observed"]),
+                "simulated": _series_to_ts(m["simulated"]),
+            }
+            for m in results
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------

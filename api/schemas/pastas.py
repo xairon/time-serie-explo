@@ -6,6 +6,23 @@ from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+# ---------- Comparison ----------
+
+class CompareRequest(BaseModel):
+    run_ids: list[str]
+
+class CompareModelResult(BaseModel):
+    run_id: str
+    name: str
+    code_bss: str
+    params: dict[str, Any]
+    metrics: dict[str, float]
+    observed: "TimeSeriesData"
+    simulated: "TimeSeriesData"
+
+class CompareResponse(BaseModel):
+    models: list[CompareModelResult]
+
 
 # ---------- Fit ----------
 

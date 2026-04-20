@@ -27,6 +27,7 @@ import type {
   PastasModelSummary,
   PastasScenarioResponse,
   PastasStationPreview,
+  PastasCompareResponse,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -321,6 +322,8 @@ export const api = {
     }) => postJson<PastasScenarioResponse>('/pastas/simulate', body, 120_000),
     diagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/diagnostics`),
     signatures: (runId: string) => fetchJson<{ observed: Record<string, number>; simulated: Record<string, number> }>(`/pastas/models/${runId}/signatures`),
+    compare: (runIds: string[]) =>
+      postJson<PastasCompareResponse>('/pastas/compare', { run_ids: runIds }, 60_000),
   },
 
   counterfactual: {

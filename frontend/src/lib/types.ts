@@ -347,6 +347,21 @@ export interface PastasStationPreview {
   stats: Record<string, number | string | string[]>
 }
 
+// Pastas comparison
+export interface PastasCompareModel {
+  run_id: string
+  name: string
+  code_bss: string
+  params: Record<string, string>
+  metrics: Record<string, number>
+  observed: TimeSeriesData
+  simulated: TimeSeriesData
+}
+
+export interface PastasCompareResponse {
+  models: PastasCompareModel[]
+}
+
 // Pastas dual validation result
 export interface PastasValidationResult {
   model_id: string
