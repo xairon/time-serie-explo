@@ -348,11 +348,25 @@ def run_fit(
             mlflow.log_metrics(loggable_metrics)
 
         # Tags
-        mlflow.set_tags({
+        tags_dict: dict[str, str] = {
             "station_id": station_id,
             "pastas_version": ps.__version__,
             "series_hash": sh,
-        })
+        }
+        if cal_period:
+            tags_dict["cal_tmin"] = cal_period[0]
+            tags_dict["cal_tmax"] = cal_period[1]
+        if val_period:
+            tags_dict["val_tmin"] = val_period[0]
+            tags_dict["val_tmax"] = val_period[1]
+        mlflow.set_tags(tags_dict)
+
+        # Validation metrics (prefixed to avoid collision with cal metrics)
+        if validation_metrics:
+            val_loggable = {f"val_{k}": v for k, v in validation_metrics.items()
+                           if isinstance(v, (int, float)) and not np.isnan(v)}
+            if val_loggable:
+                mlflow.log_metrics(val_loggable)
 
         # Artifact: save model.pas
         with tempfile.TemporaryDirectory() as tmpdir:

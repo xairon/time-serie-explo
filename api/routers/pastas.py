@@ -49,6 +49,21 @@ def _brgm_url() -> str:
     )
 
 
+def _rebuild_val_metrics(all_metrics: dict) -> Optional[dict[str, float]]:
+    """Extract val_* metrics from MLflow metrics dict."""
+    val = {k[4:]: v for k, v in all_metrics.items() if k.startswith("val_")}
+    return val if val else None
+
+
+def _rebuild_period(tags: dict, prefix: str) -> Optional[list[str]]:
+    """Extract cal/val period from MLflow tags."""
+    tmin = tags.get(f"{prefix}_tmin")
+    tmax = tags.get(f"{prefix}_tmax")
+    if tmin and tmax:
+        return [tmin, tmax]
+    return None
+
+
 def _series_to_ts(s: pd.Series) -> TimeSeriesData:
     return TimeSeriesData(
         index=[str(d) for d in s.index],
@@ -301,9 +316,9 @@ def get_model(run_id: str) -> FitResponse:
         acf=acf_result,
         warnings=[],
         pastas_version=tags.get("pastas_version", "unknown"),
-        validation_metrics=None,
-        cal_period=None,
-        val_period=None,
+        validation_metrics=_rebuild_val_metrics(metrics),
+        cal_period=_rebuild_period(tags, "cal"),
+        val_period=_rebuild_period(tags, "val"),
     )
 
 
