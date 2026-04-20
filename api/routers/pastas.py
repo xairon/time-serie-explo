@@ -120,6 +120,7 @@ def fit_model(req: FitRequest) -> FitResponse:
             tmax=str(req.tmax) if req.tmax else None,
             dataset_id=req.code_bss,
             name=req.name,
+            val_split=req.val_split,
         )
     except ValidationError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -140,6 +141,9 @@ def fit_model(req: FitRequest) -> FitResponse:
         acf=result.acf_stats,
         warnings=result.warnings,
         pastas_version=result.pastas_version,
+        validation_metrics=result.validation_metrics,
+        cal_period=result.cal_period,
+        val_period=result.val_period,
     )
 
 
@@ -256,6 +260,9 @@ def get_model(run_id: str) -> FitResponse:
         acf=acf_result,
         warnings=[],
         pastas_version=tags.get("pastas_version", "unknown"),
+        validation_metrics=None,
+        cal_period=None,
+        val_period=None,
     )
 
 

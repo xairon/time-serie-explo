@@ -305,6 +305,9 @@ export interface PastasFitResponse {
   acf: Record<string, unknown>
   warnings: string[]
   pastas_version: string
+  validation_metrics: Record<string, number> | null
+  cal_period: string[] | null
+  val_period: string[] | null
 }
 
 export interface PastasModelSummary {

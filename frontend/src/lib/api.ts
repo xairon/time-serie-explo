@@ -299,6 +299,7 @@ export const api = {
       noise?: { type: string }
       solver?: { type: string; kwargs?: Record<string, unknown> }
       name?: string
+      val_split?: number
     }) => postJson<PastasFitResponse>('/pastas/fit', body, 120_000),
     models: (codeBss?: string) => {
       const params = codeBss ? `?code_bss=${codeBss}` : ''

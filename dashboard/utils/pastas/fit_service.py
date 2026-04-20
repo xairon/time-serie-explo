@@ -32,6 +32,9 @@ class FitResult:
     acf_stats: dict[str, Any]
     warnings: list[str] = field(default_factory=list)
     pastas_version: str = ""
+    validation_metrics: Optional[dict[str, float]] = None
+    cal_period: Optional[list[str]] = None
+    val_period: Optional[list[str]] = None
 
 
 def _series_hash(gwl: pd.Series, precip: pd.Series, evap: pd.Series) -> str:
@@ -187,6 +190,7 @@ def run_fit(
     tmax: Optional[str],
     dataset_id: str,
     name: Optional[str] = None,
+    val_split: Optional[float] = None,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -236,31 +240,57 @@ def run_fit(
         tmax=tmax,
     )
 
+    # Determine calibration/validation windows
+    obs_index = gwl.dropna().index
+    tmax_obs = str(obs_index.max().date()) if tmax is None else tmax
+
+    cal_period = None
+    val_period = None
+    tmax_cal = tmax
+
+    if val_split is not None and 0 < val_split < 1:
+        split_idx = int(len(obs_index) * (1 - val_split))
+        tmax_cal = str(obs_index[split_idx].date())
+        tmin_val = str(obs_index[split_idx].date())
+        cal_period = [str(obs_index.min().date()) if tmin is None else tmin, tmax_cal]
+        val_period = [tmin_val, tmax_obs]
+
     # Solve — Pastas >= 0.23 requires an instance, not a class
     solver_cls = SOLVER_REGISTRY[solver_type]
     solver_instance = solver_cls()
     model.solve(
         tmin=tmin,
-        tmax=tmax,
+        tmax=tmax_cal,
         solver=solver_instance,
         report=False,
         **solver_kwargs,
     )
 
     # Extract all outputs before MLflow context
-    metrics = _extract_metrics(model, tmin, tmax)
+    metrics = _extract_metrics(model, tmin, tmax_cal)
     parameters = _extract_parameters(model)
     fit_warnings = _check_warnings(model)
 
-    observed = model.observations(tmin=tmin, tmax=tmax)
-    simulated = model.simulate(tmin=tmin, tmax=tmax)
-    residuals = model.residuals(tmin=tmin, tmax=tmax)
+    observed = model.observations(tmin=tmin, tmax=tmax_cal)
+    simulated = model.simulate(tmin=tmin, tmax=tmax_cal)
+    residuals = model.residuals(tmin=tmin, tmax=tmax_cal)
+
+    # Validation metrics on held-out period
+    validation_metrics = None
+    if val_period is not None:
+        validation_metrics = {}
+        for stat_name in ("nse", "kge", "rsq", "rmse", "evp"):
+            try:
+                val = float(getattr(model.stats, stat_name)(tmin=val_period[0], tmax=val_period[1]))
+                validation_metrics[stat_name] = val
+            except Exception:
+                pass
 
     # Per-stress contributions
     contributions: dict[str, pd.Series] = {}
     for sm_name in model.stressmodels:
         try:
-            contributions[sm_name] = model.get_contribution(sm_name, tmin=tmin, tmax=tmax)
+            contributions[sm_name] = model.get_contribution(sm_name, tmin=tmin, tmax=tmax_cal)
         except Exception:
             pass
 
@@ -295,7 +325,7 @@ def run_fit(
 
     with mlflow.start_run(run_name=run_name) as run:
         # Params
-        mlflow.log_params({
+        mlflow_params: dict[str, Any] = {
             "recharge_type": recharge_type,
             "response_type": response_type,
             "noise_type": noise_type,
@@ -303,7 +333,10 @@ def run_fit(
             "dataset_id": dataset_id,
             "tmin": str(tmin) if tmin is not None else "auto",
             "tmax": str(tmax) if tmax is not None else "auto",
-        })
+        }
+        if val_split is not None:
+            mlflow_params["val_split"] = str(val_split)
+        mlflow.log_params(mlflow_params)
 
         # Metrics (skip NaN — MLflow rejects them)
         loggable_metrics = {k: v for k, v in metrics.items() if not (isinstance(v, float) and np.isnan(v))}
@@ -338,4 +371,7 @@ def run_fit(
         acf_stats=acf_result,
         warnings=fit_warnings,
         pastas_version=ps.__version__,
+        validation_metrics=validation_metrics,
+        cal_period=cal_period,
+        val_period=val_period,
     )

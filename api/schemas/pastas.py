@@ -33,6 +33,7 @@ class FitRequest(BaseModel):
     noise: NoiseConfig = NoiseConfig()
     solver: SolverConfig = SolverConfig()
     name: Optional[str] = None
+    val_split: Optional[float] = None  # fraction for validation (e.g. 0.3 = last 30%)
 
 class TimeSeriesData(BaseModel):
     index: list[str]
@@ -60,6 +61,9 @@ class FitResponse(BaseModel):
     acf: dict[str, Any]
     warnings: list[str] = []
     pastas_version: str
+    validation_metrics: Optional[dict[str, float]] = None
+    cal_period: Optional[list[str]] = None   # [tmin_cal, tmax_cal]
+    val_period: Optional[list[str]] = None   # [tmin_val, tmax_val]
 
 class PastasModelSummary(BaseModel):
     run_id: str
