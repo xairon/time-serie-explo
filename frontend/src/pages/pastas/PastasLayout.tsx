@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { SlidersHorizontal, FlaskConical } from 'lucide-react'
+import { SlidersHorizontal, FlaskConical, LayoutGrid, GitCompareArrows } from 'lucide-react'
 
 const PASTAS_TABS = [
   { to: '/pastas/fit', icon: SlidersHorizontal, label: 'Fit' },
   { to: '/pastas/scenarios', icon: FlaskConical, label: 'Scenarios' },
+  { to: '/pastas/gallery', icon: LayoutGrid, label: 'Gallery' },
+  { to: '/pastas/compare', icon: GitCompareArrows, label: 'Compare' },
 ] as const
 
 export default function PastasLayout() {

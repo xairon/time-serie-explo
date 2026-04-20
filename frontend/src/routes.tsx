@@ -10,6 +10,8 @@ const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 const PastasLayout = lazy(() => import('./pages/pastas/PastasLayout'))
 const PastasFitPage = lazy(() => import('./pages/pastas/FitPage'))
 const PastasScenariosPage = lazy(() => import('./pages/pastas/ScenariosPage'))
+const PastasGalleryPage = lazy(() => import('./pages/pastas/GalleryPage'))
+const PastasComparePage = lazy(() => import('./pages/pastas/ComparePage'))
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -103,6 +105,22 @@ export const router = createBrowserRouter([
             element: (
               <SuspenseWrapper>
                 <PastasScenariosPage />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'gallery',
+            element: (
+              <SuspenseWrapper>
+                <PastasGalleryPage />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'compare',
+            element: (
+              <SuspenseWrapper>
+                <PastasComparePage />
               </SuspenseWrapper>
             ),
           },

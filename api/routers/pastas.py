@@ -1,12 +1,16 @@
 """Pastas TFN model API router."""
 from __future__ import annotations
 
+import csv
+import io
 import logging
+import tempfile
 from typing import Optional
 
 import mlflow
 import pandas as pd
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, Response
 
 from api.config import settings
 from api.schemas.pastas import (
@@ -289,6 +293,57 @@ def get_diagnostics(run_id: str):
 
     residuals = model.residuals(tmin=tmin, tmax=tmax)
     return compute_diagnostics(residuals)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/export/pas
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/export/pas")
+def export_pas(run_id: str):
+    """Export a Pastas model as a .pas file."""
+    from dashboard.utils.pastas.io import load_model
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    f = tempfile.NamedTemporaryFile(suffix=".pas", delete=False)
+    model.to_file(f.name)
+    return FileResponse(f.name, filename=f"pastas_{run_id[:8]}.pas", media_type="application/octet-stream")
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/export/csv
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/export/csv")
+def export_csv(run_id: str):
+    """Export model params, metrics and tags as a CSV file."""
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    try:
+        run = client.get_run(run_id)
+    except Exception:
+        raise HTTPException(404, f"Run '{run_id}' not found")
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["category", "key", "value"])
+    for k, v in run.data.params.items():
+        writer.writerow(["param", k, v])
+    for k, v in run.data.metrics.items():
+        writer.writerow(["metric", k, v])
+    for k, v in run.data.tags.items():
+        if not k.startswith("mlflow."):
+            writer.writerow(["tag", k, v])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=pastas_{run_id[:8]}.csv"},
+    )
 
 
 # ---------------------------------------------------------------------------
