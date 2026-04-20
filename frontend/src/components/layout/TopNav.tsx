@@ -5,7 +5,7 @@ import {
   Database,
   GraduationCap,
   TrendingUp,
-  FlaskConical,
+  Waves,
   Map,
   Menu,
   X,
@@ -18,7 +18,7 @@ const NAV_ITEMS = [
   { to: '/training', icon: GraduationCap, label: 'Training' },
   { to: '/forecasting', icon: TrendingUp, label: 'Forecasting' },
   { to: '/observatory', icon: Map, label: 'Observatory' },
-  { to: '/lab', icon: FlaskConical, label: 'Lab' },
+  { to: '/pastas', icon: Waves, label: 'Pastas' },
 ] as const
 
 export function TopNav() {

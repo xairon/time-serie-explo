@@ -6,11 +6,10 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const DataPage = lazy(() => import('./pages/DataPage'))
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
-const CounterfactualPage = lazy(() => import('./pages/CounterfactualPage'))
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
-const PumpingDetectionPage = lazy(() => import('./pages/PumpingDetectionPage'))
-const LabLayout = lazy(() => import('./pages/LabLayout'))
-const LatentSpacePage = lazy(() => import('./pages/LatentSpacePage'))
+const PastasLayout = lazy(() => import('./pages/pastas/PastasLayout'))
+const PastasFitPage = lazy(() => import('./pages/pastas/FitPage'))
+const PastasScenariosPage = lazy(() => import('./pages/pastas/ScenariosPage'))
 
 function SuspenseWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -80,50 +79,38 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: '/lab',
+        path: '/pastas',
         element: (
           <SuspenseWrapper>
-            <LabLayout />
+            <PastasLayout />
           </SuspenseWrapper>
         ),
         children: [
           {
             index: true,
-            element: <Navigate to="/lab/latent-space" replace />,
+            element: <Navigate to="/pastas/fit" replace />,
           },
           {
-            path: 'latent-space',
+            path: 'fit',
             element: (
               <SuspenseWrapper>
-                <LatentSpacePage />
+                <PastasFitPage />
               </SuspenseWrapper>
             ),
           },
           {
-            path: 'counterfactual',
+            path: 'scenarios',
             element: (
               <SuspenseWrapper>
-                <CounterfactualPage />
-              </SuspenseWrapper>
-            ),
-          },
-          {
-            path: 'pumping-detection',
-            element: (
-              <SuspenseWrapper>
-                <PumpingDetectionPage />
+                <PastasScenariosPage />
               </SuspenseWrapper>
             ),
           },
         ],
       },
       {
-        path: '/counterfactual',
-        element: <Navigate to="/lab/counterfactual" replace />,
-      },
-      {
-        path: '/pumping-detection',
-        element: <Navigate to="/lab/pumping-detection" replace />,
+        path: '/lab/*',
+        element: <Navigate to="/" replace />,
       },
       {
         path: '*',
