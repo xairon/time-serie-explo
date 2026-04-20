@@ -110,6 +110,27 @@ def fit_model(req: FitRequest) -> FitResponse:
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 
+    # Build additional stresses from CSV rows
+    extra_stresses = None
+    if req.additional_stresses:
+        extra_stresses = []
+        for s in req.additional_stresses:
+            dates = pd.to_datetime([r.date for r in s.csv_rows])
+            values = [r.value for r in s.csv_rows]
+            series = pd.Series(values, index=dates, name=s.name)
+            # Regularize to daily
+            series = series.sort_index()
+            series = series[~series.index.duplicated(keep="first")]
+            if len(series) > 1:
+                series = series.asfreq("D")
+                series = series.interpolate(method="linear", limit=7).ffill().bfill()
+            extra_stresses.append({
+                "type": s.type,
+                "name": s.name,
+                "rfunc": s.rfunc,
+                "series": series,
+            })
+
     try:
         result = run_fit(
             gwl=station.piezo,
@@ -125,6 +146,7 @@ def fit_model(req: FitRequest) -> FitResponse:
             dataset_id=req.code_bss,
             name=req.name,
             val_split=req.val_split,
+            additional_stresses=extra_stresses,
         )
     except ValidationError as exc:
         raise HTTPException(422, str(exc)) from exc

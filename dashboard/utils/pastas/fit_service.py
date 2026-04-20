@@ -191,6 +191,7 @@ def run_fit(
     dataset_id: str,
     name: Optional[str] = None,
     val_split: Optional[float] = None,
+    additional_stresses: Optional[list[dict[str, Any]]] = None,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -238,6 +239,7 @@ def run_fit(
         noise_type=noise_type,
         tmin=tmin,
         tmax=tmax,
+        additional_stresses=additional_stresses,
     )
 
     # Determine calibration/validation windows
@@ -333,6 +335,7 @@ def run_fit(
             "dataset_id": dataset_id,
             "tmin": str(tmin) if tmin is not None else "auto",
             "tmax": str(tmax) if tmax is not None else "auto",
+            "n_additional_stresses": len(additional_stresses) if additional_stresses else 0,
         }
         if val_split is not None:
             mlflow_params["val_split"] = str(val_split)

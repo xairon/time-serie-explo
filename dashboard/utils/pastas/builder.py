@@ -50,6 +50,7 @@ def build_model(
     noise_type: str,
     tmin: Optional[str],
     tmax: Optional[str],
+    additional_stresses=None,  # list of dicts with type, name, rfunc, series
 ) -> tuple[ps.Model, Optional[str], Optional[str]]:
     """Build an unsolved Pastas model.
 
@@ -75,5 +76,23 @@ def build_model(
     if noise_type != "none":
         noise_cls = NOISE_REGISTRY[noise_type]
         model.add_noisemodel(noise_cls())
+
+    if additional_stresses:
+        from dashboard.utils.pastas.stress_builder import (
+            build_well_stress, build_river_stress, build_custom_stress,
+        )
+        for stress in additional_stresses:
+            series = stress["series"]  # pd.Series, already constructed by the caller
+            name = stress["name"]
+            rfunc = stress.get("rfunc", "Exponential")
+            stype = stress["type"]
+
+            if stype == "well":
+                sm = build_well_stress(series, name, rfunc)
+            elif stype == "river":
+                sm = build_river_stress(series, name, rfunc)
+            else:
+                sm = build_custom_stress(series, name, rfunc)
+            model.add_stressmodel(sm)
 
     return model, tmin, tmax

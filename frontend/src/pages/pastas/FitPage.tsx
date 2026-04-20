@@ -7,6 +7,8 @@ import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
 import { DataPreviewPanel } from '@/components/pastas/DataPreviewPanel'
 import { StationMap } from '@/components/pastas/StationMap'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
+import { StressListEditor } from '@/components/pastas/StressListEditor'
+import type { StressConfig } from '@/components/pastas/StressListEditor'
 import type { PastasFitResponse } from '@/lib/types'
 
 export default function FitPage() {
@@ -30,6 +32,9 @@ export default function FitPage() {
   // Cal/val split
   const [valSplit, setValSplit] = useState<number | null>(null)
 
+  // Additional stresses
+  const [additionalStresses, setAdditionalStresses] = useState<StressConfig[]>([])
+
   // Result
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
 
@@ -48,6 +53,9 @@ export default function FitPage() {
         solver: { type: solver },
         name: modelName || undefined,
         val_split: valSplit ?? undefined,
+        additional_stresses: additionalStresses.length > 0
+          ? additionalStresses.filter(s => s.csv_rows.length > 0)
+          : undefined,
       })
       setFitResult(result)
     } catch {
@@ -84,6 +92,11 @@ export default function FitPage() {
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <CalValToggle valSplit={valSplit} onChange={setValSplit} />
+        </div>
+
+        <div className="bg-bg-card border border-white/5 rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-text-primary mb-3">Additional Stresses</h2>
+          <StressListEditor stresses={additionalStresses} onChange={setAdditionalStresses} />
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">

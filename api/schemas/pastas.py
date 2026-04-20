@@ -24,6 +24,16 @@ class SolverConfig(BaseModel):
     type: Literal["LeastSquares", "Lmfit"] = "LeastSquares"
     kwargs: dict[str, Any] = {}
 
+class AdditionalStressRow(BaseModel):
+    date: date
+    value: float
+
+class AdditionalStress(BaseModel):
+    type: Literal["well", "river", "custom"]
+    name: str
+    rfunc: str = "Exponential"
+    csv_rows: list[AdditionalStressRow]
+
 class FitRequest(BaseModel):
     code_bss: str
     tmin: Optional[date] = None
@@ -34,6 +44,7 @@ class FitRequest(BaseModel):
     solver: SolverConfig = SolverConfig()
     name: Optional[str] = None
     val_split: Optional[float] = None  # fraction for validation (e.g. 0.3 = last 30%)
+    additional_stresses: list[AdditionalStress] = []
 
 class TimeSeriesData(BaseModel):
     index: list[str]
