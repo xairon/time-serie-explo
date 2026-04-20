@@ -6,9 +6,10 @@ const COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e']
 interface Props {
   contributions: Record<string, TimeSeriesData>
   observed?: TimeSeriesData
+  simulated?: TimeSeriesData
 }
 
-export function ContributionsChart({ contributions, observed }: Props) {
+export function ContributionsChart({ contributions, observed, simulated }: Props) {
   const entries = Object.entries(contributions)
   if (entries.length === 0) return null
 
@@ -18,10 +19,21 @@ export function ContributionsChart({ contributions, observed }: Props) {
     name,
     type: 'scatter' as const,
     mode: 'lines' as const,
-    stackgroup: 'one',
-    line: { color: COLORS[i % COLORS.length], width: 0 },
-    fillcolor: COLORS[i % COLORS.length] + '40',
+    fill: 'tozeroy' as const,
+    line: { color: COLORS[i % COLORS.length], width: 1.5 },
+    fillcolor: COLORS[i % COLORS.length] + '30',
   }))
+
+  if (simulated) {
+    traces.push({
+      x: simulated.index,
+      y: simulated.values,
+      name: 'Simulated',
+      type: 'scatter' as const,
+      mode: 'lines' as const,
+      line: { color: '#22d3ee', width: 2 },
+    } as Plotly.Data)
+  }
 
   if (observed) {
     traces.push({
@@ -30,13 +42,13 @@ export function ContributionsChart({ contributions, observed }: Props) {
       name: 'Observed',
       type: 'scatter' as const,
       mode: 'lines' as const,
-      line: { color: '#ffffff', width: 1.5 },
+      line: { color: '#6b7280', width: 1 },
     } as Plotly.Data)
   }
 
   return (
     <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-      <div className="text-xs font-semibold text-text-secondary mb-1 px-1">Stress Decomposition</div>
+      <div className="text-xs font-semibold text-text-secondary mb-1 px-1">Décomposition des stress</div>
       <Plot
         data={traces}
         layout={{
@@ -44,10 +56,10 @@ export function ContributionsChart({ contributions, observed }: Props) {
           plot_bgcolor: 'transparent',
           font: { color: '#9ca3af', size: 10 },
           margin: { t: 10, r: 20, b: 30, l: 50 },
-          height: 220,
+          height: 250,
           xaxis: { gridcolor: 'rgba(255,255,255,0.03)' },
           yaxis: { title: { text: 'm' }, gridcolor: 'rgba(255,255,255,0.05)' },
-          legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
+          legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
         }}
         useResizeHandler
         className="w-full"

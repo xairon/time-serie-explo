@@ -161,57 +161,60 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Observed vs Simulated */}
+      {/* Observed vs Simulated — full period or side-by-side train/test */}
       {observed?.index?.length > 0 && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            Observed vs Simulated
-          </p>
-          <Plot
-            data={[
-              {
-                x: observed.index,
-                y: observed.values,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Observed',
-                line: { color: '#6b7280', width: 1 },
-              },
-              {
-                x: simulated.index,
-                y: simulated.values,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Simulated',
-                line: { color: '#22d3ee', width: 2 },
-              },
-            ]}
-            layout={{
-              ...chartLayout,
-              shapes:
-                cal_period && val_period
-                  ? [
-                      {
-                        type: 'line' as const,
-                        x0: cal_period[1],
-                        x1: cal_period[1],
-                        y0: 0,
-                        y1: 1,
-                        yref: 'paper' as const,
-                        line: { color: '#f97316', width: 2, dash: 'dash' as const },
-                      },
-                    ]
-                  : [],
-            }}
-            config={plotlyConfig}
-            style={{ width: '100%' }}
-          />
-        </div>
+        val_period && cal_period ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-bg-primary rounded-lg border border-accent-cyan/20 p-3">
+              <p className="text-xs font-semibold text-accent-cyan mb-2 uppercase tracking-wide">
+                Entraînement ({cal_period[0]?.slice(0,4)}–{cal_period[1]?.slice(0,4)})
+              </p>
+              <Plot
+                data={[
+                  { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                  { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
+                ]}
+                layout={{ ...chartLayout, xaxis: { range: [cal_period[0], cal_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
+                config={plotlyConfig}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div className="bg-bg-primary rounded-lg border border-orange-500/20 p-3">
+              <p className="text-xs font-semibold text-orange-400 mb-2 uppercase tracking-wide">
+                Test ({val_period[0]?.slice(0,4)}–{val_period[1]?.slice(0,4)})
+              </p>
+              <Plot
+                data={[
+                  { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                  { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#f97316', width: 2 } },
+                ]}
+                layout={{ ...chartLayout, xaxis: { range: [val_period[0], val_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
+                config={plotlyConfig}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
+            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
+              Observé vs Simulé
+            </p>
+            <Plot
+              data={[
+                { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
+              ]}
+              layout={chartLayout}
+              config={plotlyConfig}
+              style={{ width: '100%' }}
+            />
+          </div>
+        )
       )}
 
       {/* Stress contributions */}
       {contributions && Object.keys(contributions).length > 0 && (
-        <ContributionsChart contributions={contributions} observed={observed} />
+        <ContributionsChart contributions={contributions} observed={observed} simulated={simulated} />
       )}
 
       {/* Response function panel */}
