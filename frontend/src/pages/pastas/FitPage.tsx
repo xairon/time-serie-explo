@@ -162,12 +162,12 @@ export default function FitPage() {
           {fitMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Fitting…
+              Calibration en cours…
             </>
           ) : (
             <>
               <Play className="w-4 h-4" />
-              Fit Model
+              {fitResult ? 'Re-calibrer avec cette config' : 'Lancer la calibration'}
             </>
           )}
         </button>

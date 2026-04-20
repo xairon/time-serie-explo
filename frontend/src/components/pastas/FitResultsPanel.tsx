@@ -13,13 +13,109 @@ interface FitResultsPanelProps {
   result: PastasFitResponse
 }
 
-function MetricCard({ label, value }: { label: string; value: number | null | undefined }) {
-  const display =
-    value === null || value === undefined ? '—' : Number.isFinite(value) ? value.toFixed(4) : '—'
+// --- Metric definitions with tooltips + quality thresholds ---
+
+const METRIC_DEFS: Record<string, {
+  label: string
+  tooltip: string
+  format: (v: number) => string
+  quality: (v: number) => 'good' | 'ok' | 'poor'
+}> = {
+  nse: {
+    label: 'NSE',
+    tooltip: 'Nash-Sutcliffe Efficiency. 1 = parfait, 0 = aussi bon que la moyenne, <0 = pire.',
+    format: v => v.toFixed(3),
+    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+  },
+  kge: {
+    label: 'KGE',
+    tooltip: 'Kling-Gupta Efficiency. Combine corrélation, biais et variabilité. >0.7 = bon.',
+    format: v => v.toFixed(3),
+    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+  },
+  evp: {
+    label: 'EVP (%)',
+    tooltip: 'Explained Variance Percentage. 100% = variance totalement expliquée.',
+    format: v => v.toFixed(1),
+    quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor',
+  },
+  rmse: {
+    label: 'RMSE',
+    tooltip: 'Root Mean Square Error (m). Plus c\'est bas, mieux c\'est.',
+    format: v => v.toFixed(4),
+    quality: () => 'ok',
+  },
+  rsq: {
+    label: 'R²',
+    tooltip: 'Coefficient de détermination. 1 = corrélation parfaite.',
+    format: v => v.toFixed(3),
+    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+  },
+  mae: {
+    label: 'MAE',
+    tooltip: 'Mean Absolute Error (m). Erreur moyenne en valeur absolue.',
+    format: v => v.toFixed(4),
+    quality: () => 'ok',
+  },
+}
+
+const QUALITY_COLORS = {
+  good: 'text-green-400',
+  ok: 'text-accent-cyan',
+  poor: 'text-red-400',
+}
+
+const QUALITY_BORDERS = {
+  good: 'border-green-500/20',
+  ok: 'border-white/5',
+  poor: 'border-red-500/20',
+}
+
+function MetricCard({ metricKey, value }: { metricKey: string; value: number | null | undefined }) {
+  const def = METRIC_DEFS[metricKey]
+  if (!def) return null
+
+  const hasValue = value !== null && value !== undefined && Number.isFinite(value)
+  const quality = hasValue ? def.quality(value!) : 'ok'
+
   return (
-    <div className="bg-bg-primary rounded-lg p-3 border border-white/5">
-      <div className="text-xs text-text-muted mb-1">{label}</div>
-      <div className="text-lg font-semibold text-accent-cyan">{display}</div>
+    <div className={`bg-bg-primary rounded-lg p-3 border ${QUALITY_BORDERS[quality]}`} title={def.tooltip}>
+      <div className="text-xs text-text-muted mb-1 flex items-center gap-1">
+        {def.label}
+        <span className="cursor-help text-text-muted/50">ⓘ</span>
+      </div>
+      <div className={`text-lg font-semibold ${hasValue ? QUALITY_COLORS[quality] : 'text-text-muted'}`}>
+        {hasValue ? def.format(value!) : '—'}
+      </div>
+    </div>
+  )
+}
+
+function MetricGrid({ metrics, title, period, borderColor }: {
+  metrics: Record<string, number>
+  title?: string
+  period?: string[] | null
+  borderColor?: string
+}) {
+  return (
+    <div className={`bg-bg-primary/50 rounded-lg border ${borderColor ?? 'border-white/5'} p-3`}>
+      {title && (
+        <div className={`text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-2 ${
+          borderColor?.includes('orange') ? 'text-orange-400' : 'text-accent-cyan'
+        }`}>
+          {title}
+          {period && (
+            <span className="text-text-muted font-normal normal-case text-[10px]">
+              {period[0]} → {period[1]}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {['nse', 'kge', 'evp', 'rmse', 'rsq', 'mae'].map(k => (
+          <MetricCard key={k} metricKey={k} value={metrics[k]} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -37,104 +133,46 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
   const { data: signaturesData } = usePastasSignatures(showSignatures ? result.run_id : null)
 
   const {
-    metrics,
-    parameters,
-    observed,
-    simulated,
-    residuals,
-    contributions,
-    step_response,
-    block_response,
-    acf,
-    warnings,
-    validation_metrics,
-    cal_period,
-    val_period,
+    metrics, parameters, observed, simulated, residuals,
+    contributions, step_response, block_response,
+    warnings, validation_metrics, cal_period, val_period,
   } = result
 
-  const hasStepResponse =
-    step_response?.index?.length > 0 && step_response?.values?.length > 0
-  const acfLags = acf?.lags as number[] | undefined
-  const acfValues = acf?.acf as number[] | undefined
-  const hasAcf = Array.isArray(acfLags) && Array.isArray(acfValues) && acfLags.length > 0
+  const hasStepResponse = step_response?.index?.length > 0 && step_response?.values?.length > 0
 
   return (
     <div className="space-y-4">
+      {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Warnings</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
           {warnings.map((w, i) => (
-            <p key={i} className="text-xs text-yellow-300">
-              {w}
-            </p>
+            <p key={i} className="text-xs text-yellow-300">{w}</p>
           ))}
         </div>
       )}
 
-      {/* Metrics — side by side when validation is active */}
+      {/* Metrics */}
       {validation_metrics ? (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-bg-primary/50 rounded-lg border border-white/5 p-3">
-            <div className="text-xs font-semibold text-accent-cyan uppercase tracking-wide mb-2 flex items-center gap-2">
-              Entraînement
-              {cal_period && (
-                <span className="text-text-muted font-normal normal-case text-[10px]">
-                  {cal_period[0]} → {cal_period[1]}
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <MetricCard label="NSE" value={metrics['nse']} />
-              <MetricCard label="KGE" value={metrics['kge']} />
-              <MetricCard label="EVP (%)" value={metrics['evp']} />
-              <MetricCard label="RMSE" value={metrics['rmse']} />
-              <MetricCard label="R²" value={metrics['rsq']} />
-              <MetricCard label="MAE" value={metrics['mae']} />
-            </div>
-          </div>
-          <div className="bg-bg-primary/50 rounded-lg border border-orange-500/20 p-3">
-            <div className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-2 flex items-center gap-2">
-              Test (données inédites)
-              {val_period && (
-                <span className="text-text-muted font-normal normal-case text-[10px]">
-                  {val_period[0]} → {val_period[1]}
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <MetricCard label="NSE" value={validation_metrics['nse']} />
-              <MetricCard label="KGE" value={validation_metrics['kge']} />
-              <MetricCard label="EVP (%)" value={validation_metrics['evp']} />
-              <MetricCard label="RMSE" value={validation_metrics['rmse']} />
-              <MetricCard label="R²" value={validation_metrics['rsq']} />
-              <MetricCard label="MAE" value={validation_metrics['mae']} />
-            </div>
-          </div>
+          <MetricGrid metrics={metrics} title="Entraînement" period={cal_period} borderColor="border-accent-cyan/20" />
+          <MetricGrid metrics={validation_metrics} title="Test (données inédites)" period={val_period} borderColor="border-orange-500/20" />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
-          <MetricCard label="NSE" value={metrics['nse']} />
-          <MetricCard label="KGE" value={metrics['kge']} />
-          <MetricCard label="EVP (%)" value={metrics['evp']} />
-          <MetricCard label="RMSE" value={metrics['rmse']} />
-          <MetricCard label="R²" value={metrics['rsq']} />
-          <MetricCard label="MAE" value={metrics['mae']} />
-        </div>
+        <MetricGrid metrics={metrics} />
       )}
 
-      {/* Parameters table */}
+      {/* Parameters */}
       {parameters.length > 0 && (
         <div className="bg-bg-primary rounded-lg border border-white/5 overflow-hidden">
           <div className="px-3 py-2 border-b border-white/5">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-              Parameters
-            </span>
+            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Paramètres</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted border-b border-white/5">
-                  <th className="text-left px-3 py-2">Name</th>
+                  <th className="text-left px-3 py-2">Nom</th>
                   <th className="text-right px-3 py-2">Optimal</th>
                   <th className="text-right px-3 py-2">Std err</th>
                   <th className="text-right px-3 py-2">Initial</th>
@@ -144,15 +182,9 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                 {parameters.map((p) => (
                   <tr key={p.name} className="border-b border-white/5 hover:bg-bg-hover">
                     <td className="px-3 py-2 text-text-primary font-mono">{p.name}</td>
-                    <td className="px-3 py-2 text-right text-accent-cyan">
-                      {p.optimal.toFixed(6)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-text-secondary">
-                      {p.stderr !== null ? p.stderr.toFixed(6) : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right text-text-muted">
-                      {p.initial.toFixed(6)}
-                    </td>
+                    <td className="px-3 py-2 text-right text-accent-cyan">{p.optimal.toFixed(6)}</td>
+                    <td className="px-3 py-2 text-right text-text-secondary">{p.stderr !== null ? p.stderr.toFixed(6) : '—'}</td>
+                    <td className="px-3 py-2 text-right text-text-muted">{p.initial.toFixed(6)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -161,7 +193,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Observed vs Simulated — full period or side-by-side train/test */}
+      {/* Observed vs Simulated */}
       {observed?.index?.length > 0 && (
         val_period && cal_period ? (
           <div className="grid grid-cols-2 gap-3">
@@ -175,8 +207,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                   { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
                 ]}
                 layout={{ ...chartLayout, xaxis: { range: [cal_period[0], cal_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                config={plotlyConfig}
-                style={{ width: '100%' }}
+                config={plotlyConfig} style={{ width: '100%' }}
               />
             </div>
             <div className="bg-bg-primary rounded-lg border border-orange-500/20 p-3">
@@ -189,117 +220,131 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                   { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#f97316', width: 2 } },
                 ]}
                 layout={{ ...chartLayout, xaxis: { range: [val_period[0], val_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                config={plotlyConfig}
-                style={{ width: '100%' }}
+                config={plotlyConfig} style={{ width: '100%' }}
               />
             </div>
           </div>
         ) : (
           <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-              Observé vs Simulé
-            </p>
+            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Observé vs Simulé</p>
             <Plot
               data={[
                 { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
                 { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
               ]}
-              layout={chartLayout}
-              config={plotlyConfig}
-              style={{ width: '100%' }}
+              layout={chartLayout} config={plotlyConfig} style={{ width: '100%' }}
             />
           </div>
         )
       )}
 
-      {/* Stress contributions */}
+      {/* Scatter 1:1 plot */}
+      {observed?.values?.length > 0 && simulated?.values?.length > 0 && (
+        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
+          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
+            Scatter Obs vs Sim (1:1)
+          </p>
+          <Plot
+            data={[
+              {
+                x: observed.values, y: simulated.values,
+                type: 'scatter', mode: 'markers',
+                marker: { color: '#60a5fa', size: 3, opacity: 0.4 },
+                name: 'Points',
+              },
+              (() => {
+                const allVals = [...observed.values, ...simulated.values].filter(v => Number.isFinite(v))
+                const min = Math.min(...allVals)
+                const max = Math.max(...allVals)
+                return {
+                  x: [min, max], y: [min, max],
+                  type: 'scatter' as const, mode: 'lines' as const,
+                  line: { color: '#ef4444', dash: 'dash' as const, width: 1 },
+                  name: '1:1',
+                }
+              })(),
+            ]}
+            layout={{
+              ...chartLayout,
+              height: 250,
+              xaxis: { title: { text: 'Observé (m)' }, gridcolor: 'rgba(255,255,255,0.05)', scaleanchor: 'y' },
+              yaxis: { title: { text: 'Simulé (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+              showlegend: false,
+            }}
+            config={plotlyConfig} style={{ width: '100%' }}
+          />
+        </div>
+      )}
+
+      {/* Contributions */}
       {contributions && Object.keys(contributions).length > 0 && (
         <ContributionsChart contributions={contributions} />
       )}
 
-      {/* Response function panel */}
+      {/* Response function */}
       {(hasStepResponse || block_response?.values?.length > 0) && (
-        <ResponsePanel
-          stepResponse={step_response}
-          blockResponse={block_response}
-          parameters={parameters}
-          responseType=""
-        />
+        <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
       )}
 
-      {/* Residuals */}
-      {residuals?.index?.length > 0 && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            Residuals
-          </p>
-          <Plot
-            data={[
-              {
-                x: residuals.index,
-                y: residuals.values,
-                type: 'bar',
-                name: 'Residuals',
-                marker: { color: '#f59e0b', opacity: 0.7 },
-              },
-            ]}
-            layout={{ ...chartLayout, height: 160 }}
-            config={plotlyConfig}
-            style={{ width: '100%' }}
-          />
-        </div>
-      )}
+      {/* Residuals with annotations for |residual| > 2σ */}
+      {residuals?.index?.length > 0 && (() => {
+        const vals = residuals.values.filter(v => Number.isFinite(v))
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length
+        const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
+        const threshold = 2 * std
 
-      {/* ACF */}
-      {hasAcf && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            ACF (residuals)
-          </p>
-          <Plot
-            data={[
-              {
-                x: acfLags,
-                y: acfValues,
-                type: 'bar',
-                name: 'ACF',
-                marker: { color: '#34d399', opacity: 0.8 },
-              },
-            ]}
-            layout={{ ...chartLayout, height: 160 }}
-            config={plotlyConfig}
-            style={{ width: '100%' }}
-          />
-        </div>
-      )}
+        return (
+          <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
+            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
+              Résidus
+              <span className="font-normal normal-case text-text-muted ml-2">
+                (zones rouges = erreur &gt; 2σ)
+              </span>
+            </p>
+            <Plot
+              data={[
+                {
+                  x: residuals.index, y: residuals.values,
+                  type: 'bar', name: 'Résidus',
+                  marker: {
+                    color: residuals.values.map(v =>
+                      Math.abs(v) > threshold ? 'rgba(239,68,68,0.7)' : 'rgba(245,158,11,0.5)'
+                    ),
+                  },
+                },
+              ]}
+              layout={{
+                ...chartLayout, height: 160,
+                shapes: [
+                  { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                  { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                ],
+              }}
+              config={plotlyConfig} style={{ width: '100%' }}
+            />
+          </div>
+        )
+      })()}
 
-      {/* Detailed diagnostics (collapsible) */}
+      {/* Diagnostics (collapsible) */}
       <div>
-        <button
-          onClick={() => setShowDiagnostics(!showDiagnostics)}
-          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-        >
-          {showDiagnostics ? '▼ Hide diagnostics' : '▶ Show detailed diagnostics'}
+        <button onClick={() => setShowDiagnostics(!showDiagnostics)}
+          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+          {showDiagnostics ? '▼ Masquer les diagnostics' : '▶ Diagnostics détaillés'}
         </button>
         {showDiagnostics && diagnosticsData && (
-          <div className="mt-3">
-            <DiagnosticsPanel diagnostics={diagnosticsData} />
-          </div>
+          <div className="mt-3"><DiagnosticsPanel diagnostics={diagnosticsData} /></div>
         )}
       </div>
 
-      {/* Hydrological signatures (collapsible) */}
+      {/* Signatures (collapsible) */}
       <div>
-        <button
-          onClick={() => setShowSignatures(!showSignatures)}
-          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
-        >
-          {showSignatures ? '▼ Hide signatures' : '▶ Show hydrological signatures'}
+        <button onClick={() => setShowSignatures(!showSignatures)}
+          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
+          {showSignatures ? '▼ Masquer les signatures' : '▶ Signatures hydrologiques'}
         </button>
         {showSignatures && signaturesData && (
-          <div className="mt-3">
-            <SignaturesPanel signatures={signaturesData} />
-          </div>
+          <div className="mt-3"><SignaturesPanel signatures={signaturesData} /></div>
         )}
       </div>
     </div>
