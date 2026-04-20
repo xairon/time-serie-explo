@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -11,7 +12,7 @@ from api.cache import get_redis, pool as redis_pool
 from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
-from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, latent_space
+from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, latent_space, pastas
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,17 @@ async def lifespan(app: FastAPI):
             logger.info("Redis connection OK")
         except Exception as e:
             logger.warning("Redis ping failed: %s", e)
+
+    # Startup: warm latent-space cache in background (non-blocking)
+    async def _warmup_latent_space():
+        try:
+            from api.routers.latent_space import warmup_cache
+            async with brgm_engine.connect() as conn:
+                await warmup_cache(conn)
+        except Exception as exc:
+            logger.warning("Latent-space cache warmup failed: %s", exc)
+
+    asyncio.create_task(_warmup_latent_space())
 
     yield
 
@@ -65,6 +77,7 @@ app.include_router(counterfactual.router)
 app.include_router(db_introspection.router)
 app.include_router(pumping_detection.router)
 app.include_router(latent_space.router)
+app.include_router(pastas.router)
 
 
 def _check_gpu() -> dict:
