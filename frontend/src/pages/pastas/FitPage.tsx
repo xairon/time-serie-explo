@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, Play } from 'lucide-react'
 import { usePastasFit, usePastasPreview } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
@@ -15,10 +16,11 @@ import type { PastasFitResponse } from '@/lib/types'
 const DEMO_STATION = '01584X0023/LV3'
 
 export default function FitPage() {
+  const [searchParams] = useSearchParams()
   const fitMutation = usePastasFit()
 
-  // Station picker state
-  const [codeBss, setCodeBss] = useState('')
+  // Station picker state — pre-fill from URL query param if present
+  const [codeBss, setCodeBss] = useState(searchParams.get('station') ?? '')
 
   // Preview
   const { data: preview, isLoading: previewLoading } = usePastasPreview(codeBss || null)

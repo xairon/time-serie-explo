@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ExternalLink, Maximize2, Minimize2, Zap, X } from 'lucide-react'
+import { ExternalLink, Maximize2, Minimize2, Zap, X, Waves, Brain } from 'lucide-react'
 
 const OBSERVATORY_URL = `${window.location.protocol}//${window.location.hostname}:49510?active_only=true`
 
@@ -36,10 +36,20 @@ export default function ObservatoryPage() {
     return () => window.removeEventListener('message', handleMessage)
   }, [handleMessage])
 
-  const goToImport = () => {
+  const [analyzeMenuOpen, setAnalyzeMenuOpen] = useState(false)
+
+  const goToPastas = () => {
+    if (selectedStation) {
+      navigate(`/pastas/fit?station=${encodeURIComponent(selectedStation.code)}`)
+    }
+    setAnalyzeMenuOpen(false)
+  }
+
+  const goToAI = () => {
     if (selectedStation) {
       navigate(`/data?station=${encodeURIComponent(selectedStation.code)}`)
     }
+    setAnalyzeMenuOpen(false)
   }
 
   return (
@@ -54,13 +64,35 @@ export default function ObservatoryPage() {
           {selectedStation && (
             <div className="flex items-center gap-2 bg-accent-cyan/10 rounded-lg px-3 py-1">
               <span className="text-xs font-mono text-accent-cyan">{selectedStation.code}</span>
-              <button
-                onClick={goToImport}
-                className="flex items-center gap-1 text-xs font-medium text-white bg-accent-cyan/80 hover:bg-accent-cyan px-2 py-0.5 rounded transition-colors"
-              >
-                <Zap className="w-3 h-3" />
-                Import & Analyze
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setAnalyzeMenuOpen(!analyzeMenuOpen)}
+                  className="flex items-center gap-1 text-xs font-medium text-white bg-accent-cyan/80 hover:bg-accent-cyan px-2 py-0.5 rounded transition-colors"
+                >
+                  <Zap className="w-3 h-3" />
+                  Analyser
+                </button>
+                {analyzeMenuOpen && (
+                  <div className="absolute top-full right-0 mt-1 bg-bg-card border border-white/10 rounded-lg shadow-xl z-50 py-1 w-52">
+                    <button onClick={goToPastas}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors">
+                      <Waves className="w-4 h-4 text-accent-cyan" />
+                      <div className="text-left">
+                        <div className="font-medium">Pastas (physique)</div>
+                        <div className="text-text-muted text-[10px]">Modèle TFN — fonction de transfert</div>
+                      </div>
+                    </button>
+                    <button onClick={goToAI}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors">
+                      <Brain className="w-4 h-4 text-purple-400" />
+                      <div className="text-left">
+                        <div className="font-medium">IA (deep learning)</div>
+                        <div className="text-text-muted text-[10px]">TFT, LSTM, etc. — import + training</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button onClick={() => setSelectedStation(null)} className="text-text-secondary hover:text-text-primary">
                 <X className="w-3 h-3" />
               </button>
