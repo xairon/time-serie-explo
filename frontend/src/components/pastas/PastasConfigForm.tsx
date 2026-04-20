@@ -1,5 +1,25 @@
 import { usePastasOptions } from '@/hooks/usePastas'
 
+const DESCRIPTIONS: Record<string, Record<string, string>> = {
+  recharge: {
+    Linear: 'P − f·E : excès de précipitation linéaire (von Asmuth 2002)',
+    FlexModel: 'Bilan hydrique sol complet : zone racinaire, interception, neige optionnel',
+  },
+  response: {
+    Gamma: '3 paramètres (A, a, n) — réponse retardée, le plus courant',
+    Exponential: '2 paramètres (A, a) — décroissance simple, réponse instantanée',
+    Hantush: '3 paramètres — puits en aquifère confiné, inclut le leaky factor',
+  },
+  noise: {
+    ArNoiseModel: 'AR(1) — corrige l\'autocorrélation des résidus (recommandé)',
+    none: 'Pas de modèle de bruit — résidus bruts',
+  },
+  solver: {
+    LeastSquares: 'Moindres carrés (scipy) — rapide, déterministe, par défaut',
+    Lmfit: 'Levenberg-Marquardt (lmfit) — meilleure gestion des bornes',
+  },
+}
+
 interface PastasConfigFormProps {
   recharge: string
   onRechargeChange: (v: string) => void
@@ -16,18 +36,12 @@ interface PastasConfigFormProps {
 }
 
 export function PastasConfigForm({
-  recharge,
-  onRechargeChange,
-  response,
-  onResponseChange,
-  noise,
-  onNoiseChange,
-  solver,
-  onSolverChange,
-  tmin,
-  onTminChange,
-  tmax,
-  onTmaxChange,
+  recharge, onRechargeChange,
+  response, onResponseChange,
+  noise, onNoiseChange,
+  solver, onSolverChange,
+  tmin, onTminChange,
+  tmax, onTmaxChange,
 }: PastasConfigFormProps) {
   const { data: options, isLoading } = usePastasOptions()
 
@@ -36,80 +50,56 @@ export function PastasConfigForm({
 
   return (
     <div className="space-y-4">
+      <ConfigSelect
+        label="Recharge model"
+        tooltip="Comment la recharge (P − E) est calculée avant convolution"
+        value={recharge}
+        onChange={onRechargeChange}
+        options={options?.recharge ?? ['Linear']}
+        descriptions={DESCRIPTIONS.recharge}
+        className={selectClass}
+        disabled={isLoading}
+      />
+
+      <ConfigSelect
+        label="Response function"
+        tooltip="Forme de la réponse impulsionnelle de l'aquifère au stress"
+        value={response}
+        onChange={onResponseChange}
+        options={options?.response ?? ['Gamma']}
+        descriptions={DESCRIPTIONS.response}
+        className={selectClass}
+        disabled={isLoading}
+      />
+
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">
-            Recharge model
-          </label>
-          <select
-            value={recharge}
-            onChange={(e) => onRechargeChange(e.target.value)}
-            className={selectClass}
-            disabled={isLoading}
-          >
-            {(options?.recharge ?? ['Linear']).map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ConfigSelect
+          label="Noise model"
+          tooltip="Modèle stochastique sur les résidus"
+          value={noise}
+          onChange={onNoiseChange}
+          options={options?.noise ?? ['ArNoiseModel', 'none']}
+          descriptions={DESCRIPTIONS.noise}
+          className={selectClass}
+          disabled={isLoading}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">
-            Response function
-          </label>
-          <select
-            value={response}
-            onChange={(e) => onResponseChange(e.target.value)}
-            className={selectClass}
-            disabled={isLoading}
-          >
-            {(options?.response ?? ['Gamma']).map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">Noise model</label>
-          <select
-            value={noise}
-            onChange={(e) => onNoiseChange(e.target.value)}
-            className={selectClass}
-            disabled={isLoading}
-          >
-            {(options?.noise ?? ['ArNoiseModel', 'none']).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">Solver</label>
-          <select
-            value={solver}
-            onChange={(e) => onSolverChange(e.target.value)}
-            className={selectClass}
-            disabled={isLoading}
-          >
-            {(options?.solver ?? ['LeastSquares']).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ConfigSelect
+          label="Solver"
+          tooltip="Algorithme d'optimisation des paramètres"
+          value={solver}
+          onChange={onSolverChange}
+          options={options?.solver ?? ['LeastSquares']}
+          descriptions={DESCRIPTIONS.solver}
+          className={selectClass}
+          disabled={isLoading}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Calibration start (tmin)
+            Calibration start
           </label>
           <input
             type="date"
@@ -117,10 +107,11 @@ export function PastasConfigForm({
             onChange={(e) => onTminChange(e.target.value)}
             className={selectClass}
           />
+          <p className="text-xs text-text-muted mt-1">Vide = début des données</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Calibration end (tmax)
+            Calibration end
           </label>
           <input
             type="date"
@@ -128,8 +119,48 @@ export function PastasConfigForm({
             onChange={(e) => onTmaxChange(e.target.value)}
             className={selectClass}
           />
+          <p className="text-xs text-text-muted mt-1">Vide = fin des données</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ConfigSelect({
+  label, tooltip, value, onChange, options, descriptions, className, disabled,
+}: {
+  label: string
+  tooltip: string
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+  descriptions: Record<string, string>
+  className: string
+  disabled: boolean
+}) {
+  const desc = descriptions[value]
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-text-secondary mb-1" title={tooltip}>
+        {label}
+        <span className="ml-1 text-text-muted cursor-help" title={tooltip}>ⓘ</span>
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={className}
+        disabled={disabled}
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt} title={descriptions[opt] ?? ''}>
+            {opt}
+          </option>
+        ))}
+      </select>
+      {desc && (
+        <p className="text-xs text-text-muted mt-1">{desc}</p>
+      )}
     </div>
   )
 }

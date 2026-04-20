@@ -34,25 +34,37 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
     """
     engine = create_engine(db_url)
     try:
-        query = text("""
-            SELECT date, niveau_nappe_eau, total_precipitation, potential_evaporation,
-                   nom_commune, code_departement, nom_departement,
-                   station_latitude, station_longitude, altitude_station
+        # 1. Piezo from hubeau_daily_chroniques (irregular, Pastas handles it)
+        piezo_query = text("""
+            SELECT date, niveau_nappe_eau
             FROM gold.hubeau_daily_chroniques
-            WHERE code_bss = :code_bss
+            WHERE code_bss = :code_bss AND niveau_nappe_eau IS NOT NULL
             ORDER BY date
         """)
 
+        # 2. Station metadata + ERA5 grid point from mapping table
+        meta_query = text("""
+            SELECT era5_latitude, era5_longitude,
+                   station_latitude, station_longitude, altitude_station,
+                   nom_commune, code_departement, nom_departement
+            FROM gold.int_station_era5_mapping
+            WHERE code_bss = :code_bss
+            LIMIT 1
+        """)
+
         with engine.connect() as conn:
-            df = pd.read_sql(query, conn, params={"code_bss": code_bss}, parse_dates=["date"])
+            piezo_df = pd.read_sql(piezo_query, conn, params={"code_bss": code_bss}, parse_dates=["date"])
+            meta_df = pd.read_sql(meta_query, conn, params={"code_bss": code_bss})
 
-        if df.empty:
-            raise ValueError(f"No data found for station {code_bss}")
+        if piezo_df.empty:
+            raise ValueError(f"No piezometric data for station {code_bss}")
+        if meta_df.empty:
+            raise ValueError(f"No ERA5 mapping for station {code_bss}")
 
-        df = df.set_index("date").sort_index()
+        meta_row = meta_df.iloc[0]
+        era5_lat = float(meta_row["era5_latitude"])
+        era5_lon = float(meta_row["era5_longitude"])
 
-        # Extract metadata from first row
-        meta_row = df.iloc[0]
         metadata = {
             "nom_commune": str(meta_row.get("nom_commune", "")),
             "code_departement": str(meta_row.get("code_departement", "")),
@@ -62,22 +74,44 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
             "altitude": float(meta_row["altitude_station"]) if pd.notna(meta_row.get("altitude_station")) else None,
         }
 
-        # Resample to daily — Pastas requires regular time steps.
-        # Piezo is irregular (measurement days only), so we keep it as-is
-        # (Pastas handles irregular oseries). Stresses must be regular.
-        df = df[~df.index.duplicated(keep="first")]
+        # 3. ERA5 climate data — continuous daily from dedicated table
+        era5_query = text("""
+            SELECT era5_date AS date, total_precipitation, potential_evaporation
+            FROM gold.int_era5_for_all_stations
+            WHERE latitude = :lat AND longitude = :lon
+            ORDER BY era5_date
+        """)
 
-        piezo = df["niveau_nappe_eau"].dropna()
+        with engine.connect() as conn:
+            era5_df = pd.read_sql(era5_query, conn, params={"lat": era5_lat, "lon": era5_lon}, parse_dates=["date"])
+
+        if era5_df.empty:
+            raise ValueError(f"No ERA5 data for station {code_bss} (grid {era5_lat}, {era5_lon})")
+
+        # Piezo: irregular index, Pastas handles it natively
+        piezo = piezo_df.set_index("date")["niveau_nappe_eau"].sort_index()
+        piezo = piezo[~piezo.index.duplicated(keep="first")]
         piezo.name = "piezo"
 
-        # Stresses: resample to daily, forward-fill short gaps, drop remaining NaN
-        precip = df["total_precipitation"].asfreq("D").interpolate(method="linear", limit=3)
-        precip = precip.dropna()
-        precip.name = "precip"
+        # ERA5 stresses: should be daily and continuous
+        era5_df = era5_df.set_index("date").sort_index()
+        era5_df = era5_df[~era5_df.index.duplicated(keep="first")]
 
-        evap = df["potential_evaporation"].asfreq("D").interpolate(method="linear", limit=3)
-        evap = evap.dropna()
+        precip = era5_df["total_precipitation"]
+        precip.name = "precip"
+        # Ensure positive values (ERA5 precip is always >= 0)
+        precip = precip.clip(lower=0)
+
+        evap = era5_df["potential_evaporation"]
         evap.name = "evap"
+        # ERA5 potential_evaporation is negative (energy convention) — flip sign
+        evap = (-evap).clip(lower=0)
+
+        # Set freq explicitly if pandas can't infer it
+        if precip.index.freq is None:
+            precip = precip.asfreq("D")
+        if evap.index.freq is None:
+            evap = evap.asfreq("D")
 
         return StationSeries(
             code_bss=code_bss,
