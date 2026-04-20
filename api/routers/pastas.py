@@ -31,6 +31,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/pastas", tags=["pastas"])
 
 
+def _clean_tmin_tmax(params: dict) -> tuple[Optional[str], Optional[str]]:
+    """Extract tmin/tmax from MLflow params, treating 'auto'/empty as None."""
+    tmin = params.get("tmin")
+    tmax = params.get("tmax")
+    if tmin in (None, "", "auto", "None"):
+        tmin = None
+    if tmax in (None, "", "auto", "None"):
+        tmax = None
+    return tmin, tmax
+
+
 def _brgm_url() -> str:
     return (
         f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
@@ -312,8 +323,7 @@ def get_signatures(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin = run.data.params.get("tmin")
-    tmax = run.data.params.get("tmax")
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
 
     try:
         obs = model.observations(tmin=tmin, tmax=tmax)
@@ -346,8 +356,7 @@ def get_diagnostics(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin = run.data.params.get("tmin")
-    tmax = run.data.params.get("tmax")
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
 
     residuals = model.residuals(tmin=tmin, tmax=tmax)
     return compute_diagnostics(residuals)

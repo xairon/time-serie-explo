@@ -71,47 +71,54 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Training metrics */}
-      <div>
-        {(cal_period || validation_metrics) && (
-          <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
-            Entraînement
-            {cal_period && (
-              <span className="text-text-muted font-normal normal-case">
-                ({cal_period[0]} → {cal_period[1]})
-              </span>
-            )}
+      {/* Metrics — side by side when validation is active */}
+      {validation_metrics ? (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-bg-primary/50 rounded-lg border border-white/5 p-3">
+            <div className="text-xs font-semibold text-accent-cyan uppercase tracking-wide mb-2 flex items-center gap-2">
+              Entraînement
+              {cal_period && (
+                <span className="text-text-muted font-normal normal-case text-[10px]">
+                  {cal_period[0]} → {cal_period[1]}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <MetricCard label="NSE" value={metrics['nse']} />
+              <MetricCard label="KGE" value={metrics['kge']} />
+              <MetricCard label="EVP (%)" value={metrics['evp']} />
+              <MetricCard label="RMSE" value={metrics['rmse']} />
+              <MetricCard label="R²" value={metrics['rsq']} />
+              <MetricCard label="Ljung-Box p" value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']} />
+            </div>
           </div>
-        )}
+          <div className="bg-bg-primary/50 rounded-lg border border-orange-500/20 p-3">
+            <div className="text-xs font-semibold text-orange-400 uppercase tracking-wide mb-2 flex items-center gap-2">
+              Test (données inédites)
+              {val_period && (
+                <span className="text-text-muted font-normal normal-case text-[10px]">
+                  {val_period[0]} → {val_period[1]}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <MetricCard label="NSE" value={validation_metrics['nse']} />
+              <MetricCard label="KGE" value={validation_metrics['kge']} />
+              <MetricCard label="EVP (%)" value={validation_metrics['evp']} />
+              <MetricCard label="RMSE" value={validation_metrics['rmse']} />
+              <MetricCard label="R²" value={validation_metrics['rsq']} />
+              <MetricCard label="MAE" value={validation_metrics['mae']} />
+            </div>
+          </div>
+        </div>
+      ) : (
         <div className="grid grid-cols-3 gap-3">
           <MetricCard label="NSE" value={metrics['nse']} />
           <MetricCard label="KGE" value={metrics['kge']} />
           <MetricCard label="EVP (%)" value={metrics['evp']} />
           <MetricCard label="RMSE" value={metrics['rmse']} />
           <MetricCard label="R²" value={metrics['rsq']} />
-          <MetricCard
-            label="Ljung-Box p"
-            value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']}
-          />
-        </div>
-      </div>
-
-      {/* Test metrics (out-of-sample) */}
-      {validation_metrics && (
-        <div>
-          <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
-            Test (données inédites)
-            {val_period && (
-              <span className="text-text-muted font-normal normal-case">
-                ({val_period[0]} → {val_period[1]})
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <MetricCard label="NSE (val)" value={validation_metrics['nse']} />
-            <MetricCard label="KGE (val)" value={validation_metrics['kge']} />
-            <MetricCard label="RMSE (val)" value={validation_metrics['rmse']} />
-          </div>
+          <MetricCard label="Ljung-Box p" value={metrics['ljung_box_pvalue'] ?? metrics['ljung_box_p']} />
         </div>
       )}
 

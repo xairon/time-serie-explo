@@ -20,6 +20,10 @@ def compare_models(run_ids: list[str]) -> list[dict[str, Any]]:
 
         tmin = run.data.params.get("tmin")
         tmax = run.data.params.get("tmax")
+        if tmin in (None, "", "auto", "None"):
+            tmin = None
+        if tmax in (None, "", "auto", "None"):
+            tmax = None
 
         sim = model.simulate(tmin=tmin, tmax=tmax)
         obs = model.observations(tmin=tmin, tmax=tmax)
