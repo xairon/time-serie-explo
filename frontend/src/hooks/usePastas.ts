@@ -58,3 +58,11 @@ export function usePastasPreview(codeBss: string | null) {
     staleTime: 10 * 60 * 1000,
   })
 }
+
+export function usePastasDiagnostics(runId: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'diagnostics', runId],
+    queryFn: () => api.pastas.diagnostics(runId!),
+    enabled: !!runId,
+  })
+}

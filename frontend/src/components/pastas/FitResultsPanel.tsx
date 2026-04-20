@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
+import { usePastasDiagnostics } from '@/hooks/usePastas'
+import { DiagnosticsPanel } from './DiagnosticsPanel'
 
 interface FitResultsPanelProps {
   result: PastasFitResponse
@@ -26,6 +29,9 @@ const chartLayout: Partial<Layout> = {
 }
 
 export function FitResultsPanel({ result }: FitResultsPanelProps) {
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const { data: diagnosticsData } = usePastasDiagnostics(showDiagnostics ? result.run_id : null)
+
   const {
     metrics,
     parameters,
@@ -265,6 +271,21 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
           />
         </div>
       )}
+
+      {/* Detailed diagnostics (collapsible) */}
+      <div>
+        <button
+          onClick={() => setShowDiagnostics(!showDiagnostics)}
+          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+        >
+          {showDiagnostics ? '▼ Hide diagnostics' : '▶ Show detailed diagnostics'}
+        </button>
+        {showDiagnostics && diagnosticsData && (
+          <div className="mt-3">
+            <DiagnosticsPanel diagnostics={diagnosticsData} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

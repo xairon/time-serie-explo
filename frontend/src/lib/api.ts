@@ -313,6 +313,7 @@ export const api = {
       tmax: string
       modifications: Array<Record<string, unknown>>
     }) => postJson<PastasScenarioResponse>('/pastas/simulate', body, 120_000),
+    diagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/diagnostics`),
   },
 
   counterfactual: {

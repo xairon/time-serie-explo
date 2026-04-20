@@ -267,6 +267,31 @@ def get_model(run_id: str) -> FitResponse:
 
 
 # ---------------------------------------------------------------------------
+# GET /models/{run_id}/diagnostics
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/diagnostics")
+def get_diagnostics(run_id: str):
+    """Compute full diagnostic statistics on residuals of a stored Pastas model."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.diagnostics import compute_diagnostics
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin = run.data.params.get("tmin")
+    tmax = run.data.params.get("tmax")
+
+    residuals = model.residuals(tmin=tmin, tmax=tmax)
+    return compute_diagnostics(residuals)
+
+
+# ---------------------------------------------------------------------------
 # DELETE /models/{run_id}
 # ---------------------------------------------------------------------------
 
