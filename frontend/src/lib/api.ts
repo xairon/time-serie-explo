@@ -301,12 +301,7 @@ export const api = {
       solver?: { type: string; kwargs?: Record<string, unknown> }
       name?: string
       val_split?: number
-      additional_stresses?: Array<{
-        type: 'well' | 'river' | 'custom'
-        name: string
-        rfunc: string
-        csv_rows: Array<{ date: string; value: number }>
-      }>
+      include_temp?: boolean
     }) => postJson<PastasFitResponse>('/pastas/fit', body, 120_000),
     models: (codeBss?: string) => {
       const params = codeBss ? `?code_bss=${codeBss}` : ''

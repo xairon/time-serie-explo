@@ -138,26 +138,15 @@ def fit_model(req: FitRequest) -> FitResponse:
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 
-    # Build additional stresses from CSV rows
+    # Build additional stresses
     extra_stresses = None
-    if req.additional_stresses:
-        extra_stresses = []
-        for s in req.additional_stresses:
-            dates = pd.to_datetime([r.date for r in s.csv_rows])
-            values = [r.value for r in s.csv_rows]
-            series = pd.Series(values, index=dates, name=s.name)
-            # Regularize to daily
-            series = series.sort_index()
-            series = series[~series.index.duplicated(keep="first")]
-            if len(series) > 1:
-                series = series.asfreq("D")
-                series = series.interpolate(method="linear", limit=7).ffill().bfill()
-            extra_stresses.append({
-                "type": s.type,
-                "name": s.name,
-                "rfunc": s.rfunc,
-                "series": series,
-            })
+    if req.include_temp:
+        extra_stresses = [{
+            "type": "custom",
+            "name": "temperature",
+            "rfunc": "Gamma",
+            "series": station.temp,
+        }]
 
     try:
         result = run_fit(

@@ -18,6 +18,7 @@ class StationSeries:
     piezo: pd.Series      # niveau_nappe_eau, index=date
     precip: pd.Series     # total_precipitation (ERA5), index=date, freq='D'
     evap: pd.Series       # potential_evaporation (ERA5), index=date, freq='D'
+    temp: pd.Series       # temperature_2m (ERA5), index=date, freq='D'
     metadata: dict        # nom_commune, departement, lat/lon, etc.
 
 
@@ -94,25 +95,29 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
             logger.info("Station %s: using inline ERA5 (coverage %.0f%%)", code_bss, coverage * 100)
             precip = _regularize(raw_precip.clip(lower=0))
             evap = _regularize((-raw_evap).clip(lower=0))
+            raw_temp = df["temperature_2m"].dropna()
+            temp = _regularize(raw_temp) if len(raw_temp) > 1 else raw_temp
         else:
             logger.info("Station %s: inline coverage %.0f%%, falling back to ERA5 table", code_bss, coverage * 100)
-            precip, evap = _load_era5_fallback(code_bss, engine)
+            precip, evap, temp = _load_era5_fallback(code_bss, engine)
 
         precip.name = "precip"
         evap.name = "evap"
+        temp.name = "temp"
 
         return StationSeries(
             code_bss=code_bss,
             piezo=piezo,
             precip=precip,
             evap=evap,
+            temp=temp,
             metadata=metadata,
         )
     finally:
         engine.dispose()
 
 
-def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series]:
+def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Load continuous ERA5 data via the station-grid mapping table."""
     meta_query = text("""
         SELECT era5_latitude, era5_longitude
@@ -131,7 +136,7 @@ def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series]:
     era5_lon = float(meta_df.iloc[0]["era5_longitude"])
 
     era5_query = text("""
-        SELECT era5_date AS date, total_precipitation, potential_evaporation
+        SELECT era5_date AS date, total_precipitation, potential_evaporation, temperature_2m
         FROM gold.int_era5_for_all_stations
         WHERE latitude = :lat AND longitude = :lon
         ORDER BY era5_date
@@ -148,10 +153,10 @@ def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series]:
 
     precip = era5_df["total_precipitation"].clip(lower=0)
     evap = (-era5_df["potential_evaporation"]).clip(lower=0)
+    temp = era5_df["temperature_2m"]
 
-    if precip.index.freq is None:
-        precip = precip.asfreq("D")
-    if evap.index.freq is None:
-        evap = evap.asfreq("D")
+    for s in (precip, evap, temp):
+        if s.index.freq is None:
+            s = s.asfreq("D")
 
-    return precip, evap
+    return precip, evap, temp

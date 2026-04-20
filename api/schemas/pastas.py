@@ -60,8 +60,8 @@ class FitRequest(BaseModel):
     noise: NoiseConfig = NoiseConfig()
     solver: SolverConfig = SolverConfig()
     name: Optional[str] = None
-    val_split: Optional[float] = None  # fraction for validation (e.g. 0.3 = last 30%)
-    additional_stresses: list[AdditionalStress] = []
+    val_split: Optional[float] = None
+    include_temp: bool = False
 
 class TimeSeriesData(BaseModel):
     index: list[str]

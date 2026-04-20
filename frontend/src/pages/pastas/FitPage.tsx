@@ -8,8 +8,6 @@ import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
 import { DataPreviewPanel } from '@/components/pastas/DataPreviewPanel'
 import { StationMap } from '@/components/pastas/StationMap'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
-import { StressListEditor } from '@/components/pastas/StressListEditor'
-import type { StressConfig } from '@/components/pastas/StressListEditor'
 import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 import type { PastasFitResponse } from '@/lib/types'
 
@@ -37,8 +35,8 @@ export default function FitPage() {
   // Cal/val split
   const [valSplit, setValSplit] = useState<number | null>(null)
 
-  // Additional stresses
-  const [additionalStresses, setAdditionalStresses] = useState<StressConfig[]>([])
+  // Temperature stress
+  const [includeTemp, setIncludeTemp] = useState(false)
 
   // Result
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
@@ -71,9 +69,7 @@ export default function FitPage() {
         solver: { type: solver },
         name: modelName || undefined,
         val_split: valSplit ?? undefined,
-        additional_stresses: additionalStresses.length > 0
-          ? additionalStresses.filter(s => s.csv_rows.length > 0)
-          : undefined,
+        include_temp: includeTemp || undefined,
       })
       setFitResult(result)
     } catch {
@@ -137,13 +133,23 @@ export default function FitPage() {
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">Additional Stresses</h2>
-          <StressListEditor stresses={additionalStresses} onChange={setAdditionalStresses} />
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeTemp}
+              onChange={e => setIncludeTemp(e.target.checked)}
+              className="accent-accent-cyan w-4 h-4"
+            />
+            <div>
+              <span className="text-sm font-medium text-text-secondary">Inclure la température</span>
+              <p className="text-xs text-text-muted">Ajoute la température ERA5 (°C) comme stress supplémentaire. Peut capturer des effets non-linéaires que l'ETP seule ne modélise pas.</p>
+            </div>
+          </label>
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Run name (optional)
+            Nom du run (optionnel)
           </label>
           <input
             type="text"
