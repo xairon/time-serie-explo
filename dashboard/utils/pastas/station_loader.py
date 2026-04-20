@@ -62,12 +62,21 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
             "altitude": float(meta_row["altitude_station"]) if pd.notna(meta_row.get("altitude_station")) else None,
         }
 
-        piezo = df["niveau_nappe_eau"].dropna()
-        precip = df["total_precipitation"].dropna()
-        evap = df["potential_evaporation"].dropna()
+        # Resample to daily — Pastas requires regular time steps.
+        # Piezo is irregular (measurement days only), so we keep it as-is
+        # (Pastas handles irregular oseries). Stresses must be regular.
+        df = df[~df.index.duplicated(keep="first")]
 
+        piezo = df["niveau_nappe_eau"].dropna()
         piezo.name = "piezo"
+
+        # Stresses: resample to daily, forward-fill short gaps, drop remaining NaN
+        precip = df["total_precipitation"].asfreq("D").interpolate(method="linear", limit=3)
+        precip = precip.dropna()
         precip.name = "precip"
+
+        evap = df["potential_evaporation"].asfreq("D").interpolate(method="linear", limit=3)
+        evap = evap.dropna()
         evap.name = "evap"
 
         return StationSeries(
