@@ -337,6 +337,7 @@ def run_fit(
             "tmin": str(tmin) if tmin is not None else "auto",
             "tmax": str(tmax) if tmax is not None else "auto",
             "n_additional_stresses": len(additional_stresses) if additional_stresses else 0,
+            "include_temp": str(bool(additional_stresses and any(s.get("name") == "temperature" for s in additional_stresses))),
         }
         if val_split is not None:
             mlflow_params["val_split"] = str(val_split)
