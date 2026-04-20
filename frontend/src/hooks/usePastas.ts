@@ -66,3 +66,11 @@ export function usePastasDiagnostics(runId: string | null) {
     enabled: !!runId,
   })
 }
+
+export function usePastasSignatures(runId: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'signatures', runId],
+    queryFn: () => api.pastas.signatures(runId!),
+    enabled: !!runId,
+  })
+}

@@ -4,9 +4,10 @@ import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
-import { usePastasDiagnostics } from '@/hooks/usePastas'
+import { usePastasDiagnostics, usePastasSignatures } from '@/hooks/usePastas'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
+import { SignaturesPanel } from './SignaturesPanel'
 
 interface FitResultsPanelProps {
   result: PastasFitResponse
@@ -31,7 +32,9 @@ const chartLayout: Partial<Layout> = {
 
 export function FitResultsPanel({ result }: FitResultsPanelProps) {
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [showSignatures, setShowSignatures] = useState(false)
   const { data: diagnosticsData } = usePastasDiagnostics(showDiagnostics ? result.run_id : null)
+  const { data: signaturesData } = usePastasSignatures(showSignatures ? result.run_id : null)
 
   const {
     metrics,
@@ -271,6 +274,21 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         {showDiagnostics && diagnosticsData && (
           <div className="mt-3">
             <DiagnosticsPanel diagnostics={diagnosticsData} />
+          </div>
+        )}
+      </div>
+
+      {/* Hydrological signatures (collapsible) */}
+      <div>
+        <button
+          onClick={() => setShowSignatures(!showSignatures)}
+          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors"
+        >
+          {showSignatures ? '▼ Hide signatures' : '▶ Show hydrological signatures'}
+        </button>
+        {showSignatures && signaturesData && (
+          <div className="mt-3">
+            <SignaturesPanel signatures={signaturesData} />
           </div>
         )}
       </div>

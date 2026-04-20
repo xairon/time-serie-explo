@@ -271,6 +271,40 @@ def get_model(run_id: str) -> FitResponse:
 
 
 # ---------------------------------------------------------------------------
+# GET /models/{run_id}/signatures
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/signatures")
+def get_signatures(run_id: str):
+    """Compute hydrological signatures (observed vs simulated) for a stored Pastas model."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.signatures import compute_signatures
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin = run.data.params.get("tmin")
+    tmax = run.data.params.get("tmax")
+
+    try:
+        obs = model.observations(tmin=tmin, tmax=tmax)
+        sim = model.simulate(tmin=tmin, tmax=tmax)
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to compute series: {exc}") from exc
+
+    try:
+        return compute_signatures(obs, sim)
+    except Exception as exc:
+        logger.exception("Signatures computation failed: %s", exc)
+        raise HTTPException(500, f"Signatures computation failed: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
 # GET /models/{run_id}/diagnostics
 # ---------------------------------------------------------------------------
 

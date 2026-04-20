@@ -314,6 +314,7 @@ export const api = {
       modifications: Array<Record<string, unknown>>
     }) => postJson<PastasScenarioResponse>('/pastas/simulate', body, 120_000),
     diagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/diagnostics`),
+    signatures: (runId: string) => fetchJson<{ observed: Record<string, number>; simulated: Record<string, number> }>(`/pastas/models/${runId}/signatures`),
   },
 
   counterfactual: {
