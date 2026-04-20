@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Loader2, GitCompareArrows } from 'lucide-react'
 import { usePastasModels, usePastasCompare } from '@/hooks/usePastas'
 import { ComparisonView } from '@/components/pastas/ComparisonView'
+import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 
 export default function ComparePage() {
   const { data: models } = usePastasModels()
@@ -23,12 +24,22 @@ export default function ComparePage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-semibold text-text-primary">Pastas — Compare Models</h1>
+      <OnboardingBanner
+        id="compare"
+        title="Comparer des modèles"
+        description="Sélectionnez 2 à 5 modèles pour les comparer côte à côte : métriques, paramètres, et simulations superposées. Utile pour choisir la meilleure configuration (Gamma vs Exponential, avec ou sans noise model, etc.)."
+        steps={[
+          'Cochez les modèles à comparer (même station ou stations différentes)',
+          'Cliquez "Comparer" pour voir les résultats',
+          'Le tableau met en vert la meilleure valeur par métrique',
+          'Le graphe superpose toutes les simulations avec l\'observé',
+        ]}
+      />
 
       {/* Model selection */}
       <div className="bg-bg-card rounded-lg border border-white/5 p-4">
         <h2 className="text-sm font-semibold text-text-secondary mb-3">
-          Select 2-5 models to compare
+          Sélectionnez 2 à 5 modèles
         </h2>
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {(models ?? []).map(m => (

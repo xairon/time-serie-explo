@@ -9,7 +9,10 @@ import { StationMap } from '@/components/pastas/StationMap'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
 import { StressListEditor } from '@/components/pastas/StressListEditor'
 import type { StressConfig } from '@/components/pastas/StressListEditor'
+import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 import type { PastasFitResponse } from '@/lib/types'
+
+const DEMO_STATION = '01584X0023/LV3'
 
 export default function FitPage() {
   const fitMutation = usePastasFit()
@@ -63,10 +66,33 @@ export default function FitPage() {
     }
   }
 
+  const loadDemo = () => {
+    setCodeBss(DEMO_STATION)
+    setRecharge('Linear')
+    setResponse('Gamma')
+    setNoise('ArNoiseModel')
+    setSolver('LeastSquares')
+    setValSplit(0.3)
+    setModelName('demo_craie_champagne')
+  }
+
   return (
     <div className="p-6 flex gap-6 min-h-full">
       {/* Left column — configuration */}
       <div className="w-80 shrink-0 space-y-4">
+        <OnboardingBanner
+          id="fit"
+          title="Calibrer un modèle Pastas"
+          description="Un modèle Pastas relie le niveau piézométrique aux forçages climatiques (pluie, ETP) par une fonction de transfert. Sélectionnez une station, configurez le modèle, et lancez la calibration."
+          steps={[
+            'Cherchez et sélectionnez une station piézométrique',
+            'Choisissez le modèle de recharge et la fonction de réponse',
+            'Activez la validation pour tester la qualité hors-échantillon',
+            'Cliquez "Fit Model" — les résultats s\'affichent à droite',
+          ]}
+          exampleAction={{ label: 'Charger la station exemple (Craie de Champagne)', onClick: loadDemo }}
+        />
+
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-text-primary mb-4">Station</h2>
           <StationPicker codeBss={codeBss} onChange={setCodeBss} />

@@ -4,6 +4,7 @@ import { usePastasModels, usePastasSimulate } from '@/hooks/usePastas'
 import { ScenarioComposer } from '@/components/pastas/ScenarioComposer'
 import { ScenarioResultsPanel } from '@/components/pastas/ScenarioResultsPanel'
 import type { PastasScenarioResponse } from '@/lib/types'
+import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 import type { ModificationData } from '@/components/pastas/ModificationCard'
 
 function modificationToPayload(mod: ModificationData): Record<string, unknown> {
@@ -44,6 +45,17 @@ export default function ScenariosPage() {
     <div className="p-6 flex gap-6 min-h-full">
       {/* Left column — scenario configuration */}
       <div className="w-80 shrink-0 space-y-4">
+        <OnboardingBanner
+          id="scenarios"
+          title="Simuler des scénarios « what-if »"
+          description="Partez d'un modèle calibré et modifiez les conditions : ajoutez un pompage, une tendance climatique, ou modifiez les précipitations. Comparez le résultat au scénario de base."
+          steps={[
+            'Sélectionnez un modèle calibré (depuis l\'onglet Fit)',
+            'Définissez la fenêtre de simulation',
+            'Ajoutez une ou plusieurs modifications (pompage, tendance, etc.)',
+            'Lancez la simulation — les courbes baseline vs scénario s\'affichent',
+          ]}
+        />
         {/* Model picker */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-text-primary mb-3">Model</h2>
