@@ -126,3 +126,13 @@ class ScenarioResponse(BaseModel):
     contributions_baseline: dict[str, TimeSeriesData]
     contributions_scenario: dict[str, TimeSeriesData]
     warnings: list[str] = []
+
+# ---------- Preview ----------
+
+class StationPreview(BaseModel):
+    code_bss: str
+    metadata: dict[str, Any]
+    piezo: TimeSeriesData
+    precip: TimeSeriesData
+    evap: TimeSeriesData
+    stats: dict[str, Any]

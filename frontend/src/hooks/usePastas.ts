@@ -49,3 +49,12 @@ export function usePastasSimulate() {
     mutationFn: api.pastas.simulate,
   })
 }
+
+export function usePastasPreview(codeBss: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'preview', codeBss],
+    queryFn: () => api.pastas.preview(codeBss!),
+    enabled: !!codeBss,
+    staleTime: 10 * 60 * 1000,
+  })
+}

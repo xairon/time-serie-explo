@@ -335,6 +335,15 @@ export interface PastasScenarioResponse {
   warnings: string[]
 }
 
+export interface PastasStationPreview {
+  code_bss: string
+  metadata: Record<string, unknown>
+  piezo: TimeSeriesData
+  precip: TimeSeriesData
+  evap: TimeSeriesData
+  stats: Record<string, number | string | string[]>
+}
+
 // Pastas dual validation result
 export interface PastasValidationResult {
   model_id: string

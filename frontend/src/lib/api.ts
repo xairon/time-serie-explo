@@ -26,6 +26,7 @@ import type {
   PastasFitResponse,
   PastasModelSummary,
   PastasScenarioResponse,
+  PastasStationPreview,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -288,6 +289,7 @@ export const api = {
 
   pastas: {
     options: () => fetchJson<PastasOptions>('/pastas/options'),
+    preview: (codeBss: string) => fetchJson<PastasStationPreview>(`/pastas/preview/${codeBss}`, { timeout: 30_000 }),
     fit: (body: {
       code_bss: string
       tmin?: string

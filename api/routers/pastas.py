@@ -16,12 +16,20 @@ from api.schemas.pastas import (
     PastasModelSummary,
     ScenarioRequest,
     ScenarioResponse,
+    StationPreview,
     TimeSeriesData,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pastas", tags=["pastas"])
+
+
+def _brgm_url() -> str:
+    return (
+        f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
+        f"@{settings.brgm_db_host}:{settings.brgm_db_port}/{settings.brgm_db_name}"
+    )
 
 
 def _series_to_ts(s: pd.Series) -> TimeSeriesData:
@@ -43,6 +51,46 @@ def get_options() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# GET /preview/{code_bss}
+# ---------------------------------------------------------------------------
+
+@router.get("/preview/{code_bss}")
+def preview_station(code_bss: str):
+    """Return raw series + statistics for a station before fitting."""
+    from typing import Any
+    from dashboard.utils.pastas.station_loader import load_station_series
+
+    try:
+        station = load_station_series(code_bss, _brgm_url())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    piezo = station.piezo
+    stats: dict[str, Any] = {
+        "n_obs_piezo": len(piezo),
+        "n_obs_precip": len(station.precip),
+        "date_range": [str(piezo.index.min()), str(piezo.index.max())],
+        "piezo_mean": round(float(piezo.mean()), 3),
+        "piezo_std": round(float(piezo.std()), 3),
+    }
+
+    if len(piezo) > 1:
+        gaps = piezo.index.to_series().diff().dt.days.dropna()
+        stats["piezo_median_gap_days"] = float(gaps.median())
+        stats["piezo_max_gap_days"] = float(gaps.max())
+        stats["piezo_pct_daily"] = round(float((gaps == 1).mean() * 100), 1)
+
+    return StationPreview(
+        code_bss=code_bss,
+        metadata=station.metadata,
+        piezo=_series_to_ts(piezo),
+        precip=_series_to_ts(station.precip),
+        evap=_series_to_ts(station.evap),
+        stats=stats,
+    )
+
+
+# ---------------------------------------------------------------------------
 # POST /fit
 # ---------------------------------------------------------------------------
 
@@ -53,13 +101,8 @@ def fit_model(req: FitRequest) -> FitResponse:
     from dashboard.utils.pastas.builder import ValidationError
     from dashboard.utils.pastas.fit_service import run_fit
 
-    db_url = (
-        f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
-        f"@{settings.brgm_db_host}:{settings.brgm_db_port}/{settings.brgm_db_name}"
-    )
-
     try:
-        station = load_station_series(req.code_bss, db_url)
+        station = load_station_series(req.code_bss, _brgm_url())
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 
