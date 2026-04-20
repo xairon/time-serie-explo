@@ -275,6 +275,66 @@ export interface IPSBoundsResponse {
   colors: Record<string, string>   // key -> hex color
 }
 
+// ---------- Pastas ----------
+
+export interface TimeSeriesData {
+  index: string[]
+  values: number[]
+}
+
+export interface FitParameter {
+  name: string
+  optimal: number
+  stderr: number | null
+  initial: number
+  pmin: number | null
+  pmax: number | null
+  vary: boolean
+}
+
+export interface PastasFitResponse {
+  run_id: string
+  metrics: Record<string, number>
+  parameters: FitParameter[]
+  observed: TimeSeriesData
+  simulated: TimeSeriesData
+  residuals: TimeSeriesData
+  contributions: Record<string, TimeSeriesData>
+  step_response: TimeSeriesData
+  block_response: TimeSeriesData
+  acf: Record<string, unknown>
+  warnings: string[]
+  pastas_version: string
+}
+
+export interface PastasModelSummary {
+  run_id: string
+  name: string
+  station_id: string
+  recharge_type: string
+  response_type: string
+  evp: number | null
+  rmse: number | null
+  created_at: string
+  pastas_version: string
+}
+
+export interface PastasOptions {
+  recharge: string[]
+  response: string[]
+  noise: string[]
+  solver: string[]
+}
+
+export interface PastasScenarioResponse {
+  baseline: TimeSeriesData
+  scenario: TimeSeriesData
+  delta: TimeSeriesData
+  contributions_baseline: Record<string, TimeSeriesData>
+  contributions_scenario: Record<string, TimeSeriesData>
+  warnings: string[]
+}
+
 // Pastas dual validation result
 export interface PastasValidationResult {
   model_id: string

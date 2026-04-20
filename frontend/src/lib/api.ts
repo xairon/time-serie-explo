@@ -22,6 +22,10 @@ import type {
   IPSReference,
   IPSBoundsResponse,
   PastasValidationResult,
+  PastasOptions,
+  PastasFitResponse,
+  PastasModelSummary,
+  PastasScenarioResponse,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -261,8 +265,6 @@ export const api = {
   latentSpace: {
     stations: (domain: string, space: string = 'multi') =>
       fetchJson<{ stations: Array<Record<string, unknown>> }>(`/latent-space/stations/${domain}?space=${space}`),
-    compute: (body: Record<string, unknown>) =>
-      postJson<Record<string, unknown>>('/latent-space/compute', body, 120_000),
     similar: (domain: string, stationId: string, k: number = 10, space: string = 'multi') =>
       fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}&space=${space}`),
     profiling: (domain: string, hideUnclassified: boolean = false, space: string = 'multi') =>
@@ -270,12 +272,47 @@ export const api = {
         `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}&space=${space}`,
         { timeout: 60_000 },
       ),
-    clusteringRuns: (domain: string, space: string = 'multi') =>
-      fetchJson<Array<Record<string, unknown>>>(`/latent-space/clustering-runs/${domain}?space=${space}`),
-    clusteringRun: (runId: number) =>
-      fetchJson<Record<string, unknown>>(`/latent-space/clustering-run/${runId}`),
     stationWindows: (domain: string, stationId: string, space: string = 'multi') =>
       fetchJson<Record<string, unknown>>(`/latent-space/station-windows/${domain}/${stationId}?space=${space}`),
+    cached: (domain: string, space: string = 'multi') =>
+      fetchJson<Record<string, unknown>>(`/latent-space/cached/${domain}?space=${space}`),
+    recomputePca: (body: { domain: string; space: string; variance_threshold: number }) =>
+      postJson<Record<string, unknown>>('/latent-space/recompute-pca', body, 300_000),
+    recomputeViz: (body: { domain: string; space: string; n_neighbors: number; min_dist: number }) =>
+      postJson<Record<string, unknown>>('/latent-space/recompute-viz', body, 30_000),
+    recomputeClustering: (body: { domain: string; space: string; min_cluster_size?: number; min_samples?: number }) =>
+      postJson<Record<string, unknown>>('/latent-space/recompute-clustering', body, 120_000),
+    autoTune: (body: { domain: string; space: string }) =>
+      postJson<Record<string, unknown>>('/latent-space/auto-tune', body, 300_000),
+  },
+
+  pastas: {
+    options: () => fetchJson<PastasOptions>('/pastas/options'),
+    fit: (body: {
+      dataset_id: string
+      station_id?: string
+      precip_column: string
+      evap_column: string
+      tmin?: string
+      tmax?: string
+      recharge?: { type: string; kwargs?: Record<string, unknown> }
+      response?: { type: string; kwargs?: Record<string, unknown> }
+      noise?: { type: string }
+      solver?: { type: string; kwargs?: Record<string, unknown> }
+      name?: string
+    }) => postJson<PastasFitResponse>('/pastas/fit', body, 120_000),
+    models: (stationId?: string) => {
+      const params = stationId ? `?station_id=${stationId}` : ''
+      return fetchJson<PastasModelSummary[]>(`/pastas/models${params}`)
+    },
+    model: (runId: string) => fetchJson<PastasFitResponse>(`/pastas/models/${runId}`),
+    deleteModel: (runId: string) => deleteJson(`/pastas/models/${runId}`),
+    simulate: (body: {
+      run_id: string
+      tmin: string
+      tmax: string
+      modifications: Array<Record<string, unknown>>
+    }) => postJson<PastasScenarioResponse>('/pastas/simulate', body, 120_000),
   },
 
   counterfactual: {
