@@ -317,8 +317,7 @@ def run_fit(
     # Compute series hash for tagging
     sh = _series_hash(gwl, precip, evap)
 
-    # Station ID: use gwl.name if available
-    station_id = str(gwl.name) if gwl.name else "unknown"
+    station_id = dataset_id
 
     # MLflow logging
     tracking_uri = _get_tracking_uri()

@@ -289,7 +289,7 @@ def get_model(run_id: str) -> FitResponse:
 
     return FitResponse(
         run_id=run_id,
-        code_bss=tags.get("station_id", params.get("dataset_id", "")),
+        code_bss=run.data.params.get("dataset_id", tags.get("station_id", "")),
         metrics=metrics,
         parameters=parameters,
         observed=_series_to_ts(observed),
