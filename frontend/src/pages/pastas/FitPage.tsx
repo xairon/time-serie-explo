@@ -50,6 +50,9 @@ export default function FitPage() {
   useEffect(() => {
     if (loadedModel) {
       setFitResult(loadedModel)
+      if (loadedModel.code_bss) {
+        setCodeBss(loadedModel.code_bss)
+      }
     }
   }, [loadedModel])
 

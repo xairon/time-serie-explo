@@ -294,6 +294,7 @@ export interface FitParameter {
 
 export interface PastasFitResponse {
   run_id: string
+  code_bss: string
   metrics: Record<string, number>
   parameters: FitParameter[]
   observed: TimeSeriesData

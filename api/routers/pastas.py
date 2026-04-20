@@ -169,6 +169,7 @@ def fit_model(req: FitRequest) -> FitResponse:
 
     return FitResponse(
         run_id=result.run_id,
+        code_bss=req.code_bss,
         metrics=result.metrics,
         parameters=[FitParameter(**p) for p in result.parameters],
         observed=_series_to_ts(result.observed),
@@ -288,6 +289,7 @@ def get_model(run_id: str) -> FitResponse:
 
     return FitResponse(
         run_id=run_id,
+        code_bss=tags.get("station_id", params.get("dataset_id", "")),
         metrics=metrics,
         parameters=parameters,
         observed=_series_to_ts(observed),

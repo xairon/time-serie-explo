@@ -78,6 +78,7 @@ class FitParameter(BaseModel):
 
 class FitResponse(BaseModel):
     run_id: str
+    code_bss: str = ""
     metrics: dict[str, float]
     parameters: list[FitParameter]
     observed: TimeSeriesData
