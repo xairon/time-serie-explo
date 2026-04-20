@@ -71,11 +71,11 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Calibration metric cards */}
+      {/* Training metrics */}
       <div>
         {(cal_period || validation_metrics) && (
           <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
-            Calibration
+            Entraînement
             {cal_period && (
               <span className="text-text-muted font-normal normal-case">
                 ({cal_period[0]} → {cal_period[1]})
@@ -96,11 +96,11 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         </div>
       </div>
 
-      {/* Validation metric cards */}
+      {/* Test metrics (out-of-sample) */}
       {validation_metrics && (
         <div>
           <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2 flex items-center gap-2">
-            Validation
+            Test (données inédites)
             {val_period && (
               <span className="text-text-muted font-normal normal-case">
                 ({val_period[0]} → {val_period[1]})
