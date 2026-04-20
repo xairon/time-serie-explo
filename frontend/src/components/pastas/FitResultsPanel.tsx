@@ -194,29 +194,6 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
           )
         )}
 
-        {/* Scatter 1:1 */}
-        {observed?.values?.length > 0 && simulated?.values?.length > 0 && (() => {
-          const allVals = [...observed.values, ...simulated.values].filter(v => Number.isFinite(v))
-          const min = Math.min(...allVals)
-          const max = Math.max(...allVals)
-          return (
-            <div className="mt-3">
-              <p className="text-xs text-text-muted mb-1">Nuage de points 1:1 — les points doivent suivre la diagonale rouge</p>
-              <Plot
-                data={[
-                  { x: observed.values, y: simulated.values, type: 'scatter', mode: 'markers', marker: { color: '#60a5fa', size: 3, opacity: 0.4 }, name: 'Points' },
-                  { x: [min, max], y: [min, max], type: 'scatter', mode: 'lines', line: { color: '#ef4444', dash: 'dash', width: 1 }, name: '1:1' },
-                ]}
-                layout={{
-                  ...chartLayout, height: 220, showlegend: false,
-                  xaxis: { title: { text: 'Observé (m)' }, gridcolor: 'rgba(255,255,255,0.05)', scaleanchor: 'y' },
-                  yaxis: { title: { text: 'Simulé (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                }}
-                config={plotlyConfig} style={{ width: '100%' }}
-              />
-            </div>
-          )
-        })()}
       </Section>
 
       {/* 3. Contributions */}
