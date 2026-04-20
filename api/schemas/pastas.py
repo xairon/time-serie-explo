@@ -25,10 +25,7 @@ class SolverConfig(BaseModel):
     kwargs: dict[str, Any] = {}
 
 class FitRequest(BaseModel):
-    dataset_id: str
-    station_id: Optional[str] = None
-    precip_column: str
-    evap_column: str
+    code_bss: str
     tmin: Optional[date] = None
     tmax: Optional[date] = None
     recharge: RechargeConfig = RechargeConfig()
@@ -67,7 +64,7 @@ class FitResponse(BaseModel):
 class PastasModelSummary(BaseModel):
     run_id: str
     name: str
-    station_id: str
+    code_bss: str
     recharge_type: str
     response_type: str
     evp: Optional[float] = None

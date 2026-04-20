@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 import mlflow
@@ -49,59 +48,34 @@ def get_options() -> dict:
 
 @router.post("/fit", response_model=FitResponse)
 def fit_model(req: FitRequest) -> FitResponse:
-    """Fit a Pastas TFN model to the given dataset."""
-    from dashboard.utils.dataset_registry import DatasetRegistry
+    """Fit a Pastas TFN model to the given station from the BRGM data warehouse."""
+    from dashboard.utils.pastas.station_loader import load_station_series
     from dashboard.utils.pastas.builder import ValidationError
     from dashboard.utils.pastas.fit_service import run_fit
 
-    # Locate dataset
-    registry = DatasetRegistry(Path(settings.data_dir) / "prepared")
-    datasets = registry.scan_datasets()
-    ds = next(
-        (d for d in datasets if d.name == req.dataset_id or d.path.suffix == req.dataset_id or str(d.path).endswith(req.dataset_id)),
-        None,
+    db_url = (
+        f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
+        f"@{settings.brgm_db_host}:{settings.brgm_db_port}/{settings.brgm_db_name}"
     )
-    if ds is None:
-        raise HTTPException(404, f"Dataset not found: {req.dataset_id}")
 
-    df, _config = registry.load_dataset(ds)
-
-    # Filter by station if applicable
-    if req.station_id and ds.station_column and ds.station_column in df.columns:
-        df = df[df[ds.station_column] == req.station_id]
-        if df.empty:
-            raise HTTPException(404, f"Station '{req.station_id}' not found in dataset")
-
-    # Validate columns
-    for col in (req.precip_column, req.evap_column):
-        if col not in df.columns:
-            raise HTTPException(422, f"Column '{col}' not found in dataset")
-
-    target_col = ds.target_column or df.columns[0]
-    if target_col not in df.columns:
-        raise HTTPException(422, f"Target column '{target_col}' not found in dataset")
-
-    gwl = df[target_col].dropna()
-    gwl.name = req.station_id or ds.name
-    precip = df[req.precip_column]
-    evap = df[req.evap_column]
-
-    tmin_str = str(req.tmin) if req.tmin else None
-    tmax_str = str(req.tmax) if req.tmax else None
+    try:
+        station = load_station_series(req.code_bss, db_url)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
     try:
         result = run_fit(
-            gwl=gwl,
-            precip=precip,
-            evap=evap,
+            gwl=station.piezo,
+            precip=station.precip,
+            evap=station.evap,
             recharge_type=req.recharge.type,
             response_type=req.response.type,
             noise_type=req.noise.type,
             solver_type=req.solver.type,
             solver_kwargs=req.solver.kwargs or None,
-            tmin=tmin_str,
-            tmax=tmax_str,
-            dataset_id=req.dataset_id,
+            tmin=str(req.tmin) if req.tmin else None,
+            tmax=str(req.tmax) if req.tmax else None,
+            dataset_id=req.code_bss,
             name=req.name,
         )
     except ValidationError as exc:
@@ -110,12 +84,10 @@ def fit_model(req: FitRequest) -> FitResponse:
         logger.exception("Pastas fit failed: %s", exc)
         raise HTTPException(500, f"Fit failed: {exc}") from exc
 
-    parameters = [FitParameter(**p) for p in result.parameters]
-
     return FitResponse(
         run_id=result.run_id,
         metrics=result.metrics,
-        parameters=parameters,
+        parameters=[FitParameter(**p) for p in result.parameters],
         observed=_series_to_ts(result.observed),
         simulated=_series_to_ts(result.simulated),
         residuals=_series_to_ts(result.residuals),
@@ -133,7 +105,7 @@ def fit_model(req: FitRequest) -> FitResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/models", response_model=list[PastasModelSummary])
-def list_models(station_id: Optional[str] = None) -> list[PastasModelSummary]:
+def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
     """List Pastas models stored in MLflow."""
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -143,8 +115,8 @@ def list_models(station_id: Optional[str] = None) -> list[PastasModelSummary]:
         return []
 
     filter_str = ""
-    if station_id:
-        filter_str = f"tags.station_id = '{station_id}'"
+    if code_bss:
+        filter_str = f"tags.station_id = '{code_bss}'"
 
     runs = client.search_runs(
         experiment_ids=[experiment.experiment_id],
@@ -161,7 +133,7 @@ def list_models(station_id: Optional[str] = None) -> list[PastasModelSummary]:
             PastasModelSummary(
                 run_id=run.info.run_id,
                 name=run.info.run_name or run.info.run_id,
-                station_id=tags.get("station_id", "unknown"),
+                code_bss=tags.get("station_id", "unknown"),
                 recharge_type=params.get("recharge_type", "unknown"),
                 response_type=params.get("response_type", "unknown"),
                 evp=metrics.get("evp"),

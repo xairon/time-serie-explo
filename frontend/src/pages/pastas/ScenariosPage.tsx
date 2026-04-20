@@ -55,8 +55,7 @@ export default function ScenariosPage() {
             <option value="">-- Select a fitted model --</option>
             {models.map((m) => (
               <option key={m.run_id} value={m.run_id}>
-                {m.name || m.run_id.slice(0, 12)} — {m.station_id}
-                {m.evp !== null ? ` (EVP ${m.evp.toFixed(1)}%)` : ''}
+                {m.name || m.run_id.slice(0, 8)} — {m.code_bss} ({m.response_type}, EVP {m.evp?.toFixed(1) ?? '?'}%)
               </option>
             ))}
           </select>

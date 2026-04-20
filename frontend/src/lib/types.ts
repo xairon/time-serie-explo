@@ -310,7 +310,7 @@ export interface PastasFitResponse {
 export interface PastasModelSummary {
   run_id: string
   name: string
-  station_id: string
+  code_bss: string
   recharge_type: string
   response_type: string
   evp: number | null

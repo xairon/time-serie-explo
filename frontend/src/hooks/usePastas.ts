@@ -19,10 +19,10 @@ export function usePastasFit() {
   })
 }
 
-export function usePastasModels(stationId?: string) {
+export function usePastasModels(codeBss?: string) {
   return useQuery({
-    queryKey: ['pastas', 'models', stationId],
-    queryFn: () => api.pastas.models(stationId),
+    queryKey: ['pastas', 'models', codeBss],
+    queryFn: () => api.pastas.models(codeBss),
   })
 }
 

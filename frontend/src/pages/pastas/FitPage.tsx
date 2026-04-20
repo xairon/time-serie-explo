@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Loader2, Play } from 'lucide-react'
-import { useDatasets } from '@/hooks/useDatasets'
 import { usePastasFit } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
@@ -8,14 +7,10 @@ import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
 import type { PastasFitResponse } from '@/lib/types'
 
 export default function FitPage() {
-  const { data: datasets = [] } = useDatasets()
   const fitMutation = usePastasFit()
 
   // Station picker state
-  const [datasetId, setDatasetId] = useState('')
-  const [stationId, setStationId] = useState('')
-  const [precipColumn, setPrecipColumn] = useState('')
-  const [evapColumn, setEvapColumn] = useState('')
+  const [codeBss, setCodeBss] = useState('')
 
   // Config form state
   const [recharge, setRecharge] = useState('Linear')
@@ -29,16 +24,13 @@ export default function FitPage() {
   // Result
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
 
-  const canFit = !!datasetId && !!precipColumn && !!evapColumn
+  const canFit = !!codeBss
 
   async function handleFit() {
     if (!canFit) return
     try {
       const result = await fitMutation.mutateAsync({
-        dataset_id: datasetId,
-        station_id: stationId || undefined,
-        precip_column: precipColumn,
-        evap_column: evapColumn,
+        code_bss: codeBss,
         tmin: tmin || undefined,
         tmax: tmax || undefined,
         recharge: { type: recharge },
@@ -58,23 +50,8 @@ export default function FitPage() {
       {/* Left column — configuration */}
       <div className="w-80 shrink-0 space-y-4">
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-4">Data selection</h2>
-          <StationPicker
-            datasets={datasets}
-            datasetId={datasetId}
-            onDatasetChange={(id) => {
-              setDatasetId(id)
-              setStationId('')
-              setPrecipColumn('')
-              setEvapColumn('')
-            }}
-            stationId={stationId}
-            onStationChange={setStationId}
-            precipColumn={precipColumn}
-            onPrecipChange={setPrecipColumn}
-            evapColumn={evapColumn}
-            onEvapChange={setEvapColumn}
-          />
+          <h2 className="text-sm font-semibold text-text-primary mb-4">Station</h2>
+          <StationPicker codeBss={codeBss} onChange={setCodeBss} />
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
@@ -145,7 +122,7 @@ export default function FitPage() {
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
               <p className="text-text-secondary">No results yet</p>
-              <p>Select a dataset, configure the model, and click "Fit Model".</p>
+              <p>Select a station, configure the model, and click "Fit Model".</p>
             </div>
           </div>
         )}

@@ -289,10 +289,7 @@ export const api = {
   pastas: {
     options: () => fetchJson<PastasOptions>('/pastas/options'),
     fit: (body: {
-      dataset_id: string
-      station_id?: string
-      precip_column: string
-      evap_column: string
+      code_bss: string
       tmin?: string
       tmax?: string
       recharge?: { type: string; kwargs?: Record<string, unknown> }
@@ -301,8 +298,8 @@ export const api = {
       solver?: { type: string; kwargs?: Record<string, unknown> }
       name?: string
     }) => postJson<PastasFitResponse>('/pastas/fit', body, 120_000),
-    models: (stationId?: string) => {
-      const params = stationId ? `?station_id=${stationId}` : ''
+    models: (codeBss?: string) => {
+      const params = codeBss ? `?code_bss=${codeBss}` : ''
       return fetchJson<PastasModelSummary[]>(`/pastas/models${params}`)
     },
     model: (runId: string) => fetchJson<PastasFitResponse>(`/pastas/models/${runId}`),
