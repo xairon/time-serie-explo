@@ -6,6 +6,7 @@ import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
 import { usePastasDiagnostics } from '@/hooks/usePastas'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
+import { ResponsePanel } from './ResponsePanel'
 
 interface FitResultsPanelProps {
   result: PastasFitResponse
@@ -40,6 +41,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
     residuals,
     contributions,
     step_response,
+    block_response,
     acf,
     warnings,
     validation_metrics,
@@ -202,6 +204,16 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
         <ContributionsChart contributions={contributions} observed={observed} />
       )}
 
+      {/* Response function panel */}
+      {(hasStepResponse || block_response?.values?.length > 0) && (
+        <ResponsePanel
+          stepResponse={step_response}
+          blockResponse={block_response}
+          parameters={parameters}
+          responseType=""
+        />
+      )}
+
       {/* Residuals */}
       {residuals?.index?.length > 0 && (
         <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
@@ -219,30 +231,6 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
               },
             ]}
             layout={{ ...chartLayout, height: 160 }}
-            config={plotlyConfig}
-            style={{ width: '100%' }}
-          />
-        </div>
-      )}
-
-      {/* Step response */}
-      {hasStepResponse && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            Step response
-          </p>
-          <Plot
-            data={[
-              {
-                x: step_response.index,
-                y: step_response.values,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Step response',
-                line: { color: '#a78bfa', width: 2 },
-              },
-            ]}
-            layout={{ ...chartLayout, height: 180 }}
             config={plotlyConfig}
             style={{ width: '100%' }}
           />
