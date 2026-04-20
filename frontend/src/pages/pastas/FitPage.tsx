@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Loader2, Play } from 'lucide-react'
-import { usePastasFit } from '@/hooks/usePastas'
+import { usePastasFit, usePastasPreview } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
+import { DataPreviewPanel } from '@/components/pastas/DataPreviewPanel'
+import { StationMap } from '@/components/pastas/StationMap'
 import type { PastasFitResponse } from '@/lib/types'
 
 export default function FitPage() {
@@ -11,6 +13,9 @@ export default function FitPage() {
 
   // Station picker state
   const [codeBss, setCodeBss] = useState('')
+
+  // Preview
+  const { data: preview, isLoading: previewLoading } = usePastasPreview(codeBss || null)
 
   // Config form state
   const [recharge, setRecharge] = useState('Linear')
@@ -114,17 +119,46 @@ export default function FitPage() {
         )}
       </div>
 
-      {/* Right column — results */}
-      <div className="flex-1 min-w-0">
-        {fitResult ? (
-          <FitResultsPanel result={fitResult} />
-        ) : (
+      {/* Right column — preview + results */}
+      <div className="flex-1 min-w-0 space-y-4">
+        {previewLoading && (
+          <div className="flex items-center justify-center h-24 text-text-muted text-sm gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading preview…
+          </div>
+        )}
+
+        {preview && !previewLoading && (
+          <>
+            <StationMap
+              lat={typeof preview.metadata.latitude === 'number' ? preview.metadata.latitude : null}
+              lon={typeof preview.metadata.longitude === 'number' ? preview.metadata.longitude : null}
+              label={preview.code_bss}
+            />
+            <DataPreviewPanel
+              preview={preview}
+              onRangeChange={(t0, t1) => {
+                setTmin(t0)
+                setTmax(t1)
+              }}
+            />
+          </>
+        )}
+
+        {!preview && !previewLoading && !codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
-              <p className="text-text-secondary">No results yet</p>
-              <p>Select a station, configure the model, and click "Fit Model".</p>
+              <p className="text-text-secondary">No station selected</p>
+              <p>Select a station to preview its data.</p>
             </div>
           </div>
+        )}
+
+        {fitResult && (
+          <>
+            {preview && <div className="border-t border-white/5" />}
+            <FitResultsPanel result={fitResult} />
+          </>
         )}
       </div>
     </div>
