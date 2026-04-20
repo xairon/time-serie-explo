@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Trash2, ArrowUpDown } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Trash2, ArrowUpDown, Eye, FlaskConical } from 'lucide-react'
 import { usePastasModels, usePastasDeleteModel } from '@/hooks/usePastas'
 import { ExportMenu } from './ExportMenu'
 import type { PastasModelSummary } from '@/lib/types'
@@ -7,6 +8,7 @@ import type { PastasModelSummary } from '@/lib/types'
 type SortKey = keyof PastasModelSummary
 
 export function ModelTable() {
+  const navigate = useNavigate()
   const { data: models, isLoading } = usePastasModels()
   const deleteMut = usePastasDeleteModel()
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
@@ -42,13 +44,13 @@ export function ModelTable() {
     </th>
   )
 
-  if (isLoading) return <div className="text-text-muted text-sm">Loading models...</div>
+  if (isLoading) return <div className="text-text-muted text-sm">Chargement...</div>
 
   return (
     <div className="space-y-3">
       <input
         type="text"
-        placeholder="Filter by station or name..."
+        placeholder="Filtrer par station ou nom..."
         value={filter}
         onChange={e => setFilter(e.target.value)}
         className="w-full max-w-sm bg-bg-primary border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
@@ -56,7 +58,7 @@ export function ModelTable() {
 
       {sorted.length === 0 ? (
         <div className="text-text-muted text-sm py-8 text-center">
-          {filter ? 'No models match your filter.' : 'No models fitted yet.'}
+          {filter ? 'Aucun modèle ne correspond.' : 'Aucun modèle calibré. Allez dans l\'onglet Fit pour en créer un.'}
         </div>
       ) : (
         <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
@@ -64,12 +66,12 @@ export function ModelTable() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted border-b border-white/5 text-xs uppercase tracking-wide">
-                  <SortHeader k="name" label="Name" />
+                  <SortHeader k="name" label="Nom" />
                   <SortHeader k="code_bss" label="Station" />
-                  <SortHeader k="response_type" label="Response" />
+                  <SortHeader k="response_type" label="Réponse" />
                   <SortHeader k="evp" label="EVP %" />
                   <SortHeader k="rmse" label="RMSE" />
-                  <SortHeader k="created_at" label="Created" />
+                  <SortHeader k="created_at" label="Date" />
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -84,11 +86,25 @@ export function ModelTable() {
                     <td className="px-3 py-2 text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString()}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => navigate(`/pastas/fit?model=${m.run_id}`)}
+                          className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-accent-cyan transition-colors"
+                          title="Voir les résultats"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/pastas/scenarios?model=${m.run_id}`)}
+                          className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-purple-400 transition-colors"
+                          title="Simuler des scénarios"
+                        >
+                          <FlaskConical className="w-4 h-4" />
+                        </button>
                         <ExportMenu runId={m.run_id} />
                         <button
-                          onClick={() => deleteMut.mutate(m.run_id)}
+                          onClick={() => { if (confirm('Supprimer ce modèle ?')) deleteMut.mutate(m.run_id) }}
                           className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-red-400 transition-colors"
-                          title="Delete model"
+                          title="Supprimer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -102,7 +118,7 @@ export function ModelTable() {
         </div>
       )}
 
-      <div className="text-xs text-text-muted">{sorted.length} model(s)</div>
+      <div className="text-xs text-text-muted">{sorted.length} modèle(s)</div>
     </div>
   )
 }

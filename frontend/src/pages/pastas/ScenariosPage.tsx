@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2, Play } from 'lucide-react'
 import { usePastasModels, usePastasSimulate } from '@/hooks/usePastas'
 import { ScenarioComposer } from '@/components/pastas/ScenarioComposer'
@@ -12,10 +13,11 @@ function modificationToPayload(mod: ModificationData): Record<string, unknown> {
 }
 
 export default function ScenariosPage() {
+  const [searchParams] = useSearchParams()
   const { data: models = [] } = usePastasModels()
   const simulateMutation = usePastasSimulate()
 
-  const [runId, setRunId] = useState('')
+  const [runId, setRunId] = useState(searchParams.get('model') ?? '')
   const [tmin, setTmin] = useState('')
   const [tmax, setTmax] = useState('')
   const [modifications, setModifications] = useState<ModificationData[]>([])

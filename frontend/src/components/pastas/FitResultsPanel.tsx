@@ -214,7 +214,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
 
       {/* Stress contributions */}
       {contributions && Object.keys(contributions).length > 0 && (
-        <ContributionsChart contributions={contributions} observed={observed} simulated={simulated} />
+        <ContributionsChart contributions={contributions} />
       )}
 
       {/* Response function panel */}

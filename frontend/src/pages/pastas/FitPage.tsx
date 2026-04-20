@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Loader2, Play } from 'lucide-react'
-import { usePastasFit, usePastasPreview } from '@/hooks/usePastas'
+import { usePastasFit, usePastasPreview, usePastasModel } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
@@ -42,6 +42,16 @@ export default function FitPage() {
 
   // Result
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
+
+  // Load existing model from ?model= query param
+  const modelId = searchParams.get('model')
+  const { data: loadedModel } = usePastasModel(modelId)
+
+  useEffect(() => {
+    if (loadedModel) {
+      setFitResult(loadedModel)
+    }
+  }, [loadedModel])
 
   const canFit = !!codeBss
 
