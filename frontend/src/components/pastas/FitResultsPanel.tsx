@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
@@ -9,82 +10,73 @@ import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
 import { SignaturesPanel } from './SignaturesPanel'
 
-interface FitResultsPanelProps {
-  result: PastasFitResponse
+// --- Accordion section ---
+
+function Section({ title, defaultOpen = true, children }: {
+  title: string; defaultOpen?: boolean; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="bg-bg-primary rounded-lg border border-white/5 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-bg-hover transition-colors"
+      >
+        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{title}</span>
+        <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  )
 }
 
-// --- Metric definitions with tooltips + quality thresholds ---
+// --- Metric definitions ---
 
 const METRIC_DEFS: Record<string, {
-  label: string
-  tooltip: string
+  label: string; tooltip: string
   format: (v: number) => string
   quality: (v: number) => 'good' | 'ok' | 'poor'
 }> = {
   nse: {
-    label: 'NSE',
-    tooltip: 'Nash-Sutcliffe Efficiency. 1 = parfait, 0 = aussi bon que la moyenne, <0 = pire.',
-    format: v => v.toFixed(3),
-    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+    label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency. 1 = parfait, 0 = aussi bon que la moyenne, <0 = pire.',
+    format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   kge: {
-    label: 'KGE',
-    tooltip: 'Kling-Gupta Efficiency. Combine corrélation, biais et variabilité. >0.7 = bon.',
-    format: v => v.toFixed(3),
-    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+    label: 'KGE', tooltip: 'Kling-Gupta Efficiency. Combine corrélation, biais et variabilité. >0.7 = bon.',
+    format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   evp: {
-    label: 'EVP (%)',
-    tooltip: 'Explained Variance Percentage. 100% = variance totalement expliquée.',
-    format: v => v.toFixed(1),
-    quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor',
+    label: 'EVP (%)', tooltip: 'Explained Variance Percentage. 100% = variance totalement expliquée.',
+    format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor',
   },
   rmse: {
-    label: 'RMSE',
-    tooltip: 'Root Mean Square Error (m). Plus c\'est bas, mieux c\'est.',
-    format: v => v.toFixed(4),
-    quality: () => 'ok',
+    label: 'RMSE', tooltip: 'Root Mean Square Error (m). Plus c\'est bas, mieux c\'est.',
+    format: v => v.toFixed(4), quality: () => 'ok',
   },
   rsq: {
-    label: 'R²',
-    tooltip: 'Coefficient de détermination. 1 = corrélation parfaite.',
-    format: v => v.toFixed(3),
-    quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
+    label: 'R²', tooltip: 'Coefficient de détermination. 1 = corrélation parfaite.',
+    format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   mae: {
-    label: 'MAE',
-    tooltip: 'Mean Absolute Error (m). Erreur moyenne en valeur absolue.',
-    format: v => v.toFixed(4),
-    quality: () => 'ok',
+    label: 'MAE', tooltip: 'Mean Absolute Error (m). Erreur moyenne en valeur absolue.',
+    format: v => v.toFixed(4), quality: () => 'ok',
   },
 }
 
-const QUALITY_COLORS = {
-  good: 'text-green-400',
-  ok: 'text-accent-cyan',
-  poor: 'text-red-400',
-}
-
-const QUALITY_BORDERS = {
-  good: 'border-green-500/20',
-  ok: 'border-white/5',
-  poor: 'border-red-500/20',
-}
+const Q_COLORS = { good: 'text-green-400', ok: 'text-accent-cyan', poor: 'text-red-400' }
+const Q_BORDERS = { good: 'border-green-500/20', ok: 'border-white/5', poor: 'border-red-500/20' }
 
 function MetricCard({ metricKey, value }: { metricKey: string; value: number | null | undefined }) {
   const def = METRIC_DEFS[metricKey]
   if (!def) return null
-
   const hasValue = value !== null && value !== undefined && Number.isFinite(value)
   const quality = hasValue ? def.quality(value!) : 'ok'
-
   return (
-    <div className={`bg-bg-primary rounded-lg p-3 border ${QUALITY_BORDERS[quality]}`} title={def.tooltip}>
-      <div className="text-xs text-text-muted mb-1 flex items-center gap-1">
-        {def.label}
-        <span className="cursor-help text-text-muted/50">ⓘ</span>
+    <div className={`bg-bg-card rounded-lg p-2.5 border ${Q_BORDERS[quality]}`} title={def.tooltip}>
+      <div className="text-[10px] text-text-muted mb-0.5 flex items-center gap-1">
+        {def.label}<span className="cursor-help opacity-50">ⓘ</span>
       </div>
-      <div className={`text-lg font-semibold ${hasValue ? QUALITY_COLORS[quality] : 'text-text-muted'}`}>
+      <div className={`text-base font-semibold ${hasValue ? Q_COLORS[quality] : 'text-text-muted'}`}>
         {hasValue ? def.format(value!) : '—'}
       </div>
     </div>
@@ -92,23 +84,16 @@ function MetricCard({ metricKey, value }: { metricKey: string; value: number | n
 }
 
 function MetricGrid({ metrics, title, period, borderColor }: {
-  metrics: Record<string, number>
-  title?: string
-  period?: string[] | null
-  borderColor?: string
+  metrics: Record<string, number>; title?: string; period?: string[] | null; borderColor?: string
 }) {
   return (
-    <div className={`bg-bg-primary/50 rounded-lg border ${borderColor ?? 'border-white/5'} p-3`}>
+    <div className={`rounded-lg border ${borderColor ?? 'border-white/5'} p-3`}>
       {title && (
         <div className={`text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-2 ${
           borderColor?.includes('orange') ? 'text-orange-400' : 'text-accent-cyan'
         }`}>
           {title}
-          {period && (
-            <span className="text-text-muted font-normal normal-case text-[10px]">
-              {period[0]} → {period[1]}
-            </span>
-          )}
+          {period && <span className="text-text-muted font-normal normal-case text-[10px]">{period[0]} → {period[1]}</span>}
         </div>
       )}
       <div className="grid grid-cols-3 gap-2">
@@ -126,11 +111,15 @@ const chartLayout: Partial<Layout> = {
   height: 220,
 }
 
+// --- Main component ---
+
+interface FitResultsPanelProps {
+  result: PastasFitResponse
+}
+
 export function FitResultsPanel({ result }: FitResultsPanelProps) {
-  const [showDiagnostics, setShowDiagnostics] = useState(false)
-  const [showSignatures, setShowSignatures] = useState(false)
-  const { data: diagnosticsData } = usePastasDiagnostics(showDiagnostics ? result.run_id : null)
-  const { data: signaturesData } = usePastasSignatures(showSignatures ? result.run_id : null)
+  const { data: diagnosticsData } = usePastasDiagnostics(result.run_id)
+  const { data: signaturesData } = usePastasSignatures(result.run_id)
 
   const {
     metrics, parameters, observed, simulated, residuals,
@@ -141,33 +130,143 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
   const hasStepResponse = step_response?.index?.length > 0 && step_response?.values?.length > 0
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
           <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
-          {warnings.map((w, i) => (
-            <p key={i} className="text-xs text-yellow-300">{w}</p>
-          ))}
+          {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
 
-      {/* Metrics */}
-      {validation_metrics ? (
-        <div className="grid grid-cols-2 gap-4">
-          <MetricGrid metrics={metrics} title="Entraînement" period={cal_period} borderColor="border-accent-cyan/20" />
-          <MetricGrid metrics={validation_metrics} title="Test (données inédites)" period={val_period} borderColor="border-orange-500/20" />
-        </div>
-      ) : (
-        <MetricGrid metrics={metrics} />
-      )}
-
-      {/* Parameters */}
-      {parameters.length > 0 && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 overflow-hidden">
-          <div className="px-3 py-2 border-b border-white/5">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Paramètres</span>
+      {/* 1. Metrics */}
+      <Section title="Métriques de performance">
+        {validation_metrics ? (
+          <div className="grid grid-cols-2 gap-3">
+            <MetricGrid metrics={metrics} title="Entraînement" period={cal_period} borderColor="border-accent-cyan/20" />
+            <MetricGrid metrics={validation_metrics} title="Test (données inédites)" period={val_period} borderColor="border-orange-500/20" />
           </div>
+        ) : (
+          <MetricGrid metrics={metrics} />
+        )}
+      </Section>
+
+      {/* 2. Time series */}
+      <Section title="Séries temporelles — Observé vs Simulé">
+        {observed?.index?.length > 0 && (
+          val_period && cal_period ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-semibold text-accent-cyan mb-1">
+                  Entraînement ({cal_period[0]?.slice(0,4)}–{cal_period[1]?.slice(0,4)})
+                </p>
+                <Plot
+                  data={[
+                    { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                    { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
+                  ]}
+                  layout={{ ...chartLayout, xaxis: { range: [cal_period[0], cal_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
+                  config={plotlyConfig} style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-orange-400 mb-1">
+                  Test ({val_period[0]?.slice(0,4)}–{val_period[1]?.slice(0,4)})
+                </p>
+                <Plot
+                  data={[
+                    { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                    { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#f97316', width: 2 } },
+                  ]}
+                  layout={{ ...chartLayout, xaxis: { range: [val_period[0], val_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
+                  config={plotlyConfig} style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          ) : (
+            <Plot
+              data={[
+                { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
+                { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
+              ]}
+              layout={chartLayout} config={plotlyConfig} style={{ width: '100%' }}
+            />
+          )
+        )}
+
+        {/* Scatter 1:1 */}
+        {observed?.values?.length > 0 && simulated?.values?.length > 0 && (() => {
+          const allVals = [...observed.values, ...simulated.values].filter(v => Number.isFinite(v))
+          const min = Math.min(...allVals)
+          const max = Math.max(...allVals)
+          return (
+            <div className="mt-3">
+              <p className="text-xs text-text-muted mb-1">Nuage de points 1:1 — les points doivent suivre la diagonale rouge</p>
+              <Plot
+                data={[
+                  { x: observed.values, y: simulated.values, type: 'scatter', mode: 'markers', marker: { color: '#60a5fa', size: 3, opacity: 0.4 }, name: 'Points' },
+                  { x: [min, max], y: [min, max], type: 'scatter', mode: 'lines', line: { color: '#ef4444', dash: 'dash', width: 1 }, name: '1:1' },
+                ]}
+                layout={{
+                  ...chartLayout, height: 220, showlegend: false,
+                  xaxis: { title: { text: 'Observé (m)' }, gridcolor: 'rgba(255,255,255,0.05)', scaleanchor: 'y' },
+                  yaxis: { title: { text: 'Simulé (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                }}
+                config={plotlyConfig} style={{ width: '100%' }}
+              />
+            </div>
+          )
+        })()}
+      </Section>
+
+      {/* 3. Contributions */}
+      {contributions && Object.keys(contributions).length > 0 && (
+        <Section title="Décomposition des contributions">
+          <ContributionsChart contributions={contributions} />
+        </Section>
+      )}
+
+      {/* 4. Response function */}
+      {(hasStepResponse || block_response?.values?.length > 0) && (
+        <Section title="Fonction de réponse">
+          <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
+        </Section>
+      )}
+
+      {/* 5. Residuals & diagnostics */}
+      <Section title="Résidus & diagnostics">
+        {residuals?.index?.length > 0 && (() => {
+          const vals = residuals.values.filter(v => Number.isFinite(v))
+          const mean = vals.reduce((a, b) => a + b, 0) / vals.length
+          const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
+          const threshold = 2 * std
+          return (
+            <div className="mb-3">
+              <p className="text-xs text-text-muted mb-1">Barres rouges = erreur supérieure à 2 écarts-types</p>
+              <Plot
+                data={[{
+                  x: residuals.index, y: residuals.values, type: 'bar', name: 'Résidus',
+                  marker: { color: residuals.values.map(v => Math.abs(v) > threshold ? 'rgba(239,68,68,0.7)' : 'rgba(245,158,11,0.5)') },
+                }]}
+                layout={{
+                  ...chartLayout, height: 160,
+                  shapes: [
+                    { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                    { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                  ],
+                }}
+                config={plotlyConfig} style={{ width: '100%' }}
+              />
+            </div>
+          )
+        })()}
+        {diagnosticsData && <DiagnosticsPanel diagnostics={diagnosticsData} />}
+        {!diagnosticsData && <p className="text-xs text-text-muted">Chargement des diagnostics...</p>}
+      </Section>
+
+      {/* 6. Parameters */}
+      {parameters.length > 0 && (
+        <Section title="Paramètres du modèle" defaultOpen={false}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -179,7 +278,7 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                 </tr>
               </thead>
               <tbody>
-                {parameters.map((p) => (
+                {parameters.map(p => (
                   <tr key={p.name} className="border-b border-white/5 hover:bg-bg-hover">
                     <td className="px-3 py-2 text-text-primary font-mono">{p.name}</td>
                     <td className="px-3 py-2 text-right text-accent-cyan">{p.optimal.toFixed(6)}</td>
@@ -190,163 +289,17 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
               </tbody>
             </table>
           </div>
-        </div>
+        </Section>
       )}
 
-      {/* Observed vs Simulated */}
-      {observed?.index?.length > 0 && (
-        val_period && cal_period ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-bg-primary rounded-lg border border-accent-cyan/20 p-3">
-              <p className="text-xs font-semibold text-accent-cyan mb-2 uppercase tracking-wide">
-                Entraînement ({cal_period[0]?.slice(0,4)}–{cal_period[1]?.slice(0,4)})
-              </p>
-              <Plot
-                data={[
-                  { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                  { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
-                ]}
-                layout={{ ...chartLayout, xaxis: { range: [cal_period[0], cal_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                config={plotlyConfig} style={{ width: '100%' }}
-              />
-            </div>
-            <div className="bg-bg-primary rounded-lg border border-orange-500/20 p-3">
-              <p className="text-xs font-semibold text-orange-400 mb-2 uppercase tracking-wide">
-                Test ({val_period[0]?.slice(0,4)}–{val_period[1]?.slice(0,4)})
-              </p>
-              <Plot
-                data={[
-                  { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                  { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#f97316', width: 2 } },
-                ]}
-                layout={{ ...chartLayout, xaxis: { range: [val_period[0], val_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                config={plotlyConfig} style={{ width: '100%' }}
-              />
-            </div>
-          </div>
+      {/* 7. Signatures */}
+      <Section title="Signatures hydrologiques" defaultOpen={false}>
+        {signaturesData ? (
+          <SignaturesPanel signatures={signaturesData} />
         ) : (
-          <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Observé vs Simulé</p>
-            <Plot
-              data={[
-                { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
-              ]}
-              layout={chartLayout} config={plotlyConfig} style={{ width: '100%' }}
-            />
-          </div>
-        )
-      )}
-
-      {/* Scatter 1:1 plot */}
-      {observed?.values?.length > 0 && simulated?.values?.length > 0 && (
-        <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-          <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-            Scatter Obs vs Sim (1:1)
-          </p>
-          <Plot
-            data={[
-              {
-                x: observed.values, y: simulated.values,
-                type: 'scatter', mode: 'markers',
-                marker: { color: '#60a5fa', size: 3, opacity: 0.4 },
-                name: 'Points',
-              },
-              (() => {
-                const allVals = [...observed.values, ...simulated.values].filter(v => Number.isFinite(v))
-                const min = Math.min(...allVals)
-                const max = Math.max(...allVals)
-                return {
-                  x: [min, max], y: [min, max],
-                  type: 'scatter' as const, mode: 'lines' as const,
-                  line: { color: '#ef4444', dash: 'dash' as const, width: 1 },
-                  name: '1:1',
-                }
-              })(),
-            ]}
-            layout={{
-              ...chartLayout,
-              height: 250,
-              xaxis: { title: { text: 'Observé (m)' }, gridcolor: 'rgba(255,255,255,0.05)', scaleanchor: 'y' },
-              yaxis: { title: { text: 'Simulé (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
-              showlegend: false,
-            }}
-            config={plotlyConfig} style={{ width: '100%' }}
-          />
-        </div>
-      )}
-
-      {/* Contributions */}
-      {contributions && Object.keys(contributions).length > 0 && (
-        <ContributionsChart contributions={contributions} />
-      )}
-
-      {/* Response function */}
-      {(hasStepResponse || block_response?.values?.length > 0) && (
-        <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
-      )}
-
-      {/* Residuals with annotations for |residual| > 2σ */}
-      {residuals?.index?.length > 0 && (() => {
-        const vals = residuals.values.filter(v => Number.isFinite(v))
-        const mean = vals.reduce((a, b) => a + b, 0) / vals.length
-        const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
-        const threshold = 2 * std
-
-        return (
-          <div className="bg-bg-primary rounded-lg border border-white/5 p-3">
-            <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-              Résidus
-              <span className="font-normal normal-case text-text-muted ml-2">
-                (zones rouges = erreur &gt; 2σ)
-              </span>
-            </p>
-            <Plot
-              data={[
-                {
-                  x: residuals.index, y: residuals.values,
-                  type: 'bar', name: 'Résidus',
-                  marker: {
-                    color: residuals.values.map(v =>
-                      Math.abs(v) > threshold ? 'rgba(239,68,68,0.7)' : 'rgba(245,158,11,0.5)'
-                    ),
-                  },
-                },
-              ]}
-              layout={{
-                ...chartLayout, height: 160,
-                shapes: [
-                  { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
-                  { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
-                ],
-              }}
-              config={plotlyConfig} style={{ width: '100%' }}
-            />
-          </div>
-        )
-      })()}
-
-      {/* Diagnostics (collapsible) */}
-      <div>
-        <button onClick={() => setShowDiagnostics(!showDiagnostics)}
-          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
-          {showDiagnostics ? '▼ Masquer les diagnostics' : '▶ Diagnostics détaillés'}
-        </button>
-        {showDiagnostics && diagnosticsData && (
-          <div className="mt-3"><DiagnosticsPanel diagnostics={diagnosticsData} /></div>
+          <p className="text-xs text-text-muted">Chargement des signatures...</p>
         )}
-      </div>
-
-      {/* Signatures (collapsible) */}
-      <div>
-        <button onClick={() => setShowSignatures(!showSignatures)}
-          className="text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors">
-          {showSignatures ? '▼ Masquer les signatures' : '▶ Signatures hydrologiques'}
-        </button>
-        {showSignatures && signaturesData && (
-          <div className="mt-3"><SignaturesPanel signatures={signaturesData} /></div>
-        )}
-      </div>
+      </Section>
     </div>
   )
 }
