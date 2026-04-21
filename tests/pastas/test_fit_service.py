@@ -102,3 +102,47 @@ def test_run_fit_returns_warnings_on_bound_hit(synthetic_station, monkeypatch, t
 
     assert isinstance(result, FitResult)
     assert isinstance(result.warnings, list), "warnings should always be a list"
+
+
+def test_run_fit_with_warmup(synthetic_station, monkeypatch, tmp_path):
+    """Warm-up should still produce valid results."""
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{tmp_path / 'mlflow.db'}")
+
+    result = run_fit(
+        gwl=synthetic_station["piezo"],
+        precip=synthetic_station["precip"],
+        evap=synthetic_station["evap"],
+        recharge_type="Linear",
+        response_type="Gamma",
+        noise_type="none",
+        solver_type="LeastSquares",
+        solver_kwargs=None,
+        tmin=None,
+        tmax=None,
+        dataset_id="test_warmup",
+        warm_up_years=1,
+    )
+    assert result.run_id
+    assert result.metrics.get("evp") is not None
+
+
+def test_run_fit_two_pass(synthetic_station, monkeypatch, tmp_path):
+    """Two-pass solve should produce valid results with noise model."""
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", f"sqlite:///{tmp_path / 'mlflow.db'}")
+
+    result = run_fit(
+        gwl=synthetic_station["piezo"],
+        precip=synthetic_station["precip"],
+        evap=synthetic_station["evap"],
+        recharge_type="Linear",
+        response_type="Gamma",
+        noise_type="ArNoiseModel",
+        solver_type="LeastSquares",
+        solver_kwargs=None,
+        tmin=None,
+        tmax=None,
+        dataset_id="test_twopass",
+        two_pass=True,
+    )
+    assert result.run_id
+    assert result.metrics.get("evp") is not None

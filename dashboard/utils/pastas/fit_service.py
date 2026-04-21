@@ -1,6 +1,7 @@
 """Fit a Pastas TFN model and persist results to MLflow."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import tempfile
@@ -192,6 +193,9 @@ def run_fit(
     name: Optional[str] = None,
     val_split: Optional[float] = None,
     additional_stresses: Optional[list[dict[str, Any]]] = None,
+    warm_up_years: int = 0,
+    two_pass: bool = False,
+    initial_params: Optional[dict[str, float]] = None,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -257,6 +261,53 @@ def run_fit(
         cal_period = [str(obs_index.min().date()) if tmin is None else tmin, tmax_cal]
         val_period = [tmin_val, tmax_obs]
 
+    # Compute effective_tmin for metrics (skips warm-up period)
+    effective_tmin = tmin
+    if warm_up_years > 0:
+        obs_start = gwl.dropna().index.min()
+        start = pd.Timestamp(tmin) if tmin else obs_start
+        effective_tmin = str((start + pd.DateOffset(years=warm_up_years)).date())
+
+    # Two-pass solve: use a no-noise model to get initial params for the noise model
+    if two_pass and noise_type != "none":
+        model_no_noise, _, _ = build_model(
+            gwl=gwl,
+            precip=precip,
+            evap=evap,
+            recharge_type=recharge_type,
+            response_type=response_type,
+            noise_type="none",
+            tmin=tmin,
+            tmax=tmax,
+            additional_stresses=additional_stresses,
+        )
+        solver_cls_pass1 = SOLVER_REGISTRY[solver_type]
+        model_no_noise.solve(
+            tmin=tmin,
+            tmax=tmax_cal,
+            solver=solver_cls_pass1(),
+            report=False,
+            **solver_kwargs,
+        )
+        # Transfer optimized parameters as initial values for the main model
+        for pname, row in model_no_noise.parameters.iterrows():
+            if pname in model.parameters.index:
+                optimal = row.get("optimal")
+                if optimal is not None and pd.notna(optimal):
+                    try:
+                        model.set_parameter(pname, initial=float(optimal))
+                    except Exception:
+                        pass
+
+    # Apply user-supplied initial parameter overrides
+    if initial_params:
+        for pname, pval in initial_params.items():
+            if pname in model.parameters.index:
+                try:
+                    model.set_parameter(pname, initial=pval)
+                except Exception:
+                    pass
+
     # Solve — Pastas >= 0.23 requires an instance, not a class
     solver_cls = SOLVER_REGISTRY[solver_type]
     solver_instance = solver_cls()
@@ -269,7 +320,7 @@ def run_fit(
     )
 
     # Extract all outputs before MLflow context
-    metrics = _extract_metrics(model, tmin, tmax_cal)
+    metrics = _extract_metrics(model, effective_tmin, tmax_cal)
     parameters = _extract_parameters(model)
     fit_warnings = _check_warnings(model)
 
@@ -338,6 +389,8 @@ def run_fit(
             "tmax": str(tmax) if tmax is not None else "auto",
             "n_additional_stresses": len(additional_stresses) if additional_stresses else 0,
             "include_temp": str(bool(additional_stresses and any(s.get("name") == "temperature" for s in additional_stresses))),
+            "warm_up_years": str(warm_up_years),
+            "two_pass": str(two_pass),
         }
         if val_split is not None:
             mlflow_params["val_split"] = str(val_split)
