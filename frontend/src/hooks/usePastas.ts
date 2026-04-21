@@ -75,8 +75,51 @@ export function usePastasSignatures(runId: string | null) {
   })
 }
 
+export function usePastasStationInfo(codeBss: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'station-info', codeBss],
+    queryFn: () => api.pastas.stationInfo(codeBss!),
+    enabled: !!codeBss,
+    staleTime: 60 * 60 * 1000,
+  })
+}
+
 export function usePastasCompare() {
   return useMutation({
     mutationFn: (runIds: string[]) => api.pastas.compare(runIds),
+  })
+}
+
+export function usePastasSiblings(codeBss: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'siblings', codeBss],
+    queryFn: () => api.pastas.siblings(codeBss!),
+    enabled: !!codeBss,
+    staleTime: 30 * 60 * 1000,
+  })
+}
+
+export function usePastasDiagnose(codeBss: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'diagnose', codeBss],
+    queryFn: () => api.pastas.diagnose(codeBss!),
+    enabled: !!codeBss,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+export function usePastasAutoFit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.pastas.autoFit,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pastas', 'models'] })
+    },
+  })
+}
+
+export function usePastasCompareAI() {
+  return useMutation({
+    mutationFn: api.pastas.compareAI,
   })
 }

@@ -317,8 +317,15 @@ export interface PastasModelSummary {
   code_bss: string
   recharge_type: string
   response_type: string
+  noise_type: string
+  solver_type: string
   evp: number | null
   rmse: number | null
+  nse: number | null
+  val_nse: number | null
+  val_evp: number | null
+  has_validation: boolean
+  include_temp: boolean
   created_at: string
   pastas_version: string
 }
@@ -362,6 +369,82 @@ export interface PastasCompareModel {
 
 export interface PastasCompareResponse {
   models: PastasCompareModel[]
+}
+
+// Pre-fit Diagnostics
+export interface DiagnosticIndicator {
+  value: number | boolean | null
+  status: 'green' | 'orange' | 'red'
+  detail: string | null
+}
+
+export interface DiagnosticRecommendation {
+  type: string
+  message: string
+  action: string
+  params: Record<string, unknown>
+}
+
+export interface DiagnoseResult {
+  coverage: DiagnosticIndicator
+  gaps: DiagnosticIndicator
+  trend: DiagnosticIndicator
+  breakpoints: DiagnosticIndicator
+  seasonality: DiagnosticIndicator
+  record_length: DiagnosticIndicator
+  recommended_tmin: string | null
+  recommended_tmax: string | null
+  recommendations: DiagnosticRecommendation[]
+}
+
+// STOWA Assessment
+export interface StowaResult {
+  evp_pass: boolean
+  evp_value: number
+  autocorrelation_pass: boolean
+  runs_test_pvalue: number
+  t95_pass: boolean
+  t95_days: number
+  t95_threshold: number
+  gain_pass: boolean
+  gain_significance: number
+  overall_pass: boolean
+  suggestions: string[]
+}
+
+// Auto-fit
+export interface AutoFitCandidate {
+  config: Record<string, string | boolean>
+  aic: number | null
+  evp: number | null
+  nse: number | null
+  run_id: string | null
+  stowa: {
+    evp_pass: boolean
+    autocorrelation_pass: boolean
+    t95_pass: boolean
+    gain_pass: boolean
+    overall_pass: boolean
+  } | null
+  error: string | null
+  elapsed_s: number
+}
+
+export interface AutoFitResult {
+  candidates: AutoFitCandidate[]
+  best_run_id: string | null
+  best_config: Record<string, string | boolean> | null
+  total_elapsed_s: number
+}
+
+// Compare AI
+export interface CompareAIResult {
+  common_period: [string, string]
+  dates: string[]
+  observed: (number | null)[]
+  pastas_simulated: (number | null)[]
+  ai_predicted: (number | null)[]
+  metrics: { metric: string; pastas_value: number | null; ai_value: number | null; best: string }[]
 }
 
 // Pastas dual validation result

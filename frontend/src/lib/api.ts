@@ -28,6 +28,9 @@ import type {
   PastasScenarioResponse,
   PastasStationPreview,
   PastasCompareResponse,
+  DiagnoseResult,
+  AutoFitResult,
+  CompareAIResult,
 } from './types'
 
 async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: number }): Promise<T> {
@@ -290,6 +293,11 @@ export const api = {
 
   pastas: {
     options: () => fetchJson<PastasOptions>('/pastas/options'),
+    stationInfo: (codeBss: string) => fetchJson<Record<string, unknown>>(`/pastas/station-info?code_bss=${encodeURIComponent(codeBss)}`),
+    siblings: (codeBss: string) => fetchJson<{
+      siblings: { code_bss: string; lat: number; lon: number; nom_commune?: string }[]
+      bdlisa_code?: string
+    }>(`/pastas/siblings?code_bss=${encodeURIComponent(codeBss)}`),
     preview: (codeBss: string) => fetchJson<PastasStationPreview>(`/pastas/preview?code_bss=${encodeURIComponent(codeBss)}`, { timeout: 30_000 }),
     fit: (body: {
       code_bss: string
@@ -319,6 +327,17 @@ export const api = {
     signatures: (runId: string) => fetchJson<{ observed: Record<string, number>; simulated: Record<string, number> }>(`/pastas/models/${runId}/signatures`),
     compare: (runIds: string[]) =>
       postJson<PastasCompareResponse>('/pastas/compare', { run_ids: runIds }, 60_000),
+    diagnose: (codeBss: string) =>
+      postJson<DiagnoseResult>('/pastas/diagnose', { code_bss: codeBss }),
+    autoFit: (body: {
+      code_bss: string
+      warm_up_years?: number
+      val_split?: number
+      include_temp?: boolean
+      add_trend?: boolean | null
+    }) => postJson<AutoFitResult>('/pastas/auto-fit', body, 300_000),
+    compareAI: (body: { pastas_run_id: string; ai_model_id: string }) =>
+      postJson<CompareAIResult>('/pastas/compare-ai', body),
   },
 
   counterfactual: {
