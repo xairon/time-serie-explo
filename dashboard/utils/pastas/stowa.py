@@ -159,7 +159,7 @@ def _find_gain_param(parameters: pd.DataFrame) -> tuple[float, float] | None:
     Parameters
     ----------
     parameters:
-        Pastas model.parameters DataFrame with columns 'optimal' and 'pstderr'.
+        Pastas model.parameters DataFrame with columns 'optimal' and 'stderr'.
 
     Returns
     -------
@@ -169,7 +169,7 @@ def _find_gain_param(parameters: pd.DataFrame) -> tuple[float, float] | None:
     for param_name in parameters.index:
         if str(param_name).endswith("_A"):
             optimal = float(parameters.loc[param_name, "optimal"])
-            stderr = parameters.loc[param_name, "pstderr"]
+            stderr = parameters.loc[param_name, "stderr"]
             if stderr is None or (isinstance(stderr, float) and np.isnan(stderr)):
                 return None
             return optimal, float(stderr)
