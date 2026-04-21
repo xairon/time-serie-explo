@@ -9,7 +9,7 @@ from typing import Optional
 
 import mlflow
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from api.config import settings
@@ -83,7 +83,78 @@ def get_options() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# GET /preview?code_bss=...
+# GET /siblings?code_bss=...
+# ---------------------------------------------------------------------------
+
+@router.get("/siblings")
+def get_siblings(code_bss: str, limit: int = 20):
+    """Return nearby stations from the same BDLISA aquifer."""
+    from sqlalchemy import create_engine, text as sql_text
+
+    db_url = _brgm_url()
+    engine = create_engine(db_url)
+    try:
+        # Get this station's BDLISA code
+        with engine.connect() as conn:
+            bdlisa_df = pd.read_sql(
+                sql_text("SELECT codes_bdlisa FROM gold.int_station_era5_mapping WHERE code_bss = :code LIMIT 1"),
+                conn, params={"code": code_bss},
+            )
+        if bdlisa_df.empty or pd.isna(bdlisa_df.iloc[0]["codes_bdlisa"]):
+            return {"siblings": []}
+
+        bdlisa_code = str(bdlisa_df.iloc[0]["codes_bdlisa"])
+
+        # Find other stations with the same BDLISA code
+        with engine.connect() as conn:
+            siblings_df = pd.read_sql(
+                sql_text("""
+                    SELECT DISTINCT m.code_bss, s.nom_commune,
+                           s.latitude, s.longitude
+                    FROM gold.int_station_era5_mapping m
+                    LEFT JOIN gold.dim_piezo_stations s ON s.code_bss = m.code_bss
+                    WHERE m.codes_bdlisa = :bdlisa AND m.code_bss != :code
+                      AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL
+                    LIMIT :lim
+                """),
+                conn, params={"bdlisa": bdlisa_code, "code": code_bss, "lim": limit},
+            )
+
+        siblings = [
+            {
+                "code_bss": row["code_bss"],
+                "lat": float(row["latitude"]),
+                "lon": float(row["longitude"]),
+                "nom_commune": row.get("nom_commune"),
+            }
+            for _, row in siblings_df.iterrows()
+        ]
+        return {"siblings": siblings, "bdlisa_code": bdlisa_code}
+    finally:
+        engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# GET /station-info?code_bss=...  (fast, metadata only, <50ms)
+# ---------------------------------------------------------------------------
+
+@router.get("/station-info")
+def station_info(code_bss: str):
+    """Return rich station metadata from dim_piezo_stations (instant)."""
+    from dashboard.utils.pastas.station_loader import load_station_metadata
+    from dashboard.utils.pastas.config import get_preset
+
+    try:
+        meta = load_station_metadata(code_bss, _brgm_url())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    preset = get_preset(meta.get("nature_eh"), meta.get("milieu_eh"))
+    return {**meta, "preset": preset}
+
+
+# ---------------------------------------------------------------------------
+# GET /preview?code_bss=...  (heavy, loads full series)
 # ---------------------------------------------------------------------------
 
 @router.get("/preview")
@@ -112,7 +183,6 @@ def preview_station(code_bss: str):
         stats["piezo_max_gap_days"] = float(gaps.max())
         stats["piezo_pct_daily"] = round(float((gaps == 1).mean() * 100), 1)
 
-    # BDLISA-based preset
     from dashboard.utils.pastas.config import get_preset
     preset = get_preset(
         station.metadata.get("nature_eh"),
@@ -235,8 +305,15 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
                 code_bss=tags.get("station_id", "unknown"),
                 recharge_type=params.get("recharge_type", "unknown"),
                 response_type=params.get("response_type", "unknown"),
+                noise_type=params.get("noise_type", "unknown"),
+                solver_type=params.get("solver_type", "unknown"),
                 evp=metrics.get("evp"),
                 rmse=metrics.get("rmse"),
+                nse=metrics.get("nse"),
+                val_nse=metrics.get("val_nse"),
+                val_evp=metrics.get("val_evp"),
+                has_validation="val_tmin" in tags,
+                include_temp=params.get("include_temp") == "True",
                 created_at=str(run.info.start_time),
                 pastas_version=tags.get("pastas_version", "unknown"),
             )
@@ -524,3 +601,133 @@ def simulate(req: ScenarioRequest) -> ScenarioResponse:
         contributions_scenario={k: _series_to_ts(v) for k, v in result.contributions_scenario.items()},
         warnings=result.warnings,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /diagnose
+# ---------------------------------------------------------------------------
+
+@router.post("/diagnose")
+def diagnose_station(code_bss: str = Body(..., embed=True)):
+    from dashboard.utils.pastas.station_loader import load_station_series
+    from dashboard.utils.pastas.diagnostics_prefit import run_prefit_diagnostics
+    try:
+        station = load_station_series(code_bss, _brgm_url())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    diag = run_prefit_diagnostics(station.piezo)
+    return {
+        "coverage": {"value": diag.coverage_pct, "status": diag.coverage_status, "detail": f"{diag.coverage_pct:.1f}% daily coverage"},
+        "gaps": {"value": diag.max_gap_days, "status": diag.gaps_status, "detail": f"Largest gap: {diag.max_gap_days} days"},
+        "trend": {"value": diag.trend_detected, "status": diag.trend_status, "detail": f"Slope: {diag.trend_slope:+.4f} m/yr" if diag.trend_slope else None},
+        "breakpoints": {"value": diag.breakpoint_detected, "status": diag.breakpoint_status, "detail": f"At {diag.breakpoint_date}" if diag.breakpoint_date else None},
+        "seasonality": {"value": diag.seasonality_strength, "status": diag.seasonality_status, "detail": f"ACF(12) = {diag.seasonality_strength:.3f}"},
+        "record_length": {"value": diag.record_years, "status": diag.record_status, "detail": f"{diag.record_years:.1f} years"},
+        "recommended_tmin": diag.recommended_tmin,
+        "recommended_tmax": diag.recommended_tmax,
+        "recommendations": diag.recommendations,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /auto-fit
+# ---------------------------------------------------------------------------
+
+@router.post("/auto-fit")
+def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), val_split: float = Body(0.2), include_temp: bool = Body(False), add_trend: Optional[bool] = Body(None)):
+    from dashboard.utils.pastas.station_loader import load_station_series
+    from dashboard.utils.pastas.auto_fit import run_auto_fit
+    from dashboard.utils.pastas.config import get_preset
+    from dashboard.utils.pastas.diagnostics_prefit import run_prefit_diagnostics
+
+    try:
+        station = load_station_series(code_bss, _brgm_url())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    preset = get_preset(station.metadata.get("nature_eh"), station.metadata.get("milieu_eh"))
+
+    detect_trend = add_trend
+    if detect_trend is None:
+        diag = run_prefit_diagnostics(station.piezo)
+        detect_trend = diag.trend_detected
+
+    result = run_auto_fit(
+        gwl=station.piezo, precip=station.precip, evap=station.evap, temp=station.temp,
+        code_bss=code_bss, db_url=_brgm_url(),
+        bdlisa_preset=preset, warm_up_years=warm_up_years,
+        add_trend=detect_trend, val_split=val_split, include_temp=include_temp,
+    )
+
+    candidates = []
+    for c in result.candidates:
+        candidates.append({
+            "config": c.config,
+            "aic": c.aic,
+            "evp": c.fit_result.metrics.get("evp") if c.fit_result else None,
+            "nse": c.fit_result.metrics.get("nse") if c.fit_result else None,
+            "run_id": c.fit_result.run_id if c.fit_result else None,
+            "stowa": {"evp_pass": c.stowa.evp_pass, "autocorrelation_pass": c.stowa.autocorrelation_pass, "t95_pass": c.stowa.t95_pass, "gain_pass": c.stowa.gain_pass, "overall_pass": c.stowa.overall_pass} if c.stowa else None,
+            "error": c.error,
+            "elapsed_s": round(c.elapsed_s, 1),
+        })
+
+    return {
+        "candidates": candidates,
+        "best_run_id": result.best.fit_result.run_id if result.best and result.best.fit_result else None,
+        "best_config": result.best.config if result.best else None,
+        "total_elapsed_s": round(result.total_elapsed_s, 1),
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /compare-ai
+# ---------------------------------------------------------------------------
+
+@router.post("/compare-ai")
+def compare_ai_endpoint(pastas_run_id: str = Body(...), ai_model_id: str = Body(...)):
+    from dashboard.utils.pastas.io import load_model as load_pastas_model
+    import numpy as np
+
+    try:
+        ps_model = load_pastas_model(pastas_run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, f"Pastas model not found: {exc}") from exc
+
+    ps_sim = ps_model.simulate()
+    ps_obs = ps_model.observations()
+
+    # Load AI model predictions
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    try:
+        ai_run = client.get_run(ai_model_id)
+    except Exception:
+        raise HTTPException(404, f"AI model {ai_model_id} not found")
+
+    # For now, return comparison structure even if AI data is limited
+    # Full implementation needs the forecast pipeline
+    ps_dates = [str(d.date()) for d in ps_sim.index]
+    ps_vals = [float(v) if pd.notna(v) else None for v in ps_sim.values]
+    obs_vals = [float(ps_obs.get(d, float("nan"))) if d in ps_obs.index else None for d in ps_sim.index]
+
+    def _nse(obs, pred):
+        o = np.array([v for v, p in zip(obs, pred) if v is not None and p is not None], dtype=float)
+        p = np.array([p for v, p in zip(obs, pred) if v is not None and p is not None], dtype=float)
+        if len(o) < 10: return None
+        ss_res = np.sum((o - p) ** 2)
+        ss_tot = np.sum((o - np.mean(o)) ** 2)
+        return float(1 - ss_res / ss_tot) if ss_tot > 0 else None
+
+    pastas_nse = _nse(obs_vals, ps_vals)
+
+    return {
+        "common_period": [ps_dates[0], ps_dates[-1]] if ps_dates else [],
+        "dates": ps_dates,
+        "observed": obs_vals,
+        "pastas_simulated": ps_vals,
+        "ai_predicted": [],  # populated when AI forecast pipeline is wired
+        "metrics": [
+            {"metric": "NSE", "pastas_value": pastas_nse, "ai_value": None, "best": "pastas"},
+        ],
+    }

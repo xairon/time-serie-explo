@@ -27,15 +27,15 @@ class CompareResponse(BaseModel):
 # ---------- Fit ----------
 
 class RechargeConfig(BaseModel):
-    type: Literal["Linear", "FlexModel"] = "Linear"
+    type: Literal["Linear", "FlexModel", "Berendrecht", "Peterson"] = "Linear"
     kwargs: dict[str, Any] = {}
 
 class ResponseConfig(BaseModel):
-    type: Literal["Gamma", "Exponential", "Hantush"] = "Gamma"
+    type: Literal["Gamma", "Exponential", "Hantush", "DoubleExponential", "FourParam"] = "Gamma"
     kwargs: dict[str, Any] = {}
 
 class NoiseConfig(BaseModel):
-    type: Literal["ArNoiseModel", "none"] = "ArNoiseModel"
+    type: Literal["ArNoiseModel", "ArmaNoiseModel", "none"] = "ArNoiseModel"
 
 class SolverConfig(BaseModel):
     type: Literal["LeastSquares", "Lmfit"] = "LeastSquares"
@@ -100,8 +100,15 @@ class PastasModelSummary(BaseModel):
     code_bss: str
     recharge_type: str
     response_type: str
+    noise_type: str = "unknown"
+    solver_type: str = "unknown"
     evp: Optional[float] = None
     rmse: Optional[float] = None
+    nse: Optional[float] = None
+    val_nse: Optional[float] = None
+    val_evp: Optional[float] = None
+    has_validation: bool = False
+    include_temp: bool = False
     created_at: str
     pastas_version: str
 
@@ -159,6 +166,64 @@ class ScenarioResponse(BaseModel):
     contributions_baseline: dict[str, TimeSeriesData]
     contributions_scenario: dict[str, TimeSeriesData]
     warnings: list[str] = []
+
+# --- Pre-fit Diagnostics ---
+
+class DiagnoseRequest(BaseModel):
+    code_bss: str
+
+class DiagnosticIndicator(BaseModel):
+    value: Any = None
+    status: str
+    detail: Optional[str] = None
+
+class DiagnosticRecommendation(BaseModel):
+    type: str
+    message: str
+    action: str
+    params: dict[str, Any] = {}
+
+class DiagnoseResponse(BaseModel):
+    coverage: DiagnosticIndicator
+    gaps: DiagnosticIndicator
+    trend: DiagnosticIndicator
+    breakpoints: DiagnosticIndicator
+    seasonality: DiagnosticIndicator
+    record_length: DiagnosticIndicator
+    recommended_tmin: Optional[str] = None
+    recommended_tmax: Optional[str] = None
+    recommendations: list[DiagnosticRecommendation] = []
+
+# --- STOWA ---
+
+class StowaResultSchema(BaseModel):
+    evp_pass: bool
+    evp_value: float
+    autocorrelation_pass: bool
+    runs_test_pvalue: float
+    t95_pass: bool
+    t95_days: float
+    t95_threshold: float
+    gain_pass: bool
+    gain_significance: float
+    overall_pass: bool
+    suggestions: list[str] = []
+
+# --- Auto-fit ---
+
+class AutoFitRequest(BaseModel):
+    code_bss: str
+    warm_up_years: int = 2
+    val_split: float = 0.2
+    include_temp: bool = False
+    add_trend: Optional[bool] = None
+
+# --- Compare AI ---
+
+class CompareAIRequest(BaseModel):
+    pastas_run_id: str
+    ai_model_id: str
+
 
 # ---------- Preview ----------
 
