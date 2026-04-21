@@ -322,6 +322,7 @@ export interface PastasModelSummary {
   evp: number | null
   rmse: number | null
   nse: number | null
+  aic: number | null
   val_nse: number | null
   val_evp: number | null
   has_validation: boolean

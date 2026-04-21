@@ -310,6 +310,7 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
                 evp=metrics.get("evp"),
                 rmse=metrics.get("rmse"),
                 nse=metrics.get("nse"),
+                aic=metrics.get("aic"),
                 val_nse=metrics.get("val_nse"),
                 val_evp=metrics.get("val_evp"),
                 has_validation="val_tmin" in tags,

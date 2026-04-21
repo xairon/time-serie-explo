@@ -105,6 +105,7 @@ class PastasModelSummary(BaseModel):
     evp: Optional[float] = None
     rmse: Optional[float] = None
     nse: Optional[float] = None
+    aic: Optional[float] = None
     val_nse: Optional[float] = None
     val_evp: Optional[float] = None
     has_validation: bool = False
