@@ -19,9 +19,9 @@ export function BaseflowPanel({ data }: Props) {
       </div>
       <Plot
         data={[
-          { x: data.index, y: data.baseflow, type: 'scatter' as const, mode: 'lines' as const, fill: 'tozeroy',
+          { x: data.index, y: data.baseflow, type: 'scatter' as const, mode: 'lines' as const, fill: 'tozeroy' as const,
             name: 'Baseflow', line: { width: 0 }, fillcolor: 'rgba(59,130,246,0.3)' },
-          { x: data.index, y: data.observed, type: 'scatter' as const, mode: 'lines' as const, fill: 'tonexty',
+          { x: data.index, y: data.observed, type: 'scatter' as const, mode: 'lines' as const, fill: 'tonexty' as const,
             name: 'Quickflow', line: { width: 0 }, fillcolor: 'rgba(34,211,238,0.3)' },
           { x: data.index, y: data.observed, type: 'scatter' as const, mode: 'lines' as const,
             name: 'Observed', line: { color: '#9ca3af', width: 1 } },
