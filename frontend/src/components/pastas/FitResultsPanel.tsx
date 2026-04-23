@@ -276,9 +276,10 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           const threshold = 2 * std
 
           const isOutlier = residuals.values.map(v => Math.abs(v) > threshold)
+          const selectedYM = selectedOutlierDate?.slice(0, 7)
           const barColors = residuals.values.map((_v, i) => {
             if (!isOutlier[i]) return 'rgba(245,158,11,0.5)'
-            return residuals.index[i] === selectedOutlierDate ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
+            return selectedYM && residuals.index[i].startsWith(selectedYM) ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
           })
 
           return (
@@ -305,8 +306,10 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                   if (!outlierData || !event.points?.[0]) return
                   const point = event.points[0]
                   if (!point.customdata) return
-                  const clickedDate = point.x as string
-                  setSelectedOutlierDate(prev => prev === clickedDate ? null : clickedDate)
+                  const clickedYM = String(point.x).slice(0, 7)
+                  const match = outlierData.outliers?.find((o: any) => o.date.startsWith(clickedYM))
+                  if (!match) return
+                  setSelectedOutlierDate((prev: string | null) => prev === match.date ? null : match.date)
                 }}
               />
             </div>
