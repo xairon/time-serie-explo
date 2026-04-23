@@ -502,6 +502,204 @@ def get_outlier_diagnostics(run_id: str):
 
 
 # ---------------------------------------------------------------------------
+# GET /models/{run_id}/confidence-bands
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/confidence-bands")
+def get_confidence_bands(run_id: str):
+    """Compute bootstrap confidence bands on model simulation."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.confidence_intervals import compute_confidence_bands
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+
+    return compute_confidence_bands(model, tmin, tmax)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/recession
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/recession")
+def get_recession(run_id: str):
+    """Compute recession analysis with Master Recession Curve."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.recession import compute_recession_analysis
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+
+    return compute_recession_analysis(model, tmin, tmax)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/baseflow
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/baseflow")
+def get_baseflow(run_id: str):
+    """Compute baseflow separation using Lyne & Hollick filter."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.baseflow import compute_baseflow
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+
+    return compute_baseflow(model, tmin, tmax)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/spectral
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/spectral")
+def get_spectral(run_id: str):
+    """Compute spectral analysis (PSD comparison obs vs sim)."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.spectral import compute_spectral_analysis
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+
+    return compute_spectral_analysis(model, tmin, tmax)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/decomposition
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/decomposition")
+def get_decomposition(run_id: str):
+    """Compute STL decomposition of observed series."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.signal_decomposition import compute_stl_decomposition
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+
+    return compute_stl_decomposition(model, tmin, tmax)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/cross-correlation
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/cross-correlation")
+def get_cross_correlation(run_id: str):
+    """Compute precipitation-piezometry cross-correlogram."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.cross_correlation import compute_cross_correlation
+    from sqlalchemy import create_engine
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
+
+    engine = create_engine(_brgm_url())
+    try:
+        return compute_cross_correlation(model, code_bss, tmin, tmax, engine)
+    finally:
+        engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/regional-residuals
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/regional-residuals")
+def get_regional_residuals(run_id: str):
+    """Compare model residuals with neighboring BDLISA stations."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.multi_station_residuals import compute_regional_residuals
+    from sqlalchemy import create_engine
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
+
+    engine = create_engine(_brgm_url())
+    try:
+        return compute_regional_residuals(model, code_bss, tmin, tmax, engine)
+    finally:
+        engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/input-quality
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/input-quality")
+def get_input_quality(run_id: str):
+    """Detect anomalous months in input data using Isolation Forest."""
+    from dashboard.utils.pastas.input_quality import detect_input_anomalies
+    from sqlalchemy import create_engine
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    try:
+        run = client.get_run(run_id)
+    except Exception:
+        raise HTTPException(404, f"Run '{run_id}' not found")
+    code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
+
+    engine = create_engine(_brgm_url())
+    try:
+        return detect_input_anomalies(code_bss, engine)
+    finally:
+        engine.dispose()
+
+
+# ---------------------------------------------------------------------------
 # GET /models/{run_id}/export/pas
 # ---------------------------------------------------------------------------
 
