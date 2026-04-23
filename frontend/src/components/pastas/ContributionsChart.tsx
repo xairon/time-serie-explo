@@ -48,9 +48,7 @@ export function ContributionsChart({ contributions }: Props) {
                 name: label,
                 type: 'scatter' as const,
                 mode: 'lines' as const,
-                fill: 'tozeroy' as const,
                 line: { color, width: 1.5 },
-                fillcolor: color + '20',
               }]}
               layout={{
                 paper_bgcolor: 'transparent',

@@ -5,7 +5,7 @@ import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
-import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasConfidenceBands, usePastasRecession, usePastasBaseflow, usePastasSpectral, usePastasDecomposition, usePastasCrossCorrelation, usePastasRegionalResiduals, usePastasInputQuality } from '@/hooks/usePastas'
+import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasRecession, usePastasBaseflow, usePastasSpectral, usePastasDecomposition, usePastasCrossCorrelation, usePastasRegionalResiduals, usePastasInputQuality } from '@/hooks/usePastas'
 import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
@@ -97,7 +97,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   const { data: diagnosticsData } = usePastasDiagnostics(result.run_id)
   const { data: signaturesData } = usePastasSignatures(result.run_id)
   const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id) as { data: any }
-  const { data: confidenceData } = usePastasConfidenceBands(result.run_id) as { data: any }
   const { data: recessionData } = usePastasRecession(result.run_id) as { data: any }
   const { data: baseflowData } = usePastasBaseflow(result.run_id) as { data: any }
   const { data: spectralData } = usePastasSpectral(result.run_id) as { data: any }
@@ -213,20 +212,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* Input quality banner */}
-      {inputQualityData && inputQualityData.n_flagged > 0 && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-orange-400 mb-1">Input Data Anomalies — {inputQualityData.n_flagged} suspicious months</p>
-          <div className="flex flex-wrap gap-1">
-            {inputQualityData.flagged?.map((f: any) => (
-              <span key={f.month} className="px-2 py-0.5 rounded-full text-[10px] border border-orange-500/30 bg-orange-500/10 text-orange-300" title={f.reason}>
-                {new Date(f.month).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ═══════════ METRICS ═══════════ */}
       <Section title="Performance Metrics">
         {validation_metrics ? (
@@ -284,27 +269,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
             }
           })() : null
 
-          // Confidence bands — filter to current period
-          const ciBands: any[] = []
-          if (confidenceData?.p5) {
-            const ciStart = obsX[0]; const ciEnd = obsX[obsX.length - 1]
-            const ciIdx: string[] = [], ciP5: number[] = [], ciP25: number[] = [], ciP75: number[] = [], ciP95: number[] = []
-            confidenceData.index.forEach((d: string, i: number) => {
-              if (d >= ciStart && d <= ciEnd) {
-                ciIdx.push(d); ciP5.push(confidenceData.p5[i]); ciP25.push(confidenceData.p25[i])
-                ciP75.push(confidenceData.p75[i]); ciP95.push(confidenceData.p95[i])
-              }
-            })
-            if (ciIdx.length > 0) {
-              ciBands.push(
-                { x: ciIdx, y: ciP95, type: 'scatter' as const, mode: 'lines' as const, line: { width: 0 }, showlegend: false },
-                { x: ciIdx, y: ciP5, type: 'scatter' as const, mode: 'lines' as const, fill: 'tonexty' as const, fillcolor: 'rgba(34,211,238,0.08)', line: { width: 0 }, name: 'Prediction uncertainty (90%)' },
-                { x: ciIdx, y: ciP75, type: 'scatter' as const, mode: 'lines' as const, line: { width: 0 }, showlegend: false },
-                { x: ciIdx, y: ciP25, type: 'scatter' as const, mode: 'lines' as const, fill: 'tonexty' as const, fillcolor: 'rgba(34,211,238,0.15)', line: { width: 0 }, name: 'Prediction uncertainty (50%)' },
-              )
-            }
-          }
-
           // Split marker for full view
           const splitShapes: any[] = []
           if (viewPeriod === 'full' && splitDate) {
@@ -323,7 +287,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           return (
             <Plot
               data={[
-                ...ciBands,
                 { x: obsX, y: obsY, type: 'scatter' as const, mode: 'lines' as const, name: 'Observed', line: { color: '#6b7280', width: 1 } },
                 { x: simX, y: simY, type: 'scatter' as const, mode: 'lines' as const, name: 'Simulated', line: { color: periodColor, width: 2 } },
               ]}
@@ -435,25 +398,58 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {(hasStepResponse || block_response?.values?.length > 0) && (
         <Section title="Response Function" defaultOpen={false}>
+          <p className="text-[10px] text-text-muted mb-2">How the aquifer responds to a unit input of recharge. The shape reveals the aquifer's memory: a steep curve = fast response (alluvial), a slow curve = high inertia (deep sedimentary). The time to reach 95% of the response (T95) is the key indicator.</p>
           <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
         </Section>
       )}
 
       <Section title="Recession Analysis" defaultOpen={false}>
+        <p className="text-[10px] text-text-muted mb-2">Identifies falling water table periods and fits exponential decay h(t) = h0·e^(-t/T). The time constant T (in days) measures how fast the aquifer drains — small T = fast drainage (alluvial), large T = slow drainage (confined). The Master Recession Curve (MRC) is the average of all normalized recessions.</p>
         {recessionData ? <RecessionPanel data={recessionData} /> : <p className="text-xs text-text-muted">Loading...</p>}
       </Section>
 
       <Section title="Baseflow Separation" defaultOpen={false}>
+        <p className="text-[10px] text-text-muted mb-2">Separates the water table signal into a slow component (baseflow — long-term storage response) and a fast component (quickflow — event-driven recharge pulses). BFI close to 1 = the aquifer is dominated by slow, steady flow. BFI close to 0 = dominated by rapid infiltration events.</p>
         {baseflowData ? <BaseflowPanel data={baseflowData} /> : <p className="text-xs text-text-muted">Loading...</p>}
       </Section>
 
       <Section title="Signal Decomposition (STL)" defaultOpen={false}>
+        <p className="text-[10px] text-text-muted mb-2">Breaks the observed water level into three components: Trend (long-term direction — rising or falling over years), Seasonal (annual cycle — high in winter, low in summer for most aquifers), and Residual (what's left — noise, events, anomalies). Strength values near 1.0 mean that component strongly drives the signal.</p>
         {decompositionData ? <DecompositionPanel data={decompositionData} /> : <p className="text-xs text-text-muted">Loading...</p>}
       </Section>
 
       <Section title="Cross-Correlation (Precip → Piezo)" defaultOpen={false}>
+        <p className="text-[10px] text-text-muted mb-2">Measures the empirical delay between rainfall and water table response. The peak lag (in months) shows how long it takes for rain to reach the aquifer. Compare with the model's T95 (from the response function) — if they disagree significantly, the model may have the wrong response timescale.</p>
         {crossCorrData ? <CrossCorrelationPanel data={crossCorrData} /> : <p className="text-xs text-text-muted">Loading...</p>}
       </Section>
+
+      {/* Input Data Anomalies */}
+      {inputQualityData && (
+        <Section title={`Input Data Quality — ${inputQualityData.n_flagged ?? 0} anomalies`} defaultOpen={false}>
+          <p className="text-[10px] text-text-muted mb-2">AI-based scan (Isolation Forest) of the input data to detect months where climate or piezometric values are statistically unusual. Flagged months may indicate sensor errors, data gaps, or extreme events that could affect model calibration. Click a month to zoom the time series.</p>
+          {inputQualityData.n_flagged > 0 ? (
+            <div className="space-y-2">
+              {inputQualityData.flagged?.map((f: any) => (
+                <button
+                  key={f.month}
+                  onClick={() => setSelectedOutlierDate(f.month)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10 transition-colors text-left"
+                >
+                  <div>
+                    <span className="text-xs font-medium text-orange-400">
+                      {new Date(f.month).toLocaleDateString('en-GB', { year: 'numeric', month: 'long' })}
+                    </span>
+                    <p className="text-[10px] text-text-muted mt-0.5">{f.reason}</p>
+                  </div>
+                  <span className="text-[10px] font-mono text-text-muted shrink-0 ml-2">score: {f.score}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-green-400">No anomalies detected in input data</p>
+          )}
+        </Section>
+      )}
 
       {/* ═══════════ MODEL INFO ═══════════ */}
 
