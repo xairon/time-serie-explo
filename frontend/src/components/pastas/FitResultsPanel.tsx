@@ -1,16 +1,13 @@
 import { useState, useMemo } from 'react'
 import { ChevronDown, Brain } from 'lucide-react'
-import Plot from 'react-plotly.js'
-import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
-import type { Layout } from 'plotly.js-dist-min'
-import { ContributionsChart } from '@/components/pastas/ContributionsChart'
 import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasRecession, usePastasBaseflow, usePastasSpectral, usePastasDecomposition, usePastasCrossCorrelation, usePastasRegionalResiduals, usePastasInputQuality } from '@/hooks/usePastas'
 import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
 import { SignaturesPanel } from './SignaturesPanel'
 import { OutlierDetailPanel } from './OutlierDetailPanel'
+import { UnifiedAnalysisChart } from './UnifiedAnalysisChart'
 import { RecessionPanel } from './RecessionPanel'
 import { BaseflowPanel } from './BaseflowPanel'
 import { SpectralPanel } from './SpectralPanel'
@@ -84,8 +81,6 @@ function MetricGrid({ metrics, title, period, borderColor }: { metrics: Record<s
     </div>
   )
 }
-
-const chartLayout: Partial<Layout> = { ...darkLayout, margin: { t: 20, r: 20, b: 40, l: 60 }, height: 220 }
 
 type ViewPeriod = 'cal' | 'val' | 'full'
 
@@ -245,77 +240,25 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         </div>
       )}
 
-      {/* ═══════════ PERIOD-DEPENDENT SECTIONS ═══════════ */}
+      {/* ═══════════ UNIFIED MODEL ANALYSIS ═══════════ */}
 
-      {/* Time Series */}
-      <Section title={`Time Series — ${periodLabel}`}>
+      <Section title={`Model Analysis — ${periodLabel}`}>
         {selectedOutlierDate && (
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-orange-400 font-medium">Zoomed to: {new Date(selectedOutlierDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}</span>
-            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Reset</button>
+            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Reset zoom</button>
+          </div>
+        )}
+        {currentOutliers && currentOutliers.n_outliers > 0 && (
+          <div className="flex items-center gap-2 mb-1 text-xs text-text-muted">
+            <span className="font-medium text-text-secondary">{currentOutliers.n_outliers} outlier months</span>
+            <span className="text-[10px]">— click a red bar in the error panel to investigate</span>
           </div>
         )}
         {sliceByPeriod.obsX.length > 0 && (() => {
-          const { obsX, obsY, simX, simY } = sliceByPeriod
+          const { obsX, obsY, simX, simY, resIdx, resVals } = sliceByPeriod
 
-          const outlierHighlight = selectedOutlierDate ? (() => {
-            const d = new Date(selectedOutlierDate)
-            const zoomStart = new Date(d); zoomStart.setMonth(zoomStart.getMonth() - 6)
-            const zoomEnd = new Date(d); zoomEnd.setMonth(zoomEnd.getMonth() + 7)
-            const monthEnd = new Date(d); monthEnd.setMonth(monthEnd.getMonth() + 1)
-            return {
-              range: [zoomStart.toISOString().slice(0, 10), zoomEnd.toISOString().slice(0, 10)],
-              shape: { type: 'rect' as const, x0: selectedOutlierDate, x1: monthEnd.toISOString().slice(0, 10), y0: 0, y1: 1, yref: 'paper' as const, fillcolor: 'rgba(239,68,68,0.1)', line: { color: 'rgba(239,68,68,0.4)', width: 1, dash: 'dot' as const } },
-            }
-          })() : null
-
-          // Split marker for full view
-          const splitShapes: any[] = []
-          if (viewPeriod === 'full' && splitDate) {
-            splitShapes.push({ type: 'line', x0: splitDate, x1: splitDate, y0: 0, y1: 1, yref: 'paper', line: { color: 'rgba(251,191,36,0.4)', dash: 'dash', width: 1.5 } })
-          }
-
-          const layout: any = {
-            ...chartLayout, height: 280,
-            shapes: [...splitShapes, ...(outlierHighlight ? [outlierHighlight.shape] : [])],
-            ...(outlierHighlight ? { xaxis: { ...(chartLayout as any).xaxis, range: outlierHighlight.range } } : {}),
-            annotations: viewPeriod === 'full' && splitDate ? [
-              { x: splitDate, y: 1.02, yref: 'paper', text: 'Train → Test', showarrow: false, font: { size: 9, color: '#fbbf24' } },
-            ] : [],
-          }
-
-          return (
-            <Plot
-              data={[
-                { x: obsX, y: obsY, type: 'scatter' as const, mode: 'lines' as const, name: 'Observed', line: { color: '#6b7280', width: 1 } },
-                { x: simX, y: simY, type: 'scatter' as const, mode: 'lines' as const, name: 'Simulated', line: { color: periodColor, width: 2 } },
-              ]}
-              layout={layout}
-              config={plotlyConfig} style={{ width: '100%' }}
-            />
-          )
-        })()}
-      </Section>
-
-      {/* Contributions */}
-      {contributions && Object.keys(contributions).length > 0 && (
-        <Section title="Stress Contributions">
-          <ContributionsChart contributions={contributions} />
-        </Section>
-      )}
-
-      {/* Residuals & Outlier Diagnostics */}
-      <Section title={`Residuals & Outliers — ${periodLabel}`}>
-        {currentOutliers && currentOutliers.n_outliers > 0 && (
-          <div className="flex items-center gap-2 mb-2 text-xs text-text-muted">
-            <span className="font-medium text-text-secondary">{currentOutliers.n_outliers} outliers</span>
-            <span className="text-[10px]">— click a red bar to investigate</span>
-          </div>
-        )}
-        {sliceByPeriod.resIdx.length > 0 && (() => {
-          const { resIdx, resVals } = sliceByPeriod
-
-          // Aggregate to monthly mean for readability
+          // Aggregate residuals to monthly
           const monthlyMap = new Map<string, number[]>()
           resIdx.forEach((d, i) => {
             const ym = d.slice(0, 7)
@@ -328,48 +271,42 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
             monthlyDates.push(ym + '-15')
             monthlyVals.push(vals.reduce((a, b) => a + b, 0) / vals.length)
           }
-
           const finiteVals = monthlyVals.filter(v => Number.isFinite(v))
-          const mean = finiteVals.reduce((a, b) => a + b, 0) / finiteVals.length
-          const std = Math.sqrt(finiteVals.reduce((a, b) => a + (b - mean) ** 2, 0) / finiteVals.length)
+          const mean = finiteVals.length > 0 ? finiteVals.reduce((a, b) => a + b, 0) / finiteVals.length : 0
+          const std = finiteVals.length > 1 ? Math.sqrt(finiteVals.reduce((a, b) => a + (b - mean) ** 2, 0) / finiteVals.length) : 1
           const threshold = 2 * std
 
           const allOutliersList = currentOutliers?.outliers ?? []
           const outlierMonths = new Set<string>(allOutliersList.map((o: any) => o.date.slice(0, 7)))
-          const selectedYM = selectedOutlierDate?.slice(0, 7)
 
-          const barColors = monthlyVals.map((_v, i) => {
-            const ym = monthlyDates[i].slice(0, 7)
-            if (outlierMonths.size > 0) {
-              if (!outlierMonths.has(ym)) return 'rgba(245,158,11,0.5)'
-              return selectedYM === ym ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
+          // Outlier highlight
+          const outlierHighlight = selectedOutlierDate ? (() => {
+            const d = new Date(selectedOutlierDate)
+            const zoomStart = new Date(d); zoomStart.setMonth(zoomStart.getMonth() - 6)
+            const zoomEnd = new Date(d); zoomEnd.setMonth(zoomEnd.getMonth() + 7)
+            const monthEnd = new Date(d); monthEnd.setMonth(monthEnd.getMonth() + 1)
+            return {
+              range: [zoomStart.toISOString().slice(0, 10), zoomEnd.toISOString().slice(0, 10)] as [string, string],
+              shape: { type: 'rect' as const, x0: selectedOutlierDate, x1: monthEnd.toISOString().slice(0, 10), y0: 0, y1: 1, yref: 'paper' as const, fillcolor: 'rgba(239,68,68,0.08)', line: { color: 'rgba(239,68,68,0.3)', width: 1, dash: 'dot' as const } },
             }
-            return Math.abs(monthlyVals[i]) <= threshold ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.7)'
-          })
+          })() : null
 
           return (
-            <div className="mb-3">
-              <p className="text-xs text-text-muted mb-1">{currentOutliers ? 'Monthly mean residuals — click a red bar for outlier details' : 'Monthly mean residuals — red = |residual| > 2σ'}</p>
-              <Plot
-                data={[{ x: monthlyDates, y: monthlyVals, type: 'bar', name: 'Residuals (monthly)', marker: { color: barColors } }]}
-                layout={{
-                  ...chartLayout, height: 180,
-                  shapes: [
-                    { type: 'line', x0: monthlyDates[0], x1: monthlyDates[monthlyDates.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
-                    { type: 'line', x0: monthlyDates[0], x1: monthlyDates[monthlyDates.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
-                  ],
-                  yaxis: { ...(chartLayout as any).yaxis, title: { text: 'Error (m)' } },
-                }}
-                config={plotlyConfig} style={{ width: '100%' }}
-                onClick={(event: any) => {
-                  if (!allOutliersList.length || !event.points?.[0]) return
-                  const clickedYM = String(event.points[0].x).slice(0, 7)
-                  const match = allOutliersList.find((o: any) => o.date.startsWith(clickedYM))
-                  if (!match) return
-                  setSelectedOutlierDate((prev: string | null) => prev === match.date ? null : match.date)
-                }}
-              />
-            </div>
+            <UnifiedAnalysisChart
+              obsX={obsX} obsY={obsY} simX={simX} simY={simY}
+              contributions={contributions}
+              monthlyDates={monthlyDates} monthlyResiduals={monthlyVals} threshold={threshold}
+              outlierMonths={outlierMonths}
+              selectedOutlierDate={selectedOutlierDate}
+              onOutlierClick={(clickedYM) => {
+                const match = allOutliersList.find((o: any) => o.date.startsWith(clickedYM))
+                if (match) setSelectedOutlierDate(prev => prev === match.date ? null : match.date)
+              }}
+              periodColor={periodColor}
+              splitDate={splitDate}
+              viewPeriod={viewPeriod}
+              selectedOutlierHighlight={outlierHighlight}
+            />
           )
         })()}
         {selectedOutlierDate && currentOutliers && (() => {
