@@ -177,11 +177,46 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {/* 2. Time series */}
       <Section title="Time Series — Observed vs Simulated">
+        {selectedOutlierDate && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] text-orange-400 font-medium">
+              Zoomed to outlier: {new Date(selectedOutlierDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
+            </span>
+            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Reset zoom</button>
+          </div>
+        )}
         {observed?.index?.length > 0 && (() => {
           const splitDate = val_period?.[0]
 
+          // Outlier highlight: zoom ±6 months + red band
+          const outlierHighlight = selectedOutlierDate ? (() => {
+            const d = new Date(selectedOutlierDate)
+            const zoomStart = new Date(d); zoomStart.setMonth(zoomStart.getMonth() - 6)
+            const zoomEnd = new Date(d); zoomEnd.setMonth(zoomEnd.getMonth() + 7)
+            const monthEnd = new Date(d); monthEnd.setMonth(monthEnd.getMonth() + 1)
+            return {
+              range: [zoomStart.toISOString().slice(0, 10), zoomEnd.toISOString().slice(0, 10)],
+              shape: {
+                type: 'rect' as const,
+                x0: selectedOutlierDate,
+                x1: monthEnd.toISOString().slice(0, 10),
+                y0: 0, y1: 1, yref: 'paper' as const,
+                fillcolor: 'rgba(239,68,68,0.1)',
+                line: { color: 'rgba(239,68,68,0.4)', width: 1, dash: 'dot' as const },
+              },
+            }
+          })() : null
+
+          const applyHighlight = (baseLayout: any) => {
+            if (!outlierHighlight) return baseLayout
+            return {
+              ...baseLayout,
+              xaxis: { ...(baseLayout.xaxis ?? {}), range: outlierHighlight.range },
+              shapes: [...(baseLayout.shapes ?? []), outlierHighlight.shape],
+            }
+          }
+
           if (splitDate) {
-            // Split observed and simulated into train/test periods
             const obsTrainX: string[] = [], obsTrainY: number[] = []
             const obsTestX: string[] = [], obsTestY: number[] = []
             observed.index.forEach((d, i) => {
@@ -209,19 +244,22 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 name: 'Simulated', line: { color: '#f97316', width: 2 } },
             ]
 
+            const outlierInTrain = !selectedOutlierDate || selectedOutlierDate < splitDate
+            const outlierInTest = selectedOutlierDate && selectedOutlierDate >= splitDate
+
             return (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-accent-cyan mb-1">
                     Train {cal_period && <span className="font-normal normal-case text-text-muted">{cal_period[0]} → {cal_period[1]}</span>}
                   </div>
-                  <Plot data={trainTraces} layout={{ ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
+                  <Plot data={trainTraces} layout={outlierInTrain ? applyHighlight({ ...chartLayout, height: 220 }) : { ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
                 </div>
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-wide text-orange-400 mb-1">
                     Test {val_period && <span className="font-normal normal-case text-text-muted">{val_period[0]} → {val_period[1]}</span>}
                   </div>
-                  <Plot data={testTraces} layout={{ ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
+                  <Plot data={testTraces} layout={outlierInTest ? applyHighlight({ ...chartLayout, height: 220 }) : { ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
                 </div>
               </div>
             )
@@ -236,7 +274,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 { x: simulated.index, y: simulated.values, type: 'scatter' as const, mode: 'lines' as const,
                   name: 'Simulated', line: { color: '#22d3ee', width: 2 } },
               ]}
-              layout={{ ...chartLayout, height: 280 }}
+              layout={applyHighlight({ ...chartLayout, height: 280 })}
               config={plotlyConfig} style={{ width: '100%' }}
             />
           )
