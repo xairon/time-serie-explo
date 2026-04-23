@@ -136,10 +136,18 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
     const simX: string[] = [], simY: number[] = []
     simulated.index.forEach((d, i) => { if (inRange(d)) { simX.push(d); simY.push(simulated.values[i]) } })
 
+    // Compute residuals from obs - sim (aligned by date) so they cover val period too
     const resIdx: string[] = [], resVals: number[] = []
-    if (residuals?.index) {
-      residuals.index.forEach((d, i) => { if (inRange(d)) { resIdx.push(d); resVals.push(residuals.values[i]) } })
-    }
+    const simMap = new Map<string, number>()
+    simulated.index.forEach((d, i) => simMap.set(d, simulated.values[i]))
+    observed.index.forEach((d, i) => {
+      if (!inRange(d)) return
+      const sv = simMap.get(d)
+      if (sv !== undefined && Number.isFinite(observed.values[i]) && Number.isFinite(sv)) {
+        resIdx.push(d)
+        resVals.push(observed.values[i] - sv)
+      }
+    })
 
     return { obsX, obsY, simX, simY, resIdx, resVals }
   }, [observed, simulated, residuals, viewPeriod, cal_period, val_period])
@@ -182,7 +190,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
   // --- Period color ---
   const periodColor = viewPeriod === 'val' ? '#f97316' : '#22d3ee'
-  const periodLabel = viewPeriod === 'cal' ? 'Calibration' : viewPeriod === 'val' ? 'Validation' : 'Full period'
+  const periodLabel = viewPeriod === 'cal' ? 'Train' : viewPeriod === 'val' ? 'Test' : 'Full period'
 
   return (
     <div className="space-y-3">
@@ -223,8 +231,8 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       <Section title="Performance Metrics">
         {validation_metrics ? (
           <div className="grid grid-cols-2 gap-3">
-            <MetricGrid metrics={metrics} title="Calibration" period={cal_period} borderColor="border-accent-cyan/20" />
-            <MetricGrid metrics={validation_metrics} title="Validation (unseen)" period={val_period} borderColor="border-orange-500/20" />
+            <MetricGrid metrics={metrics} title="Train" period={cal_period} borderColor="border-accent-cyan/20" />
+            <MetricGrid metrics={validation_metrics} title="Test (unseen data)" period={val_period} borderColor="border-orange-500/20" />
           </div>
         ) : (
           <MetricGrid metrics={metrics} />
@@ -235,7 +243,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {hasValidation && (
         <div className="flex items-center gap-1 bg-bg-primary rounded-lg border border-white/5 p-1">
           {(['cal', 'val', 'full'] as ViewPeriod[]).map(p => {
-            const labels: Record<ViewPeriod, string> = { cal: 'Calibration', val: 'Validation', full: 'Full period' }
+            const labels: Record<ViewPeriod, string> = { cal: 'Train', val: 'Test', full: 'Full period' }
             const colors: Record<ViewPeriod, string> = { cal: 'text-accent-cyan', val: 'text-orange-400', full: 'text-text-primary' }
             return (
               <button
@@ -308,7 +316,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
             shapes: [...splitShapes, ...(outlierHighlight ? [outlierHighlight.shape] : [])],
             ...(outlierHighlight ? { xaxis: { ...(chartLayout as any).xaxis, range: outlierHighlight.range } } : {}),
             annotations: viewPeriod === 'full' && splitDate ? [
-              { x: splitDate, y: 1.02, yref: 'paper', text: 'Cal → Val', showarrow: false, font: { size: 9, color: '#fbbf24' } },
+              { x: splitDate, y: 1.02, yref: 'paper', text: 'Train → Test', showarrow: false, font: { size: 9, color: '#fbbf24' } },
             ] : [],
           }
 

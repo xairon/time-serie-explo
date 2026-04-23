@@ -5,7 +5,14 @@ const COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e']
 
 const LABELS: Record<string, string> = {
   recharge: 'Recharge (P − f·E)',
-  constant_d: 'Niveau de base',
+  constant_d: 'Base level',
+  temperature: 'Temperature effect',
+}
+
+const DESCRIPTIONS: Record<string, string> = {
+  recharge: 'How rainfall minus evapotranspiration drives the water table. Positive = water table rises (wet period), negative = drops (dry period). The shape and timing reveal the aquifer\'s response to climate.',
+  constant_d: 'The baseline water level around which the aquifer fluctuates. Changes indicate long-term drift or reference level.',
+  temperature: 'Direct thermal effect on the aquifer (expansion, viscosity changes). Small compared to recharge but captures seasonal temperature-driven variations not explained by evapotranspiration alone.',
 }
 
 interface Props {
@@ -16,40 +23,52 @@ export function ContributionsChart({ contributions }: Props) {
   const entries = Object.entries(contributions)
   if (entries.length === 0) return null
 
-  const traces: Plotly.Data[] = entries.map(([name, ts], i) => ({
-    x: ts.index,
-    y: ts.values,
-    name: LABELS[name] ?? name,
-    type: 'scatter' as const,
-    mode: 'lines' as const,
-    fill: 'tozeroy' as const,
-    line: { color: COLORS[i % COLORS.length], width: 1.5 },
-    fillcolor: COLORS[i % COLORS.length] + '25',
-  }))
-
   return (
-    <div className="bg-bg-card rounded-lg border border-white/5 p-3">
-      <div className="text-xs font-semibold text-text-secondary mb-1">
-        Contributions de chaque stress
-      </div>
-      <p className="text-[10px] text-text-muted mb-2">
-        Le signal simulé est la somme de ces contributions. La recharge montre l'effet de la pluie et de l'ETP sur la nappe.
+    <div className="space-y-2">
+      <p className="text-[10px] text-text-muted">
+        Each panel shows one stress contribution to the simulated head. The sum of all contributions equals the simulation.
       </p>
-      <Plot
-        data={traces}
-        layout={{
-          paper_bgcolor: 'transparent',
-          plot_bgcolor: 'transparent',
-          font: { color: '#9ca3af', size: 10 },
-          margin: { t: 10, r: 20, b: 30, l: 50 },
-          height: 200,
-          xaxis: { gridcolor: 'rgba(255,255,255,0.03)' },
-          yaxis: { title: { text: 'Contribution (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
-          legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
-        }}
-        useResizeHandler
-        className="w-full"
-      />
+      {entries.map(([name, ts], i) => {
+        const color = COLORS[i % COLORS.length]
+        const label = LABELS[name] ?? name
+        const vals = ts.values.filter(v => Number.isFinite(v))
+        const range = vals.length > 0 ? Math.max(...vals) - Math.min(...vals) : 0
+
+        return (
+          <div key={name} className="bg-bg-card rounded-lg border border-white/5 p-2">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-semibold" style={{ color }}>{label}</span>
+              <span className="text-[10px] text-text-muted">amplitude: {range.toFixed(2)} m</span>
+            </div>
+            {DESCRIPTIONS[name] && <p className="text-[9px] text-text-muted mb-1 leading-relaxed">{DESCRIPTIONS[name]}</p>}
+            <Plot
+              data={[{
+                x: ts.index,
+                y: ts.values,
+                name: label,
+                type: 'scatter' as const,
+                mode: 'lines' as const,
+                fill: 'tozeroy' as const,
+                line: { color, width: 1.5 },
+                fillcolor: color + '20',
+              }]}
+              layout={{
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                font: { color: '#9ca3af', size: 9 },
+                margin: { t: 5, r: 15, b: 25, l: 50 },
+                height: 130,
+                xaxis: { gridcolor: 'rgba(255,255,255,0.03)' },
+                yaxis: { gridcolor: 'rgba(255,255,255,0.05)', title: { text: 'm', font: { size: 9 } } },
+                showlegend: false,
+              }}
+              useResizeHandler
+              className="w-full"
+              config={{ displayModeBar: false }}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
