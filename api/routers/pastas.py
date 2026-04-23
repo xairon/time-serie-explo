@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 import tempfile
 from typing import Optional
 
@@ -285,6 +286,8 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
 
     filter_str = ""
     if code_bss:
+        if not re.fullmatch(r"[A-Za-z0-9/_.X-]+", code_bss):
+            raise HTTPException(422, "Invalid code_bss format")
         filter_str = f"tags.station_id = '{code_bss}'"
 
     runs = client.search_runs(
