@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Brain } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
-import { usePastasDiagnostics, usePastasSignatures } from '@/hooks/usePastas'
+import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics } from '@/hooks/usePastas'
+import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
 import { SignaturesPanel } from './SignaturesPanel'
+import { OutlierDetailPanel } from './OutlierDetailPanel'
 
 // --- Accordion section ---
 
@@ -38,27 +40,27 @@ const METRIC_DEFS: Record<string, {
   quality: (v: number) => 'good' | 'ok' | 'poor'
 }> = {
   nse: {
-    label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency. 1 = parfait, 0 = aussi bon que la moyenne, <0 = pire.',
+    label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency. 1 = perfect, 0 = as good as mean, <0 = worse.',
     format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   kge: {
-    label: 'KGE', tooltip: 'Kling-Gupta Efficiency. Combine corrélation, biais et variabilité. >0.7 = bon.',
+    label: 'KGE', tooltip: 'Kling-Gupta Efficiency. Combines correlation, bias and variability. >0.7 = good.',
     format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   evp: {
-    label: 'EVP (%)', tooltip: 'Explained Variance Percentage. 100% = variance totalement expliquée.',
+    label: 'EVP (%)', tooltip: 'Explained Variance Percentage. 100% = fully explained variance.',
     format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor',
   },
   rmse: {
-    label: 'RMSE', tooltip: 'Root Mean Square Error (m). Plus c\'est bas, mieux c\'est.',
+    label: 'RMSE', tooltip: 'Root Mean Square Error (m). Lower is better.',
     format: v => v.toFixed(4), quality: () => 'ok',
   },
   rsq: {
-    label: 'R²', tooltip: 'Coefficient de détermination. 1 = corrélation parfaite.',
+    label: 'R²', tooltip: 'Coefficient of determination. 1 = perfect correlation.',
     format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor',
   },
   mae: {
-    label: 'MAE', tooltip: 'Mean Absolute Error (m). Erreur moyenne en valeur absolue.',
+    label: 'MAE', tooltip: 'Mean Absolute Error (m). Average absolute error.',
     format: v => v.toFixed(4), quality: () => 'ok',
   },
 }
@@ -115,11 +117,16 @@ const chartLayout: Partial<Layout> = {
 
 interface FitResultsPanelProps {
   result: PastasFitResponse
+  codeBss?: string
 }
 
-export function FitResultsPanel({ result }: FitResultsPanelProps) {
+export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   const { data: diagnosticsData } = usePastasDiagnostics(result.run_id)
   const { data: signaturesData } = usePastasSignatures(result.run_id)
+  const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id)
+  const [selectedOutlierDate, setSelectedOutlierDate] = useState<string | null>(null)
+  const { data: aiModels } = useModels()
+  const aiModel = aiModels?.find(m => m.stations?.includes(codeBss ?? '') || m.primary_station === codeBss)
 
   const {
     metrics, parameters, observed, simulated, residuals,
@@ -134,17 +141,34 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">Warnings</p>
           {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
 
+      {/* AI model cross-link */}
+      {aiModel && (
+        <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2.5">
+          <Brain className="w-4 h-4 text-purple-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs text-purple-300">
+              AI model available: <span className="font-medium text-purple-200">{aiModel.model_name}</span>
+              {' '}({aiModel.model_type})
+              {aiModel.metrics?.NSE != null && <span className="text-text-muted"> — NSE {aiModel.metrics.NSE.toFixed(3)}</span>}
+            </span>
+          </div>
+          <a href={`/ai/forecasting`} className="text-[10px] text-purple-400 hover:text-purple-300 hover:underline shrink-0">
+            View forecast →
+          </a>
+        </div>
+      )}
+
       {/* 1. Metrics */}
-      <Section title="Métriques de performance">
+      <Section title="Performance Metrics">
         {validation_metrics ? (
           <div className="grid grid-cols-2 gap-3">
-            <MetricGrid metrics={metrics} title="Entraînement" period={cal_period} borderColor="border-accent-cyan/20" />
-            <MetricGrid metrics={validation_metrics} title="Test (données inédites)" period={val_period} borderColor="border-orange-500/20" />
+            <MetricGrid metrics={metrics} title="Training" period={cal_period} borderColor="border-accent-cyan/20" />
+            <MetricGrid metrics={validation_metrics} title="Test (unseen data)" period={val_period} borderColor="border-orange-500/20" />
           </div>
         ) : (
           <MetricGrid metrics={metrics} />
@@ -152,78 +176,121 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
       </Section>
 
       {/* 2. Time series */}
-      <Section title="Séries temporelles — Observé vs Simulé">
-        {observed?.index?.length > 0 && (
-          val_period && cal_period ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs font-semibold text-accent-cyan mb-1">
-                  Entraînement ({cal_period[0]?.slice(0,4)}–{cal_period[1]?.slice(0,4)})
-                </p>
-                <Plot
-                  data={[
-                    { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                    { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
-                  ]}
-                  layout={{ ...chartLayout, xaxis: { range: [cal_period[0], cal_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                  config={plotlyConfig} style={{ width: '100%' }}
-                />
+      <Section title="Time Series — Observed vs Simulated">
+        {observed?.index?.length > 0 && (() => {
+          const splitDate = val_period?.[0]
+
+          if (splitDate) {
+            // Split observed and simulated into train/test periods
+            const obsTrainX: string[] = [], obsTrainY: number[] = []
+            const obsTestX: string[] = [], obsTestY: number[] = []
+            observed.index.forEach((d, i) => {
+              if (d < splitDate) { obsTrainX.push(d); obsTrainY.push(observed.values[i]) }
+              else { obsTestX.push(d); obsTestY.push(observed.values[i]) }
+            })
+
+            const simTrainX: string[] = [], simTrainY: number[] = []
+            const simTestX: string[] = [], simTestY: number[] = []
+            simulated.index.forEach((d, i) => {
+              if (d < splitDate) { simTrainX.push(d); simTrainY.push(simulated.values[i]) }
+              else { simTestX.push(d); simTestY.push(simulated.values[i]) }
+            })
+
+            const trainTraces = [
+              { x: obsTrainX, y: obsTrainY, type: 'scatter' as const, mode: 'lines' as const,
+                name: 'Observed', line: { color: '#6b7280', width: 1 } },
+              { x: simTrainX, y: simTrainY, type: 'scatter' as const, mode: 'lines' as const,
+                name: 'Simulated', line: { color: '#22d3ee', width: 2 } },
+            ]
+            const testTraces = [
+              { x: obsTestX, y: obsTestY, type: 'scatter' as const, mode: 'lines' as const,
+                name: 'Observed', line: { color: '#6b7280', width: 1 }, showlegend: false },
+              { x: simTestX, y: simTestY, type: 'scatter' as const, mode: 'lines' as const,
+                name: 'Simulated', line: { color: '#f97316', width: 2 } },
+            ]
+
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-accent-cyan mb-1">
+                    Train {cal_period && <span className="font-normal normal-case text-text-muted">{cal_period[0]} → {cal_period[1]}</span>}
+                  </div>
+                  <Plot data={trainTraces} layout={{ ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-orange-400 mb-1">
+                    Test {val_period && <span className="font-normal normal-case text-text-muted">{val_period[0]} → {val_period[1]}</span>}
+                  </div>
+                  <Plot data={testTraces} layout={{ ...chartLayout, height: 220 }} config={plotlyConfig} style={{ width: '100%' }} />
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-orange-400 mb-1">
-                  Test ({val_period[0]?.slice(0,4)}–{val_period[1]?.slice(0,4)})
-                </p>
-                <Plot
-                  data={[
-                    { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                    { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#f97316', width: 2 } },
-                  ]}
-                  layout={{ ...chartLayout, xaxis: { range: [val_period[0], val_period[1]], gridcolor: 'rgba(255,255,255,0.03)' } }}
-                  config={plotlyConfig} style={{ width: '100%' }}
-                />
-              </div>
-            </div>
-          ) : (
+            )
+          }
+
+          // No validation split — single chart
+          return (
             <Plot
               data={[
-                { x: observed.index, y: observed.values, type: 'scatter', mode: 'lines', name: 'Observé', line: { color: '#6b7280', width: 1 } },
-                { x: simulated.index, y: simulated.values, type: 'scatter', mode: 'lines', name: 'Simulé', line: { color: '#22d3ee', width: 2 } },
+                { x: observed.index, y: observed.values, type: 'scatter' as const, mode: 'lines' as const,
+                  name: 'Observed', line: { color: '#6b7280', width: 1 } },
+                { x: simulated.index, y: simulated.values, type: 'scatter' as const, mode: 'lines' as const,
+                  name: 'Simulated', line: { color: '#22d3ee', width: 2 } },
               ]}
-              layout={chartLayout} config={plotlyConfig} style={{ width: '100%' }}
+              layout={{ ...chartLayout, height: 280 }}
+              config={plotlyConfig} style={{ width: '100%' }}
             />
           )
-        )}
-
+        })()}
       </Section>
 
       {/* 3. Contributions */}
       {contributions && Object.keys(contributions).length > 0 && (
-        <Section title="Décomposition des contributions">
+        <Section title="Stress Contributions">
           <ContributionsChart contributions={contributions} />
         </Section>
       )}
 
       {/* 4. Response function */}
       {(hasStepResponse || block_response?.values?.length > 0) && (
-        <Section title="Fonction de réponse">
+        <Section title="Response Function">
           <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
         </Section>
       )}
 
       {/* 5. Residuals & diagnostics */}
-      <Section title="Résidus & diagnostics">
+      <Section title="Residuals & Diagnostics">
+        {outlierData && outlierData.n_outliers > 0 && (
+          <div className="flex items-center gap-2 mb-2 text-xs text-text-muted">
+            <span className="font-medium text-text-secondary">{outlierData.n_outliers} outliers detected</span>
+            <span>—</span>
+            {Object.entries(outlierData.summary?.by_category ?? {}).map(([cat, count]: [string, any]) => (
+              <span key={cat}>{count} {cat.replace(/_/g, ' ').toLowerCase()}</span>
+            )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, <span key={`sep-${i}`}>,</span>, curr], [] as any)}
+            <span className="text-[10px]">— click a red bar to investigate</span>
+          </div>
+        )}
         {residuals?.index?.length > 0 && (() => {
           const vals = residuals.values.filter(v => Number.isFinite(v))
           const mean = vals.reduce((a, b) => a + b, 0) / vals.length
           const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
           const threshold = 2 * std
+
+          const isOutlier = residuals.values.map(v => Math.abs(v) > threshold)
+          const barColors = residuals.values.map((v, i) => {
+            if (!isOutlier[i]) return 'rgba(245,158,11,0.5)'
+            return residuals.index[i] === selectedOutlierDate ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
+          })
+
           return (
             <div className="mb-3">
-              <p className="text-xs text-text-muted mb-1">Barres rouges = erreur supérieure à 2 écarts-types</p>
+              <p className="text-xs text-text-muted mb-1">
+                {outlierData ? 'Click a red bar to see outlier diagnostics' : 'Red bars = error exceeding 2 standard deviations'}
+              </p>
               <Plot
                 data={[{
-                  x: residuals.index, y: residuals.values, type: 'bar', name: 'Résidus',
-                  marker: { color: residuals.values.map(v => Math.abs(v) > threshold ? 'rgba(239,68,68,0.7)' : 'rgba(245,158,11,0.5)') },
+                  x: residuals.index, y: residuals.values, type: 'bar', name: 'Residuals',
+                  marker: { color: barColors },
+                  customdata: isOutlier,
                 }]}
                 layout={{
                   ...chartLayout, height: 160,
@@ -232,23 +299,36 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
                     { type: 'line', x0: residuals.index[0], x1: residuals.index[residuals.index.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
                   ],
                 }}
-                config={plotlyConfig} style={{ width: '100%' }}
+                config={plotlyConfig}
+                style={{ width: '100%', cursor: 'default' }}
+                onClick={(event: any) => {
+                  if (!outlierData || !event.points?.[0]) return
+                  const point = event.points[0]
+                  if (!point.customdata) return
+                  const clickedDate = point.x as string
+                  setSelectedOutlierDate(prev => prev === clickedDate ? null : clickedDate)
+                }}
               />
             </div>
           )
         })()}
+        {selectedOutlierDate && outlierData && (() => {
+          const outlier = outlierData.outliers?.find((o: any) => o.date === selectedOutlierDate)
+          if (!outlier) return null
+          return <OutlierDetailPanel outlier={outlier} onClose={() => setSelectedOutlierDate(null)} />
+        })()}
         {diagnosticsData && <DiagnosticsPanel diagnostics={diagnosticsData} />}
-        {!diagnosticsData && <p className="text-xs text-text-muted">Chargement des diagnostics...</p>}
+        {!diagnosticsData && <p className="text-xs text-text-muted">Loading diagnostics...</p>}
       </Section>
 
       {/* 6. Parameters */}
       {parameters.length > 0 && (
-        <Section title="Paramètres du modèle" defaultOpen={false}>
+        <Section title="Model Parameters" defaultOpen={false}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted border-b border-white/5">
-                  <th className="text-left px-3 py-2">Nom</th>
+                  <th className="text-left px-3 py-2">Name</th>
                   <th className="text-right px-3 py-2">Optimal</th>
                   <th className="text-right px-3 py-2">Std err</th>
                   <th className="text-right px-3 py-2">Initial</th>
@@ -270,11 +350,11 @@ export function FitResultsPanel({ result }: FitResultsPanelProps) {
       )}
 
       {/* 7. Signatures */}
-      <Section title="Signatures hydrologiques" defaultOpen={false}>
+      <Section title="Hydrological Signatures" defaultOpen={false}>
         {signaturesData ? (
           <SignaturesPanel signatures={signaturesData} />
         ) : (
-          <p className="text-xs text-text-muted">Chargement des signatures...</p>
+          <p className="text-xs text-text-muted">Loading signatures...</p>
         )}
       </Section>
     </div>
