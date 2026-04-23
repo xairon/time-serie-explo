@@ -123,7 +123,7 @@ interface FitResultsPanelProps {
 export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   const { data: diagnosticsData } = usePastasDiagnostics(result.run_id)
   const { data: signaturesData } = usePastasSignatures(result.run_id)
-  const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id)
+  const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id) as { data: any }
   const [selectedOutlierDate, setSelectedOutlierDate] = useState<string | null>(null)
   const { data: aiModels } = useModels()
   const aiModel = aiModels?.find(m => m.stations?.includes(codeBss ?? '') || m.primary_station === codeBss)
@@ -276,7 +276,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           const threshold = 2 * std
 
           const isOutlier = residuals.values.map(v => Math.abs(v) > threshold)
-          const barColors = residuals.values.map((v, i) => {
+          const barColors = residuals.values.map((_v, i) => {
             if (!isOutlier[i]) return 'rgba(245,158,11,0.5)'
             return residuals.index[i] === selectedOutlierDate ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
           })
@@ -290,7 +290,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 data={[{
                   x: residuals.index, y: residuals.values, type: 'bar', name: 'Residuals',
                   marker: { color: barColors },
-                  customdata: isOutlier,
+                  customdata: isOutlier as any,
                 }]}
                 layout={{
                   ...chartLayout, height: 160,
