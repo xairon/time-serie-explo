@@ -275,11 +275,19 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
           const threshold = 2 * std
 
-          const isOutlier = residuals.values.map(v => Math.abs(v) > threshold)
+          const outlierMonths = new Set<string>(
+            outlierData?.outliers?.map((o: any) => o.date.slice(0, 7)) ?? []
+          )
           const selectedYM = selectedOutlierDate?.slice(0, 7)
+
           const barColors = residuals.values.map((_v, i) => {
-            if (!isOutlier[i]) return 'rgba(245,158,11,0.5)'
-            return selectedYM && residuals.index[i].startsWith(selectedYM) ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
+            const ym = residuals.index[i].slice(0, 7)
+            if (outlierMonths.size > 0) {
+              if (!outlierMonths.has(ym)) return 'rgba(245,158,11,0.5)'
+              return selectedYM === ym ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
+            }
+            if (Math.abs(residuals.values[i]) <= threshold) return 'rgba(245,158,11,0.5)'
+            return 'rgba(239,68,68,0.7)'
           })
 
           return (
@@ -291,7 +299,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 data={[{
                   x: residuals.index, y: residuals.values, type: 'bar', name: 'Residuals',
                   marker: { color: barColors },
-                  customdata: isOutlier as any,
                 }]}
                 layout={{
                   ...chartLayout, height: 160,
@@ -301,13 +308,11 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                   ],
                 }}
                 config={plotlyConfig}
-                style={{ width: '100%', cursor: 'default' }}
+                style={{ width: '100%' }}
                 onClick={(event: any) => {
-                  if (!outlierData || !event.points?.[0]) return
-                  const point = event.points[0]
-                  if (!point.customdata) return
-                  const clickedYM = String(point.x).slice(0, 7)
-                  const match = outlierData.outliers?.find((o: any) => o.date.startsWith(clickedYM))
+                  if (!outlierData?.outliers?.length || !event.points?.[0]) return
+                  const clickedYM = String(event.points[0].x).slice(0, 7)
+                  const match = outlierData.outliers.find((o: any) => o.date.startsWith(clickedYM))
                   if (!match) return
                   setSelectedOutlierDate((prev: string | null) => prev === match.date ? null : match.date)
                 }}
