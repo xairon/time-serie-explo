@@ -76,6 +76,38 @@ export function usePastasOutlierDiagnostics(runId: string | null) {
   })
 }
 
+export function usePastasConfidenceBands(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'confidence-bands', runId], queryFn: () => api.pastas.confidenceBands(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasRecession(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'recession', runId], queryFn: () => api.pastas.recession(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasBaseflow(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'baseflow', runId], queryFn: () => api.pastas.baseflow(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasSpectral(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'spectral', runId], queryFn: () => api.pastas.spectral(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasDecomposition(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'decomposition', runId], queryFn: () => api.pastas.decomposition(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasCrossCorrelation(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'cross-correlation', runId], queryFn: () => api.pastas.crossCorrelation(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasRegionalResiduals(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'regional-residuals', runId], queryFn: () => api.pastas.regionalResiduals(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
+export function usePastasInputQuality(runId: string | null) {
+  return useQuery({ queryKey: ['pastas', 'input-quality', runId], queryFn: () => api.pastas.inputQuality(runId!), enabled: !!runId, staleTime: 60 * 60 * 1000 })
+}
+
 export function usePastasSignatures(runId: string | null) {
   return useQuery({
     queryKey: ['pastas', 'signatures', runId],
