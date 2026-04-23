@@ -12,7 +12,14 @@ from fastapi import APIRouter, HTTPException
 
 from api.config import settings
 from api.serializers import clean_nans
-from api.schemas.explainability import ExplainRequest, ExplainResult
+from api.utils import force_cpu_if_needed
+from api.schemas.explainability import (
+    ExplainRequest,
+    ExplainResult,
+    LagImportanceResult,
+    ResidualAnalysisResult,
+    SeasonalityResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +36,7 @@ def _load_model_for_explain(model_id: str):
         raise HTTPException(status_code=404, detail="Model not found")
 
     model = registry.load_model(entry)
+    force_cpu_if_needed(model)
     config = registry.load_model_config(entry)
     scalers = registry.load_scalers(entry)
 
@@ -39,6 +47,17 @@ def _load_model_for_explain(model_id: str):
     columns = config.get("columns", {})
     target_col = columns.get("target", "")
     cov_cols = columns.get("covariates", [])
+
+    # Merge covariate splits into target DataFrames (covariates saved separately)
+    if cov_cols:
+        for split_name, split_df in [("train", train_df), ("test", test_df)]:
+            if split_df is None:
+                continue
+            cov_df = registry.load_data(entry, f"{split_name}_cov")
+            if cov_df is not None:
+                for col in cov_df.columns:
+                    if col not in split_df.columns:
+                        split_df[col] = cov_df[col]
     hyperparams = config.get("hyperparams", {})
 
     input_chunk = int(hyperparams.get("input_chunk_length", 30))
@@ -90,7 +109,7 @@ async def feature_importance(req: ExplainRequest):
         from dashboard.utils.preprocessing import prepare_dataframe_for_darts
 
         preprocessing_config = config.get("preprocessing", {})
-        fill_method = preprocessing_config.get("fill_method", "Interpolation linéaire")
+        fill_method = preprocessing_config.get("fill_method", "Linear interpolation")
 
         series, covariates = prepare_dataframe_for_darts(
             train_df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
@@ -145,7 +164,7 @@ async def attention_analysis(req: ExplainRequest):
         raise HTTPException(status_code=404, detail="Training data not found")
 
     preprocessing_config = config.get("preprocessing", {})
-    fill_method = preprocessing_config.get("fill_method", "Interpolation linéaire")
+    fill_method = preprocessing_config.get("fill_method", "Linear interpolation")
 
     series, covariates = prepare_dataframe_for_darts(
         train_df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
@@ -192,7 +211,7 @@ async def shap_analysis(req: ExplainRequest):
         raise HTTPException(status_code=404, detail="Training data not found")
 
     preprocessing_config = config.get("preprocessing", {})
-    fill_method = preprocessing_config.get("fill_method", "Interpolation linéaire")
+    fill_method = preprocessing_config.get("fill_method", "Linear interpolation")
 
     series, covariates = prepare_dataframe_for_darts(
         train_df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
@@ -203,24 +222,40 @@ async def shap_analysis(req: ExplainRequest):
     features = [target_values]
     feature_names = [target_col]
 
+    n_cov_features = 0
     if covariates is not None:
         cov_values = covariates.values()[-input_chunk:]
         if cov_values.ndim == 1:
             cov_values = cov_values.reshape(-1, 1)
+        n_cov_features = cov_values.shape[1]
         features.append(cov_values)
         cov_df = covariates.to_dataframe()
         feature_names.extend(list(cov_df.columns))
 
     data = np.concatenate(features, axis=1).reshape(1, input_chunk, -1)
 
+    # Check if model uses past covariates
+    uses_past_cov = n_cov_features > 0 and (
+        getattr(model, "_uses_past_covariates", False) or
+        getattr(model, "uses_past_covariates", False)
+    )
+
     def model_wrapper(x):
         """Wrap the Darts model for SHAP-style (batch, seq, features) -> (batch, horizon)."""
         from darts import TimeSeries
-        import pandas as pd
 
-        ts = TimeSeries.from_values(x[0, :, 0:1])
+        # Reconstruct target series from column 0
+        target_ts = TimeSeries.from_values(x[0, :, 0:1])
+
         try:
-            pred = model.predict(n=output_chunk, series=ts)
+            predict_kwargs = {"n": output_chunk, "series": target_ts}
+
+            # Reconstruct past covariates from remaining columns if present
+            if uses_past_cov and x.shape[2] > 1:
+                cov_ts = TimeSeries.from_values(x[0, :, 1:])
+                predict_kwargs["past_covariates"] = cov_ts
+
+            pred = model.predict(**predict_kwargs)
             return pred.values().reshape(1, -1)
         except Exception:
             return np.zeros((1, output_chunk))
@@ -260,7 +295,7 @@ async def gradient_analysis(req: ExplainRequest):
         raise HTTPException(status_code=404, detail="Training data not found")
 
     preprocessing_config = config.get("preprocessing", {})
-    fill_method = preprocessing_config.get("fill_method", "Interpolation linéaire")
+    fill_method = preprocessing_config.get("fill_method", "Linear interpolation")
 
     series, covariates = prepare_dataframe_for_darts(
         train_df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
@@ -315,4 +350,264 @@ async def gradient_analysis(req: ExplainRequest):
         gradient_attributions=attributions,
         model_type=model_type.name,
         feature_names=[target_col] + cov_cols,
+    )
+
+
+@router.get("/{model_id}/lag-importance", response_model=LagImportanceResult)
+async def lag_importance(model_id: str, max_lag: int = 60):
+    """Compute lag importance (autocorrelation analysis) for the target variable."""
+    model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
+        _load_model_for_explain(model_id)
+    )
+
+    if test_df is None or target_col not in test_df.columns:
+        # Fallback to train
+        df = train_df
+    else:
+        df = test_df
+
+    if df is None or target_col not in df.columns:
+        raise HTTPException(status_code=404, detail="Data not found for lag analysis")
+
+    import numpy as np
+    from statsmodels.tsa.stattools import acf, pacf
+
+    values = df[target_col].dropna().values
+    n_lags = min(max_lag, len(values) // 3)
+
+    acf_values = acf(values, nlags=n_lags, fft=True)
+    try:
+        pacf_values = pacf(values, nlags=n_lags)
+    except Exception:
+        pacf_values = None
+
+    lags = list(range(n_lags + 1))
+    acf_list = [float(v) if not np.isnan(v) else 0.0 for v in acf_values]
+    pacf_list = [float(v) if not np.isnan(v) else 0.0 for v in pacf_values] if pacf_values is not None else None
+
+    # Significant lags (above 2/sqrt(n) threshold)
+    threshold = 2.0 / np.sqrt(len(values))
+    significant = [i for i, v in enumerate(acf_list) if abs(v) > threshold and i > 0]
+
+    return LagImportanceResult(
+        lags=lags,
+        autocorrelations=acf_list,
+        partial_autocorrelations=pacf_list,
+        significant_lags=significant,
+    )
+
+
+@router.get("/{model_id}/residuals", response_model=ResidualAnalysisResult)
+async def residual_analysis(model_id: str):
+    """Compute residual analysis on the test set using sliding window predictions."""
+    model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
+        _load_model_for_explain(model_id)
+    )
+
+    if test_df is None:
+        raise HTTPException(status_code=404, detail="Test data not found")
+
+    import numpy as np
+    import pandas as pd
+    from dashboard.utils.preprocessing import prepare_dataframe_for_darts
+    from dashboard.utils.model_registry import ModelRegistry
+
+    registry = ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
+    val_df = registry.load_data(entry, "val")
+    if val_df is None:
+        raise HTTPException(status_code=404, detail="Validation data not found")
+
+    # Merge covariates into val_df
+    if cov_cols:
+        val_cov_df = registry.load_data(entry, "val_cov")
+        if val_cov_df is not None:
+            for col in val_cov_df.columns:
+                if col not in val_df.columns:
+                    val_df[col] = val_cov_df[col]
+
+    preprocessing_config = config.get("preprocessing", {})
+    fill_method = preprocessing_config.get("fill_method", "Linear interpolation")
+
+    # Build full series (train+val+test) for historical_forecasts
+    full_df = pd.concat([train_df, val_df, test_df])
+    full_df = full_df[~full_df.index.duplicated(keep="first")].sort_index()
+
+    full_series, full_cov = prepare_dataframe_for_darts(
+        full_df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
+    )
+
+    target_preprocessor = scalers.get("target_preprocessor") if scalers else None
+    cov_preprocessor = scalers.get("cov_preprocessor") if scalers else None
+
+    if target_preprocessor:
+        full_series = target_preprocessor.transform(full_series)
+    if cov_preprocessor and full_cov is not None:
+        full_cov = cov_preprocessor.transform(full_cov)
+
+    # Use historical_forecasts with stride=output_chunk for efficiency
+    import pandas as pd
+    test_start_dt = test_df.index[input_chunk] if len(test_df) > input_chunk else test_df.index[0]
+    # Ensure test_start is in full_series time index (nearest match)
+    ts_idx = full_series.time_index
+    nearest_idx = ts_idx.get_indexer([pd.Timestamp(test_start_dt)], method='nearest')[0]
+    test_start = ts_idx[nearest_idx]
+
+    try:
+        hf_kwargs = {
+            "series": full_series,
+            "start": test_start,
+            "forecast_horizon": 1,
+            "stride": output_chunk,
+            "retrain": False,
+            "verbose": False,
+        }
+        if full_cov is not None and (getattr(model, "_uses_past_covariates", False) or getattr(model, "uses_past_covariates", False)):
+            hf_kwargs["past_covariates"] = full_cov
+
+        preds = model.historical_forecasts(**hf_kwargs)
+
+        from darts import concatenate as darts_concat
+
+        if isinstance(preds, list):
+            pred_series = darts_concat(preds)
+        else:
+            pred_series = preds
+
+        if target_preprocessor:
+            pred_series = target_preprocessor.inverse_transform(pred_series)
+            # Get test series in raw scale for comparison
+            test_series, _ = prepare_dataframe_for_darts(
+                test_df, target_col=target_col, covariate_cols=None, freq="D", fill_method=fill_method
+            )
+        else:
+            test_series, _ = prepare_dataframe_for_darts(
+                test_df, target_col=target_col, covariate_cols=None, freq="D", fill_method=fill_method
+            )
+
+        # Align pred and actual by date index (handles sparse stride timestamps)
+        pred_df = pred_series.pd_dataframe()
+        actual_df = test_series.pd_dataframe()
+        aligned = actual_df.reindex(pred_df.index).dropna()
+        if len(aligned) == 0:
+            raise ValueError("No overlapping dates between predictions and test set")
+        pred_aligned = pred_df.loc[aligned.index]
+        residuals = aligned.values.flatten() - pred_aligned.values.flatten()
+        dates_out = [d.isoformat() for d in aligned.index]
+
+    except Exception as e:
+        logger.warning(f"Historical forecasts failed for residuals: {e}")
+        raise HTTPException(status_code=500, detail=f"Residual computation failed: {e}")
+
+    from scipy import stats
+
+    mean_err = float(np.mean(residuals))
+    std_err = float(np.std(residuals))
+    skew = float(stats.skew(residuals)) if len(residuals) > 3 else None
+    kurt = float(stats.kurtosis(residuals)) if len(residuals) > 3 else None
+
+    try:
+        _, norm_p = stats.normaltest(residuals)
+        norm_p = float(norm_p)
+    except Exception:
+        norm_p = None
+
+    acf1 = None
+    if len(residuals) > 2:
+        from statsmodels.tsa.stattools import acf
+
+        acf_vals = acf(residuals, nlags=1, fft=True)
+        acf1 = float(acf_vals[1])
+
+    bias_status = "balanced" if abs(mean_err) < 0.5 * std_err else "biased"
+
+    return ResidualAnalysisResult(
+        mean_error=mean_err,
+        std_error=std_err,
+        skewness=skew,
+        kurtosis=kurt,
+        normality_pvalue=norm_p,
+        acf_lag1=acf1,
+        bias_status=bias_status,
+        residuals=[float(v) if not np.isnan(v) else 0.0 for v in residuals],
+        dates=dates_out,
+    )
+
+
+@router.get("/{model_id}/seasonality", response_model=SeasonalityResult)
+async def seasonality_analysis(model_id: str):
+    """Detect seasonality patterns and compute STL decomposition."""
+    model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
+        _load_model_for_explain(model_id)
+    )
+
+    df = test_df if test_df is not None else train_df
+    if df is None or target_col not in df.columns:
+        raise HTTPException(status_code=404, detail="Data not found for seasonality analysis")
+
+    import numpy as np
+
+    values = df[target_col].dropna()
+
+    # Detect periodicity using FFT
+    detected_periods = []
+    period_strengths: dict[str, float] = {}
+    candidate_periods = [7, 30, 90, 365]
+
+    try:
+        fft_vals = np.fft.rfft(values.values - values.values.mean())
+        freqs = np.fft.rfftfreq(len(values), d=1)
+        power = np.abs(fft_vals) ** 2
+        avg_power = float(np.mean(power[1:]))
+
+        for period in candidate_periods:
+            if period >= len(values) // 2:
+                continue
+            target_freq = 1.0 / period
+            idx = np.argmin(np.abs(freqs - target_freq))
+            strength = float(power[idx] / avg_power) if avg_power > 0 else 0.0
+            period_strengths[str(period)] = round(strength, 2)
+            if strength > 3.0:
+                detected_periods.append(period)
+    except Exception:
+        pass
+
+    # STL decomposition
+    variance_trend = None
+    variance_seasonal = None
+    variance_residual = None
+    decomp_dict = None
+    decomp_dates = None
+
+    try:
+        from statsmodels.tsa.seasonal import STL
+
+        period = 365 if len(values) > 730 else 7
+        stl = STL(values, period=period, robust=True)
+        result = stl.fit()
+
+        total_var = float(np.var(values.values))
+        if total_var > 0:
+            variance_trend = float(np.var(result.trend) / total_var * 100)
+            variance_seasonal = float(np.var(result.seasonal) / total_var * 100)
+            variance_residual = float(np.var(result.resid) / total_var * 100)
+
+        # Subsample for transfer (max 500 points)
+        step = max(1, len(values) // 500)
+        decomp_dict = {
+            "trend": [float(v) for v in result.trend[::step]],
+            "seasonal": [float(v) for v in result.seasonal[::step]],
+            "residual": [float(v) for v in result.resid[::step]],
+        }
+        decomp_dates = [d.isoformat() for d in values.index[::step]]
+    except Exception as e:
+        logger.warning(f"STL decomposition failed: {e}")
+
+    return SeasonalityResult(
+        detected_periods=detected_periods,
+        period_strengths=period_strengths,
+        decomposition=decomp_dict,
+        decomposition_dates=decomp_dates,
+        variance_trend=variance_trend,
+        variance_seasonal=variance_seasonal,
+        variance_residual=variance_residual,
     )
