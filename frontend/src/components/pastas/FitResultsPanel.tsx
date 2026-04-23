@@ -351,7 +351,22 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         )}
         {sliceByPeriod.resIdx.length > 0 && (() => {
           const { resIdx, resVals } = sliceByPeriod
-          const finiteVals = resVals.filter(v => Number.isFinite(v))
+
+          // Aggregate to monthly mean for readability
+          const monthlyMap = new Map<string, number[]>()
+          resIdx.forEach((d, i) => {
+            const ym = d.slice(0, 7)
+            if (!monthlyMap.has(ym)) monthlyMap.set(ym, [])
+            if (Number.isFinite(resVals[i])) monthlyMap.get(ym)!.push(resVals[i])
+          })
+          const monthlyDates: string[] = []
+          const monthlyVals: number[] = []
+          for (const [ym, vals] of monthlyMap) {
+            monthlyDates.push(ym + '-15')
+            monthlyVals.push(vals.reduce((a, b) => a + b, 0) / vals.length)
+          }
+
+          const finiteVals = monthlyVals.filter(v => Number.isFinite(v))
           const mean = finiteVals.reduce((a, b) => a + b, 0) / finiteVals.length
           const std = Math.sqrt(finiteVals.reduce((a, b) => a + (b - mean) ** 2, 0) / finiteVals.length)
           const threshold = 2 * std
@@ -360,26 +375,27 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           const outlierMonths = new Set<string>(allOutliersList.map((o: any) => o.date.slice(0, 7)))
           const selectedYM = selectedOutlierDate?.slice(0, 7)
 
-          const barColors = resVals.map((_v, i) => {
-            const ym = resIdx[i].slice(0, 7)
+          const barColors = monthlyVals.map((_v, i) => {
+            const ym = monthlyDates[i].slice(0, 7)
             if (outlierMonths.size > 0) {
               if (!outlierMonths.has(ym)) return 'rgba(245,158,11,0.5)'
               return selectedYM === ym ? 'rgba(239,68,68,1.0)' : 'rgba(239,68,68,0.7)'
             }
-            return Math.abs(resVals[i]) <= threshold ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.7)'
+            return Math.abs(monthlyVals[i]) <= threshold ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.7)'
           })
 
           return (
             <div className="mb-3">
-              <p className="text-xs text-text-muted mb-1">{currentOutliers ? 'Click a red bar for outlier details' : 'Red = |residual| > 2σ'}</p>
+              <p className="text-xs text-text-muted mb-1">{currentOutliers ? 'Monthly mean residuals — click a red bar for outlier details' : 'Monthly mean residuals — red = |residual| > 2σ'}</p>
               <Plot
-                data={[{ x: resIdx, y: resVals, type: 'bar', name: 'Residuals', marker: { color: barColors } }]}
+                data={[{ x: monthlyDates, y: monthlyVals, type: 'bar', name: 'Residuals (monthly)', marker: { color: barColors } }]}
                 layout={{
-                  ...chartLayout, height: 160,
+                  ...chartLayout, height: 180,
                   shapes: [
-                    { type: 'line', x0: resIdx[0], x1: resIdx[resIdx.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
-                    { type: 'line', x0: resIdx[0], x1: resIdx[resIdx.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                    { type: 'line', x0: monthlyDates[0], x1: monthlyDates[monthlyDates.length - 1], y0: threshold, y1: threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
+                    { type: 'line', x0: monthlyDates[0], x1: monthlyDates[monthlyDates.length - 1], y0: -threshold, y1: -threshold, line: { color: 'rgba(239,68,68,0.3)', dash: 'dot', width: 1 } },
                   ],
+                  yaxis: { ...(chartLayout as any).yaxis, title: { text: 'Error (m)' } },
                 }}
                 config={plotlyConfig} style={{ width: '100%' }}
                 onClick={(event: any) => {
