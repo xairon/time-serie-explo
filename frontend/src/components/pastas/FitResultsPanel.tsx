@@ -5,12 +5,18 @@ import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasFitResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import { ContributionsChart } from '@/components/pastas/ContributionsChart'
-import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics } from '@/hooks/usePastas'
+import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasConfidenceBands, usePastasRecession, usePastasBaseflow, usePastasSpectral, usePastasDecomposition, usePastasCrossCorrelation, usePastasRegionalResiduals, usePastasInputQuality } from '@/hooks/usePastas'
 import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
 import { SignaturesPanel } from './SignaturesPanel'
 import { OutlierDetailPanel } from './OutlierDetailPanel'
+import { RecessionPanel } from './RecessionPanel'
+import { BaseflowPanel } from './BaseflowPanel'
+import { SpectralPanel } from './SpectralPanel'
+import { DecompositionPanel } from './DecompositionPanel'
+import { CrossCorrelationPanel } from './CrossCorrelationPanel'
+import { RegionalResidualsPanel } from './RegionalResidualsPanel'
 
 // --- Accordion section ---
 
@@ -124,6 +130,14 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   const { data: diagnosticsData } = usePastasDiagnostics(result.run_id)
   const { data: signaturesData } = usePastasSignatures(result.run_id)
   const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id) as { data: any }
+  const { data: confidenceData } = usePastasConfidenceBands(result.run_id) as { data: any }
+  const { data: recessionData } = usePastasRecession(result.run_id) as { data: any }
+  const { data: baseflowData } = usePastasBaseflow(result.run_id) as { data: any }
+  const { data: spectralData } = usePastasSpectral(result.run_id) as { data: any }
+  const { data: decompositionData } = usePastasDecomposition(result.run_id) as { data: any }
+  const { data: crossCorrData } = usePastasCrossCorrelation(result.run_id) as { data: any }
+  const { data: regionalData } = usePastasRegionalResiduals(result.run_id) as { data: any }
+  const { data: inputQualityData } = usePastasInputQuality(result.run_id) as { data: any }
   const [selectedOutlierDate, setSelectedOutlierDate] = useState<string | null>(null)
   const { data: aiModels } = useModels()
   const aiModel = aiModels?.find(m => m.stations?.includes(codeBss ?? '') || m.primary_station === codeBss)
@@ -174,6 +188,20 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           <MetricGrid metrics={metrics} />
         )}
       </Section>
+
+      {/* Input quality banner */}
+      {inputQualityData && inputQualityData.n_flagged > 0 && (
+        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+          <p className="text-xs font-semibold text-orange-400 mb-1">Input Data Anomalies — {inputQualityData.n_flagged} suspicious months detected</p>
+          <div className="flex flex-wrap gap-1">
+            {inputQualityData.flagged?.map((f: any) => (
+              <span key={f.month} className="px-2 py-0.5 rounded-full text-[10px] border border-orange-500/30 bg-orange-500/10 text-orange-300" title={f.reason}>
+                {new Date(f.month).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. Time series */}
       <Section title="Time Series — Observed vs Simulated">
@@ -232,6 +260,16 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
             })
 
             const trainTraces = [
+              ...(confidenceData?.p5 ? [
+                { x: confidenceData.index, y: confidenceData.p95, type: 'scatter' as const, mode: 'lines' as const,
+                  line: { width: 0 }, showlegend: false },
+                { x: confidenceData.index, y: confidenceData.p5, type: 'scatter' as const, mode: 'lines' as const,
+                  fill: 'tonexty', fillcolor: 'rgba(34,211,238,0.08)', line: { width: 0 }, name: '90% CI' },
+                { x: confidenceData.index, y: confidenceData.p75, type: 'scatter' as const, mode: 'lines' as const,
+                  line: { width: 0 }, showlegend: false },
+                { x: confidenceData.index, y: confidenceData.p25, type: 'scatter' as const, mode: 'lines' as const,
+                  fill: 'tonexty', fillcolor: 'rgba(34,211,238,0.15)', line: { width: 0 }, name: '50% CI' },
+              ] : []),
               { x: obsTrainX, y: obsTrainY, type: 'scatter' as const, mode: 'lines' as const,
                 name: 'Observed', line: { color: '#6b7280', width: 1 } },
               { x: simTrainX, y: simTrainY, type: 'scatter' as const, mode: 'lines' as const,
@@ -269,6 +307,16 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           return (
             <Plot
               data={[
+                ...(confidenceData?.p5 ? [
+                  { x: confidenceData.index, y: confidenceData.p95, type: 'scatter' as const, mode: 'lines' as const,
+                    line: { width: 0 }, showlegend: false },
+                  { x: confidenceData.index, y: confidenceData.p5, type: 'scatter' as const, mode: 'lines' as const,
+                    fill: 'tonexty', fillcolor: 'rgba(34,211,238,0.08)', line: { width: 0 }, name: '90% CI' },
+                  { x: confidenceData.index, y: confidenceData.p75, type: 'scatter' as const, mode: 'lines' as const,
+                    line: { width: 0 }, showlegend: false },
+                  { x: confidenceData.index, y: confidenceData.p25, type: 'scatter' as const, mode: 'lines' as const,
+                    fill: 'tonexty', fillcolor: 'rgba(34,211,238,0.15)', line: { width: 0 }, name: '50% CI' },
+                ] : []),
                 { x: observed.index, y: observed.values, type: 'scatter' as const, mode: 'lines' as const,
                   name: 'Observed', line: { color: '#6b7280', width: 1 } },
                 { x: simulated.index, y: simulated.values, type: 'scatter' as const, mode: 'lines' as const,
@@ -402,6 +450,36 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         ) : (
           <p className="text-xs text-text-muted">Loading signatures...</p>
         )}
+      </Section>
+
+      {/* 8. Recession Analysis */}
+      <Section title="Recession Analysis" defaultOpen={false}>
+        {recessionData ? <RecessionPanel data={recessionData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      </Section>
+
+      {/* 9. Baseflow Separation */}
+      <Section title="Baseflow Separation" defaultOpen={false}>
+        {baseflowData ? <BaseflowPanel data={baseflowData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      </Section>
+
+      {/* 10. Spectral Analysis */}
+      <Section title="Spectral Analysis" defaultOpen={false}>
+        {spectralData ? <SpectralPanel data={spectralData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      </Section>
+
+      {/* 11. Signal Decomposition */}
+      <Section title="Signal Decomposition (STL)" defaultOpen={false}>
+        {decompositionData ? <DecompositionPanel data={decompositionData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      </Section>
+
+      {/* 12. Cross-Correlation */}
+      <Section title="Cross-Correlation (Precip → Piezo)" defaultOpen={false}>
+        {crossCorrData ? <CrossCorrelationPanel data={crossCorrData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      </Section>
+
+      {/* 13. Regional Residual Comparison */}
+      <Section title="Regional Residual Comparison" defaultOpen={false}>
+        {regionalData ? <RegionalResidualsPanel data={regionalData} /> : <p className="text-xs text-text-muted">Loading...</p>}
       </Section>
     </div>
   )
