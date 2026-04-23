@@ -67,6 +67,15 @@ export function usePastasDiagnostics(runId: string | null) {
   })
 }
 
+export function usePastasOutlierDiagnostics(runId: string | null) {
+  return useQuery({
+    queryKey: ['pastas', 'outlier-diagnostics', runId],
+    queryFn: () => api.pastas.outlierDiagnostics(runId!),
+    enabled: !!runId,
+    staleTime: 60 * 60 * 1000,
+  })
+}
+
 export function usePastasSignatures(runId: string | null) {
   return useQuery({
     queryKey: ['pastas', 'signatures', runId],
