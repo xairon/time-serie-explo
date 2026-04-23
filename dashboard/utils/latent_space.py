@@ -410,131 +410,242 @@ def compute_umap_quality(
 
 
 # ---------------------------------------------------------------------------
-# Clustering
+# Pipeline: PCA → VIZ + CLUSTERING (decoupled, cached independently)
 # ---------------------------------------------------------------------------
 
 
-def compute_clustering(
-    embeddings_matrix: np.ndarray,
-    method: str,
-    params,
-    n_umap_dims: int = 10,
-    pre_n_neighbors: int = 15,
-    pre_min_dist: float = 0.0,
-) -> tuple[np.ndarray, dict]:
-    """Cluster embeddings using HDBSCAN or KMeans.
+def compute_pca(
+    embeddings: np.ndarray,
+    variance_threshold: float = 0.95,
+    min_components: int = 15,
+) -> dict[str, Any]:
+    """PCA adaptive pre-reduction.
 
-    Parameters
-    ----------
-    embeddings_matrix:
-        Shape (n_samples, n_dims).
-    method:
-        "hdbscan" or "kmeans".
-    params:
-        ClusteringParams-like object with `.hdbscan` and `.kmeans` sub-objects.
-    n_umap_dims:
-        Number of UMAP dimensions used as a pre-processing step for HDBSCAN.
+    Floor: max(min_components, n_auto) — never below min_components.
+    Ceiling: min(n_99_percent, 100, N-1).
 
-    Returns
-    -------
-    (labels_array, metrics_dict)
-        labels_array: shape (n_samples,), int; -1 = noise for HDBSCAN.
-        metrics_dict: structured as {umap_prereduction: {...}, clustering: {...}}.
+    Returns dict ready for Redis cache 'pca' section.
+    """
+    from sklearn.decomposition import PCA
+
+    n_samples, n_dims = embeddings.shape
+    max_components = min(100, n_dims, n_samples - 1)
+    pca = PCA(n_components=max_components, random_state=42)
+    pca.fit(embeddings)
+
+    cumvar = np.cumsum(pca.explained_variance_ratio_)
+    n_auto = int(np.searchsorted(cumvar, variance_threshold) + 1)
+    n_components = max(min_components, n_auto)
+    n_99 = int(np.searchsorted(cumvar, 0.99) + 1)
+    n_components = min(n_components, n_99, max_components)
+
+    reduced = pca.transform(embeddings)[:, :n_components]
+
+    return {
+        "reduced": [[round(float(v), 6) for v in row] for row in reduced],
+        "n_components": n_components,
+        "variance_threshold": variance_threshold,
+        "variance_explained": round(float(cumvar[n_components - 1]), 4),
+        "cumvar_curve": [round(float(v), 4) for v in cumvar[:max_components]],
+        "embedding_dim": n_dims,
+    }
+
+
+def compute_viz(
+    pca_reduced: np.ndarray,
+    n_neighbors: int = 50,
+    min_dist: float = 0.3,
+) -> dict[str, Any]:
+    """UMAP 2D visualization from PCA-reduced data.
+
+    Returns dict ready for Redis cache 'viz' section.
+    """
+    from sklearn.manifold import trustworthiness
+
+    coords = compute_umap(
+        pca_reduced, n_components=2,
+        n_neighbors=n_neighbors, min_dist=min_dist, metric="cosine",
+    )
+
+    tw = 0.0
+    k = min(n_neighbors, pca_reduced.shape[0] - 1)
+    if k >= 2:
+        try:
+            tw = float(trustworthiness(pca_reduced, coords, n_neighbors=k, metric="cosine"))
+        except Exception:
+            pass
+
+    return {
+        "coords_2d": [[round(float(coords[i, 0]), 6), round(float(coords[i, 1]), 6)] for i in range(len(coords))],
+        "params": {"n_neighbors": n_neighbors, "min_dist": min_dist},
+        "trustworthiness": round(tw, 4),
+    }
+
+
+def _dbcv_score(labels: np.ndarray, X: np.ndarray) -> float:
+    """DBCV score for HDBSCAN. Uses hdbscan validity_index if available."""
+    n_clusters = len(set(labels.tolist()) - {-1})
+    if n_clusters < 2:
+        return -1.0
+
+    try:
+        from hdbscan.validity import validity_index
+        return float(validity_index(X.astype(np.float64), labels))
+    except (ImportError, Exception):
+        pass
+
+    # Composite fallback: silhouette with penalties for degenerate solutions
+    from sklearn.metrics import silhouette_score
+    mask = labels != -1
+    if mask.sum() < 10:
+        return -1.0
+    sil = float(silhouette_score(X[mask], labels[mask]))
+    noise_ratio = float((~mask).sum()) / len(labels)
+    penalty = 0.0
+    if n_clusters < 4:
+        penalty += 0.3 * (4 - n_clusters) / 3
+    if n_clusters > 30:
+        penalty += 0.1 * min((n_clusters - 30) / 30, 1.0)
+    if noise_ratio > 0.4:
+        penalty += 0.2
+    elif noise_ratio > 0.25:
+        penalty += 0.1
+    return sil - penalty
+
+
+def _build_hdbscan_result(
+    labels: np.ndarray, X: np.ndarray, mcs: int, ms: int,
+) -> dict[str, Any]:
+    from sklearn.metrics import silhouette_score
+    n_clusters = len(set(labels.tolist()) - {-1})
+    noise_ratio = float((labels == -1).sum()) / len(labels) if len(labels) > 0 else 0.0
+    mask = labels != -1
+    sil = float(silhouette_score(X[mask], labels[mask])) if n_clusters > 1 and mask.sum() > 10 else 0.0
+    dbcv = _dbcv_score(labels, X)
+    return {
+        "params": {"min_cluster_size": int(mcs), "min_samples": int(ms)},
+        "labels": labels.tolist(),
+        "n_clusters": n_clusters,
+        "dbcv": round(dbcv, 4),
+        "noise_ratio": round(noise_ratio, 4),
+        "silhouette": round(sil, 4),
+    }
+
+
+def _optuna_hdbscan(pca_reduced: np.ndarray, n_trials: int = 40) -> dict[str, Any]:
+    """Optimize HDBSCAN params via Optuna, maximizing DBCV score."""
+    import optuna
+    from sklearn.cluster import HDBSCAN
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    n = pca_reduced.shape[0]
+
+    if n < 50:
+        from hdbscan import HDBSCAN as HDBSCANOrig
+        mcs = max(5, n // 5)
+        labels = HDBSCANOrig(min_cluster_size=mcs, min_samples=3).fit_predict(pca_reduced)
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        return {"min_cluster_size": mcs, "min_samples": 3, "n_clusters": n_clusters, "labels": labels.tolist()}
+
+    best: dict[str, Any] = {}
+
+    def objective(trial: optuna.Trial) -> float:
+        nonlocal best
+        mcs = trial.suggest_int("min_cluster_size", 10, min(200, n // 5))
+        ms = trial.suggest_int("min_samples", 3, min(30, mcs))
+        labels = HDBSCAN(min_cluster_size=mcs, min_samples=ms).fit_predict(pca_reduced)
+        score = _dbcv_score(labels, pca_reduced)
+        if not best or score > best.get("_score", -2.0):
+            result = _build_hdbscan_result(labels, pca_reduced, mcs, ms)
+            result["_score"] = score
+            best = result
+        return score
+
+    study = optuna.create_study(
+        direction="maximize", sampler=optuna.samplers.TPESampler(seed=42),
+    )
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+
+    # Soft guidance: if < 5 clusters, retry with constrained range
+    if best.get("n_clusters", 0) < 5:
+        def retry(trial: optuna.Trial) -> float:
+            nonlocal best
+            mcs = trial.suggest_int("min_cluster_size", 5, 30)
+            ms = trial.suggest_int("min_samples", 3, min(15, mcs))
+            labels = HDBSCAN(min_cluster_size=mcs, min_samples=ms).fit_predict(pca_reduced)
+            n_cl = len(set(labels.tolist()) - {-1})
+            if n_cl < 3:
+                return -1.0
+            score = _dbcv_score(labels, pca_reduced)
+            if not best or score > best.get("_score", -2.0):
+                result = _build_hdbscan_result(labels, pca_reduced, mcs, ms)
+                result["_score"] = score
+                best = result
+            return score
+
+        study2 = optuna.create_study(
+            direction="maximize", sampler=optuna.samplers.TPESampler(seed=43),
+        )
+        study2.optimize(retry, n_trials=20, show_progress_bar=False)
+
+    # Fallback
+    if not best or best.get("n_clusters", 0) < 2:
+        labels = HDBSCAN(min_cluster_size=25, min_samples=5).fit_predict(pca_reduced)
+        best = _build_hdbscan_result(labels, pca_reduced, 25, 5)
+
+    best.pop("_score", None)
+    return best
+
+
+def compute_clustering_all(
+    pca_reduced: np.ndarray,
+    min_cluster_size: int | None = None,
+    min_samples: int | None = None,
+    n_optuna_trials: int = 40,
+) -> dict[str, Any]:
+    """Compute HDBSCAN + KMeans elbow, all on PCA-reduced data.
+
+    If min_cluster_size and min_samples are provided, runs HDBSCAN with those
+    explicit params (no Optuna). Otherwise runs Optuna optimization.
+
+    KMeans always scans k=2..25.
+
+    Returns dict ready for Redis cache 'clustering' section.
     """
     from sklearn.cluster import KMeans
     from sklearn.metrics import silhouette_score
 
-    umap_pre_metrics: dict[str, Any] = {}
-    clustering_metrics: dict[str, Any] = {}
-    clustering_input = embeddings_matrix  # what clustering actually runs on
+    n = pca_reduced.shape[0]
 
-    if method == "hdbscan":
+    # --- HDBSCAN ---
+    if min_cluster_size is not None and min_samples is not None:
         from sklearn.cluster import HDBSCAN
-
-        # Reduce dimensionality before density clustering
-        n_umap_dims_actual = min(n_umap_dims, embeddings_matrix.shape[1])
-        reduced = compute_umap(
-            embeddings_matrix,
-            n_components=n_umap_dims_actual,
-            n_neighbors=pre_n_neighbors,
-            min_dist=pre_min_dist,
-            metric="cosine",
-        )
-        clustering_input = reduced
-
-        # UMAP pre-reduction quality
-        umap_pre_metrics["input_dim"] = int(embeddings_matrix.shape[1])
-        umap_pre_metrics["output_dim"] = n_umap_dims_actual
-        umap_pre_metrics["n_neighbors"] = pre_n_neighbors
-        umap_pre_metrics["min_dist"] = pre_min_dist
-        umap_pre_quality = compute_umap_quality(
-            embeddings_matrix, reduced, n_neighbors=pre_n_neighbors,
-        )
-        umap_pre_metrics.update(umap_pre_quality)
-
-        hparams = params.hdbscan if hasattr(params, 'hdbscan') else params.get('hdbscan', params)
-        mcs = hparams.min_cluster_size if hasattr(hparams, 'min_cluster_size') else hparams.get('min_cluster_size', 10)
-        ms = hparams.min_samples if hasattr(hparams, 'min_samples') else hparams.get('min_samples', 5)
-        clusterer = HDBSCAN(
-            min_cluster_size=mcs,
-            min_samples=ms,
-        )
-        labels = clusterer.fit_predict(reduced)
-
-    elif method == "kmeans":
-        kparams = params.kmeans if hasattr(params, 'kmeans') else params.get('kmeans', params)
-        nc = kparams.n_clusters if hasattr(kparams, 'n_clusters') else kparams.get('n_clusters', 8)
-        clusterer = KMeans(
-            n_clusters=nc,
-            random_state=42,
-            n_init=10,
-        )
-        labels = clusterer.fit_predict(embeddings_matrix)
-        clustering_metrics["inertia"] = round(float(clusterer.inertia_), 2)
-
+        labels = HDBSCAN(
+            min_cluster_size=min_cluster_size, min_samples=min_samples,
+        ).fit_predict(pca_reduced)
+        hdb_result = _build_hdbscan_result(labels, pca_reduced, min_cluster_size, min_samples)
     else:
-        raise ValueError(f"Unknown clustering method '{method}'. Use 'hdbscan' or 'kmeans'.")
+        hdb_result = _optuna_hdbscan(pca_reduced, n_optuna_trials)
 
-    # Clustering quality metrics
-    unique_labels = set(labels)
-    non_noise = unique_labels - {-1}
-    n_clusters = len(non_noise)
-    clustering_metrics["n_clusters"] = n_clusters
-    clustering_metrics["method"] = method
+    # --- KMeans elbow (k=2..25) ---
+    kmeans_elbow: list[dict[str, Any]] = []
+    for k in range(2, 26):
+        if k >= n:
+            break
+        try:
+            km = KMeans(n_clusters=k, random_state=42, n_init=10)
+            lbls = km.fit_predict(pca_reduced)
+            sil = float(silhouette_score(pca_reduced, lbls))
+            kmeans_elbow.append({
+                "k": k,
+                "labels": lbls.tolist(),
+                "silhouette": round(sil, 4),
+                "inertia": round(float(km.inertia_), 2),
+            })
+        except Exception:
+            continue
 
-    if method == "hdbscan":
-        n_noise = int(np.sum(labels == -1))
-        clustering_metrics["n_noise"] = n_noise
-        clustering_metrics["noise_ratio"] = round(n_noise / len(labels), 4) if len(labels) > 0 else 0.0
-
-    if n_clusters > 1:
-        mask = labels != -1
-        if mask.sum() > 1:
-            try:
-                score = silhouette_score(clustering_input[mask], labels[mask])
-                clustering_metrics["silhouette"] = round(float(score), 4)
-            except Exception:
-                pass
-            try:
-                from sklearn.metrics import davies_bouldin_score
-                db = davies_bouldin_score(clustering_input[mask], labels[mask])
-                clustering_metrics["davies_bouldin"] = round(float(db), 4)
-            except Exception:
-                pass
-            try:
-                from sklearn.metrics import calinski_harabasz_score
-                ch = calinski_harabasz_score(clustering_input[mask], labels[mask])
-                clustering_metrics["calinski_harabasz"] = round(float(ch), 2)
-            except Exception:
-                pass
-
-    metrics: dict[str, Any] = {
-        "clustering": clustering_metrics,
-    }
-    if umap_pre_metrics:
-        metrics["umap_prereduction"] = umap_pre_metrics
-
-    return labels, metrics
+    return {"hdbscan": hdb_result, "kmeans_elbow": kmeans_elbow}
 
 
 # ---------------------------------------------------------------------------
