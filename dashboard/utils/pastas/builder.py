@@ -51,6 +51,7 @@ def build_model(
     tmin: Optional[str],
     tmax: Optional[str],
     additional_stresses=None,  # list of dicts with type, name, rfunc, series
+    add_trend: bool = False,
 ) -> tuple[ps.Model, Optional[str], Optional[str]]:
     """Build an unsolved Pastas model.
 
@@ -72,6 +73,11 @@ def build_model(
         name="recharge",
     )
     model.add_stressmodel(rm)
+
+    if add_trend:
+        model.add_stressmodel(
+            ps.stressmodels.LinearTrend(start=tmin, end=tmax, name="linear_trend")
+        )
 
     if noise_type != "none":
         noise_cls = NOISE_REGISTRY[noise_type]

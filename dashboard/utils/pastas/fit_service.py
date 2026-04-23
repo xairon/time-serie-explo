@@ -196,6 +196,7 @@ def run_fit(
     warm_up_years: int = 0,
     two_pass: bool = False,
     initial_params: Optional[dict[str, float]] = None,
+    add_trend: bool = False,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -244,6 +245,7 @@ def run_fit(
         tmin=tmin,
         tmax=tmax,
         additional_stresses=additional_stresses,
+        add_trend=add_trend,
     )
 
     # Determine calibration/validation windows
@@ -280,6 +282,7 @@ def run_fit(
             tmin=tmin,
             tmax=tmax,
             additional_stresses=additional_stresses,
+            add_trend=add_trend,
         )
         solver_cls_pass1 = SOLVER_REGISTRY[solver_type]
         model_no_noise.solve(

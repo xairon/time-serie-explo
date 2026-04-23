@@ -215,7 +215,12 @@ def run_auto_fit(
             # Build additional stresses list
             additional_stresses: list[dict[str, Any]] = []
             if include_temp and temp is not None:
-                additional_stresses.append({"name": "temperature", "series": temp})
+                additional_stresses.append({
+                    "type": "custom",
+                    "name": "temperature",
+                    "rfunc": "Gamma",
+                    "series": temp,
+                })
 
             fit_result = run_fit(
                 gwl=gwl,
@@ -234,6 +239,7 @@ def run_auto_fit(
                 additional_stresses=additional_stresses or None,
                 warm_up_years=warm_up_years,
                 two_pass=(noise != "none"),
+                add_trend=trend,
             )
             candidate.fit_result = fit_result
 
@@ -295,13 +301,14 @@ def run_auto_fit(
     successful = [c for c in candidates if c.error is None and c.fit_result is not None]
     stowa_pass = [c for c in successful if c.stowa is not None and c.stowa.overall_pass]
 
-    def _aic_key(c: AutoFitCandidate) -> float:
-        return c.aic if c.aic is not None else float("inf")
+    def _nse_key(c: AutoFitCandidate) -> float:
+        nse = c.fit_result.metrics.get("nse") if c.fit_result else None
+        return -(nse if nse is not None else -float("inf"))
 
     if stowa_pass:
-        ranked = sorted(stowa_pass, key=_aic_key)
+        ranked = sorted(stowa_pass, key=_nse_key)
     else:
-        ranked = sorted(successful, key=_aic_key)
+        ranked = sorted(successful, key=_nse_key)
 
     best = ranked[0] if ranked else None
 
