@@ -28,7 +28,7 @@ def _detect_outliers(residuals: pd.Series) -> tuple[list[dict], float]:
     if len(clean) < 10:
         return [], 0.0
     sigma = float(clean.std())
-    if sigma == 0:
+    if sigma < 1e-10:
         return [], 0.0
     threshold = 2 * sigma
     outliers = []
