@@ -346,18 +346,24 @@ def get_model(run_id: str) -> FitResponse:
     run = client.get_run(run_id)
     metrics = dict(run.data.metrics)
     tags = run.data.tags
+    params = run.data.params
+
+    tmin, tmax = _clean_tmin_tmax(params)
+    val_period = _rebuild_period(tags, "val")
+    # Simulate over full period (cal+val) so frontend can plot both
+    tmax_full = val_period[1] if val_period else tmax
 
     try:
-        observed = model.observations()
-        simulated = model.simulate()
-        residuals = model.residuals()
+        observed = model.observations(tmin=tmin, tmax=tmax_full)
+        simulated = model.simulate(tmin=tmin, tmax=tmax_full)
+        residuals = model.residuals(tmin=tmin, tmax=tmax)
     except Exception as exc:
         raise HTTPException(500, f"Failed to reconstruct series: {exc}") from exc
 
     contributions: dict[str, pd.Series] = {}
     for sm_name in model.stressmodels:
         try:
-            contributions[sm_name] = model.get_contribution(sm_name)
+            contributions[sm_name] = model.get_contribution(sm_name, tmin=tmin, tmax=tmax_full)
         except Exception:
             pass
 
@@ -452,6 +458,44 @@ def get_diagnostics(run_id: str):
 
     residuals = model.residuals(tmin=tmin, tmax=tmax)
     return compute_diagnostics(residuals)
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/outlier-diagnostics
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/outlier-diagnostics")
+def get_outlier_diagnostics(run_id: str):
+    """Compute outlier diagnostics for a stored Pastas model."""
+    from dashboard.utils.pastas.io import load_model
+    from dashboard.utils.pastas.outlier_diagnostics import compute_outlier_diagnostics
+    from sqlalchemy import create_engine
+
+    try:
+        model = load_model(run_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Model '{run_id}' not found")
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
+
+    engine = create_engine(_brgm_url())
+    try:
+        result = compute_outlier_diagnostics(
+            model=model,
+            code_bss=code_bss,
+            cal_tmin=tmin,
+            cal_tmax=tmax,
+            engine=engine,
+        )
+    finally:
+        engine.dispose()
+
+    result["run_id"] = run_id
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -662,13 +706,20 @@ def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), v
 
     candidates = []
     for c in result.candidates:
+        m = c.fit_result.metrics if c.fit_result else {}
         candidates.append({
             "config": c.config,
-            "aic": c.aic,
-            "evp": c.fit_result.metrics.get("evp") if c.fit_result else None,
-            "nse": c.fit_result.metrics.get("nse") if c.fit_result else None,
+            "nse": m.get("nse"),
+            "rmse": m.get("rmse"),
+            "kge": m.get("kge"),
             "run_id": c.fit_result.run_id if c.fit_result else None,
-            "stowa": {"evp_pass": c.stowa.evp_pass, "autocorrelation_pass": c.stowa.autocorrelation_pass, "t95_pass": c.stowa.t95_pass, "gain_pass": c.stowa.gain_pass, "overall_pass": c.stowa.overall_pass} if c.stowa else None,
+            "stowa": {
+                "evp_pass": c.stowa.evp_pass, "evp_value": c.stowa.evp_value,
+                "autocorrelation_pass": c.stowa.autocorrelation_pass, "runs_test_pvalue": c.stowa.runs_test_pvalue,
+                "t95_pass": c.stowa.t95_pass, "t95_days": c.stowa.t95_days, "t95_threshold": c.stowa.t95_threshold,
+                "gain_pass": c.stowa.gain_pass, "gain_significance": c.stowa.gain_significance,
+                "overall_pass": c.stowa.overall_pass, "suggestions": c.stowa.suggestions,
+            } if c.stowa else None,
             "error": c.error,
             "elapsed_s": round(c.elapsed_s, 1),
         })
