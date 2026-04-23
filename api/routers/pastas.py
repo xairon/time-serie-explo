@@ -65,6 +65,28 @@ def _rebuild_period(tags: dict, prefix: str) -> Optional[list[str]]:
     return None
 
 
+def _get_cal_val_periods(run) -> tuple[tuple[Optional[str], Optional[str]], Optional[tuple[str, str]]]:
+    """Extract calibration and validation periods from an MLflow run.
+
+    Returns (cal_period, val_period) where cal_period is (tmin, tmax)
+    and val_period is (tmin, tmax) or None if no validation split.
+    """
+    tags = run.data.tags
+    params = run.data.params
+    cal_tmin = tags.get("cal_tmin")
+    cal_tmax = tags.get("cal_tmax")
+    val_tmin = tags.get("val_tmin")
+    val_tmax = tags.get("val_tmax")
+
+    if cal_tmin and cal_tmax:
+        cal = (cal_tmin, cal_tmax)
+    else:
+        cal = _clean_tmin_tmax(params)
+
+    val = (val_tmin, val_tmax) if val_tmin and val_tmax else None
+    return cal, val
+
+
 def _series_to_ts(s: pd.Series) -> TimeSeriesData:
     return TimeSeriesData(
         index=[str(d) for d in s.index],
@@ -445,7 +467,7 @@ def get_signatures(run_id: str):
 
 @router.get("/models/{run_id}/diagnostics")
 def get_diagnostics(run_id: str):
-    """Compute full diagnostic statistics on residuals of a stored Pastas model."""
+    """Compute full diagnostic statistics on residuals — split by cal/val."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.diagnostics import compute_diagnostics
 
@@ -457,10 +479,18 @@ def get_diagnostics(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
 
-    residuals = model.residuals(tmin=tmin, tmax=tmax)
-    return compute_diagnostics(residuals)
+    cal_residuals = model.residuals(tmin=cal[0], tmax=cal[1])
+    result = {"cal": compute_diagnostics(cal_residuals), "val": None}
+    if val:
+        try:
+            val_residuals = model.residuals(tmin=val[0], tmax=val[1])
+            if len(val_residuals.dropna()) >= 10:
+                result["val"] = compute_diagnostics(val_residuals)
+        except Exception:
+            pass
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +499,7 @@ def get_diagnostics(run_id: str):
 
 @router.get("/models/{run_id}/outlier-diagnostics")
 def get_outlier_diagnostics(run_id: str):
-    """Compute outlier diagnostics for a stored Pastas model."""
+    """Compute outlier diagnostics — split by cal/val."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.outlier_diagnostics import compute_outlier_diagnostics
     from sqlalchemy import create_engine
@@ -482,23 +512,33 @@ def get_outlier_diagnostics(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
     code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
 
     engine = create_engine(_brgm_url())
     try:
-        result = compute_outlier_diagnostics(
-            model=model,
-            code_bss=code_bss,
-            cal_tmin=tmin,
-            cal_tmax=tmax,
-            engine=engine,
+        cal_result = compute_outlier_diagnostics(
+            model=model, code_bss=code_bss,
+            cal_tmin=cal[0], cal_tmax=cal[1], engine=engine,
         )
+        cal_result["run_id"] = run_id
+        cal_result["period"] = "cal"
+
+        val_result = None
+        if val:
+            try:
+                val_result = compute_outlier_diagnostics(
+                    model=model, code_bss=code_bss,
+                    cal_tmin=val[0], cal_tmax=val[1], engine=engine,
+                )
+                val_result["run_id"] = run_id
+                val_result["period"] = "val"
+            except Exception:
+                pass
     finally:
         engine.dispose()
 
-    result["run_id"] = run_id
-    return result
+    return {"cal": cal_result, "val": val_result}
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +547,7 @@ def get_outlier_diagnostics(run_id: str):
 
 @router.get("/models/{run_id}/confidence-bands")
 def get_confidence_bands(run_id: str):
-    """Compute bootstrap confidence bands on model simulation."""
+    """Compute bootstrap confidence bands — full period (cal+val)."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.confidence_intervals import compute_confidence_bands
 
@@ -519,9 +559,10 @@ def get_confidence_bands(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
+    tmax_full = val[1] if val else cal[1]
 
-    return compute_confidence_bands(model, tmin, tmax)
+    return compute_confidence_bands(model, cal[0], tmax_full)
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +571,7 @@ def get_confidence_bands(run_id: str):
 
 @router.get("/models/{run_id}/recession")
 def get_recession(run_id: str):
-    """Compute recession analysis with Master Recession Curve."""
+    """Compute recession analysis — full observed period."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.recession import compute_recession_analysis
 
@@ -542,9 +583,10 @@ def get_recession(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
+    tmax_full = val[1] if val else cal[1]
 
-    return compute_recession_analysis(model, tmin, tmax)
+    return compute_recession_analysis(model, cal[0], tmax_full)
 
 
 # ---------------------------------------------------------------------------
@@ -553,7 +595,7 @@ def get_recession(run_id: str):
 
 @router.get("/models/{run_id}/baseflow")
 def get_baseflow(run_id: str):
-    """Compute baseflow separation using Lyne & Hollick filter."""
+    """Compute baseflow separation — full observed period."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.baseflow import compute_baseflow
 
@@ -565,9 +607,10 @@ def get_baseflow(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
+    tmax_full = val[1] if val else cal[1]
 
-    return compute_baseflow(model, tmin, tmax)
+    return compute_baseflow(model, cal[0], tmax_full)
 
 
 # ---------------------------------------------------------------------------
@@ -576,7 +619,7 @@ def get_baseflow(run_id: str):
 
 @router.get("/models/{run_id}/spectral")
 def get_spectral(run_id: str):
-    """Compute spectral analysis (PSD comparison obs vs sim)."""
+    """Compute spectral analysis — split by cal/val."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.spectral import compute_spectral_analysis
 
@@ -588,9 +631,17 @@ def get_spectral(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
 
-    return compute_spectral_analysis(model, tmin, tmax)
+    result = {"cal": compute_spectral_analysis(model, cal[0], cal[1]), "val": None}
+    if val:
+        try:
+            val_spectral = compute_spectral_analysis(model, val[0], val[1])
+            if val_spectral.get("frequencies"):
+                result["val"] = val_spectral
+        except Exception:
+            pass
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +650,7 @@ def get_spectral(run_id: str):
 
 @router.get("/models/{run_id}/decomposition")
 def get_decomposition(run_id: str):
-    """Compute STL decomposition of observed series."""
+    """Compute STL decomposition — full observed period."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.signal_decomposition import compute_stl_decomposition
 
@@ -611,9 +662,10 @@ def get_decomposition(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
+    tmax_full = val[1] if val else cal[1]
 
-    return compute_stl_decomposition(model, tmin, tmax)
+    return compute_stl_decomposition(model, cal[0], tmax_full)
 
 
 # ---------------------------------------------------------------------------
@@ -622,7 +674,7 @@ def get_decomposition(run_id: str):
 
 @router.get("/models/{run_id}/cross-correlation")
 def get_cross_correlation(run_id: str):
-    """Compute precipitation-piezometry cross-correlogram."""
+    """Compute precipitation-piezometry cross-correlogram — full period."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.cross_correlation import compute_cross_correlation
     from sqlalchemy import create_engine
@@ -635,12 +687,13 @@ def get_cross_correlation(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
+    tmax_full = val[1] if val else cal[1]
     code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
 
     engine = create_engine(_brgm_url())
     try:
-        return compute_cross_correlation(model, code_bss, tmin, tmax, engine)
+        return compute_cross_correlation(model, code_bss, cal[0], tmax_full, engine)
     finally:
         engine.dispose()
 
@@ -651,7 +704,7 @@ def get_cross_correlation(run_id: str):
 
 @router.get("/models/{run_id}/regional-residuals")
 def get_regional_residuals(run_id: str):
-    """Compare model residuals with neighboring BDLISA stations."""
+    """Compare model residuals with neighbors — split by cal/val."""
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.multi_station_residuals import compute_regional_residuals
     from sqlalchemy import create_engine
@@ -664,12 +717,18 @@ def get_regional_residuals(run_id: str):
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     run = client.get_run(run_id)
-    tmin, tmax = _clean_tmin_tmax(run.data.params)
+    cal, val = _get_cal_val_periods(run)
     code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
 
     engine = create_engine(_brgm_url())
     try:
-        return compute_regional_residuals(model, code_bss, tmin, tmax, engine)
+        result = {"cal": compute_regional_residuals(model, code_bss, cal[0], cal[1], engine), "val": None}
+        if val:
+            try:
+                result["val"] = compute_regional_residuals(model, code_bss, val[0], val[1], engine)
+            except Exception:
+                pass
+        return result
     finally:
         engine.dispose()
 

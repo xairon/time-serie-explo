@@ -345,24 +345,37 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {/* 5. Residuals & diagnostics */}
       <Section title="Residuals & Diagnostics">
-        {outlierData && outlierData.n_outliers > 0 && (
+        {(() => {
+          const calOutliers = outlierData?.cal ?? outlierData
+          const valOutliers = outlierData?.val
+          const nCal = calOutliers?.n_outliers ?? 0
+          const nVal = valOutliers?.n_outliers ?? 0
+          const nTotal = nCal + nVal
+
+          return nTotal > 0 ? (
           <div className="flex items-center gap-2 mb-2 text-xs text-text-muted">
-            <span className="font-medium text-text-secondary">{outlierData.n_outliers} outliers detected</span>
+            <span className="font-medium text-text-secondary">{nTotal} outliers</span>
             <span>—</span>
-            {Object.entries(outlierData.summary?.by_category ?? {}).map(([cat, count]: [string, any]) => (
-              <span key={cat}>{count} {cat.replace(/_/g, ' ').toLowerCase()}</span>
-            )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, <span key={`sep-${i}`}>,</span>, curr], [] as any)}
+            <span className="text-accent-cyan">{nCal} train</span>
+            {nVal > 0 && <><span>,</span><span className="text-orange-400">{nVal} test</span></>}
             <span className="text-[10px]">— click a red bar to investigate</span>
           </div>
-        )}
+          ) : null
+        })()}
         {residuals?.index?.length > 0 && (() => {
           const vals = residuals.values.filter(v => Number.isFinite(v))
           const mean = vals.reduce((a, b) => a + b, 0) / vals.length
           const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length)
           const threshold = 2 * std
 
+          const calOutliers = outlierData?.cal ?? outlierData
+          const valOutliers = outlierData?.val
+          const allOutliersList = [
+            ...(calOutliers?.outliers ?? []),
+            ...(valOutliers?.outliers ?? []),
+          ]
           const outlierMonths = new Set<string>(
-            outlierData?.outliers?.map((o: any) => o.date.slice(0, 7)) ?? []
+            allOutliersList.map((o: any) => o.date.slice(0, 7))
           )
           const selectedYM = selectedOutlierDate?.slice(0, 7)
 
@@ -396,9 +409,9 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 config={plotlyConfig}
                 style={{ width: '100%' }}
                 onClick={(event: any) => {
-                  if (!outlierData?.outliers?.length || !event.points?.[0]) return
+                  if (!allOutliersList.length || !event.points?.[0]) return
                   const clickedYM = String(event.points[0].x).slice(0, 7)
-                  const match = outlierData.outliers.find((o: any) => o.date.startsWith(clickedYM))
+                  const match = allOutliersList.find((o: any) => o.date.startsWith(clickedYM))
                   if (!match) return
                   setSelectedOutlierDate((prev: string | null) => prev === match.date ? null : match.date)
                 }}
@@ -407,11 +420,34 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           )
         })()}
         {selectedOutlierDate && outlierData && (() => {
-          const outlier = outlierData.outliers?.find((o: any) => o.date === selectedOutlierDate)
+          const calO = outlierData?.cal ?? outlierData
+          const valO = outlierData?.val
+          const allO = [...(calO?.outliers ?? []), ...(valO?.outliers ?? [])]
+          const outlier = allO.find((o: any) => o.date === selectedOutlierDate)
           if (!outlier) return null
           return <OutlierDetailPanel outlier={outlier} onClose={() => setSelectedOutlierDate(null)} />
         })()}
-        {diagnosticsData && <DiagnosticsPanel diagnostics={diagnosticsData} />}
+        {diagnosticsData && (() => {
+          const dd = diagnosticsData as any
+          const calDiag = dd.cal ?? dd
+          const valDiag = dd.val
+          return (
+            <div className="space-y-3">
+              {calDiag && (
+                <div>
+                  {valDiag && <div className="text-[10px] font-semibold uppercase tracking-wide text-accent-cyan mb-1">Train diagnostics</div>}
+                  <DiagnosticsPanel diagnostics={calDiag} />
+                </div>
+              )}
+              {valDiag && (
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-orange-400 mb-1 mt-3">Test diagnostics</div>
+                  <DiagnosticsPanel diagnostics={valDiag} />
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {!diagnosticsData && <p className="text-xs text-text-muted">Loading diagnostics...</p>}
       </Section>
 
