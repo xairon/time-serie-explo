@@ -286,3 +286,109 @@ def validate_modifications(
         errors=errors,
         warnings=warnings,
     )
+
+
+def build_preset_scenarios(
+    family: AquiferFamily,
+    tmin: str,
+    tmax: str,
+) -> list[dict]:
+    """Build the 6 contextual preset scenarios with concrete values."""
+    aep = get_pumping_profile("aep", family)
+    irr = get_pumping_profile("irrigation", family)
+    ind = get_pumping_profile("industrial", family)
+
+    return [
+        {
+            "id": "aep_well",
+            "name": "Nouveau forage AEP",
+            "description": f"Pompage eau potable {aep.rate_m3d.default} m³/j",
+            "icon": "🚰",
+            "modifications": [{
+                "type": "pumping_synthetic",
+                "usage": "aep",
+                "pattern": aep.pattern,
+                "rate_m3d": aep.rate_m3d.default,
+                "distance_m": aep.distance_m.default,
+                "start": tmin,
+                "end": tmax,
+                "rfunc": aep.rfunc,
+                "season_months": list(aep.active_months),
+                "peak_months": list(aep.peak_months),
+                "peak_factor": aep.peak_factor,
+            }],
+        },
+        {
+            "id": "irrigation",
+            "name": "Irrigation saisonnière",
+            "description": f"Pompage agricole {irr.rate_m3d.default} m³/j (avr-sep)",
+            "icon": "🌾",
+            "modifications": [{
+                "type": "pumping_synthetic",
+                "usage": "irrigation",
+                "pattern": "seasonal",
+                "rate_m3d": irr.rate_m3d.default,
+                "distance_m": irr.distance_m.default,
+                "start": tmin,
+                "end": tmax,
+                "rfunc": irr.rfunc,
+                "season_months": list(irr.active_months),
+                "peak_months": list(irr.peak_months),
+                "peak_factor": irr.peak_factor,
+            }],
+        },
+        {
+            "id": "industrial",
+            "name": "Prélèvement industriel",
+            "description": f"Pompage constant {ind.rate_m3d.default} m³/j",
+            "icon": "🏭",
+            "modifications": [{
+                "type": "pumping_synthetic",
+                "usage": "industrial",
+                "pattern": "constant",
+                "rate_m3d": ind.rate_m3d.default,
+                "distance_m": ind.distance_m.default,
+                "start": tmin,
+                "end": tmax,
+                "rfunc": ind.rfunc,
+                "season_months": list(ind.active_months),
+            }],
+        },
+        {
+            "id": "summer_drought",
+            "name": "Sécheresse estivale",
+            "description": "−30% précipitations juin-septembre",
+            "icon": "☀️",
+            "modifications": [{
+                "type": "scale_stress",
+                "stress": "precip",
+                "factor": 0.7,
+                "start": tmin,
+                "end": tmax,
+            }],
+        },
+        {
+            "id": "prolonged_drought",
+            "name": "Sécheresse prolongée",
+            "description": "−20% précip + +10% ETP sur 2 ans",
+            "icon": "🏜️",
+            "modifications": [
+                {"type": "scale_stress", "stress": "precip", "factor": 0.8,
+                 "start": tmin, "end": tmax},
+                {"type": "scale_stress", "stress": "evap", "factor": 1.1,
+                 "start": tmin, "end": tmax},
+            ],
+        },
+        {
+            "id": "climate_trend",
+            "name": "Tendance climatique",
+            "description": "Baisse −2 cm/an + hausse ETP +5%",
+            "icon": "📉",
+            "modifications": [
+                {"type": "linear_trend", "start": tmin, "end": tmax,
+                 "slope_m_per_year": -0.02},
+                {"type": "scale_stress", "stress": "evap", "factor": 1.05,
+                 "start": tmin, "end": tmax},
+            ],
+        },
+    ]

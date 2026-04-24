@@ -59,6 +59,7 @@ from dashboard.utils.pastas.scenario_presets import (
     Range,
     validate_modifications,
     ValidationResult,
+    build_preset_scenarios,
 )
 
 FAMILIES = ["alluvial", "sedimentary", "karst", "fractured", "volcanic"]
@@ -212,3 +213,45 @@ class TestSoftWarnings:
         result = validate_modifications(mods, "alluvial")
         assert result.valid
         assert len(result.warnings) == 0
+
+
+class TestPresetScenarios:
+    def test_returns_6_presets(self):
+        presets = build_preset_scenarios("alluvial", "2020-01-01", "2023-12-31")
+        assert len(presets) == 6
+
+    def test_preset_ids_unique(self):
+        presets = build_preset_scenarios("alluvial", "2020-01-01", "2023-12-31")
+        ids = [p["id"] for p in presets]
+        assert len(ids) == len(set(ids))
+
+    def test_aep_well_preset_uses_referential(self):
+        presets = build_preset_scenarios("fractured", "2020-01-01", "2023-12-31")
+        aep = next(p for p in presets if p["id"] == "aep_well")
+        mods = aep["modifications"]
+        assert len(mods) == 1
+        assert mods[0]["type"] == "pumping_synthetic"
+        assert mods[0]["usage"] == "aep"
+        assert mods[0]["rate_m3d"] == 30  # fractured AEP default
+
+    def test_irrigation_preset_seasonal(self):
+        presets = build_preset_scenarios("alluvial", "2020-01-01", "2023-12-31")
+        irr = next(p for p in presets if p["id"] == "irrigation")
+        mod = irr["modifications"][0]
+        assert mod["pattern"] == "seasonal"
+        assert mod["season_months"] == [4, 5, 6, 7, 8, 9]
+
+    def test_drought_preset(self):
+        presets = build_preset_scenarios("alluvial", "2020-01-01", "2023-12-31")
+        drought = next(p for p in presets if p["id"] == "summer_drought")
+        mod = drought["modifications"][0]
+        assert mod["type"] == "scale_stress"
+        assert mod["stress"] == "precip"
+        assert mod["factor"] == 0.7
+
+    def test_all_presets_pass_validation(self):
+        for family in FAMILIES:
+            presets = build_preset_scenarios(family, "2020-01-01", "2023-12-31")
+            for preset in presets:
+                result = validate_modifications(preset["modifications"], family)
+                assert result.valid, f"Preset {preset['id']} fails validation on {family}: {result.errors}"
