@@ -19,7 +19,7 @@ interface PumpingSyntheticData {
 interface PumpingSyntheticEditorProps {
   data: PumpingSyntheticData
   onChange: (data: PumpingSyntheticData) => void
-  profile?: PumpingProfileData | null
+  profiles?: Record<string, PumpingProfileData> | null
 }
 
 const USAGES = [
@@ -92,21 +92,24 @@ function generatePreview(pattern: string, rate: number, seasonMonths: number[], 
   return { dates, values }
 }
 
-export function PumpingSyntheticEditor({ data, onChange, profile }: PumpingSyntheticEditorProps) {
+export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSyntheticEditorProps) {
+  const profile = profiles?.[data.usage ?? 'aep'] ?? null
+
   function update(patch: Partial<PumpingSyntheticData>) {
     onChange({ ...data, ...patch })
   }
 
   function selectUsage(usage: 'aep' | 'irrigation' | 'industrial' | undefined) {
     const patch: Partial<PumpingSyntheticData> = { usage: usage || undefined }
-    if (usage && profile) {
-      patch.rate_m3d = profile.rate_m3d.default
-      patch.distance_m = profile.distance_m.default
-      patch.pattern = profile.pattern as 'constant' | 'seasonal' | 'pulse'
-      patch.season_months = profile.active_months
-      patch.peak_months = profile.peak_months
-      patch.peak_factor = profile.peak_factor
-      patch.rfunc = profile.rfunc as 'Exponential' | 'Hantush'
+    const targetProfile = usage ? profiles?.[usage] : null
+    if (targetProfile) {
+      patch.rate_m3d = targetProfile.rate_m3d.default
+      patch.distance_m = targetProfile.distance_m.default
+      patch.pattern = targetProfile.pattern as 'constant' | 'seasonal' | 'pulse'
+      patch.season_months = targetProfile.active_months
+      patch.peak_months = targetProfile.peak_months
+      patch.peak_factor = targetProfile.peak_factor
+      patch.rfunc = targetProfile.rfunc as 'Exponential' | 'Hantush'
     }
     onChange({ ...data, ...patch })
   }

@@ -8,7 +8,7 @@ interface ScenarioComposerProps {
   onChange: (mods: ModificationData[]) => void
   tmin: string
   tmax: string
-  pumpingProfile?: PumpingProfileData | null
+  pumpingProfiles?: Record<string, PumpingProfileData> | null
   scaleStressLimits?: PumpingRange | null
   linearTrendLimits?: PumpingRange | null
 }
@@ -22,12 +22,24 @@ const ADD_OPTIONS: { type: AddMenuType; label: string; description: string; icon
   { type: 'scale_stress', label: 'Scale a stress', description: 'Multiply precipitation or PET by a factor', icon: ArrowUpDown },
 ]
 
-function defaultForType(type: AddMenuType, tmin: string, tmax: string): ModificationData {
+function defaultForType(type: AddMenuType, tmin: string, tmax: string, profile?: PumpingProfileData | null): ModificationData {
   switch (type) {
     case 'pumping_synthetic':
-      return { type, pattern: 'seasonal', rate_m3d: 20, distance_m: 1000, start: tmin, end: tmax, rfunc: 'Exponential', season_months: [5, 6, 7, 8, 9] }
+      return {
+        type,
+        usage: 'aep',
+        pattern: (profile?.pattern as 'constant' | 'seasonal' | 'pulse') ?? 'constant',
+        rate_m3d: profile?.rate_m3d.default ?? 100,
+        distance_m: profile?.distance_m.default ?? 500,
+        start: tmin,
+        end: tmax,
+        rfunc: (profile?.rfunc as 'Exponential' | 'Hantush') ?? 'Exponential',
+        season_months: profile?.active_months ?? [5, 6, 7, 8, 9],
+        peak_months: profile?.peak_months,
+        peak_factor: profile?.peak_factor,
+      }
     case 'pumping_upload':
-      return { type, rows: [], distance_m: 500, rfunc: 'Exponential' }
+      return { type, rows: [], distance_m: profile?.distance_m.default ?? 500, rfunc: 'Exponential' }
     case 'linear_trend':
       return { type, start: tmin, end: tmax, slope_m_per_year: -0.01 }
     case 'scale_stress':
@@ -35,11 +47,11 @@ function defaultForType(type: AddMenuType, tmin: string, tmax: string): Modifica
   }
 }
 
-export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingProfile, scaleStressLimits, linearTrendLimits }: ScenarioComposerProps) {
+export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingProfiles, scaleStressLimits, linearTrendLimits }: ScenarioComposerProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   function addModification(type: AddMenuType) {
-    onChange([...modifications, defaultForType(type, tmin, tmax)])
+    onChange([...modifications, defaultForType(type, tmin, tmax, pumpingProfiles?.['aep'])])
     setMenuOpen(false)
   }
 
@@ -68,7 +80,7 @@ export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingP
           data={mod}
           onChange={(d) => updateModification(i, d)}
           onDelete={() => deleteModification(i)}
-          profile={pumpingProfile}
+          pumpingProfiles={pumpingProfiles}
           scaleStressLimits={scaleStressLimits}
           linearTrendLimits={linearTrendLimits}
         />

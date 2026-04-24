@@ -22,7 +22,7 @@ interface ModificationCardProps {
   data: ModificationData
   onChange: (data: ModificationData) => void
   onDelete: () => void
-  profile?: PumpingProfileData | null
+  pumpingProfiles?: Record<string, PumpingProfileData> | null
   scaleStressLimits?: PumpingRange | null
   linearTrendLimits?: PumpingRange | null
 }
@@ -37,7 +37,7 @@ const TYPE_META: Record<
   scale_stress: { label: 'Scale a stress', icon: ArrowUpDown, color: 'text-purple-400' },
 }
 
-export function ModificationCard({ index, data, onChange, onDelete, profile, scaleStressLimits, linearTrendLimits }: ModificationCardProps) {
+export function ModificationCard({ index, data, onChange, onDelete, pumpingProfiles, scaleStressLimits, linearTrendLimits }: ModificationCardProps) {
   const meta = TYPE_META[data.type]
   const Icon = meta.icon
 
@@ -61,7 +61,7 @@ export function ModificationCard({ index, data, onChange, onDelete, profile, sca
       {/* Editor */}
       <div className="p-3">
         {data.type === 'pumping_synthetic' && (
-          <PumpingSyntheticEditor data={data} onChange={(d) => onChange(d)} profile={profile} />
+          <PumpingSyntheticEditor data={data} onChange={(d) => onChange(d)} profiles={pumpingProfiles} />
         )}
         {data.type === 'pumping_upload' && (
           <PumpingUploadEditor

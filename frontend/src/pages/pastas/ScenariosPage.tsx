@@ -89,13 +89,16 @@ export default function ScenariosPage() {
 
   const canSimulate = !!runId && !!tmin && !!tmax
 
-  // Get current pumping profile for usage x aquifer
-  const currentProfile = useMemo(() => {
+  // Pumping profiles for the detected aquifer family (all usages)
+  const pumpingProfiles = useMemo(() => {
     if (!presetsData) return null
-    const pumpingMod = modifications.find(m => m.type === 'pumping_synthetic') as { usage?: string } | undefined
-    const usage = pumpingMod?.usage || 'aep'
-    return presetsData.pumping_profiles[usage]?.[aquiferFamily] ?? null
-  }, [presetsData, modifications, aquiferFamily])
+    const result: Record<string, typeof presetsData.pumping_profiles.aep.alluvial> = {}
+    for (const usage of ['aep', 'irrigation', 'industrial'] as const) {
+      const p = presetsData.pumping_profiles[usage]?.[aquiferFamily]
+      if (p) result[usage] = p
+    }
+    return Object.keys(result).length > 0 ? result : null
+  }, [presetsData, aquiferFamily])
 
   async function handleSimulate() {
     if (!canSimulate) return
@@ -242,7 +245,7 @@ export default function ScenariosPage() {
             onChange={setModifications}
             tmin={tmin}
             tmax={tmax}
-            pumpingProfile={currentProfile}
+            pumpingProfiles={pumpingProfiles}
             scaleStressLimits={presetsData?.non_pumping_limits?.scale_stress ?? null}
             linearTrendLimits={presetsData?.non_pumping_limits?.linear_trend ?? null}
           />
