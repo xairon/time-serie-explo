@@ -197,6 +197,7 @@ def run_fit(
     two_pass: bool = False,
     initial_params: Optional[dict[str, float]] = None,
     add_trend: bool = False,
+    station_metadata: dict[str, str] | None = None,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -416,6 +417,11 @@ def run_fit(
         if val_period:
             tags_dict["val_tmin"] = val_period[0]
             tags_dict["val_tmax"] = val_period[1]
+        if station_metadata:
+            if station_metadata.get("nature_eh"):
+                tags_dict["nature_eh"] = station_metadata["nature_eh"]
+            if station_metadata.get("milieu_eh"):
+                tags_dict["milieu_eh"] = station_metadata["milieu_eh"]
         mlflow.set_tags(tags_dict)
 
         # Validation metrics (prefixed to avoid collision with cal metrics)

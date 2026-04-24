@@ -7,11 +7,17 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Optional
 
+import mlflow
 import numpy as np
 import pandas as pd
 import pastas as ps
 
 from dashboard.utils.pastas.io import load_model
+from dashboard.utils.pastas.scenario_presets import (
+    AquiferFamily,
+    detect_aquifer_family,
+    validate_modifications,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +44,8 @@ def _generate_pumping_series(
     pattern: str,
     rate_m3d: float,
     period_days: int = 365,
+    season_months: list[int] | None = None,
+    pulse_duration_days: int = 30,
 ) -> pd.Series:
     """Generate a pumping rate time series Q(t) in m³/d.
 
@@ -48,21 +56,27 @@ def _generate_pumping_series(
     pattern:
         One of "constant", "seasonal", "pulse".
     rate_m3d:
-        Peak (or mean) pumping rate in m³/d.
+        Peak pumping rate in m³/d.
     period_days:
         Period for seasonal pattern (default 365 days).
+    season_months:
+        For "seasonal" pattern: list of active months (1-12).
+        Default [5,6,7,8,9] (May-September / irrigation season).
+    pulse_duration_days:
+        For "pulse" pattern: duration of each pulse in days.
     """
     idx = pd.date_range(start=start, end=end, freq="D")
-    t = np.arange(len(idx))
 
     if pattern == "seasonal":
-        values = rate_m3d * 0.5 * (1 - np.cos(2 * np.pi * t / period_days))
+        active = season_months or [5, 6, 7, 8, 9]
+        values = np.where(np.isin(idx.month, active), rate_m3d, 0.0)
     elif pattern == "pulse":
-        # Single pulse in the middle of the period
         mid = len(idx) // 2
+        half = max(pulse_duration_days // 2, 1)
         values = np.zeros(len(idx))
-        if len(idx) > 0:
-            values[mid] = rate_m3d
+        lo = max(0, mid - half)
+        hi = min(len(idx), mid + half)
+        values[lo:hi] = rate_m3d
     else:  # constant
         values = np.full(len(idx), rate_m3d)
 
@@ -95,7 +109,14 @@ def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any]) -> None:
     }
     rfunc_cls = rfunc_registry.get(rfunc_name, ps.Gamma)
 
-    q_series = _generate_pumping_series(start, end, pattern, rate_m3d, period_days)
+    season_months = mod.get("season_months")
+    pulse_duration_days = int(mod.get("pulse_duration_days", 30))
+
+    q_series = _generate_pumping_series(
+        start, end, pattern, rate_m3d, period_days,
+        season_months=season_months,
+        pulse_duration_days=pulse_duration_days,
+    )
 
     # Extend the pumping series with zeros to cover the model's full time range.
     # Pastas raises ValueError if the stress series doesn't cover the simulation window.
@@ -170,7 +191,7 @@ def _apply_linear_trend(model: ps.Model, mod: dict[str, Any]) -> None:
 
     # Set initial slope if provided.
     # LinearTrend parameter is named "{name}_a" (m/day), so convert m/year → m/day.
-    slope = mod.get("slope")
+    slope = mod.get("slope_m_per_year") or mod.get("slope")
     if slope is not None:
         param_name = f"{name}_a"
         slope_per_day = float(slope) / 365.25
@@ -183,7 +204,8 @@ def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
 
     Expected mod keys: stress_index (0=precip, 1=evap), factor, start (optional), end (optional).
     """
-    stress_index = int(mod.get("stress_index", 0))
+    stress_raw = mod.get("stress", mod.get("stress_index", 0))
+    stress_index = 1 if stress_raw in ("evap", 1) else 0
     factor = float(mod["factor"])
     start = mod.get("start")
     end = mod.get("end")
@@ -284,6 +306,18 @@ def apply_modification(model: ps.Model, mod: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Aquifer family resolver
+# ---------------------------------------------------------------------------
+
+def resolve_aquifer_family(run_id: str) -> AquiferFamily:
+    """Resolve aquifer family from MLflow run tags."""
+    client = mlflow.tracking.MlflowClient()
+    run = client.get_run(run_id)
+    tags = run.data.tags
+    return detect_aquifer_family(tags.get("nature_eh"), tags.get("milieu_eh"))
+
+
+# ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
 
@@ -313,6 +347,15 @@ def simulate_scenario(
 
     # Load original model (cached)
     original = load_model(run_id)
+
+    # --- Validate modifications against aquifer family ---
+    aquifer_family = resolve_aquifer_family(run_id)
+    validation = validate_modifications(modifications, aquifer_family)
+    if not validation.valid:
+        raise ValueError(
+            "Modifications invalides : " + " ; ".join(validation.errors)
+        )
+    warnings.extend(validation.warnings)
 
     # --- Baseline simulation ---
     try:
