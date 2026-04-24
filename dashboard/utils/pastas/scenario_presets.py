@@ -9,8 +9,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-import mlflow
-
 logger = logging.getLogger(__name__)
 
 AquiferFamily = Literal["alluvial", "sedimentary", "karst", "fractured", "volcanic"]
@@ -425,6 +423,7 @@ def save_scenario(
         "tmax": tmax,
         "modifications": modifications,
     }
+    import mlflow
     client = mlflow.tracking.MlflowClient()
     with tempfile.TemporaryDirectory() as tmpdir:
         safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
@@ -435,6 +434,7 @@ def save_scenario(
 
 def list_scenarios(run_id: str) -> list[dict]:
     """List saved scenarios for a model run."""
+    import mlflow
     client = mlflow.tracking.MlflowClient()
     try:
         artifacts = client.list_artifacts(run_id, SCENARIOS_ARTIFACT_PATH)
@@ -456,6 +456,7 @@ def list_scenarios(run_id: str) -> list[dict]:
 
 def load_scenario(run_id: str, name: str) -> dict:
     """Load a specific saved scenario by name."""
+    import mlflow
     client = mlflow.tracking.MlflowClient()
     safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
     artifact_path = f"{SCENARIOS_ARTIFACT_PATH}/{safe_name}.json"
@@ -465,6 +466,7 @@ def load_scenario(run_id: str, name: str) -> dict:
 
 def delete_scenario(run_id: str, name: str) -> None:
     """Delete a saved scenario by overwriting with a deletion marker."""
+    import mlflow
     client = mlflow.tracking.MlflowClient()
     safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
     with tempfile.TemporaryDirectory() as tmpdir:
