@@ -1,39 +1,45 @@
 import { useState } from 'react'
 import { Plus, Droplets, TrendingUp, ArrowUpDown } from 'lucide-react'
 import { ModificationCard, type ModificationData } from './ModificationCard'
+import type { PumpingProfileData, PumpingRange } from '@/lib/types'
 
 interface ScenarioComposerProps {
   modifications: ModificationData[]
   onChange: (mods: ModificationData[]) => void
+  tmin: string
+  tmax: string
+  pumpingProfile?: PumpingProfileData | null
+  scaleStressLimits?: PumpingRange | null
+  linearTrendLimits?: PumpingRange | null
 }
 
 type AddMenuType = ModificationData['type']
 
-const ADD_OPTIONS: { type: AddMenuType; label: string; icon: React.ElementType }[] = [
-  { type: 'pumping_synthetic', label: 'Pumping (synthetic)', icon: Droplets },
-  { type: 'pumping_upload', label: 'Pumping (CSV)', icon: Droplets },
-  { type: 'linear_trend', label: 'Linear trend', icon: TrendingUp },
-  { type: 'scale_stress', label: 'Scale stress', icon: ArrowUpDown },
+const ADD_OPTIONS: { type: AddMenuType; label: string; description: string; icon: React.ElementType }[] = [
+  { type: 'pumping_synthetic', label: 'Synthetic pumping', description: 'Fictitious well with constant, seasonal, or pulse flow rate', icon: Droplets },
+  { type: 'pumping_upload', label: 'Pumping (CSV)', description: 'Import a real pumping history', icon: Droplets },
+  { type: 'linear_trend', label: 'Linear trend', description: 'Progressive decline or rise of the level', icon: TrendingUp },
+  { type: 'scale_stress', label: 'Scale a stress', description: 'Multiply precipitation or PET by a factor', icon: ArrowUpDown },
 ]
 
-function defaultForType(type: AddMenuType): ModificationData {
+function defaultForType(type: AddMenuType, tmin: string, tmax: string): ModificationData {
   switch (type) {
     case 'pumping_synthetic':
-      return { type, pattern: 'constant', rate_m3d: 100, distance_m: 500, start: '', end: '', rfunc: 'Exponential' }
+      return { type, pattern: 'seasonal', rate_m3d: 20, distance_m: 1000, start: tmin, end: tmax, rfunc: 'Exponential', season_months: [5, 6, 7, 8, 9] }
     case 'pumping_upload':
       return { type, rows: [], distance_m: 500, rfunc: 'Exponential' }
     case 'linear_trend':
-      return { type, start: '', end: '', slope_m_per_year: -0.01 }
+      return { type, start: tmin, end: tmax, slope_m_per_year: -0.01 }
     case 'scale_stress':
-      return { type, stress: 'precip', factor: 0.8, start: '', end: '' }
+      return { type, stress: 'precip', factor: 0.8, start: tmin, end: tmax }
   }
 }
 
-export function ScenarioComposer({ modifications, onChange }: ScenarioComposerProps) {
+export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingProfile, scaleStressLimits, linearTrendLimits }: ScenarioComposerProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   function addModification(type: AddMenuType) {
-    onChange([...modifications, defaultForType(type)])
+    onChange([...modifications, defaultForType(type, tmin, tmax)])
     setMenuOpen(false)
   }
 
@@ -50,7 +56,7 @@ export function ScenarioComposer({ modifications, onChange }: ScenarioComposerPr
   return (
     <div className="space-y-3">
       {modifications.length === 0 && (
-        <p className="text-xs text-text-muted text-center py-4">
+        <p className="text-xs text-text-muted text-center py-2">
           No modifications yet. Add one below.
         </p>
       )}
@@ -62,6 +68,9 @@ export function ScenarioComposer({ modifications, onChange }: ScenarioComposerPr
           data={mod}
           onChange={(d) => updateModification(i, d)}
           onDelete={() => deleteModification(i)}
+          profile={pumpingProfile}
+          scaleStressLimits={scaleStressLimits}
+          linearTrendLimits={linearTrendLimits}
         />
       ))}
 
@@ -72,24 +81,24 @@ export function ScenarioComposer({ modifications, onChange }: ScenarioComposerPr
           className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary border border-white/10 rounded-lg hover:border-white/20 transition-colors w-full justify-center"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add modification
+          Add a modification
         </button>
 
         {menuOpen && (
           <>
-            <div
-              className="fixed inset-0 z-10"
-              onClick={() => setMenuOpen(false)}
-            />
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
             <div className="absolute bottom-full mb-1 left-0 right-0 z-20 bg-bg-card border border-white/10 rounded-lg shadow-lg overflow-hidden">
-              {ADD_OPTIONS.map(({ type, label, icon: Icon }) => (
+              {ADD_OPTIONS.map(({ type, label, description, icon: Icon }) => (
                 <button
                   key={type}
                   onClick={() => addModification(type)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+                  className="flex items-start gap-2.5 w-full px-3 py-2.5 text-left hover:bg-bg-hover transition-colors"
                 >
-                  <Icon className="w-3.5 h-3.5 text-text-muted" />
-                  {label}
+                  <Icon className="w-4 h-4 text-text-muted mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-medium text-text-secondary">{label}</div>
+                    <div className="text-[10px] text-text-muted">{description}</div>
+                  </div>
                 </button>
               ))}
             </div>
