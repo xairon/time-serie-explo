@@ -226,7 +226,6 @@ export default function ScenariosPage() {
                   onClick={() => applyPreset(p)}
                   className="text-left px-3 py-2 rounded-lg border border-white/5 hover:border-accent-cyan/20 hover:bg-accent-cyan/5 transition-colors group"
                 >
-                  <div className="text-sm mb-0.5">{p.icon}</div>
                   <div className="text-[10px] font-medium text-text-secondary group-hover:text-text-primary">{p.name}</div>
                   <div className="text-[9px] text-text-muted leading-tight">{p.description}</div>
                 </button>

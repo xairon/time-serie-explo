@@ -310,7 +310,7 @@ def build_preset_scenarios(
             "id": "aep_well",
             "name": "Nouveau forage AEP",
             "description": f"Pompage eau potable {aep.rate_m3d.default} m³/j",
-            "icon": "🚰",
+            "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
                 "usage": "aep",
@@ -329,7 +329,7 @@ def build_preset_scenarios(
             "id": "irrigation",
             "name": "Irrigation saisonnière",
             "description": f"Pompage agricole {irr.rate_m3d.default} m³/j (avr-sep)",
-            "icon": "🌾",
+            "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
                 "usage": "irrigation",
@@ -348,7 +348,7 @@ def build_preset_scenarios(
             "id": "industrial",
             "name": "Prélèvement industriel",
             "description": f"Pompage constant {ind.rate_m3d.default} m³/j",
-            "icon": "🏭",
+            "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
                 "usage": "industrial",
@@ -365,7 +365,7 @@ def build_preset_scenarios(
             "id": "summer_drought",
             "name": "Sécheresse estivale",
             "description": "−30% précipitations juin-septembre",
-            "icon": "☀️",
+            "icon": "",
             "modifications": [{
                 "type": "scale_stress",
                 "stress": "precip",
@@ -378,7 +378,7 @@ def build_preset_scenarios(
             "id": "prolonged_drought",
             "name": "Sécheresse prolongée",
             "description": "−20% précip + +10% ETP sur 2 ans",
-            "icon": "🏜️",
+            "icon": "",
             "modifications": [
                 {"type": "scale_stress", "stress": "precip", "factor": 0.8,
                  "start": tmin, "end": tmax},
@@ -390,7 +390,7 @@ def build_preset_scenarios(
             "id": "climate_trend",
             "name": "Tendance climatique",
             "description": "Baisse −2 cm/an + hausse ETP +5%",
-            "icon": "📉",
+            "icon": "",
             "modifications": [
                 {"type": "linear_trend", "start": tmin, "end": tmax,
                  "slope_m_per_year": -0.02},

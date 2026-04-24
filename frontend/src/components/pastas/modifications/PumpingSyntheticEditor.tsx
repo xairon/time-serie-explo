@@ -23,9 +23,9 @@ interface PumpingSyntheticEditorProps {
 }
 
 const USAGES = [
-  { value: 'aep' as const, label: 'AEP', icon: '🚰' },
-  { value: 'irrigation' as const, label: 'Irrigation', icon: '🌾' },
-  { value: 'industrial' as const, label: 'Industriel', icon: '🏭' },
+  { value: 'aep' as const, label: 'AEP' },
+  { value: 'irrigation' as const, label: 'Irrigation' },
+  { value: 'industrial' as const, label: 'Industriel' },
 ] as const
 
 function RangeWarning({ value, range, label }: { value: number; range?: PumpingRange; label: string }) {
@@ -146,7 +146,7 @@ export function PumpingSyntheticEditor({ data, onChange, profile }: PumpingSynth
                   : 'bg-bg-primary text-text-muted border border-white/5 hover:border-white/10'
               }`}
             >
-              {u.icon} {u.label}
+              {u.label}
             </button>
           ))}
           <button
