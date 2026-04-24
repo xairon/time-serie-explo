@@ -172,3 +172,117 @@ def _range_to_dict(r: Range) -> dict:
         "hard_min": r.hard_min,
         "hard_max": r.hard_max,
     }
+
+
+@dataclass
+class ValidationResult:
+    valid: bool
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+def _get_max_hard_rate(family: AquiferFamily) -> float:
+    """Return the highest hard_max rate across all usages for a given family."""
+    return max(r[family].hard_max for r in _RATES.values())
+
+
+def validate_modifications(
+    modifications: list[dict],
+    aquifer_family: AquiferFamily,
+) -> ValidationResult:
+    """Validate a list of modifications against physical plausibility bounds."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    total_pumping_rate = 0.0
+    family_label = AQUIFER_FAMILY_LABELS.get(aquifer_family, aquifer_family)
+
+    for i, mod in enumerate(modifications):
+        mod_type = mod.get("type", "")
+        start = mod.get("start")
+        end = mod.get("end")
+        prefix = f"Modification #{i + 1}"
+
+        if start and end and str(end) <= str(start):
+            errors.append(f"{prefix} : date de fin antérieure ou égale à la date de début")
+
+        if mod_type in ("pumping_synthetic", "pumping_upload"):
+            rate = float(mod.get("rate_m3d", 0))
+            distance = float(mod.get("distance_m", 0))
+            usage = mod.get("usage")
+            hard_max_rate = _get_max_hard_rate(aquifer_family)
+            dist_range = _DISTANCE[aquifer_family]
+
+            if rate < 0:
+                errors.append(f"{prefix} : débit négatif ({rate} m³/j)")
+            elif rate > hard_max_rate:
+                errors.append(
+                    f"{prefix} : débit de {rate} m³/j dépasse le maximum "
+                    f"pour nappe {family_label} ({hard_max_rate} m³/j)"
+                )
+
+            if distance < dist_range.hard_min:
+                errors.append(
+                    f"{prefix} : distance {distance}m inférieure au minimum ({dist_range.hard_min}m)"
+                )
+            elif distance > dist_range.hard_max:
+                errors.append(
+                    f"{prefix} : distance {distance}m dépasse le maximum ({dist_range.hard_max}m)"
+                )
+
+            total_pumping_rate += rate
+
+            if usage and usage in _RATES:
+                profile_rate = _RATES[usage][aquifer_family]
+                usage_label = USAGE_LABELS.get(usage, usage)
+                if rate > 0 and (rate < profile_rate.typical_min or rate > profile_rate.typical_max):
+                    warnings.append(
+                        f"Débit de {rate} m³/j inhabituel pour un pompage {usage_label} "
+                        f"sur nappe {family_label} — plage typique : "
+                        f"{profile_rate.typical_min}-{profile_rate.typical_max} m³/j"
+                    )
+
+            if 0 < distance < 50:
+                warnings.append(
+                    f"Distance très faible ({distance}m), l'impact piézométrique "
+                    f"pourrait être surestimé"
+                )
+
+            if usage == "irrigation":
+                season = mod.get("season_months", [])
+                if season and not any(m in range(4, 10) for m in season):
+                    warnings.append("Pompage d'irrigation hors période végétative")
+
+        elif mod_type == "scale_stress":
+            factor = float(mod.get("factor", 1.0))
+            if factor < SCALE_STRESS_LIMITS.hard_min or factor > SCALE_STRESS_LIMITS.hard_max:
+                errors.append(
+                    f"{prefix} : facteur {factor} hors limites "
+                    f"[{SCALE_STRESS_LIMITS.hard_min}, {SCALE_STRESS_LIMITS.hard_max}]"
+                )
+            elif factor < 0.5:
+                stress_name = "précipitation" if mod.get("stress") == "precip" else "évapotranspiration"
+                pct = round((1 - factor) * 100)
+                warnings.append(
+                    f"Réduction de {stress_name} de {pct}% — scénario très sévère"
+                )
+
+        elif mod_type == "linear_trend":
+            slope = float(mod.get("slope_m_per_year", mod.get("slope", 0)))
+            if slope < LINEAR_TREND_LIMITS.hard_min or slope > LINEAR_TREND_LIMITS.hard_max:
+                errors.append(
+                    f"{prefix} : pente {slope} m/an hors limites "
+                    f"[{LINEAR_TREND_LIMITS.hard_min}, {LINEAR_TREND_LIMITS.hard_max}]"
+                )
+
+    cumulative_hard_max = 2 * _get_max_hard_rate(aquifer_family)
+    if total_pumping_rate > cumulative_hard_max:
+        errors.append(
+            f"Débit de pompage cumulé ({total_pumping_rate} m³/j) dépasse "
+            f"2× le maximum pour nappe {family_label} ({cumulative_hard_max} m³/j)"
+        )
+
+    return ValidationResult(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+    )

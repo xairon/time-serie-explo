@@ -57,6 +57,8 @@ from dashboard.utils.pastas.scenario_presets import (
     LINEAR_TREND_LIMITS,
     PumpingProfile,
     Range,
+    validate_modifications,
+    ValidationResult,
 )
 
 FAMILIES = ["alluvial", "sedimentary", "karst", "fractured", "volcanic"]
@@ -107,3 +109,106 @@ class TestReferentialIntegrity:
     def test_linear_trend_limits_consistent(self):
         assert LINEAR_TREND_LIMITS.hard_min < LINEAR_TREND_LIMITS.typical_min
         assert LINEAR_TREND_LIMITS.typical_max < LINEAR_TREND_LIMITS.hard_max
+
+
+class TestHardValidation:
+    def test_reject_rate_above_hard_max(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 99999, "distance_m": 500,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"}]
+        result = validate_modifications(mods, "fractured")
+        assert not result.valid
+        assert any("m³/j" in e for e in result.errors)
+
+    def test_reject_negative_rate(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": -10, "distance_m": 500,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"}]
+        result = validate_modifications(mods, "alluvial")
+        assert not result.valid
+
+    def test_reject_distance_below_hard_min(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 100, "distance_m": 1,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"}]
+        result = validate_modifications(mods, "alluvial")
+        assert not result.valid
+
+    def test_reject_factor_out_of_range(self):
+        mods = [{"type": "scale_stress", "stress": "precip", "factor": 10.0,
+                 "start": "2020-01-01", "end": "2021-01-01"}]
+        result = validate_modifications(mods, "alluvial")
+        assert not result.valid
+
+    def test_reject_slope_out_of_range(self):
+        mods = [{"type": "linear_trend", "slope_m_per_year": 5.0,
+                 "start": "2020-01-01", "end": "2021-01-01"}]
+        result = validate_modifications(mods, "alluvial")
+        assert not result.valid
+
+    def test_reject_end_before_start(self):
+        mods = [{"type": "scale_stress", "stress": "precip", "factor": 0.8,
+                 "start": "2022-01-01", "end": "2020-01-01"}]
+        result = validate_modifications(mods, "alluvial")
+        assert not result.valid
+
+    def test_reject_cumulative_pumping_above_2x_hard_max(self):
+        mods = [
+            {"type": "pumping_synthetic", "rate_m3d": 400, "distance_m": 500,
+             "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"},
+            {"type": "pumping_synthetic", "rate_m3d": 400, "distance_m": 800,
+             "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"},
+            {"type": "pumping_synthetic", "rate_m3d": 400, "distance_m": 1000,
+             "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"},
+        ]
+        result = validate_modifications(mods, "fractured")
+        assert not result.valid
+        assert any("cumulé" in e for e in result.errors)
+
+    def test_accept_valid_modifications(self):
+        mods = [
+            {"type": "pumping_synthetic", "rate_m3d": 100, "distance_m": 500,
+             "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"},
+            {"type": "scale_stress", "stress": "precip", "factor": 0.8,
+             "start": "2020-01-01", "end": "2021-01-01"},
+        ]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert len(result.errors) == 0
+
+
+class TestSoftWarnings:
+    def test_warn_rate_above_typical(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 2000, "distance_m": 500,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant",
+                 "usage": "aep"}]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert any("inhabituel" in w for w in result.warnings)
+
+    def test_warn_close_distance(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 100, "distance_m": 30,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant"}]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert any("Distance" in w for w in result.warnings)
+
+    def test_warn_severe_precip_reduction(self):
+        mods = [{"type": "scale_stress", "stress": "precip", "factor": 0.3,
+                 "start": "2020-01-01", "end": "2021-01-01"}]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert any("sévère" in w for w in result.warnings)
+
+    def test_warn_irrigation_off_season(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 100, "distance_m": 500,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "seasonal",
+                 "usage": "irrigation", "season_months": [11, 12, 1, 2]}]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert any("végétative" in w for w in result.warnings)
+
+    def test_no_warnings_for_typical_values(self):
+        mods = [{"type": "pumping_synthetic", "rate_m3d": 300, "distance_m": 500,
+                 "start": "2020-01-01", "end": "2021-01-01", "pattern": "constant",
+                 "usage": "aep"}]
+        result = validate_modifications(mods, "alluvial")
+        assert result.valid
+        assert len(result.warnings) == 0
