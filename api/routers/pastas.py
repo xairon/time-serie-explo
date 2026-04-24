@@ -21,6 +21,8 @@ from api.schemas.pastas import (
     FitRequest,
     FitResponse,
     PastasModelSummary,
+    SavedScenario,
+    SaveScenarioRequest,
     ScenarioRequest,
     ScenarioResponse,
     StationPreview,
@@ -979,6 +981,92 @@ def validate_modifications_endpoint(req: ValidateModificationsRequest):
         "errors": result.errors,
         "warnings": result.warnings,
     }
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/scenarios
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/scenarios")
+def get_scenarios(run_id: str):
+    """List saved scenarios for a model."""
+    from dashboard.utils.pastas.scenario_presets import list_scenarios
+    return list_scenarios(run_id)
+
+
+# ---------------------------------------------------------------------------
+# POST /models/{run_id}/scenarios
+# ---------------------------------------------------------------------------
+
+@router.post("/models/{run_id}/scenarios", status_code=201)
+def create_scenario(run_id: str, req: SaveScenarioRequest):
+    """Save a named scenario."""
+    from dashboard.utils.pastas.scenario_presets import save_scenario
+    from dashboard.utils.pastas.scenario import resolve_aquifer_family
+
+    family = resolve_aquifer_family(run_id)
+    mods = [m.model_dump() for m in req.modifications]
+    save_scenario(
+        run_id=run_id,
+        name=req.name,
+        modifications=mods,
+        description=req.description,
+        aquifer_family=family,
+        tmin=str(req.tmin) if req.tmin else None,
+        tmax=str(req.tmax) if req.tmax else None,
+    )
+    return {"status": "saved", "name": req.name}
+
+
+# ---------------------------------------------------------------------------
+# DELETE /models/{run_id}/scenarios/{name}
+# ---------------------------------------------------------------------------
+
+@router.delete("/models/{run_id}/scenarios/{name}")
+def remove_scenario(run_id: str, name: str):
+    """Delete a saved scenario."""
+    from dashboard.utils.pastas.scenario_presets import delete_scenario
+    delete_scenario(run_id, name)
+    return {"status": "deleted", "name": name}
+
+
+# ---------------------------------------------------------------------------
+# POST /models/{run_id}/scenarios/{name}/apply
+# ---------------------------------------------------------------------------
+
+@router.post("/models/{run_id}/scenarios/{name}/apply")
+def apply_scenario(run_id: str, name: str, target_run_id: str = Body(..., embed=True)):
+    """Load a saved scenario, adjusting for cross-model reuse."""
+    from dashboard.utils.pastas.scenario_presets import load_scenario, validate_modifications as _validate
+    from dashboard.utils.pastas.scenario import resolve_aquifer_family
+    from dashboard.utils.pastas.io import load_model
+
+    scenario = load_scenario(run_id, name)
+    target_family = resolve_aquifer_family(target_run_id)
+    source_family = scenario.get("aquifer_family")
+
+    extra_warnings = []
+    if source_family and source_family != target_family:
+        extra_warnings.append(
+            f"Scénario calibré sur nappe {source_family}, appliqué sur nappe {target_family} "
+            f"— vérifiez les ordres de grandeur"
+        )
+
+    target_model = load_model(target_run_id)
+    model_tmin = str(target_model.get_tmin(use_oseries=True, use_stresses=True).date())
+    model_tmax = str(target_model.get_tmax(use_oseries=True, use_stresses=True).date())
+
+    for mod in scenario["modifications"]:
+        if mod.get("start") and str(mod["start"]) < model_tmin:
+            mod["start"] = model_tmin
+        if mod.get("end") and str(mod["end"]) > model_tmax:
+            mod["end"] = model_tmax
+
+    validation = _validate(scenario["modifications"], target_family)
+    extra_warnings.extend(validation.warnings)
+
+    scenario["_warnings"] = extra_warnings
+    return scenario
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,17 @@
 """Referential of realistic pumping profiles per usage type and aquifer family."""
 from __future__ import annotations
 
+import json
+import logging
+import tempfile
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Literal
+
+import mlflow
+
+logger = logging.getLogger(__name__)
 
 AquiferFamily = Literal["alluvial", "sedimentary", "karst", "fractured", "volcanic"]
 PumpingUsage = Literal["aep", "irrigation", "industrial"]
@@ -392,3 +401,73 @@ def build_preset_scenarios(
             ],
         },
     ]
+
+
+SCENARIOS_ARTIFACT_PATH = "scenarios"
+
+
+def save_scenario(
+    run_id: str,
+    name: str,
+    modifications: list[dict],
+    description: str = "",
+    aquifer_family: str | None = None,
+    tmin: str | None = None,
+    tmax: str | None = None,
+) -> None:
+    """Save a named scenario as an MLflow artifact."""
+    data = {
+        "name": name,
+        "description": description,
+        "created_at": datetime.utcnow().isoformat(),
+        "aquifer_family": aquifer_family,
+        "tmin": tmin,
+        "tmax": tmax,
+        "modifications": modifications,
+    }
+    client = mlflow.tracking.MlflowClient()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+        path = Path(tmpdir) / f"{safe_name}.json"
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+        client.log_artifact(run_id, str(path), SCENARIOS_ARTIFACT_PATH)
+
+
+def list_scenarios(run_id: str) -> list[dict]:
+    """List saved scenarios for a model run."""
+    client = mlflow.tracking.MlflowClient()
+    try:
+        artifacts = client.list_artifacts(run_id, SCENARIOS_ARTIFACT_PATH)
+    except Exception:
+        return []
+
+    scenarios = []
+    for art in artifacts:
+        if art.path.endswith(".json"):
+            try:
+                local = client.download_artifacts(run_id, art.path)
+                data = json.loads(Path(local).read_text())
+                if not data.get("_deleted"):
+                    scenarios.append(data)
+            except Exception as exc:
+                logger.warning("Failed to load scenario %s: %s", art.path, exc)
+    return scenarios
+
+
+def load_scenario(run_id: str, name: str) -> dict:
+    """Load a specific saved scenario by name."""
+    client = mlflow.tracking.MlflowClient()
+    safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+    artifact_path = f"{SCENARIOS_ARTIFACT_PATH}/{safe_name}.json"
+    local = client.download_artifacts(run_id, artifact_path)
+    return json.loads(Path(local).read_text())
+
+
+def delete_scenario(run_id: str, name: str) -> None:
+    """Delete a saved scenario by overwriting with a deletion marker."""
+    client = mlflow.tracking.MlflowClient()
+    safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        marker = Path(tmpdir) / f"{safe_name}.json"
+        marker.write_text(json.dumps({"_deleted": True}))
+        client.log_artifact(run_id, str(marker), SCENARIOS_ARTIFACT_PATH)

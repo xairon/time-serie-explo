@@ -221,6 +221,22 @@ class ValidateModificationsResponse(BaseModel):
     errors: list[str]
     warnings: list[str]
 
+class SaveScenarioRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str = ""
+    modifications: list[Modification]
+    tmin: Optional[date] = None
+    tmax: Optional[date] = None
+
+class SavedScenario(BaseModel):
+    name: str
+    description: str = ""
+    created_at: str = ""
+    aquifer_family: Optional[str] = None
+    tmin: Optional[str] = None
+    tmax: Optional[str] = None
+    modifications: list[dict[str, Any]] = []
+
 # --- Pre-fit Diagnostics ---
 
 class DiagnoseRequest(BaseModel):
