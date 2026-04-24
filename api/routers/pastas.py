@@ -10,7 +10,7 @@ from typing import Optional
 
 import mlflow
 import pandas as pd
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
 from api.config import settings
@@ -25,6 +25,7 @@ from api.schemas.pastas import (
     ScenarioResponse,
     StationPreview,
     TimeSeriesData,
+    ValidateModificationsRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -922,6 +923,62 @@ def simulate(req: ScenarioRequest) -> ScenarioResponse:
         contributions_scenario={k: _series_to_ts(v) for k, v in result.contributions_scenario.items()},
         warnings=result.warnings,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /scenario-presets
+# ---------------------------------------------------------------------------
+
+@router.get("/scenario-presets")
+def scenario_presets(
+    aquifer_family: str | None = Query(None),
+    tmin: str | None = Query(None),
+    tmax: str | None = Query(None),
+):
+    """Return the full scenario referential for frontend cache."""
+    from dashboard.utils.pastas.scenario_presets import (
+        AQUIFER_FAMILY_LABELS,
+        SCALE_STRESS_LIMITS,
+        LINEAR_TREND_LIMITS,
+        get_all_profiles,
+        build_preset_scenarios,
+        _range_to_dict,
+    )
+
+    family = aquifer_family or "sedimentary"
+    t0 = tmin or "2020-01-01"
+    t1 = tmax or "2024-12-31"
+
+    return {
+        "aquifer_families": AQUIFER_FAMILY_LABELS,
+        "pumping_profiles": get_all_profiles(),
+        "non_pumping_limits": {
+            "scale_stress": _range_to_dict(SCALE_STRESS_LIMITS),
+            "linear_trend": _range_to_dict(LINEAR_TREND_LIMITS),
+        },
+        "presets": build_preset_scenarios(family, t0, t1),
+        "detected_family": family,
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /validate-modifications
+# ---------------------------------------------------------------------------
+
+@router.post("/validate-modifications")
+def validate_modifications_endpoint(req: ValidateModificationsRequest):
+    """Pre-validate modifications without running a simulation."""
+    from dashboard.utils.pastas.scenario_presets import validate_modifications as _validate
+
+    family = req.aquifer_family or "sedimentary"
+    mods = [m.model_dump() for m in req.modifications]
+    result = _validate(mods, family)
+
+    return {
+        "valid": result.valid,
+        "errors": result.errors,
+        "warnings": result.warnings,
+    }
 
 
 # ---------------------------------------------------------------------------

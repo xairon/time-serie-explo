@@ -117,6 +117,7 @@ class PastasModelSummary(BaseModel):
 
 class PumpingSynthetic(BaseModel):
     type: Literal["pumping_synthetic"] = "pumping_synthetic"
+    usage: Optional[Literal["aep", "irrigation", "industrial"]] = None
     pattern: Literal["constant", "seasonal", "pulse"]
     rate_m3d: float = Field(ge=0)
     start: date
@@ -125,6 +126,10 @@ class PumpingSynthetic(BaseModel):
     screen_depth_m: Optional[float] = None
     rfunc: Literal["Hantush", "Exponential"] = "Exponential"
     period_days: int = 365
+    season_months: Optional[list[int]] = None
+    peak_months: Optional[list[int]] = None
+    peak_factor: Optional[float] = Field(default=None, ge=1.0, le=2.0)
+    pulse_duration_days: int = Field(default=30, ge=1)
 
 class PumpingRow(BaseModel):
     date: date
@@ -167,6 +172,54 @@ class ScenarioResponse(BaseModel):
     contributions_baseline: dict[str, TimeSeriesData]
     contributions_scenario: dict[str, TimeSeriesData]
     warnings: list[str] = []
+
+# ---------- Scenario Presets ----------
+
+AquiferFamilyType = Literal["alluvial", "sedimentary", "karst", "fractured", "volcanic"]
+
+class PumpingRangeSchema(BaseModel):
+    default: float
+    typical_min: float
+    typical_max: float
+    hard_min: float
+    hard_max: float
+
+class PumpingProfileSchema(BaseModel):
+    rate_m3d: PumpingRangeSchema
+    distance_m: PumpingRangeSchema
+    pattern: str
+    active_months: list[int]
+    peak_months: list[int]
+    peak_factor: float
+    typical_duration_days: int
+    rfunc: str
+
+class PresetScenarioSchema(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: str
+    modifications: list[dict[str, Any]]
+
+class NonPumpingLimitsSchema(BaseModel):
+    scale_stress: PumpingRangeSchema
+    linear_trend: PumpingRangeSchema
+
+class ScenarioPresetsResponse(BaseModel):
+    aquifer_families: dict[str, str]
+    pumping_profiles: dict[str, dict[str, PumpingProfileSchema]]
+    non_pumping_limits: NonPumpingLimitsSchema
+    presets: list[PresetScenarioSchema]
+    detected_family: Optional[str] = None
+
+class ValidateModificationsRequest(BaseModel):
+    modifications: list[Modification]
+    aquifer_family: Optional[AquiferFamilyType] = None
+
+class ValidateModificationsResponse(BaseModel):
+    valid: bool
+    errors: list[str]
+    warnings: list[str]
 
 # --- Pre-fit Diagnostics ---
 
@@ -236,3 +289,4 @@ class StationPreview(BaseModel):
     evap: TimeSeriesData
     stats: dict[str, Any]
     preset: dict[str, str] = {}
+    diagnostics: dict[str, Any] | None = None
