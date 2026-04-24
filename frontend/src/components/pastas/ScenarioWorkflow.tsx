@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Loader2, Play, Plus, FlaskConical, AlertTriangle, ChevronDown, Save, FolderOpen, Trash2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usePastasSimulate } from '@/hooks/usePastas'
@@ -52,8 +52,6 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
   const [showConfig, setShowConfig] = useState(true)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
-  const [aquiferFamily, setAquiferFamily] = useState<AquiferFamily>('sedimentary')
-
   const obsTmin = model.observed?.index?.[0]?.slice(0, 10) ?? ''
   const obsTmax = model.observed?.index?.[model.observed.index.length - 1]?.slice(0, 10) ?? ''
   const [tmin, setTmin] = useState('')
@@ -61,26 +59,25 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
   const effectiveTmin = tmin || obsTmin
   const effectiveTmax = tmax || obsTmax
 
-  // Auto-detect aquifer family
-  const { data: stationPreview } = useQuery({
+  // Auto-detect aquifer family — block presets until detection completes
+  const { data: stationPreview, isLoading: previewLoading } = useQuery({
     queryKey: ['pastas', 'preview', codeBss],
     queryFn: () => api.pastas.preview(codeBss),
     enabled: !!codeBss,
     staleTime: 30 * 60 * 1000,
   })
 
-  useEffect(() => {
-    if (stationPreview?.metadata) {
-      setAquiferFamily(detectAquiferFamily(stationPreview.metadata))
-    }
-  }, [stationPreview])
+  const aquiferFamily: AquiferFamily = stationPreview?.metadata
+    ? detectAquiferFamily(stationPreview.metadata)
+    : 'sedimentary'
+  const aquiferDetected = !!stationPreview?.metadata
 
-  // Load presets referential
-  const { data: presetsData } = useScenarioPresets({
+  // Load presets referential only after aquifer detection
+  const { data: presetsData } = useScenarioPresets(aquiferDetected ? {
     aquifer_family: aquiferFamily,
     tmin: effectiveTmin || undefined,
     tmax: effectiveTmax || undefined,
-  })
+  } : undefined)
 
   // Pumping profiles for the detected aquifer family
   const pumpingProfiles = useMemo(() => {
@@ -199,6 +196,9 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
             </div>
 
             {/* Contextual presets */}
+            {previewLoading && (
+              <div className="text-xs text-text-muted py-2">Loading aquifer profile...</div>
+            )}
             {presetsData && (
               <div>
                 <div className="text-xs font-semibold text-text-secondary mb-2">
