@@ -1,4 +1,5 @@
 import { Trash2, Droplets, TrendingUp, ArrowUpDown } from 'lucide-react'
+import type { PumpingProfileData, PumpingRange } from '@/lib/types'
 import {
   PumpingSyntheticEditor,
   type PumpingSyntheticData,
@@ -21,19 +22,22 @@ interface ModificationCardProps {
   data: ModificationData
   onChange: (data: ModificationData) => void
   onDelete: () => void
+  profile?: PumpingProfileData | null
+  scaleStressLimits?: PumpingRange | null
+  linearTrendLimits?: PumpingRange | null
 }
 
 const TYPE_META: Record<
   ModificationData['type'],
   { label: string; icon: React.ElementType; color: string }
 > = {
-  pumping_synthetic: { label: 'Pumping (synthetic)', icon: Droplets, color: 'text-blue-400' },
+  pumping_synthetic: { label: 'Synthetic pumping', icon: Droplets, color: 'text-blue-400' },
   pumping_upload: { label: 'Pumping (CSV)', icon: Droplets, color: 'text-blue-400' },
   linear_trend: { label: 'Linear trend', icon: TrendingUp, color: 'text-yellow-400' },
-  scale_stress: { label: 'Scale stress', icon: ArrowUpDown, color: 'text-purple-400' },
+  scale_stress: { label: 'Scale a stress', icon: ArrowUpDown, color: 'text-purple-400' },
 }
 
-export function ModificationCard({ index, data, onChange, onDelete }: ModificationCardProps) {
+export function ModificationCard({ index, data, onChange, onDelete, profile, scaleStressLimits, linearTrendLimits }: ModificationCardProps) {
   const meta = TYPE_META[data.type]
   const Icon = meta.icon
 
@@ -57,10 +61,7 @@ export function ModificationCard({ index, data, onChange, onDelete }: Modificati
       {/* Editor */}
       <div className="p-3">
         {data.type === 'pumping_synthetic' && (
-          <PumpingSyntheticEditor
-            data={data}
-            onChange={(d) => onChange(d)}
-          />
+          <PumpingSyntheticEditor data={data} onChange={(d) => onChange(d)} profile={profile} />
         )}
         {data.type === 'pumping_upload' && (
           <PumpingUploadEditor
@@ -69,16 +70,10 @@ export function ModificationCard({ index, data, onChange, onDelete }: Modificati
           />
         )}
         {data.type === 'linear_trend' && (
-          <LinearTrendEditor
-            data={data}
-            onChange={(d) => onChange(d)}
-          />
+          <LinearTrendEditor data={data} onChange={(d) => onChange(d)} limits={linearTrendLimits} />
         )}
         {data.type === 'scale_stress' && (
-          <ScaleStressEditor
-            data={data}
-            onChange={(d) => onChange(d)}
-          />
+          <ScaleStressEditor data={data} onChange={(d) => onChange(d)} limits={scaleStressLimits} />
         )}
       </div>
     </div>
