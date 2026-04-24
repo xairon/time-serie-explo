@@ -27,6 +27,8 @@ import type {
   PastasModelSummary,
   PastasScenarioResponse,
   PastasStationPreview,
+  ScenarioPresetsData,
+  SavedScenario,
   PastasCompareResponse,
   DiagnoseResult,
   AutoFitResult,
@@ -323,6 +325,20 @@ export const api = {
       tmax: string
       modifications: Array<Record<string, unknown>>
     }) => postJson<PastasScenarioResponse>('/pastas/simulate', body, 120_000),
+    scenarioPresets: (params?: { aquifer_family?: string; tmin?: string; tmax?: string }) => {
+      const qs = new URLSearchParams()
+      if (params?.aquifer_family) qs.set('aquifer_family', params.aquifer_family)
+      if (params?.tmin) qs.set('tmin', params.tmin)
+      if (params?.tmax) qs.set('tmax', params.tmax)
+      const query = qs.toString()
+      return fetchJson<ScenarioPresetsData>(`/pastas/scenario-presets${query ? `?${query}` : ''}`)
+    },
+    savedScenarios: (runId: string) =>
+      fetchJson<SavedScenario[]>(`/pastas/models/${runId}/scenarios`),
+    saveScenario: (runId: string, body: { name: string; description?: string; modifications: Array<Record<string, unknown>>; tmin?: string; tmax?: string }) =>
+      postJson<{ status: string; name: string }>(`/pastas/models/${runId}/scenarios`, body),
+    deleteScenario: (runId: string, name: string) =>
+      deleteJson(`/pastas/models/${runId}/scenarios/${encodeURIComponent(name)}`),
     diagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/diagnostics`),
     outlierDiagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/outlier-diagnostics`),
     confidenceBands: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/confidence-bands`),

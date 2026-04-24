@@ -347,6 +347,57 @@ export interface PastasScenarioResponse {
   warnings: string[]
 }
 
+export interface PumpingRange {
+  default: number
+  typical_min: number
+  typical_max: number
+  hard_min: number
+  hard_max: number
+}
+
+export interface PumpingProfileData {
+  rate_m3d: PumpingRange
+  distance_m: PumpingRange
+  pattern: string
+  active_months: number[]
+  peak_months: number[]
+  peak_factor: number
+  typical_duration_days: number
+  rfunc: string
+}
+
+export interface PresetScenario {
+  id: string
+  name: string
+  description: string
+  icon: string
+  modifications: Record<string, unknown>[]
+}
+
+export interface ScenarioPresetsData {
+  aquifer_families: Record<string, string>
+  pumping_profiles: Record<string, Record<string, PumpingProfileData>>
+  non_pumping_limits: {
+    scale_stress: PumpingRange
+    linear_trend: PumpingRange
+  }
+  presets: PresetScenario[]
+  detected_family: string | null
+}
+
+export interface SavedScenario {
+  name: string
+  description: string
+  created_at: string
+  aquifer_family: string | null
+  tmin: string | null
+  tmax: string | null
+  modifications: Record<string, unknown>[]
+}
+
+export type AquiferFamily = 'alluvial' | 'sedimentary' | 'karst' | 'fractured' | 'volcanic'
+export type PumpingUsage = 'aep' | 'irrigation' | 'industrial'
+
 export interface PastasStationPreview {
   code_bss: string
   metadata: Record<string, unknown>
@@ -355,6 +406,7 @@ export interface PastasStationPreview {
   evap: TimeSeriesData
   stats: Record<string, number | string | string[]>
   preset: Record<string, string>
+  diagnostics: DiagnoseResult | null
 }
 
 // Pastas comparison
@@ -416,17 +468,11 @@ export interface StowaResult {
 // Auto-fit
 export interface AutoFitCandidate {
   config: Record<string, string | boolean>
-  aic: number | null
-  evp: number | null
   nse: number | null
+  rmse: number | null
+  kge: number | null
   run_id: string | null
-  stowa: {
-    evp_pass: boolean
-    autocorrelation_pass: boolean
-    t95_pass: boolean
-    gain_pass: boolean
-    overall_pass: boolean
-  } | null
+  stowa: StowaResult | null
   error: string | null
   elapsed_s: number
 }
