@@ -1,14 +1,16 @@
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { usePastasModel } from '@/hooks/usePastas'
+import { usePastasMode } from './PastasLayout'
 import { ScenarioWorkflow } from '@/components/pastas/ScenarioWorkflow'
 
 export default function ScenariosStep() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { pipeline } = usePastasMode()
 
-  const runId = searchParams.get('model')
-  const codeBss = searchParams.get('station') ?? ''
+  const runId = searchParams.get('model') ?? pipeline.selectedRunId
+  const codeBss = searchParams.get('station') ?? pipeline.codeBss ?? ''
 
   const { data: model, isLoading, isError } = usePastasModel(runId)
 

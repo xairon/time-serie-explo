@@ -65,7 +65,7 @@ class FitRequest(BaseModel):
 
 class TimeSeriesData(BaseModel):
     index: list[str]
-    values: list[float]
+    values: list[float | None]
 
 class FitParameter(BaseModel):
     name: str
@@ -236,6 +236,18 @@ class SavedScenario(BaseModel):
     tmin: Optional[str] = None
     tmax: Optional[str] = None
     modifications: list[dict[str, Any]] = []
+
+
+class AdaptiveBoundsResponse(BaseModel):
+    gain_A: float
+    t95_days: float
+    step_response_at_t: float
+    t_final_days: int
+    soft_drawdown_m: float
+    hard_drawdown_m: float
+    Q_soft: Optional[float] = None
+    Q_hard: Optional[float] = None
+    source: str
 
 # --- Pre-fit Diagnostics ---
 

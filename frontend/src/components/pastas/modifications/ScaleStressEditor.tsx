@@ -99,7 +99,7 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
         </p>
         {limits && data.factor !== 1 && (data.factor < limits.typical_min || data.factor > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            ⚠ Facteur inhabituel — plage typique : {limits.typical_min}–{limits.typical_max}
+            Warning: unusual factor — typical range: {limits.typical_min}–{limits.typical_max}
           </p>
         )}
       </div>

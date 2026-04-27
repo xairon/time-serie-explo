@@ -1,5 +1,5 @@
 import { Trash2, Droplets, TrendingUp, ArrowUpDown } from 'lucide-react'
-import type { PumpingProfileData, PumpingRange } from '@/lib/types'
+import type { PumpingProfileData, PumpingRange, AdaptiveBoundsData } from '@/lib/types'
 import {
   PumpingSyntheticEditor,
   type PumpingSyntheticData,
@@ -25,6 +25,7 @@ interface ModificationCardProps {
   pumpingProfiles?: Record<string, PumpingProfileData> | null
   scaleStressLimits?: PumpingRange | null
   linearTrendLimits?: PumpingRange | null
+  adaptiveBounds?: AdaptiveBoundsData | null
 }
 
 const TYPE_META: Record<
@@ -37,7 +38,7 @@ const TYPE_META: Record<
   scale_stress: { label: 'Scale a stress', icon: ArrowUpDown, color: 'text-purple-400' },
 }
 
-export function ModificationCard({ index, data, onChange, onDelete, pumpingProfiles, scaleStressLimits, linearTrendLimits }: ModificationCardProps) {
+export function ModificationCard({ index, data, onChange, onDelete, pumpingProfiles, scaleStressLimits, linearTrendLimits, adaptiveBounds }: ModificationCardProps) {
   const meta = TYPE_META[data.type]
   const Icon = meta.icon
 
@@ -61,7 +62,7 @@ export function ModificationCard({ index, data, onChange, onDelete, pumpingProfi
       {/* Editor */}
       <div className="p-3">
         {data.type === 'pumping_synthetic' && (
-          <PumpingSyntheticEditor data={data} onChange={(d) => onChange(d)} profiles={pumpingProfiles} />
+          <PumpingSyntheticEditor data={data} onChange={(d) => onChange(d)} profiles={pumpingProfiles} adaptiveBounds={adaptiveBounds} />
         )}
         {data.type === 'pumping_upload' && (
           <PumpingUploadEditor

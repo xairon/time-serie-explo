@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, Response
 
 from api.config import settings
 from api.schemas.pastas import (
+    AdaptiveBoundsResponse,
     CompareRequest,
     CompareResponse,
     FitParameter,
@@ -93,7 +94,7 @@ def _get_cal_val_periods(run) -> tuple[tuple[Optional[str], Optional[str]], Opti
 def _series_to_ts(s: pd.Series) -> TimeSeriesData:
     return TimeSeriesData(
         index=[str(d) for d in s.index],
-        values=[float(v) if pd.notna(v) else 0.0 for v in s.values],
+        values=[float(v) if pd.notna(v) else None for v in s.values],
     )
 
 
@@ -1067,6 +1068,32 @@ def apply_scenario(run_id: str, name: str, target_run_id: str = Body(..., embed=
 
     scenario["_warnings"] = extra_warnings
     return scenario
+
+
+# ---------------------------------------------------------------------------
+# GET /models/{run_id}/adaptive-bounds
+# ---------------------------------------------------------------------------
+
+@router.get("/models/{run_id}/adaptive-bounds", response_model=AdaptiveBoundsResponse)
+def get_adaptive_bounds(run_id: str, t_final_days: Optional[int] = Query(None, ge=1)):
+    """Compute adaptive pumping bounds from the calibrated model's step response."""
+    from dashboard.utils.pastas.scenario_presets import compute_adaptive_bounds
+
+    result = compute_adaptive_bounds(run_id, t_final_days=t_final_days)
+    if result is None:
+        raise HTTPException(404, "No step response available for this model")
+
+    return AdaptiveBoundsResponse(
+        gain_A=result.gain_A,
+        t95_days=result.t95_days,
+        step_response_at_t=result.step_response_at_t,
+        t_final_days=result.t_final_days,
+        soft_drawdown_m=result.soft_drawdown_m,
+        hard_drawdown_m=result.hard_drawdown_m,
+        Q_soft=result.Q_soft,
+        Q_hard=result.Q_hard,
+        source=result.source,
+    )
 
 
 # ---------------------------------------------------------------------------

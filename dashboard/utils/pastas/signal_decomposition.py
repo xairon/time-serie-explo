@@ -12,7 +12,9 @@ def compute_stl_decomposition(model, tmin: str, tmax: str, period: int = 12) -> 
         return {"index": [], "observed": [], "trend": [], "seasonal": [],
                 "residual": [], "trend_strength": None, "seasonal_strength": None}
 
-    monthly = obs.resample("MS").mean().dropna()
+    monthly = obs.resample("MS").mean()
+    monthly = monthly.interpolate(method="linear", limit=3)
+    monthly = monthly.dropna()
     if len(monthly) < 2 * period + 1:
         return {"index": [], "observed": [], "trend": [], "seasonal": [],
                 "residual": [], "trend_strength": None, "seasonal_strength": None}

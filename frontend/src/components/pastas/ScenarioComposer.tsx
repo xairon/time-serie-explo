@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Droplets, TrendingUp, ArrowUpDown } from 'lucide-react'
 import { ModificationCard, type ModificationData } from './ModificationCard'
-import type { PumpingProfileData, PumpingRange } from '@/lib/types'
+import type { PumpingProfileData, PumpingRange, AdaptiveBoundsData } from '@/lib/types'
 
 interface ScenarioComposerProps {
   modifications: ModificationData[]
@@ -11,6 +11,7 @@ interface ScenarioComposerProps {
   pumpingProfiles?: Record<string, PumpingProfileData> | null
   scaleStressLimits?: PumpingRange | null
   linearTrendLimits?: PumpingRange | null
+  adaptiveBounds?: AdaptiveBoundsData | null
 }
 
 type AddMenuType = ModificationData['type']
@@ -47,7 +48,7 @@ function defaultForType(type: AddMenuType, tmin: string, tmax: string, profile?:
   }
 }
 
-export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingProfiles, scaleStressLimits, linearTrendLimits }: ScenarioComposerProps) {
+export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingProfiles, scaleStressLimits, linearTrendLimits, adaptiveBounds }: ScenarioComposerProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   function addModification(type: AddMenuType) {
@@ -83,6 +84,7 @@ export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingP
           pumpingProfiles={pumpingProfiles}
           scaleStressLimits={scaleStressLimits}
           linearTrendLimits={linearTrendLimits}
+          adaptiveBounds={adaptiveBounds}
         />
       ))}
 

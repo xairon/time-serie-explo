@@ -82,7 +82,7 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
         )}
         {limits && (data.slope_m_per_year < limits.typical_min || data.slope_m_per_year > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            ⚠ Pente inhabituelle — plage typique : {limits.typical_min} à {limits.typical_max} m/an
+            Warning: unusual slope — typical range: {limits.typical_min} to {limits.typical_max} m/yr
           </p>
         )}
       </div>

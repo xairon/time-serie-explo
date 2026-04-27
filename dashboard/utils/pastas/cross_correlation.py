@@ -24,17 +24,16 @@ def compute_cross_correlation(
         return {"lags_months": [], "correlation": [], "max_lag_months": None,
                 "max_correlation": None, "t95_months": None}
 
-    piezo = df["niveau_moyen"].values
-    precip = df["precipitation_totale"].values
+    df["niveau_moyen"] = df["niveau_moyen"].interpolate(limit=3)
+    df["precipitation_totale"] = df["precipitation_totale"].interpolate(limit=3)
+    df = df.dropna(subset=["niveau_moyen", "precipitation_totale"])
 
-    # Drop rows where either is NaN
-    valid = ~(np.isnan(piezo) | np.isnan(precip))
-    if valid.sum() < max_lag + 12:
+    if len(df) < max_lag + 12:
         return {"lags_months": [], "correlation": [], "max_lag_months": None,
                 "max_correlation": None, "t95_months": None}
 
-    piezo = piezo[valid]
-    precip = precip[valid]
+    piezo = df["niveau_moyen"].values
+    precip = df["precipitation_totale"].values
 
     # Normalize (z-score)
     piezo = (piezo - np.mean(piezo)) / (np.std(piezo) + 1e-10)
@@ -52,7 +51,7 @@ def compute_cross_correlation(
         correlations.append(round(float(c) if np.isfinite(c) else 0.0, 4))
 
     # Find max positive correlation at positive lags (precip leads piezo)
-    positive_lags = [(l, c) for l, c in zip(lags, correlations) if l >= 0]
+    positive_lags = [(l, c) for l, c in zip(lags, correlations) if l >= 1]
     if positive_lags:
         max_lag_val, max_corr = max(positive_lags, key=lambda x: x[1])
     else:
@@ -65,8 +64,9 @@ def compute_cross_correlation(
         if step is not None and len(step) > 0:
             vals = step.values.flatten()
             target = 0.95 * vals[-1] if vals[-1] != 0 else 0
-            idx = np.argmax(vals >= target)
-            t95 = round(float(idx) / 30.44, 1)  # days to months
+            idx = int(np.argmax(vals >= target))
+            t95_days = float(step.index[idx]) if idx < len(step.index) else float(idx)
+            t95 = round(t95_days / 30.44, 1)
     except Exception:
         pass
 

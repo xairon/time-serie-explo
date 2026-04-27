@@ -21,12 +21,13 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
   let t95: number | null = null
   if (hasStep) {
     const vals = stepResponse.values
+    const idx = stepResponse.index
     const finalVal = vals[vals.length - 1]
     if (finalVal !== 0) {
       const i50 = vals.findIndex((v) => Math.abs(v) >= Math.abs(finalVal) * 0.5)
       const i95 = vals.findIndex((v) => Math.abs(v) >= Math.abs(finalVal) * 0.95)
-      t50 = i50 === -1 ? null : i50
-      t95 = i95 === -1 ? null : i95
+      t50 = i50 >= 0 && idx[i50] ? Math.round(parseFloat(idx[i50])) || i50 : null
+      t95 = i95 >= 0 && idx[i95] ? Math.round(parseFloat(idx[i95])) || i95 : null
     }
   }
 
@@ -48,28 +49,38 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {responseParams.map((p) => (
-          <div
-            key={p.name}
-            className="bg-bg-primary rounded px-2 py-1 text-xs border border-white/5"
-          >
-            <span className="text-text-muted">{p.name.replace('recharge_', '')}</span>
-            <span className="ml-1 text-text-primary font-mono">{p.optimal.toFixed(4)}</span>
-            {p.stderr != null && (
-              <span className="text-text-muted"> ± {p.stderr.toFixed(4)}</span>
-            )}
-          </div>
-        ))}
+        {responseParams.map((p) => {
+          const paramName = p.name.replace('recharge_', '')
+          const paramTooltips: Record<string, string> = {
+            A: 'Gain - steady-state response amplitude. The larger A, the more sensitive the aquifer is to input (recharge).',
+            n: 'Shape - controls the signal rise. n > 1: delayed response (inertia). n close to 1: fast response.',
+            a: 'Time scale - controls the response duration. The larger a, the longer the aquifer takes to react.',
+            f: 'Fraction (FlexModel) - split between fast and slow recharge.',
+          }
+          return (
+            <div
+              key={p.name}
+              className="bg-bg-primary rounded px-2 py-1 text-xs border border-white/5"
+              title={paramTooltips[paramName] ?? ''}
+            >
+              <span className="text-text-muted">{paramName}</span>
+              <span className="ml-1 text-text-primary font-mono">{p.optimal.toFixed(4)}</span>
+              {p.stderr != null && (
+                <span className="text-text-muted"> ± {p.stderr.toFixed(4)}</span>
+              )}
+            </div>
+          )
+        })}
         {t50 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Half-response time — delay to reach 50% of the final effect. Indicates the initial reactivity of the aquifer.">
             <span className="text-text-muted">t₅₀</span>
-            <span className="ml-1 font-mono text-accent-cyan">{t50} j</span>
+            <span className="ml-1 font-mono text-accent-cyan">{t50} d</span>
           </div>
         )}
         {t95 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="95% response time — delay to reach 95% of the final effect. Represents the effective memory of the aquifer. Short (< 100 d) = alluvial. Long (> 500 d) = deep sedimentary or confined.">
             <span className="text-text-muted">t₉₅</span>
-            <span className="ml-1 font-mono text-accent-cyan">{t95} j</span>
+            <span className="ml-1 font-mono text-accent-cyan">{t95} d</span>
           </div>
         )}
       </div>
@@ -77,9 +88,11 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
       <div className="grid grid-cols-2 gap-3">
         {hasStep && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">If recharge increases by 1 mm/d and stays constant, how the water level rises over time. The curve eventually stabilizes at the gain A.</p>
             <Plot
               data={[
                 {
+                  x: stepResponse.index.map(Number),
                   y: stepResponse.values,
                   type: 'scatter',
                   mode: 'lines',
@@ -124,9 +137,11 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
         )}
         {hasBlock && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">Effect of a single-day recharge pulse. The peak shows the maximum reactivity, the decline shows the drainage speed.</p>
             <Plot
               data={[
                 {
+                  x: blockResponse.index.map(Number),
                   y: blockResponse.values,
                   type: 'scatter',
                   mode: 'lines',
@@ -137,7 +152,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
                 ...chartBase,
                 title: { text: 'Block Response', font: { size: 11 } },
                 xaxis: { title: { text: 'Days' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                yaxis: { title: { text: 'm/d' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { title: { text: 'm/(mm/d)' }, gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler
               className="w-full"

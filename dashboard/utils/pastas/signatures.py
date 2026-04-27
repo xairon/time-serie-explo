@@ -1,40 +1,71 @@
 """Compute hydrological signatures using Pastas stats."""
 from __future__ import annotations
 
+import logging
+
+import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
-def compute_signatures(observed: pd.Series, simulated: pd.Series) -> dict[str, dict[str, float]]:
-    """Compute groundwater signatures on both observed and simulated.
+SIGNATURE_CATEGORIES: dict[str, list[str]] = {
+    "variability": [
+        "cv_period_mean", "magnitude", "interannual_variation", "mean_annual_maximum",
+    ],
+    "seasonality": [
+        "parde_seasonality", "avg_seasonal_fluctuation",
+        "date_min", "date_max", "cv_date_min", "cv_date_max",
+    ],
+    "dynamics": [
+        "rise_rate", "fall_rate", "cv_rise_rate", "cv_fall_rate",
+    ],
+    "pulses": [
+        "high_pulse_count", "high_pulse_duration",
+        "low_pulse_count", "low_pulse_duration",
+    ],
+    "reversals": [
+        "reversals_avg", "reversals_cv",
+    ],
+    "predictability": [
+        "colwell_constancy", "colwell_contingency",
+    ],
+    "recession": [
+        "recession_constant", "recovery_constant",
+    ],
+    "duration_curve": [
+        "duration_curve_slope", "duration_curve_ratio",
+    ],
+    "structure": [
+        "richards_pathlength", "baselevel_index", "baselevel_stability",
+        "bimodality_coefficient", "autocorr_time",
+    ],
+}
 
-    Returns dict with keys 'observed' and 'simulated', each containing
-    signature name -> value.
+ALL_SIGNATURES = [s for sigs in SIGNATURE_CATEGORIES.values() for s in sigs]
+
+
+def compute_signatures(observed: pd.Series, simulated: pd.Series) -> dict:
+    """Compute all groundwater signatures on both observed and simulated.
+
+    Returns dict with keys 'observed', 'simulated', and 'categories'.
     """
     import pastas as ps
 
-    sig_functions = [
-        "cv_period_mean",
-        "parde_seasonality",
-        "avg_seasonal_fluctuation",
-        "interannual_variation",
-        "rise_rate",
-        "fall_rate",
-        "bimodality_coefficient",
-        "mean_annual_maximum",
-        "autocorr_time",
-    ]
-
-    result = {}
+    result: dict[str, dict[str, float]] = {}
     for label, series in [("observed", observed), ("simulated", simulated)]:
         sigs: dict[str, float] = {}
-        for sig_name in sig_functions:
+        for sig_name in ALL_SIGNATURES:
             try:
                 func = getattr(ps.stats.signatures, sig_name)
                 val = float(func(series))
-                if pd.notna(val) and abs(val) < 1e10:
+                if pd.notna(val) and not np.isinf(val) and abs(val) < 1e10:
                     sigs[sig_name] = round(val, 6)
             except Exception:
-                pass
+                logger.debug("Signature %s failed for %s", sig_name, label)
         result[label] = sigs
 
-    return result
+    return {
+        "observed": result["observed"],
+        "simulated": result["simulated"],
+        "categories": SIGNATURE_CATEGORIES,
+    }

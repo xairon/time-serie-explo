@@ -395,6 +395,18 @@ export interface SavedScenario {
   modifications: Record<string, unknown>[]
 }
 
+export interface AdaptiveBoundsData {
+  gain_A: number
+  t95_days: number
+  step_response_at_t: number
+  t_final_days: number
+  soft_drawdown_m: number
+  hard_drawdown_m: number
+  Q_soft: number | null
+  Q_hard: number | null
+  source: 'calibrated_well' | 'recharge_model'
+}
+
 export type AquiferFamily = 'alluvial' | 'sedimentary' | 'karst' | 'fractured' | 'volcanic'
 export type PumpingUsage = 'aep' | 'irrigation' | 'industrial'
 
@@ -454,14 +466,14 @@ export interface DiagnoseResult {
 export interface StowaResult {
   evp_pass: boolean
   evp_value: number
-  autocorrelation_pass: boolean
-  runs_test_pvalue: number
-  t95_pass: boolean
-  t95_days: number
-  t95_threshold: number
-  gain_pass: boolean
-  gain_significance: number
-  overall_pass: boolean
+  autocorrelation_pass: boolean | null
+  runs_test_pvalue: number | null
+  t95_pass: boolean | null
+  t95_days: number | null
+  t95_threshold: number | null
+  gain_pass: boolean | null
+  gain_significance: number | null
+  overall_pass: boolean | null
   suggestions: string[]
 }
 

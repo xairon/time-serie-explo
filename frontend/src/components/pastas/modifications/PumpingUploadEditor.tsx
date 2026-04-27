@@ -63,31 +63,25 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
         className="border border-dashed border-white/20 rounded-lg p-4 text-center cursor-pointer hover:border-accent-cyan/40 transition-colors"
         onClick={() => fileRef.current?.click()}
       >
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv"
-          onChange={handleFile}
-          className="hidden"
-        />
+        <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
         {data.rows.length > 0 ? (
           <p className="text-xs text-accent-cyan">{data.rows.length} rows loaded</p>
         ) : (
           <p className="text-xs text-text-muted">
-            Drop CSV here or click — columns: <code>date, Q_m3d</code>
+            Click to load a CSV — columns: <code>date, Q_m3d</code>
           </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Distance (m)</label>
+          <label className="block text-xs text-text-muted mb-1">Distance to piezometer (m)</label>
           <input
             type="number"
             value={data.distance_m}
             onChange={(e) => update({ distance_m: parseFloat(e.target.value) || 0 })}
             className={inputClass}
-            step="1"
+            step="100"
             min="0"
           />
         </div>
@@ -99,9 +93,7 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
             className={inputClass}
           >
             {RFUNCS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
+              <option key={r} value={r}>{r === 'Exponential' ? 'Exponential' : 'Hantush'}</option>
             ))}
           </select>
         </div>

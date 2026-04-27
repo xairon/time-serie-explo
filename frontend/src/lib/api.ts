@@ -339,6 +339,10 @@ export const api = {
       postJson<{ status: string; name: string }>(`/pastas/models/${runId}/scenarios`, body),
     deleteScenario: (runId: string, name: string) =>
       deleteJson(`/pastas/models/${runId}/scenarios/${encodeURIComponent(name)}`),
+    adaptiveBounds: (runId: string, tFinalDays?: number) => {
+      const qs = tFinalDays ? `?t_final_days=${tFinalDays}` : ''
+      return fetchJson<import('./types').AdaptiveBoundsData>(`/pastas/models/${runId}/adaptive-bounds${qs}`)
+    },
     diagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/diagnostics`),
     outlierDiagnostics: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/outlier-diagnostics`),
     confidenceBands: (runId: string) => fetchJson<Record<string, unknown>>(`/pastas/models/${runId}/confidence-bands`),

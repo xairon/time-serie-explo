@@ -3,6 +3,7 @@ import { Loader2, Play, Plus, FlaskConical, AlertTriangle, ChevronDown, Save, Fo
 import { useQuery } from '@tanstack/react-query'
 import { usePastasSimulate } from '@/hooks/usePastas'
 import { useScenarioPresets } from '@/hooks/useScenarioPresets'
+import { useAdaptiveBounds } from '@/hooks/useAdaptiveBounds'
 import { useSavedScenarios, useSaveScenario, useDeleteScenario } from '@/hooks/useSavedScenarios'
 import { ScenarioComposer } from './ScenarioComposer'
 import { ScenarioResultsPanel } from './ScenarioResultsPanel'
@@ -89,6 +90,16 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
     }
     return Object.keys(result).length > 0 ? result : null
   }, [presetsData, aquiferFamily])
+
+  // Adaptive bounds from calibrated model
+  const tFinalDays = useMemo(() => {
+    if (!effectiveTmin || !effectiveTmax) return null
+    const d0 = new Date(effectiveTmin)
+    const d1 = new Date(effectiveTmax)
+    const days = Math.round((d1.getTime() - d0.getTime()) / 86400000)
+    return days > 0 ? days : null
+  }, [effectiveTmin, effectiveTmax])
+  const { data: adaptiveBounds } = useAdaptiveBounds(model.run_id || null, tFinalDays)
 
   // Saved scenarios
   const { data: savedScenarios = [] } = useSavedScenarios(model.run_id || null)
@@ -233,6 +244,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                 pumpingProfiles={pumpingProfiles}
                 scaleStressLimits={presetsData?.non_pumping_limits?.scale_stress ?? null}
                 linearTrendLimits={presetsData?.non_pumping_limits?.linear_trend ?? null}
+                adaptiveBounds={adaptiveBounds ?? null}
               />
             </div>
 

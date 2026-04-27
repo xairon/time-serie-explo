@@ -1,4 +1,5 @@
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import { ArrowLeft, FlaskConical } from 'lucide-react'
 import { usePastasModel } from '@/hooks/usePastas'
 import { usePastasMode } from './PastasLayout'
@@ -18,29 +19,34 @@ function approximateStowa(metrics: Record<string, number>): StowaResult | null {
   return {
     evp_pass: evp >= 70,
     evp_value: evp,
-    // We don't have autocorrelation/t95/gain from a simple fit,
-    // so mark them as passing with placeholder values
-    autocorrelation_pass: true,
-    runs_test_pvalue: 0.5,
-    t95_pass: true,
-    t95_days: 0,
-    t95_threshold: 0,
-    gain_pass: true,
-    gain_significance: 1.0,
-    overall_pass: evp >= 70,
+    autocorrelation_pass: null,
+    runs_test_pvalue: null,
+    t95_pass: null,
+    t95_days: null,
+    t95_threshold: null,
+    gain_pass: null,
+    gain_significance: null,
+    overall_pass: null,
     suggestions: evp < 70
-      ? ['EVP is below 70%. Consider trying different configurations or adding more stresses.']
-      : [],
+      ? ['EVP inférieur à 70%. Essayez d\'autres configurations ou ajoutez des stress.']
+      : ['Résultat partiel — lancez l\'auto-fit pour l\'évaluation STOWA complète.'],
   }
 }
 
 export default function ResultsStep() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { mode } = usePastasMode()
+  const { mode, pipeline, setCodeBss, selectModel } = usePastasMode()
 
-  const runId = searchParams.get('model')
-  const codeBss = searchParams.get('station') ?? ''
+  const runId = searchParams.get('model') ?? pipeline.selectedRunId
+  const codeBss = searchParams.get('station') ?? pipeline.codeBss ?? ''
+
+  // Sync to pipeline context — pass null for STOWA when station changed (stale closure)
+  useEffect(() => {
+    const sameStation = codeBss === pipeline.codeBss
+    if (codeBss) setCodeBss(codeBss)
+    if (runId) selectModel(runId, sameStation ? pipeline.selectedStowa : null)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: model, isLoading, isError } = usePastasModel(runId)
 
@@ -89,7 +95,8 @@ export default function ResultsStep() {
     )
   }
 
-  const stowa = approximateStowa(model.metrics)
+  // Use real STOWA from auto-fit pipeline if available, otherwise approximate
+  const stowa = pipeline.selectedStowa ?? approximateStowa(model.metrics)
   const effectiveCodeBss = codeBss || model.code_bss
 
   return (

@@ -64,6 +64,8 @@ export function usePastasDiagnostics(runId: string | null) {
     queryKey: ['pastas', 'diagnostics', runId],
     queryFn: () => api.pastas.diagnostics(runId!),
     enabled: !!runId,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   })
 }
 
@@ -113,6 +115,8 @@ export function usePastasSignatures(runId: string | null) {
     queryKey: ['pastas', 'signatures', runId],
     queryFn: () => api.pastas.signatures(runId!),
     enabled: !!runId,
+    staleTime: 60 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   })
 }
 

@@ -85,10 +85,12 @@ dashboard/
 - **IO**: `dashboard/utils/pastas/io.py` — model load/save with LRU cache (maxsize=32)
 - **Diagnostics**: `dashboard/utils/pastas/diagnostics.py` — QQ, PACF, normality tests
 - **Outlier diagnostics**: `dashboard/utils/pastas/outlier_diagnostics.py` — classify outliers by climate/data/neighbors
-- **Advanced analytics**: `recession.py`, `baseflow.py`, `spectral.py`, `signal_decomposition.py`, `cross_correlation.py`, `multi_station_residuals.py`, `input_quality.py`
-- **Frontend results**: `FitResultsPanel.tsx` — main results dashboard with unified analysis chart
-- **MLflow tags**: `cal_tmin`, `cal_tmax`, `val_tmin`, `val_tmax`, `station_id` — use `_get_cal_val_periods(run)` helper
+- **Advanced analytics**: `recession.py` (exponential decay with baseline offset), `baseflow.py` (Lyne-Hollick 3-pass on dh/dt), `spectral.py`, `signal_decomposition.py` (STL with gap interpolation), `cross_correlation.py`, `multi_station_residuals.py`, `input_quality.py`
+- **Scenarios**: `scenario.py` (apply modifications to calibrated model), `scenario_presets.py` (referential of realistic pumping profiles per usage x aquifer, validation, persistence, adaptive bounds from step response)
+- **Frontend results**: `FitResultsPanel.tsx` — main results dashboard with lazy-loaded sections (diagnostics, signatures, decomposition only fetch when expanded)
+- **MLflow tags**: `cal_tmin`, `cal_tmax`, `val_tmin`, `val_tmax`, `station_id`, `nature_eh`, `milieu_eh` — use `_get_cal_val_periods(run)` helper
 - **Endpoints return `{cal: ..., val: ...}`** for period-dependent analyses (diagnostics, outliers, spectral, regional)
+- **Adaptive bounds**: `GET /models/{run_id}/adaptive-bounds` — uses calibrated step response to compute Q limits from drawdown thresholds
 
 ## Docker Setup
 
@@ -116,6 +118,7 @@ dashboard/
 - Frontend hooks use TanStack React Query (5min stale time, 30min GC)
 - API client in `frontend/src/lib/api.ts` — centralized fetch with timeout handling
 - Long-running tasks (training, CF generation) use SSE streams
+- **All UI text in English** — labels, titles, tooltips, descriptions, axis labels. No French anywhere in the frontend.
 
 ## Gotchas
 
@@ -126,6 +129,10 @@ dashboard/
 - **Residuals only cover cal period** in FitResponse — compute `obs - sim` on frontend for val period
 - **Docker disk quota** — run `docker builder prune -f` if build fails with "disk quota exceeded"
 - **`rtk` intercepts curl output** — use `rtk proxy curl` for raw JSON, or pipe to `python3 -c` for parsing
+- **Tailwind dynamic classes** — NEVER interpolate class names at runtime (`` `bg-${color}-500` ``). Tailwind JIT purges them. Use static lookup maps instead.
+- **NaN in time series** — `_series_to_ts()` serializes NaN as `null` (not 0.0). Frontend `TimeSeriesData.values` is `(number | null)[]`.
+- **Curly quotes in TSX** — Docker `tsc -b` rejects Unicode curly quotes ('') in string literals. Always use ASCII quotes.
+- **`add_trend=True` with `tmin=None`** — `builder.py` derives trend start/end from observation index when not specified. Previously crashed with "NaTType does not support toordinal".
 
 ## Testing
 

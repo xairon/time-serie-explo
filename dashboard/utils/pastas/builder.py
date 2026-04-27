@@ -75,8 +75,10 @@ def build_model(
     model.add_stressmodel(rm)
 
     if add_trend:
+        trend_start = tmin or str(gwl.dropna().index.min().date())
+        trend_end = tmax or str(gwl.dropna().index.max().date())
         model.add_stressmodel(
-            ps.stressmodels.LinearTrend(start=tmin, end=tmax, name="linear_trend")
+            ps.stressmodels.LinearTrend(start=trend_start, end=trend_end, name="linear_trend")
         )
 
     if noise_type != "none":

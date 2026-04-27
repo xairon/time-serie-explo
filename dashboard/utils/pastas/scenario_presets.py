@@ -401,6 +401,113 @@ def build_preset_scenarios(
     ]
 
 
+SOFT_DRAWDOWN_M = 0.5
+HARD_DRAWDOWN_M = 2.0
+
+
+@dataclass
+class AdaptiveBoundsResult:
+    """Adaptive pumping bounds derived from a calibrated model's step response."""
+    gain_A: float
+    t95_days: float
+    step_response_at_t: float
+    t_final_days: int
+    soft_drawdown_m: float
+    hard_drawdown_m: float
+    Q_soft: float | None
+    Q_hard: float | None
+    source: str  # "calibrated_well" or "recharge_model"
+
+
+def _compute_t95(step_values, step_index) -> float:
+    """Find the time (days) at which |step| first reaches 95% of |final value|."""
+    import numpy as np
+
+    if len(step_values) == 0:
+        return 0.0
+    final = step_values[-1]
+    if final == 0:
+        return 0.0
+    threshold = 0.95 * abs(final)
+    mask = np.abs(step_values) >= threshold
+    if not mask.any():
+        return float(step_index[-1])
+    return float(step_index[int(np.argmax(mask))])
+
+
+def compute_adaptive_bounds(
+    run_id: str,
+    t_final_days: int | None = None,
+) -> AdaptiveBoundsResult | None:
+    """Compute adaptive pumping bounds from a calibrated Pastas model.
+
+    Uses the step response of a calibrated Well stressmodel (if present)
+    to convert drawdown limits into flow-rate bounds specific to this aquifer.
+    Falls back to the recharge model's step response for context parameters
+    (gain, t95) without Q bounds.
+    """
+    import numpy as np
+    from dashboard.utils.pastas.io import load_model
+
+    model = load_model(run_id)
+    if not model.stressmodels:
+        return None
+
+    well_name = None
+    for name, sm in model.stressmodels.items():
+        sm_type = type(sm).__name__
+        if sm_type != "RechargeModel" and hasattr(sm, "up") and not sm.up:
+            well_name = name
+            break
+
+    if well_name:
+        source = "calibrated_well"
+        target_name = well_name
+    else:
+        source = "recharge_model"
+        target_name = next(iter(model.stressmodels))
+
+    try:
+        step = model.get_step_response(target_name)
+    except Exception:
+        return None
+
+    if len(step) == 0:
+        return None
+
+    gain_A = float(step.values[-1])
+    if gain_A == 0:
+        return None
+
+    t95 = _compute_t95(step.values, step.index)
+    total_days = int(step.index[-1]) if len(step) > 0 else 1000
+    effective_t = min(t_final_days, total_days) if t_final_days else total_days
+
+    if t_final_days and t_final_days < total_days:
+        idx = min(int(np.searchsorted(step.index, t_final_days)), len(step) - 1)
+        sr_at_t = float(step.values[idx])
+    else:
+        sr_at_t = gain_A
+
+    Q_soft: float | None = None
+    Q_hard: float | None = None
+    if source == "calibrated_well" and abs(sr_at_t) > 0:
+        Q_soft = SOFT_DRAWDOWN_M / abs(sr_at_t)
+        Q_hard = HARD_DRAWDOWN_M / abs(sr_at_t)
+
+    return AdaptiveBoundsResult(
+        gain_A=gain_A,
+        t95_days=t95,
+        step_response_at_t=sr_at_t,
+        t_final_days=effective_t,
+        soft_drawdown_m=SOFT_DRAWDOWN_M,
+        hard_drawdown_m=HARD_DRAWDOWN_M,
+        Q_soft=Q_soft,
+        Q_hard=Q_hard,
+        source=source,
+    )
+
+
 SCENARIOS_ARTIFACT_PATH = "scenarios"
 
 

@@ -196,7 +196,7 @@ def _classify_outlier(
     matched: list[str] = []
 
     # Rule 1: DATA_GAP
-    if data_quality.get("gap_days", 0) >= 1:
+    if data_quality.get("gap_days", 0) >= 7:
         matched.append("DATA_GAP")
 
     # Rule 2: CLIMATE_EXTREME

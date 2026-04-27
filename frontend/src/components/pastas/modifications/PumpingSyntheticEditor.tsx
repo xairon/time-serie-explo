@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
-import type { PumpingProfileData, PumpingRange } from '@/lib/types'
+import { useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import type { PumpingProfileData, PumpingRange, AdaptiveBoundsData } from '@/lib/types'
 
 interface PumpingSyntheticData {
   type: 'pumping_synthetic'
@@ -20,12 +21,13 @@ interface PumpingSyntheticEditorProps {
   data: PumpingSyntheticData
   onChange: (data: PumpingSyntheticData) => void
   profiles?: Record<string, PumpingProfileData> | null
+  adaptiveBounds?: AdaptiveBoundsData | null
 }
 
 const USAGES = [
   { value: 'aep' as const, label: 'AEP' },
   { value: 'irrigation' as const, label: 'Irrigation' },
-  { value: 'industrial' as const, label: 'Industriel' },
+  { value: 'industrial' as const, label: 'Industrial' },
 ] as const
 
 function RangeWarning({ value, range, label }: { value: number; range?: PumpingRange; label: string }) {
@@ -33,7 +35,7 @@ function RangeWarning({ value, range, label }: { value: number; range?: PumpingR
   if (value < range.typical_min || value > range.typical_max) {
     return (
       <p className="text-[10px] mt-1 text-yellow-400">
-        ⚠ {label} inhabituel — plage typique : {range.typical_min}–{range.typical_max}
+        Warning: unusual {label} — typical range: {range.typical_min}–{range.typical_max}
       </p>
     )
   }
@@ -92,7 +94,80 @@ function generatePreview(pattern: string, rate: number, seasonMonths: number[], 
   return { dates, values }
 }
 
-export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSyntheticEditorProps) {
+function DrawdownIndicator({ rate, bounds }: { rate: number; bounds: AdaptiveBoundsData }) {
+  if (rate <= 0) return null
+  const drawdown = Math.abs(rate * bounds.step_response_at_t)
+  const color = drawdown < bounds.soft_drawdown_m
+    ? 'text-green-400'
+    : drawdown < bounds.hard_drawdown_m
+      ? 'text-yellow-400'
+      : 'text-red-400'
+  return (
+    <p className={`text-[10px] mt-1 ${color}`}>
+      Estimated drawdown: {drawdown.toFixed(2)} m (t = {bounds.t_final_days} d)
+    </p>
+  )
+}
+
+function ExpertPanel({ bounds, staticRange }: { bounds: AdaptiveBoundsData; staticRange?: PumpingRange }) {
+  const [open, setOpen] = useState(false)
+  const isWell = bounds.source === 'calibrated_well'
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
+      >
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? '' : '-rotate-90'}`} />
+        {isWell ? 'Calibrated model' : 'Aquifer sensitivity'}
+      </button>
+      {open && (
+        <div className="mt-1.5 bg-bg-primary border border-white/5 rounded-lg p-2.5 space-y-1">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+            <span className="text-text-muted">Gain A</span>
+            <span className="text-text-secondary font-mono">{bounds.gain_A.toExponential(3)} m/(m³/d)</span>
+            <span className="text-text-muted">t95</span>
+            <span className="text-text-secondary font-mono">{Math.round(bounds.t95_days)} d</span>
+            <span className="text-text-muted">Step response (at t)</span>
+            <span className="text-text-secondary font-mono">{bounds.step_response_at_t.toExponential(3)}</span>
+            {isWell && bounds.Q_soft != null && (
+              <>
+                <span className="text-text-muted">Q soft (model)</span>
+                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_soft)} m³/d</span>
+              </>
+            )}
+            {isWell && bounds.Q_hard != null && (
+              <>
+                <span className="text-text-muted">Q hard (model)</span>
+                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_hard)} m³/d</span>
+              </>
+            )}
+            {staticRange && (
+              <>
+                <span className="text-text-muted">Q soft (ref.)</span>
+                <span className="text-text-secondary font-mono">{staticRange.typical_max} m³/d</span>
+                <span className="text-text-muted">Q hard (ref.)</span>
+                <span className="text-text-secondary font-mono">{staticRange.hard_max} m³/d</span>
+              </>
+            )}
+          </div>
+          <div className="pt-1 border-t border-white/5">
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+              isWell
+                ? 'border-accent-cyan/20 text-accent-cyan bg-accent-cyan/5'
+                : 'border-white/10 text-text-muted'
+            }`}>
+              Source: {isWell ? 'calibrated model' : 'static reference'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBounds }: PumpingSyntheticEditorProps) {
   const profile = profiles?.[data.usage ?? 'aep'] ?? null
 
   function update(patch: Partial<PumpingSyntheticData>) {
@@ -117,6 +192,13 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
   const rateRange = profile?.rate_m3d
   const distRange = profile?.distance_m
 
+  const effectiveHardMax = useMemo(() => {
+    const staticMax = rateRange?.hard_max
+    const adaptiveMax = adaptiveBounds?.Q_hard
+    if (staticMax != null && adaptiveMax != null) return Math.min(staticMax, adaptiveMax)
+    return staticMax ?? adaptiveMax ?? undefined
+  }, [rateRange, adaptiveBounds])
+
   const activeMonths = data.season_months ?? [5, 6, 7, 8, 9]
   const pulseDays = data.pulse_duration_days ?? 30
 
@@ -137,7 +219,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
     <div className="space-y-3">
       {/* Usage selector */}
       <div>
-        <label className="block text-xs text-text-muted mb-1.5">Type de pompage</label>
+        <label className="block text-xs text-text-muted mb-1.5">Pumping type</label>
         <div className="flex gap-1">
           {USAGES.map(u => (
             <button
@@ -160,7 +242,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
                 : 'bg-bg-primary text-text-muted border border-white/5 hover:border-white/10'
             }`}
           >
-            Libre
+            Custom
           </button>
         </div>
       </div>
@@ -274,7 +356,15 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Flow rate (m³/d)</label>
+          <label className="block text-xs text-text-muted mb-1">
+            Flow rate (m³/d)
+            {adaptiveBounds?.Q_soft != null && rateRange && adaptiveBounds.Q_soft < rateRange.typical_max && (
+              <span className="ml-1 text-[9px] text-accent-cyan">Cal. model</span>
+            )}
+            {!adaptiveBounds?.Q_soft && rateRange && (
+              <span className="ml-1 text-[9px] text-text-muted">Ref.</span>
+            )}
+          </label>
           <input
             type="number"
             value={data.rate_m3d}
@@ -282,9 +372,10 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
             className={inputClass}
             step="10"
             min={rateRange?.hard_min ?? 0}
-            max={rateRange?.hard_max}
+            max={effectiveHardMax}
           />
-          <RangeWarning value={data.rate_m3d} range={rateRange} label="Débit" />
+          <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />
+          {adaptiveBounds && <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />}
         </div>
         <div>
           <label className="block text-xs text-text-muted mb-1">Distance to piezo (m)</label>
@@ -324,6 +415,10 @@ export function PumpingSyntheticEditor({ data, onChange, profiles }: PumpingSynt
           ))}
         </select>
       </div>
+
+      {adaptiveBounds && (
+        <ExpertPanel bounds={adaptiveBounds} staticRange={rateRange ?? undefined} />
+      )}
     </div>
   )
 }

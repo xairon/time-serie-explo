@@ -44,7 +44,7 @@ def compute_diagnostics(residuals: pd.Series) -> dict[str, Any]:
                 pass
 
     median = clean.median()
-    runs = ((clean > median).astype(int).diff().abs().sum() / 2) + 1
+    runs = 1 + int((clean > median).astype(int).diff().abs().dropna().sum())
     result["runs_count"] = int(runs)
 
     nlags = min(40, n // 2 - 1)
@@ -55,7 +55,7 @@ def compute_diagnostics(residuals: pd.Series) -> dict[str, Any]:
         result["confidence_bound"] = float(1.96 / np.sqrt(n))
 
     sorted_res = np.sort(clean.values)
-    theoretical = scipy_stats.norm.ppf(np.linspace(0.01, 0.99, n))
+    theoretical = scipy_stats.norm.ppf((np.arange(1, n + 1)) / (n + 1))
     result["qq_theoretical"] = theoretical.tolist()
     result["qq_sample"] = sorted_res.tolist()
 

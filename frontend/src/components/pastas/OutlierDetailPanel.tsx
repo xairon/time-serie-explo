@@ -67,6 +67,15 @@ const CATEGORY_META: Record<string, { color: string; icon: any; verdict: string 
   },
 }
 
+const CATEGORY_CLASSES: Record<string, { bg: string; text: string; border: string; bgLight: string }> = {
+  DATA_GAP:              { bg: 'bg-red-500/15',    text: 'text-red-400',    border: 'border-red-500/30',    bgLight: 'bg-red-500/5' },
+  CLIMATE_EXTREME:       { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30', bgLight: 'bg-orange-500/5' },
+  REGIONAL_SIGNAL:       { bg: 'bg-blue-500/15',   text: 'text-blue-400',   border: 'border-blue-500/30',   bgLight: 'bg-blue-500/5' },
+  SEASONAL_BIAS:         { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30', bgLight: 'bg-yellow-500/5' },
+  DOMINANT_CONTRIBUTION: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', bgLight: 'bg-purple-500/5' },
+  UNKNOWN:               { bg: 'bg-gray-500/15',   text: 'text-gray-400',   border: 'border-gray-500/30',   bgLight: 'bg-gray-500/5' },
+}
+
 function SeverityBar({ severity }: { severity: number }) {
   const pct = Math.round(severity * 100)
   const color = severity > 0.8 ? 'bg-red-500' : severity > 0.5 ? 'bg-orange-500' : 'bg-yellow-500'
@@ -92,6 +101,7 @@ function StatRow({ label, value, alert }: { label: string; value: string; alert?
 export function OutlierDetailPanel({ outlier, onClose }: Props) {
   const { climate, contributions, data_quality, neighbors } = outlier
   const meta = CATEGORY_META[outlier.category] ?? CATEGORY_META.UNKNOWN
+  const cls = CATEGORY_CLASSES[outlier.category] ?? CATEGORY_CLASSES.UNKNOWN
   const Icon = meta.icon
   const direction = outlier.residual > 0 ? 'overestimates' : 'underestimates'
   const error = Math.abs(outlier.observed - outlier.simulated)
@@ -100,15 +110,15 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
     <div className="mt-2 bg-bg-card border border-white/10 rounded-xl overflow-hidden">
       {/* Top bar: close + date + error summary */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
-        <div className={`p-1.5 rounded-lg bg-${meta.color}-500/15`}>
-          <Icon className={`w-4 h-4 text-${meta.color}-400`} />
+        <div className={`p-1.5 rounded-lg ${cls.bg}`}>
+          <Icon className={`w-4 h-4 ${cls.text}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-text-primary">
               {new Date(outlier.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'long' })}
             </span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border border-${meta.color}-500/30 bg-${meta.color}-500/15 text-${meta.color}-400`}>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${cls.border} ${cls.bg} ${cls.text}`}>
               {outlier.category_label}
             </span>
             {outlier.secondary_tags.map(tag => (
@@ -128,9 +138,9 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
       </div>
 
       {/* Verdict — the key takeaway */}
-      <div className={`px-4 py-2.5 border-b border-white/5 bg-${meta.color}-500/5`}>
+      <div className={`px-4 py-2.5 border-b border-white/5 ${cls.bgLight}`}>
         <div className="flex items-start gap-2">
-          <AlertTriangle className={`w-3.5 h-3.5 text-${meta.color}-400 mt-0.5 shrink-0`} />
+          <AlertTriangle className={`w-3.5 h-3.5 ${cls.text} mt-0.5 shrink-0`} />
           <p className="text-xs text-text-secondary leading-relaxed">{meta.verdict}</p>
         </div>
       </div>

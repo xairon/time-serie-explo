@@ -123,10 +123,10 @@ export function UnifiedAnalysisChart({
       t.push({
         x: monthlyDates, y: monthlyResiduals,
         type: 'bar',
-        name: 'Error',
+        name: 'Residual',
         marker: { color: barColors },
         yaxis: 'y3',
-        hovertemplate: '<b>Error</b>: %{y:+.3f} m<extra></extra>',
+        hovertemplate: '<b>Residual</b>: %{y:+.3f} m<extra></extra>',
       })
 
       // ±2σ threshold lines
@@ -210,7 +210,7 @@ export function UnifiedAnalysisChart({
         ...annotations,
         // Panel labels (left side)
         { x: -0.01, y: 0.69, xref: 'paper', yref: 'paper', text: 'Water Level', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
-        { x: -0.01, y: 0.245, xref: 'paper', yref: 'paper', text: 'Stress', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.245, xref: 'paper', yref: 'paper', text: 'Contributions', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
         { x: -0.01, y: 0.055, xref: 'paper', yref: 'paper', text: 'Error', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
       ],
     }
