@@ -62,3 +62,28 @@ export function useGradientAnalysis() {
       api.explainability.gradients(body),
   })
 }
+
+export function usePermutationImportance() {
+  return useMutation({
+    mutationFn: (body: { model_id: string; n_permutations?: number }) =>
+      api.explainability.permutationImportance(body),
+  })
+}
+
+export function useLagImportance() {
+  return useMutation({
+    mutationFn: (modelId: string) => api.explainability.lagImportance(modelId),
+  })
+}
+
+export function useResidualAnalysis() {
+  return useMutation({
+    mutationFn: (modelId: string) => api.explainability.residuals(modelId),
+  })
+}
+
+export function useSeasonalityAnalysis() {
+  return useMutation({
+    mutationFn: (modelId: string) => api.explainability.seasonality(modelId),
+  })
+}

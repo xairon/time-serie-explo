@@ -61,7 +61,7 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
         cov_cols = ds.covariate_columns if req.use_covariates else None
 
         # Prepare Darts series
-        fill_method = ds.preprocessing.get("fill_method", "Interpolation linéaire")
+        fill_method = ds.preprocessing.get("fill_method", "Linear interpolation")
         full_series, covariates = prepare_dataframe_for_darts(
             df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
         )
@@ -85,14 +85,35 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
             return
 
         hyperparams = req.hyperparams.copy()
+        # Top-level fields take priority over hyperparams dict
         if req.n_epochs is not None:
-            hyperparams.setdefault("n_epochs", req.n_epochs)
-        # Pass loss function into hyperparams for ModelFactory
+            hyperparams["n_epochs"] = req.n_epochs
         if req.loss_function:
-            hyperparams.setdefault("loss_fn", req.loss_function)
+            hyperparams["loss_fn"] = req.loss_function
 
-        # Handle early stopping
-        es_patience = req.early_stopping_patience if req.early_stopping else None
+        # Handle early stopping (only for torch models)
+        from dashboard.utils.model_factory import ModelFactory
+        es_patience = req.early_stopping_patience if (req.early_stopping and ModelFactory.is_torch_model(req.model_name)) else None
+
+        # Normalize data for DL models (matching Streamlit behavior)
+        target_preprocessor = None
+        cov_preprocessor = None
+        preprocessing_config = ds.preprocessing if ds.preprocessing else {}
+        if ModelFactory.is_torch_model(req.model_name):
+            normalization = preprocessing_config.get("normalization", "Standardization (z-score)")
+            if normalization and normalization != "None":
+                from dashboard.utils.preprocessing import TimeSeriesPreprocessor
+                preproc_cfg = {"normalization": normalization, "fill_method": "None"}
+                target_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
+                train = target_preprocessor.fit_transform(train)
+                val = target_preprocessor.transform(val)
+                test = target_preprocessor.transform(test)
+                if train_cov is not None:
+                    cov_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
+                    train_cov = cov_preprocessor.fit_transform(train_cov)
+                    val_cov = cov_preprocessor.transform(val_cov) if val_cov else None
+                    test_cov = cov_preprocessor.transform(test_cov) if test_cov else None
+                    full_cov = cov_preprocessor.transform(full_cov) if full_cov else None
 
         results = run_training_pipeline(
             model_name=req.model_name,
@@ -105,12 +126,15 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
             test_cov=test_cov,
             full_cov=full_cov,
             use_covariates=req.use_covariates,
-            station_name=req.station_name,
+            station_name=req.station_name or "default",
             verbose=False,
             early_stopping_patience=es_patience,
             metrics_file=metrics_file,
             n_epochs=hyperparams.get("n_epochs"),
             dataset_name=req.dataset_id,
+            target_preprocessor=target_preprocessor,
+            cov_preprocessor=cov_preprocessor,
+            preprocessing_config=preprocessing_config,
             column_mapping={
                 "target_var": target_col,
                 "covariate_vars": cov_cols or [],
@@ -197,7 +221,25 @@ async def stream_training_metrics(task_id: str):
                     current_epoch = data.get("current_epoch", 0)
                     if current_epoch > last_epoch:
                         last_epoch = current_epoch
-                        yield {"event": "metrics", "data": json.dumps(clean_nans(data))}
+                        # Map callback format to frontend format
+                        train_losses = data.get("train_losses", [])
+                        val_losses = data.get("val_losses", [])
+                        best_val = min((v for v in val_losses if v is not None), default=None)
+                        if best_val is None:
+                            best_val = min((v for v in train_losses if v is not None), default=None)
+                        payload = {
+                            "current_epoch": current_epoch,
+                            "total_epochs": data.get("total_epochs", 0),
+                            "train_loss": train_losses[-1] if train_losses else None,
+                            "val_loss": val_losses[-1] if val_losses else None,
+                            "best_val_loss": best_val,
+                            "train_losses": train_losses,
+                            "val_losses": val_losses,
+                            "status": data.get("status"),
+                            "elapsed_seconds": data.get("elapsed_seconds"),
+                            "eta_seconds": data.get("eta_seconds"),
+                        }
+                        yield {"event": "metrics", "data": json.dumps(clean_nans(payload))}
                 except (json.JSONDecodeError, OSError):
                     pass
 

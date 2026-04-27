@@ -1,6 +1,44 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
+export function useRecomputePca() {
+  return useMutation({
+    mutationFn: (body: { domain: string; space: string; variance_threshold: number }) =>
+      api.latentSpace.recomputePca(body),
+  })
+}
+
+export function useRecomputeViz() {
+  return useMutation({
+    mutationFn: (body: { domain: string; space: string; n_neighbors: number; min_dist: number }) =>
+      api.latentSpace.recomputeViz(body),
+  })
+}
+
+export function useRecomputeClustering() {
+  return useMutation({
+    mutationFn: (body: { domain: string; space: string; min_cluster_size?: number; min_samples?: number }) =>
+      api.latentSpace.recomputeClustering(body),
+  })
+}
+
+export function useAutoTune() {
+  return useMutation({
+    mutationFn: (body: { domain: string; space: string }) =>
+      api.latentSpace.autoTune(body),
+  })
+}
+
+export function useCachedCompute(domain: string, space: string = 'multi') {
+  return useQuery({
+    queryKey: ['latent-space', 'cached', domain, space],
+    queryFn: () => api.latentSpace.cached(domain, space),
+    staleTime: 10 * 60 * 1000,
+    retry: false,  // 404 = no cache, don't retry
+    enabled: !!domain,
+  })
+}
+
 export function useStationEmbeddings(domain: string, space: string = 'multi') {
   return useQuery({
     queryKey: ['latent-space', 'stations', domain, space],
@@ -10,36 +48,12 @@ export function useStationEmbeddings(domain: string, space: string = 'multi') {
   })
 }
 
-export function useSimilarStations(domain: string, stationId: string | null) {
+export function useSimilarStations(domain: string, stationId: string | null, space: string = 'multi') {
   return useQuery({
-    queryKey: ['latent-space', 'similar', domain, stationId],
-    queryFn: () => api.latentSpace.similar(domain, stationId!, 10),
+    queryKey: ['latent-space', 'similar', domain, stationId, space],
+    queryFn: () => api.latentSpace.similar(domain, stationId!, 10, space),
     staleTime: 5 * 60 * 1000,
     enabled: !!stationId,
-  })
-}
-
-export function useComputeUMAP() {
-  return useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.latentSpace.compute(body),
-  })
-}
-
-export function useClusteringRuns(domain: string, space: string = 'multi') {
-  return useQuery({
-    queryKey: ['latent-space', 'clustering-runs', domain, space],
-    queryFn: () => api.latentSpace.clusteringRuns(domain, space),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!domain,
-  })
-}
-
-export function useClusteringRun(runId: number | null) {
-  return useQuery({
-    queryKey: ['latent-space', 'clustering-run', runId],
-    queryFn: () => api.latentSpace.clusteringRun(runId!),
-    staleTime: 5 * 60 * 1000,
-    enabled: runId != null,
   })
 }
 

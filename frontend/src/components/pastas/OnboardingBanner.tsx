@@ -34,7 +34,7 @@ export function OnboardingBanner({ id, title, description, steps, exampleAction 
         className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent-cyan transition-colors mb-3"
       >
         <Lightbulb className="w-3.5 h-3.5" />
-        Afficher le guide
+        Show guide
       </button>
     )
   }

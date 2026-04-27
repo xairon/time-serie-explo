@@ -6,13 +6,13 @@ export default function GalleryPage() {
     <div className="p-6">
       <OnboardingBanner
         id="gallery"
-        title="Bibliothèque de modèles"
-        description="Retrouvez tous vos modèles calibrés. Triez par station, performance (EVP, NSE), ou date. Exportez un modèle au format .pas ou en CSV pour le partager."
+        title="Model Library"
+        description="Browse all your calibrated models. Sort by station, performance (EVP, NSE), or date. Export a model as .pas or CSV to share it."
         steps={[
-          'Triez en cliquant sur les en-têtes de colonnes',
-          'Filtrez par nom ou code BSS avec la barre de recherche',
-          'Téléchargez un modèle (.pas) ou ses métriques (CSV) via l\'icône ↓',
-          'Supprimez un modèle avec l\'icône poubelle',
+          'Sort by clicking on column headers',
+          'Filter by name or BSS code with the search bar',
+          'Download a model (.pas) or its metrics (CSV) via the download icon',
+          'Delete a model with the trash icon',
         ]}
       />
       <ModelTable />

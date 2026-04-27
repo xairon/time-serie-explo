@@ -26,7 +26,7 @@ export function ForecastView({ result, isLoading, inputChunkLength, className = 
         className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}
       >
         <p className="text-text-secondary text-sm">
-          Selectionnez un modele et lancez une prevision pour afficher les resultats.
+          Select a model and run a forecast to display the results.
         </p>
       </div>
     )

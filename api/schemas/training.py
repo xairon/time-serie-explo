@@ -12,7 +12,7 @@ class TrainingRequest(BaseModel):
 
     model_name: str
     dataset_id: str
-    station_name: str = "default"
+    station_name: Optional[str] = "default"
     hyperparams: dict[str, Any] = Field(default_factory=dict)
     use_covariates: bool = True
     early_stopping: bool = True

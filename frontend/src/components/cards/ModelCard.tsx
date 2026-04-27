@@ -42,7 +42,7 @@ export function ModelCard({ model }: ModelCardProps) {
         </div>
       )}
       <p className="text-[10px] text-text-secondary mt-2">
-        {new Date(model.created_at).toLocaleDateString('fr-FR')}
+        {new Date(model.created_at).toLocaleDateString('en-GB')}
       </p>
     </div>
   )

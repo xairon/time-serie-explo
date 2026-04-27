@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  Database,
-  GraduationCap,
-  TrendingUp,
   Waves,
+  Brain,
   Map,
   Menu,
   X,
@@ -13,12 +10,9 @@ import {
 import { useHealth } from '@/hooks/useHealth'
 
 const NAV_ITEMS = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/data', icon: Database, label: 'Data' },
-  { to: '/training', icon: GraduationCap, label: 'Training' },
-  { to: '/forecasting', icon: TrendingUp, label: 'Forecasting' },
-  { to: '/observatory', icon: Map, label: 'Observatory' },
-  { to: '/pastas', icon: Waves, label: 'Pastas' },
+  { to: '/', icon: Map, label: 'Observatory', end: true },
+  { to: '/pastas', icon: Waves, label: 'Pastas Lab', end: false },
+  { to: '/ai', icon: Brain, label: 'AI Lab', end: false },
 ] as const
 
 export function TopNav() {
@@ -39,16 +33,16 @@ export function TopNav() {
           <span className="text-accent-cyan font-bold text-sm">J</span>
         </div>
         <span className="text-sm font-semibold text-text-primary hidden sm:block">
-          Junon Explorer
+          Junon
         </span>
       </NavLink>
 
       <div className="hidden md:flex items-center gap-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+        {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
+            end={end}
             className={({ isActive }) =>
               `flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
                 isActive
@@ -64,6 +58,11 @@ export function TopNav() {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        {health?.gpu?.available && (
+          <span className="text-[10px] text-text-muted hidden sm:block" title={health.gpu.device ?? ''}>
+            GPU
+          </span>
+        )}
         <div className="flex items-center gap-1.5" title={isHealthy ? 'API connected' : 'API unavailable'}>
           <div
             className={`w-2 h-2 rounded-full ${
@@ -86,11 +85,11 @@ export function TopNav() {
 
       {mobileOpen && (
         <div className="md:hidden absolute top-12 left-0 right-0 bg-bg-card border-b border-white/10 shadow-xl z-40">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end={end}
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 text-sm transition-colors ${

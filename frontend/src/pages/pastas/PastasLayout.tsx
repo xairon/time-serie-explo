@@ -1,12 +1,42 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { MapPin, SlidersHorizontal, BarChart3, FlaskConical, LayoutGrid } from 'lucide-react'
 import { GuidedExpertToggle } from '@/components/pastas/GuidedExpertToggle'
-import { useState, createContext, useContext, useEffect } from 'react'
+import { useState, createContext, useContext, useEffect, useCallback } from 'react'
+import type { AutoFitResult, StowaResult } from '@/lib/types'
 
-export const PastasModeContext = createContext<{
+interface PipelineState {
+  codeBss: string
+  autoFitResult: AutoFitResult | null
+  selectedRunId: string | null
+  selectedStowa: StowaResult | null
+}
+
+interface PastasModeContextValue {
   mode: 'guided' | 'expert'
   setMode: (m: 'guided' | 'expert') => void
-}>({ mode: 'guided', setMode: () => {} })
+  pipeline: PipelineState
+  setCodeBss: (code: string) => void
+  setAutoFitResult: (result: AutoFitResult | null) => void
+  selectModel: (runId: string, stowa?: StowaResult | null) => void
+  resetPipeline: () => void
+}
+
+const EMPTY_PIPELINE: PipelineState = {
+  codeBss: '',
+  autoFitResult: null,
+  selectedRunId: null,
+  selectedStowa: null,
+}
+
+export const PastasModeContext = createContext<PastasModeContextValue>({
+  mode: 'guided',
+  setMode: () => {},
+  pipeline: EMPTY_PIPELINE,
+  setCodeBss: () => {},
+  setAutoFitResult: () => {},
+  selectModel: () => {},
+  resetPipeline: () => {},
+})
 
 export function usePastasMode() {
   return useContext(PastasModeContext)
@@ -32,6 +62,7 @@ function readStoredMode(): 'guided' | 'expert' {
 
 export default function PastasLayout() {
   const [mode, setModeState] = useState<'guided' | 'expert'>(readStoredMode)
+  const [pipeline, setPipeline] = useState<PipelineState>(EMPTY_PIPELINE)
 
   function setMode(m: 'guided' | 'expert') {
     setModeState(m)
@@ -39,6 +70,25 @@ export default function PastasLayout() {
       localStorage.setItem(STORAGE_KEY, m)
     } catch { /* ignore */ }
   }
+
+  const setCodeBss = useCallback((code: string) => {
+    setPipeline(prev => prev.codeBss === code ? prev : {
+      ...EMPTY_PIPELINE,
+      codeBss: code,
+    })
+  }, [])
+
+  const setAutoFitResult = useCallback((result: AutoFitResult | null) => {
+    setPipeline(prev => ({ ...prev, autoFitResult: result }))
+  }, [])
+
+  const selectModel = useCallback((runId: string, stowa?: StowaResult | null) => {
+    setPipeline(prev => ({ ...prev, selectedRunId: runId, selectedStowa: stowa ?? null }))
+  }, [])
+
+  const resetPipeline = useCallback(() => {
+    setPipeline(EMPTY_PIPELINE)
+  }, [])
 
   // Sync across tabs
   useEffect(() => {
@@ -51,8 +101,12 @@ export default function PastasLayout() {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
+  const contextValue: PastasModeContextValue = {
+    mode, setMode, pipeline, setCodeBss, setAutoFitResult, selectModel, resetPipeline,
+  }
+
   return (
-    <PastasModeContext.Provider value={{ mode, setMode }}>
+    <PastasModeContext.Provider value={contextValue}>
       <div className="flex flex-col h-full">
         <div className="bg-bg-card border-b border-white/5 shrink-0">
           <div className="flex items-center justify-between px-4">

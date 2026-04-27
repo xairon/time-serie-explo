@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Eye, Search, ArrowUpDown, LayoutGrid, List } from 'lucide-react'
+import { Trash2, Eye, Search, ArrowUpDown, LayoutGrid, List, RotateCcw } from 'lucide-react'
 import { usePastasModels, usePastasDeleteModel } from '@/hooks/usePastas'
 import { ExportMenu } from './ExportMenu'
 import type { PastasModelSummary } from '@/lib/types'
@@ -33,9 +33,10 @@ function ConfigTag({ label, color }: { label: string; color: string }) {
   )
 }
 
-function ModelCard({ m, onView, onDelete }: {
+function ModelCard({ m, onView, onRefit, onDelete }: {
   m: PastasModelSummary
   onView: () => void
+  onRefit: () => void
   onDelete: () => void
 }) {
   return (
@@ -52,6 +53,9 @@ function ModelCard({ m, onView, onDelete }: {
         <div className="flex items-center gap-0.5 shrink-0 ml-2">
           <button onClick={onView} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-accent-cyan transition-colors" title="View results">
             <Eye className="w-4 h-4" />
+          </button>
+          <button onClick={onRefit} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-purple-400 transition-colors" title="Refit with same config">
+            <RotateCcw className="w-4 h-4" />
           </button>
           <ExportMenu runId={m.run_id} />
           <button onClick={onDelete} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-red-400 transition-colors" title="Delete">
@@ -150,6 +154,22 @@ export function ModelTable() {
     else { setSortKey(key); setSortAsc(false) }
   }
 
+  function viewModel(m: PastasModelSummary) {
+    navigate(`/pastas/results?model=${m.run_id}&station=${encodeURIComponent(m.code_bss)}`)
+  }
+
+  function refitModel(m: PastasModelSummary) {
+    const params = new URLSearchParams({
+      station: m.code_bss,
+      recharge: m.recharge_type,
+      response: m.response_type,
+      noise: m.noise_type,
+      solver: m.solver_type,
+    })
+    if (m.include_temp) params.set('include_temp', '1')
+    navigate(`/pastas/calibrate?${params.toString()}`)
+  }
+
   const grouped = useMemo(() => {
     const map = new Map<string, PastasModelSummary[]>()
     for (const m of sorted) {
@@ -230,7 +250,8 @@ export function ModelTable() {
                       )}
                       <ModelCard
                         m={m}
-                        onView={() => navigate(`/pastas/fit?model=${m.run_id}`)}
+                        onView={() => viewModel(m)}
+                        onRefit={() => refitModel(m)}
                         onDelete={() => { if (confirm('Delete this model?')) deleteMut.mutate(m.run_id) }}
                       />
                     </div>
@@ -241,55 +262,66 @@ export function ModelTable() {
           })}
         </div>
       ) : (
-        <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-text-muted border-b border-white/5 text-xs uppercase tracking-wide">
-                  <th className="px-3 py-2 text-left">Name</th>
-                  <th className="px-3 py-2 text-left">Station</th>
-                  <th className="px-3 py-2 text-left">Config</th>
-                  <th className="px-3 py-2 text-right">NSE train</th>
-                  <th className="px-3 py-2 text-right">NSE test</th>
-                  <th className="px-3 py-2 text-right">EVP %</th>
-                  <th className="px-3 py-2 text-left">Date</th>
-                  <th className="px-3 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map(m => (
-                  <tr key={m.run_id} className="border-b border-white/5 hover:bg-bg-hover transition-colors">
-                    <td className="px-3 py-2 text-text-primary font-medium">{m.name || m.run_id.slice(0, 8)}</td>
-                    <td className="px-3 py-2 font-mono"><a href={`/station/piezo/${encodeURIComponent(m.code_bss)}`} className="text-accent-cyan hover:underline">{m.code_bss}</a></td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-0.5">
-                        <ConfigTag label={m.recharge_type} color="border-blue-500/30 text-blue-400 bg-blue-500/10" />
-                        <ConfigTag label={m.response_type} color="border-emerald-500/30 text-emerald-400 bg-emerald-500/10" />
-                        {m.noise_type !== 'unknown' && m.noise_type !== 'none' && (
-                          <ConfigTag label={m.noise_type.replace('NoiseModel', '').replace('Noise', '')} color="border-amber-500/30 text-amber-400 bg-amber-500/10" />
-                        )}
-                      </div>
-                    </td>
-                    <td className={`px-3 py-2 text-right font-mono ${nseColor(m.nse)}`}>{m.nse?.toFixed(3) ?? '—'}</td>
-                    <td className={`px-3 py-2 text-right font-mono ${nseColor(m.val_nse)}`}>{m.val_nse?.toFixed(3) ?? '—'}</td>
-                    <td className="px-3 py-2 text-right text-text-primary">{m.evp?.toFixed(1) ?? '—'}</td>
-                    <td className="px-3 py-2 text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('en-GB')}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-0.5">
-                        <button onClick={() => navigate(`/pastas/fit?model=${m.run_id}`)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-accent-cyan transition-colors" title="View">
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <ExportMenu runId={m.run_id} />
-                        <button onClick={() => { if (confirm('Delete this model?')) deleteMut.mutate(m.run_id) }} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-red-400 transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-4">
+          {Array.from(grouped.entries()).map(([station, models]) => (
+            <div key={station}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <a href={`/station/piezo/${encodeURIComponent(station)}`} className="text-sm font-mono text-accent-cyan hover:underline">{station}</a>
+                <span className="text-xs text-text-muted">{models.length} model(s)</span>
+              </div>
+              <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-text-muted border-b border-white/5 text-xs uppercase tracking-wide">
+                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Config</th>
+                        <th className="px-3 py-2 text-right">NSE train</th>
+                        <th className="px-3 py-2 text-right">NSE test</th>
+                        <th className="px-3 py-2 text-right">EVP %</th>
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {models.map(m => (
+                        <tr key={m.run_id} className="border-b border-white/5 hover:bg-bg-hover transition-colors">
+                          <td className="px-3 py-2 text-text-primary font-medium">{m.name || m.run_id.slice(0, 8)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-0.5">
+                              <ConfigTag label={m.recharge_type} color="border-blue-500/30 text-blue-400 bg-blue-500/10" />
+                              <ConfigTag label={m.response_type} color="border-emerald-500/30 text-emerald-400 bg-emerald-500/10" />
+                              {m.noise_type !== 'unknown' && m.noise_type !== 'none' && (
+                                <ConfigTag label={m.noise_type.replace('NoiseModel', '').replace('Noise', '')} color="border-amber-500/30 text-amber-400 bg-amber-500/10" />
+                              )}
+                            </div>
+                          </td>
+                          <td className={`px-3 py-2 text-right font-mono ${nseColor(m.nse)}`}>{m.nse?.toFixed(3) ?? '—'}</td>
+                          <td className={`px-3 py-2 text-right font-mono ${nseColor(m.val_nse)}`}>{m.val_nse?.toFixed(3) ?? '—'}</td>
+                          <td className="px-3 py-2 text-right text-text-primary">{m.evp?.toFixed(1) ?? '—'}</td>
+                          <td className="px-3 py-2 text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('en-GB')}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button onClick={() => viewModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-accent-cyan transition-colors" title="View results">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => refitModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-purple-400 transition-colors" title="Refit">
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <ExportMenu runId={m.run_id} />
+                              <button onClick={() => { if (confirm('Delete this model?')) deleteMut.mutate(m.run_id) }} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-red-400 transition-colors" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

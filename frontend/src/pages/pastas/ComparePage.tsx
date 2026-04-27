@@ -26,20 +26,20 @@ export default function ComparePage() {
     <div className="p-6 space-y-6">
       <OnboardingBanner
         id="compare"
-        title="Comparer des modèles"
-        description="Sélectionnez 2 à 5 modèles pour les comparer côte à côte : métriques, paramètres, et simulations superposées. Utile pour choisir la meilleure configuration (Gamma vs Exponential, avec ou sans noise model, etc.)."
+        title="Compare Models"
+        description="Select 2 to 5 models to compare side by side: metrics, parameters, and overlaid simulations. Useful for choosing the best configuration (Gamma vs Exponential, with or without noise model, etc.)."
         steps={[
-          'Cochez les modèles à comparer (même station ou stations différentes)',
-          'Cliquez "Comparer" pour voir les résultats',
-          'Le tableau met en vert la meilleure valeur par métrique',
-          'Le graphe superpose toutes les simulations avec l\'observé',
+          'Check the models to compare (same station or different stations)',
+          'Click "Compare" to view results',
+          'The table highlights the best value per metric in green',
+          'The chart overlays all simulations with the observed data',
         ]}
       />
 
       {/* Model selection */}
       <div className="bg-bg-card rounded-lg border border-white/5 p-4">
         <h2 className="text-sm font-semibold text-text-secondary mb-3">
-          Sélectionnez 2 à 5 modèles
+          Select 2 to 5 models
         </h2>
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {(models ?? []).map(m => (

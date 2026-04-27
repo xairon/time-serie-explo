@@ -17,7 +17,9 @@
     "react-plotly.js": "^2.6.0",
     "plotly.js-dist-min": "^2.35.0",
     "lucide-react": "^0.460.0",
-    "clsx": "^2.1.0"
+    "maplibre-gl": "^5.19.0",
+    "clsx": "^2.1.0",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

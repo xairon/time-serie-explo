@@ -1,5 +1,6 @@
 import { BarChart3, Clock, TrendingDown, Scissors, Waves, Calendar } from 'lucide-react'
 import type { DiagnoseResult, DiagnosticRecommendation } from '@/lib/types'
+import { InfoTip } from './InfoTip'
 
 interface Props {
   diagnosis: DiagnoseResult | undefined
@@ -15,12 +16,12 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const INDICATORS = [
-  { key: 'coverage' as const, label: 'Coverage', Icon: BarChart3 },
-  { key: 'gaps' as const, label: 'Gaps', Icon: Clock },
-  { key: 'trend' as const, label: 'Trend', Icon: TrendingDown },
-  { key: 'breakpoints' as const, label: 'Breakpoints', Icon: Scissors },
-  { key: 'seasonality' as const, label: 'Seasonality', Icon: Waves },
-  { key: 'record_length' as const, label: 'Record', Icon: Calendar },
+  { key: 'coverage' as const, label: 'Coverage', Icon: BarChart3, tip: 'Percentage of days with actual measurements between the first and last observation. Green > 80%, orange 50-80%, red < 50%. Low coverage means the model must interpolate over long missing periods.' },
+  { key: 'gaps' as const, label: 'Gaps', Icon: Clock, tip: 'Largest consecutive gap without data (in days). Green < 30 days, orange 30-180 days, red > 180 days. Gaps > 6 months can distort the calibration — consider trimming the period to start after the gap.' },
+  { key: 'trend' as const, label: 'Trend', Icon: TrendingDown, tip: 'Mann-Kendall test for monotonic trend in the water level. If a significant trend is detected (p < 0.05), consider adding a LinearTrend stress to the Pastas model so residuals stay stationary.' },
+  { key: 'breakpoints' as const, label: 'Breakpoints', Icon: Scissors, tip: 'Pettitt change-point test — detects a single abrupt shift in the mean level (e.g. new pumping well, land-use change). If detected, the period before the break may need to be excluded.' },
+  { key: 'seasonality' as const, label: 'Seasonality', Icon: Waves, tip: 'Autocorrelation at lag 12 months (ACF₁₂) — measures the strength of the annual cycle. Green > 0.3 (strong, the model can capture it), orange 0.1-0.3, red < 0.1 (weak or no annual signal — the aquifer may be deep or heavily influenced by pumping).' },
+  { key: 'record_length' as const, label: 'Record', Icon: Calendar, tip: 'Total duration of available data in years. Green ≥ 15 years (robust calibration), orange 5-15 years, red < 5 years. Short records limit the model\'s ability to capture low-frequency variability and drought cycles.' },
 ]
 
 function SkeletonCard() {
@@ -71,7 +72,7 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {INDICATORS.map(({ key, label, Icon }) => {
+        {INDICATORS.map(({ key, label, Icon, tip }) => {
           const indicator = diagnosis[key]
           if (!indicator) return null
           const dotColor = STATUS_COLORS[indicator.status] ?? STATUS_COLORS.orange
@@ -83,7 +84,10 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
             >
               <Icon className="w-4 h-4 text-text-muted mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-text-secondary leading-tight">{label}</div>
+                <div className="text-xs font-medium text-text-secondary leading-tight flex items-center gap-1">
+                  {label}
+                  <InfoTip text={tip} />
+                </div>
                 {indicator.detail && (
                   <div className="text-xs text-text-muted mt-0.5 leading-tight truncate" title={indicator.detail}>
                     {indicator.detail}

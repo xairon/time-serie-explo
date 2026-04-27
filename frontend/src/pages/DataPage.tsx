@@ -96,7 +96,7 @@ export default function DataPage() {
 
   const handleDeleteDataset = (id: string) => {
     const ds = datasets?.find((d) => d.id === id)
-    if (!confirm(`Supprimer le dataset "${ds?.name ?? id}" ?`)) return
+    if (!confirm(`Delete the dataset "${ds?.name ?? id}"?`)) return
     deleteMutation.mutate(id, {
       onSuccess: () => {
         if (selectedDatasetId === id) setSelectedDatasetId('')
@@ -334,7 +334,7 @@ export default function DataPage() {
                       <p className="text-[10px] text-text-secondary uppercase tracking-wide">Date range</p>
                       <p className="text-sm font-medium text-text-primary mt-1">
                         {dateRange && dateRange.length >= 2
-                          ? `${new Date(dateRange[0]).toLocaleDateString('fr-FR')} — ${new Date(dateRange[1]).toLocaleDateString('fr-FR')}`
+                          ? `${new Date(dateRange[0]).toLocaleDateString('en-GB')} — ${new Date(dateRange[1]).toLocaleDateString('en-GB')}`
                           : '—'}
                       </p>
                     </div>

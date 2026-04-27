@@ -13,6 +13,7 @@ from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
 from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, latent_space, pastas
+from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,9 @@ async def lifespan(app: FastAPI):
     async def _warmup_latent_space():
         try:
             from api.routers.latent_space import warmup_cache
-            async with brgm_engine.connect() as conn:
-                await warmup_cache(conn)
+            from sqlalchemy.ext.asyncio import AsyncSession
+            async with AsyncSession(brgm_engine) as session:
+                await warmup_cache(session)
         except Exception as exc:
             logger.warning("Latent-space cache warmup failed: %s", exc)
 
@@ -78,6 +80,12 @@ app.include_router(db_introspection.router)
 app.include_router(pumping_detection.router)
 app.include_router(latent_space.router)
 app.include_router(pastas.router)
+app.include_router(observatory_piezo.router)
+app.include_router(observatory_hydro.router)
+app.include_router(observatory_common.router)
+app.include_router(observatory_era5.router)
+app.include_router(observatory_wfs.router)
+app.include_router(observatory_bdlisa.router)
 
 
 def _check_gpu() -> dict:

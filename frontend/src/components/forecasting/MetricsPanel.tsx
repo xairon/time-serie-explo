@@ -33,7 +33,7 @@ export function MetricsPanel({ metrics, actuals, className = '' }: MetricsPanelP
 
   return (
     <div className={`space-y-2 ${className}`}>
-      <h4 className="text-sm font-semibold text-text-primary">Metriques</h4>
+      <h4 className="text-sm font-semibold text-text-primary">Metrics</h4>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(metrics).map(([key, val]) => {
           const good = isGood(key, val)
@@ -62,7 +62,7 @@ export function MetricsPanel({ metrics, actuals, className = '' }: MetricsPanelP
       {iqr != null && mae != null && (
         <div className="bg-bg-card rounded-lg border border-white/5 p-3">
           <p className="text-xs text-text-secondary">
-            MAE ≈ <span className="text-text-primary font-medium">{((mae / iqr) * 100).toFixed(1)}%</span> de l&apos;echelle (IQR = {iqr.toFixed(4)})
+            MAE ≈ <span className="text-text-primary font-medium">{((mae / iqr) * 100).toFixed(1)}%</span> of scale (IQR = {iqr.toFixed(4)})
           </p>
         </div>
       )}

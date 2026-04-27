@@ -95,9 +95,6 @@ def compute_permutation_importance(
     metric_fn = metrics.get(metric, mae)
 
     try:
-        # Baseline prediction
-        predict_kwargs = {"n": output_chunk_length, "series": series}
-
         # Check for covariate usage - try multiple attribute patterns
         uses_past = (
             getattr(model, "_uses_past_covariates", False) or
@@ -109,17 +106,25 @@ def compute_permutation_importance(
             getattr(model, "uses_future_covariates", False)
         )
 
+        # Hold out the last output_chunk_length points as actual values
+        # and use the rest as input context for prediction
+        if len(series) <= output_chunk_length:
+            return {"_error": f"Series too short ({len(series)}) for output_chunk_length={output_chunk_length}"}
+
+        actual_end = series.slice_n_points_after(
+            series.time_index[-output_chunk_length], output_chunk_length
+        )
+        input_series = series.drop_after(series.time_index[-output_chunk_length])
+
+        # Baseline prediction using truncated series
+        predict_kwargs = {"n": output_chunk_length, "series": input_series}
+
         if uses_past:
             predict_kwargs["past_covariates"] = covariates
         if uses_future:
             predict_kwargs["future_covariates"] = covariates
 
         baseline_pred = model.predict(**predict_kwargs)
-
-        # Compute baseline score against actual values (end of series)
-        actual_end = series.slice_n_points_after(
-            series.time_index[-output_chunk_length], output_chunk_length
-        ) if len(series) > output_chunk_length else series
         baseline_score = float(metric_fn(actual_end, baseline_pred))
 
         cov_df = covariates.to_dataframe()
@@ -151,7 +156,7 @@ def compute_permutation_importance(
                     )
 
                     # Predict with shuffled covariates
-                    perm_kwargs = {"n": output_chunk_length, "series": series}
+                    perm_kwargs = {"n": output_chunk_length, "series": input_series}
                     if uses_past:
                         perm_kwargs["past_covariates"] = cov_permuted_ts
                     if uses_future:
@@ -163,7 +168,8 @@ def compute_permutation_importance(
                     # compared to baseline, measured against actual values
                     permuted_score = float(metric_fn(actual_end, permuted_pred))
                     degradation = permuted_score - baseline_score
-                    degradations.append(max(degradation, 0.0))
+                    if not np.isnan(degradation):
+                        degradations.append(max(degradation, 0.0))
 
                 except Exception as inner_e:
                     last_error = inner_e

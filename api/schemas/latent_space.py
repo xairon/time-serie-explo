@@ -147,3 +147,28 @@ class ClusteringRunDetail(BaseModel):
     is_default: bool
     created_at: str | None = None
     labels: list[ClusteringLabel]
+
+
+class RecomputePCARequest(BaseModel):
+    domain: Literal["piezo", "hydro"]
+    space: Literal["uni", "multi"] = "multi"
+    variance_threshold: float = Field(default=0.95, ge=0.90, le=0.99)
+
+
+class RecomputeVizRequest(BaseModel):
+    domain: Literal["piezo", "hydro"]
+    space: Literal["uni", "multi"] = "multi"
+    n_neighbors: int = Field(default=50, ge=15, le=200)
+    min_dist: float = Field(default=0.3, ge=0.05, le=1.0)
+
+
+class RecomputeClusteringRequest(BaseModel):
+    domain: Literal["piezo", "hydro"]
+    space: Literal["uni", "multi"] = "multi"
+    min_cluster_size: int | None = Field(default=None, ge=5)
+    min_samples: int | None = Field(default=None, ge=1)
+
+
+class AutoTuneRequest(BaseModel):
+    domain: Literal["piezo", "hydro"]
+    space: Literal["uni", "multi"] = "multi"

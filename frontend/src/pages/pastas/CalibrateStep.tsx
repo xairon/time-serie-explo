@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { Loader2, Play, Zap, ArrowLeft, Check, AlertTriangle } from 'lucide-react'
+import { Loader2, Play, Zap, ArrowLeft, Check, AlertTriangle, RotateCcw } from 'lucide-react'
 import { usePastasFit, usePastasAutoFit, usePastasStationInfo } from '@/hooks/usePastas'
+import { InfoTip } from '@/components/pastas/InfoTip'
 import { usePastasMode } from './PastasLayout'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
@@ -10,46 +11,64 @@ import type { AutoFitResult, AutoFitCandidate } from '@/lib/types'
 export default function CalibrateStep() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { mode } = usePastasMode()
+  const { mode, setMode, pipeline, setCodeBss, setAutoFitResult: setPipelineAutoFit, selectModel } = usePastasMode()
 
-  const codeBss = searchParams.get('station') ?? ''
+  const codeBss = searchParams.get('station') ?? pipeline.codeBss ?? ''
   const recommendedTmin = searchParams.get('tmin') ?? ''
   const recommendedTmax = searchParams.get('tmax') ?? ''
+
+  // Refit params from Gallery
+  const refitRecharge = searchParams.get('recharge')
+  const refitResponse = searchParams.get('response')
+  const refitNoise = searchParams.get('noise')
+  const refitSolver = searchParams.get('solver')
+  const refitIncludeTemp = searchParams.get('include_temp') === '1'
+  const isRefit = !!(refitRecharge || refitResponse || refitNoise || refitSolver)
+
+  // Sync station to pipeline context
+  useEffect(() => {
+    if (codeBss) setCodeBss(codeBss)
+  }, [codeBss, setCodeBss])
+
+  // Switch to expert mode when refitting from gallery
+  useEffect(() => {
+    if (isRefit) setMode('expert')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Station info for BDLISA preset
   const { data: stationInfo } = usePastasStationInfo(codeBss || null)
 
-  // Config form state (expert mode)
-  const [recharge, setRecharge] = useState('Linear')
-  const [response, setResponse] = useState('Gamma')
-  const [noise, setNoise] = useState('ArNoiseModel')
-  const [solver, setSolver] = useState('LeastSquares')
+  // Config form state (expert mode) — refit params take priority
+  const [recharge, setRecharge] = useState(refitRecharge || 'Linear')
+  const [response, setResponse] = useState(refitResponse || 'Gamma')
+  const [noise, setNoise] = useState(refitNoise || 'ArNoiseModel')
+  const [solver, setSolver] = useState(refitSolver || 'LeastSquares')
   const [tmin, setTmin] = useState(recommendedTmin)
   const [tmax, setTmax] = useState(recommendedTmax)
   const [modelName, setModelName] = useState('')
   const [valSplit, setValSplit] = useState<number | null>(0.3)
-  const [includeTemp, setIncludeTemp] = useState(false)
+  const [includeTemp, setIncludeTemp] = useState(refitIncludeTemp)
   const [warmUpYears, setWarmUpYears] = useState(1)
   const [twoPass, setTwoPass] = useState(false)
 
-  // Apply BDLISA preset
-  const [presetApplied, setPresetApplied] = useState('')
+  // Apply BDLISA preset (only when not refitting)
+  const [presetApplied, setPresetApplied] = useState(isRefit ? codeBss : '')
   useEffect(() => {
-    if (stationInfo?.preset && codeBss !== presetApplied) {
+    if (!isRefit && stationInfo?.preset && codeBss !== presetApplied) {
       const p = stationInfo.preset as Record<string, string>
       if (p.recharge) setRecharge(p.recharge)
       if (p.response) setResponse(p.response)
       if (p.noise) setNoise(p.noise)
       setPresetApplied(codeBss)
     }
-  }, [stationInfo, codeBss, presetApplied])
+  }, [stationInfo, codeBss, presetApplied, isRefit])
 
   // Mutations
   const fitMutation = usePastasFit()
   const autoFitMutation = usePastasAutoFit()
 
-  // Auto-fit state
-  const [autoFitResult, setAutoFitResult] = useState<AutoFitResult | null>(null)
+  // Auto-fit state from pipeline context (persists across tab switches)
+  const autoFitResult = pipeline.autoFitResult
 
   async function handleFit() {
     if (!codeBss) return
@@ -66,6 +85,7 @@ export default function CalibrateStep() {
         val_split: valSplit ?? undefined,
         include_temp: includeTemp || undefined,
       })
+      selectModel(result.run_id)
       navigate(`/pastas/results?model=${result.run_id}&station=${codeBss}`)
     } catch {
       // Error handled by mutation state
@@ -82,13 +102,19 @@ export default function CalibrateStep() {
         include_temp: includeTemp || undefined,
         add_trend: twoPass || null,
       })
-      setAutoFitResult(result)
+      setPipelineAutoFit(result)
+      // Auto-select the best candidate
+      if (result.best_run_id) {
+        const bestCandidate = result.candidates.find(c => c.run_id === result.best_run_id)
+        selectModel(result.best_run_id, bestCandidate?.stowa ?? null)
+      }
     } catch {
       // Error handled by mutation state
     }
   }
 
-  function viewResults(runId: string) {
+  function viewResults(runId: string, stowa?: AutoFitCandidate['stowa']) {
+    selectModel(runId, stowa ?? null)
     navigate(`/pastas/results?model=${runId}&station=${codeBss}`)
   }
 
@@ -148,12 +174,16 @@ export default function CalibrateStep() {
                     onChange={e => setIncludeTemp(e.target.checked)}
                     className="accent-accent-cyan w-4 h-4"
                   />
-                  <span className="text-xs text-text-secondary">Include temperature</span>
+                  <span className="text-xs text-text-secondary flex items-center gap-1">
+                    Include temperature
+                    <InfoTip text="Adds ERA5 2m-temperature as a separate stress. Useful for shallow aquifers where thermal effects influence water levels. Usually minor — try without first." />
+                  </span>
                 </label>
 
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">
+                  <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
                     Warm-up period ({warmUpYears} year{warmUpYears !== 1 ? 's' : ''})
+                    <InfoTip text="Data at the start of the series used to initialize the model's internal state (response function memory) but NOT included in the calibration metrics. Choose 1-2 years for fast-responding aquifers (alluvial, shallow), 3-5 years for slow ones (deep sedimentary, confined). If your response time T95 is ~500 days, use at least 2 years." />
                   </label>
                   <input
                     type="range"
@@ -189,6 +219,15 @@ export default function CalibrateStep() {
         ) : (
           /* Expert mode — manual config */
           <>
+            {isRefit && (
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-purple-400 shrink-0" />
+                <span className="text-xs text-purple-300">
+                  Pre-filled from Gallery model. Modify parameters and refit.
+                </span>
+              </div>
+            )}
+
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <h2 className="text-sm font-semibold text-text-primary mb-2">Model Configuration</h2>
               {stationInfo?.preset != null && (stationInfo.preset as Record<string, string>).label && (
@@ -227,15 +266,19 @@ export default function CalibrateStep() {
                   className="accent-accent-cyan w-4 h-4"
                 />
                 <div>
-                  <span className="text-sm font-medium text-text-secondary">Include temperature</span>
+                  <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
+                    Include temperature
+                    <InfoTip text="Adds ERA5 2m-temperature as a separate stress with its own response function. Useful for shallow aquifers where thermal expansion or temperature-dependent viscosity affects levels. Usually small compared to recharge — try without first." />
+                  </span>
                   <p className="text-xs text-text-muted">Adds ERA5 temperature as an additional stress.</p>
                 </div>
               </label>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-              <label className="block text-xs text-text-muted mb-1">
+              <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
                 Warm-up period ({warmUpYears} year{warmUpYears !== 1 ? 's' : ''})
+                <InfoTip text="Data at the start of the series used to initialize the model's internal state (response function memory) but NOT included in the calibration metrics. Choose 1-2 years for fast-responding aquifers (alluvial, shallow), 3-5 years for slow ones (deep sedimentary, confined). If your response time T95 is ~500 days, use at least 2 years." />
               </label>
               <input
                 type="range"
@@ -246,9 +289,6 @@ export default function CalibrateStep() {
                 onChange={e => setWarmUpYears(+e.target.value)}
                 className="w-full accent-accent-cyan"
               />
-              <p className="text-xs text-text-muted mt-1">
-                Data before this period is used for model initialization only.
-              </p>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
@@ -260,7 +300,10 @@ export default function CalibrateStep() {
                   className="accent-accent-cyan w-4 h-4"
                 />
                 <div>
-                  <span className="text-sm font-medium text-text-secondary">Two-pass (add trend)</span>
+                  <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
+                    Two-pass (add trend)
+                    <InfoTip text="First fits the model without a trend, then checks if residuals still show a significant drift (Mann-Kendall test). If yes, adds a LinearTrend stress and refits. Recommended when the pre-fit diagnostics detected a trend — captures long-term changes (climate, land use, pumping) that recharge alone cannot explain." />
+                  </span>
                   <p className="text-xs text-text-muted">First fit without trend, then add a linear trend stress if residuals show a trend.</p>
                 </div>
               </label>
@@ -313,10 +356,24 @@ export default function CalibrateStep() {
       {/* Right column — auto-fit results */}
       <div className="flex-1 min-w-0">
         {mode === 'guided' && autoFitResult && (
-          <AutoFitResultsTable
-            result={autoFitResult}
-            onViewResults={viewResults}
-          />
+          <>
+            <AutoFitResultsTable
+              result={autoFitResult}
+              onSelect={(runId, stowa) => selectModel(runId, stowa ?? null)}
+              selectedRunId={pipeline.selectedRunId}
+            />
+            {pipeline.selectedRunId && (
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => viewResults(pipeline.selectedRunId!, autoFitResult.candidates.find(c => c.run_id === pipeline.selectedRunId)?.stowa)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  View Results
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {mode === 'guided' && !autoFitResult && !autoFitMutation.isPending && (
@@ -364,14 +421,15 @@ export default function CalibrateStep() {
 
 // --- Auto-fit results table ---
 
-function AutoFitResultsTable({ result, onViewResults }: {
+function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
   result: AutoFitResult
-  onViewResults: (runId: string) => void
+  onSelect: (runId: string, stowa?: AutoFitCandidate['stowa']) => void
+  selectedRunId: string | null
 }) {
   const sorted = [...result.candidates].sort((a, b) => {
     if (a.error && !b.error) return 1
     if (!a.error && b.error) return -1
-    return (b.evp ?? -Infinity) - (a.evp ?? -Infinity)
+    return (b.nse ?? -Infinity) - (a.nse ?? -Infinity)
   })
 
   return (
@@ -384,15 +442,7 @@ function AutoFitResultsTable({ result, onViewResults }: {
             {result.candidates.length} configurations tested in {result.total_elapsed_s.toFixed(1)}s
           </p>
         </div>
-        {result.best_run_id && (
-          <button
-            onClick={() => onViewResults(result.best_run_id!)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 transition-colors"
-          >
-            <Check className="w-4 h-4" />
-            View Best Results
-          </button>
-        )}
+        <p className="text-xs text-text-muted">Click a row to select, then proceed to Results.</p>
       </div>
 
       {/* Table */}
@@ -401,12 +451,19 @@ function AutoFitResultsTable({ result, onViewResults }: {
           <thead>
             <tr className="text-text-muted border-b border-white/5">
               <th className="text-left px-3 py-2">Configuration</th>
-              <th className="text-right px-3 py-2">EVP</th>
-              <th className="text-right px-3 py-2">NSE</th>
-              <th className="text-right px-3 py-2">AIC</th>
-              <th className="text-center px-3 py-2">STOWA</th>
+              <th className="text-right px-3 py-2">
+                <span className="inline-flex items-center gap-1">NSE <InfoTip text="Nash-Sutcliffe Efficiency — measures how well the model reproduces the observed variability. 1 = perfect match, 0 = no better than predicting the mean, negative = worse than the mean. Aim for > 0.7." /></span>
+              </th>
+              <th className="text-right px-3 py-2">
+                <span className="inline-flex items-center gap-1">RMSE <InfoTip text="Root Mean Square Error — average prediction error in meters. Lower is better. Depends on the aquifer's natural variability — compare across models for the same station, not across stations." /></span>
+              </th>
+              <th className="text-right px-3 py-2">
+                <span className="inline-flex items-center gap-1">KGE <InfoTip text="Kling-Gupta Efficiency — combines correlation, bias ratio, and variability ratio into a single score. More balanced than NSE (which overweights peaks). > 0.7 = good, > 0.9 = excellent." /></span>
+              </th>
+              <th className="text-center px-3 py-2">
+                <span className="inline-flex items-center gap-1">STOWA <InfoTip text="Dutch standard for groundwater model quality (STOWA 2012). Checks 4 criteria: (1) EVP ≥ 70% variance explained, (2) residuals are independent (Runs test), (3) response time T95 is physically plausible, (4) all stresses contribute significantly (gain test). 'Pass' = all 4 met." /></span>
+              </th>
               <th className="text-right px-3 py-2">Time</th>
-              <th className="text-right px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -415,7 +472,8 @@ function AutoFitResultsTable({ result, onViewResults }: {
                 key={i}
                 candidate={c}
                 isBest={c.run_id === result.best_run_id}
-                onViewResults={onViewResults}
+                isSelected={c.run_id === selectedRunId}
+                onSelect={onSelect}
               />
             ))}
           </tbody>
@@ -425,10 +483,18 @@ function AutoFitResultsTable({ result, onViewResults }: {
   )
 }
 
-function CandidateRow({ candidate, isBest, onViewResults }: {
+function nseColor(v: number | null): string {
+  if (v == null) return 'text-text-muted'
+  if (v > 0.7) return 'text-green-400'
+  if (v > 0.4) return 'text-accent-cyan'
+  return 'text-red-400'
+}
+
+function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
   candidate: AutoFitCandidate
   isBest: boolean
-  onViewResults: (runId: string) => void
+  isSelected: boolean
+  onSelect: (runId: string, stowa?: AutoFitCandidate['stowa']) => void
 }) {
   const c = candidate
   const configLabel = [
@@ -442,7 +508,7 @@ function CandidateRow({ candidate, isBest, onViewResults }: {
     return (
       <tr className="border-b border-white/5 text-red-400/70">
         <td className="px-3 py-2 font-mono">{configLabel}</td>
-        <td colSpan={5} className="px-3 py-2">
+        <td colSpan={4} className="px-3 py-2">
           <div className="flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             <span className="truncate">{c.error}</span>
@@ -453,17 +519,25 @@ function CandidateRow({ candidate, isBest, onViewResults }: {
     )
   }
 
+  const selectable = !!c.run_id
+
   return (
-    <tr className={`border-b border-white/5 hover:bg-bg-hover ${isBest ? 'bg-accent-cyan/5' : ''}`}>
+    <tr
+      onClick={() => selectable && onSelect(c.run_id!, c.stowa)}
+      className={`border-b border-white/5 transition-colors ${
+        selectable ? 'cursor-pointer hover:bg-bg-hover' : 'opacity-50'
+      } ${isSelected ? 'bg-accent-cyan/10 border-l-2 border-l-accent-cyan' : isBest ? 'bg-accent-cyan/5' : ''}`}
+    >
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
-          {isBest && <span className="text-accent-cyan text-[10px] font-semibold">BEST</span>}
+          {isSelected && <Check className="w-3 h-3 text-accent-cyan shrink-0" />}
+          {!isSelected && isBest && <span className="text-accent-cyan text-[10px] font-semibold shrink-0">BEST</span>}
           <span className="font-mono text-text-primary">{configLabel}</span>
         </div>
       </td>
-      <td className="px-3 py-2 text-right text-text-primary">{c.evp != null ? `${c.evp.toFixed(1)}%` : '--'}</td>
-      <td className="px-3 py-2 text-right text-text-primary">{c.nse != null ? c.nse.toFixed(3) : '--'}</td>
-      <td className="px-3 py-2 text-right text-text-muted">{c.aic != null ? c.aic.toFixed(1) : '--'}</td>
+      <td className={`px-3 py-2 text-right font-mono ${nseColor(c.nse)}`}>{typeof c.nse === 'number' ? c.nse.toFixed(3) : '--'}</td>
+      <td className="px-3 py-2 text-right font-mono text-text-primary">{typeof c.rmse === 'number' ? c.rmse.toFixed(4) : '--'}</td>
+      <td className={`px-3 py-2 text-right font-mono ${nseColor(c.kge)}`}>{typeof c.kge === 'number' ? c.kge.toFixed(3) : '--'}</td>
       <td className="px-3 py-2 text-center">
         {c.stowa ? (
           <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
@@ -476,16 +550,6 @@ function CandidateRow({ candidate, isBest, onViewResults }: {
         ) : '--'}
       </td>
       <td className="px-3 py-2 text-right text-text-muted">{c.elapsed_s.toFixed(1)}s</td>
-      <td className="px-3 py-2 text-right">
-        {c.run_id && (
-          <button
-            onClick={() => onViewResults(c.run_id!)}
-            className="text-accent-cyan hover:underline text-[10px]"
-          >
-            View
-          </button>
-        )}
-      </td>
     </tr>
   )
 }

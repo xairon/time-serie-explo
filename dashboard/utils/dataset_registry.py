@@ -183,6 +183,30 @@ class DatasetRegistry:
         
         return df, config
     
+    def update_metadata(
+        self,
+        dataset: PreparedDataset,
+        target_column: Optional[str] = None,
+        covariate_columns: Optional[List[str]] = None,
+        preprocessing_config: Optional[Dict[str, Any]] = None,
+    ) -> PreparedDataset:
+        """Update metadata fields in a dataset's config.yaml."""
+        config_path = dataset.path / "config.yaml"
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+        if target_column is not None:
+            config['target_column'] = target_column
+        if covariate_columns is not None:
+            config['covariate_columns'] = covariate_columns
+        if preprocessing_config is not None:
+            config['preprocessing'] = preprocessing_config
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+        return PreparedDataset.from_dict(config, dataset.path)
+
     def delete_dataset(self, dataset: PreparedDataset):
         """Delete a prepared dataset."""
         import shutil

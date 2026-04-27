@@ -61,6 +61,14 @@ class ImportDBRequest(BaseModel):
     dataset_name: Optional[str] = None
 
 
+class DatasetUpdateRequest(BaseModel):
+    """Request to update dataset configuration."""
+
+    target_variable: Optional[str] = None
+    covariates: Optional[list[str]] = None
+    preprocessing: Optional[dict[str, Any]] = None
+
+
 class DatasetCreateRequest(BaseModel):
     """Request to create a dataset from uploaded CSV."""
 

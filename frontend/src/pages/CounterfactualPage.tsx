@@ -66,7 +66,7 @@ function startCFStream(
     } catch {
       setResults((prev) => ({
         ...prev,
-        [method]: { task_id: taskId, status: 'error', result: null, error: 'Connexion au serveur perdue' },
+        [method]: { task_id: taskId, status: 'error', result: null, error: 'Server connection lost' },
       }))
     }
     setStreaming((prev) => ({ ...prev, [method]: false }))
@@ -251,7 +251,7 @@ export default function CounterfactualPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary mb-1">Analyse contrefactuelle</h1>
+          <h1 className="text-2xl font-bold text-text-primary mb-1">Counterfactual Analysis</h1>
           <p className="text-sm text-text-secondary">
             Simulate alternative scenarios to understand covariate impact
           </p>
@@ -262,7 +262,7 @@ export default function CounterfactualPage() {
             className="flex items-center gap-2 bg-bg-hover text-text-primary px-4 py-2 rounded-lg border border-white/10 hover:bg-bg-hover/80 transition-colors text-sm"
           >
             <Download className="w-4 h-4" />
-            Exporter JSON
+            Export JSON
           </button>
         )}
       </div>
@@ -276,12 +276,12 @@ export default function CounterfactualPage() {
       {modelId && testInfo && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">Set de test — selection de la fenetre</h3>
+            <h3 className="text-sm font-semibold text-text-primary">Test set — window selection</h3>
             {windowInfo && (
               <p className="text-xs text-text-secondary">
-                Contexte: {windowInfo.contextStart} → {windowInfo.contextEnd} ({windowInfo.L}j)
+                Context: {windowInfo.contextStart} → {windowInfo.contextEnd} ({windowInfo.L}d)
                 {' | '}
-                Prediction: {windowInfo.predStart} → {windowInfo.predEnd} ({windowInfo.H}j)
+                Prediction: {windowInfo.predStart} → {windowInfo.predEnd} ({windowInfo.H}d)
               </p>
             )}
           </div>
@@ -321,9 +321,9 @@ export default function CounterfactualPage() {
                   ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
                   : 'bg-red-500/10 border border-red-500/20 text-red-400'
             }`}>
-              {verdict === 'qualified' && 'Le modele reproduit fidelement l\'observe sur cette fenetre'}
-              {verdict === 'partial' && 'Concordance partielle — certains mois divergent'}
-              {verdict === 'not_qualified' && 'Le modele ne reproduit pas l\'observe — contrefactuelle non fiable'}
+              {verdict === 'qualified' && 'The model faithfully reproduces observations on this window'}
+              {verdict === 'partial' && 'Partial agreement — some months diverge'}
+              {verdict === 'not_qualified' && 'The model does not reproduce observations — counterfactual unreliable'}
             </div>
           )}
         </div>

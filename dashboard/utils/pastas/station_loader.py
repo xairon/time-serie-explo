@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import lru_cache
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -15,11 +17,11 @@ _MIN_COVERAGE = 0.80
 @dataclass
 class StationSeries:
     code_bss: str
-    piezo: pd.Series      # niveau_nappe_eau, index=date
-    precip: pd.Series     # total_precipitation (ERA5), index=date, freq='D'
-    evap: pd.Series       # potential_evaporation (ERA5), index=date, freq='D'
-    temp: pd.Series       # temperature_2m (ERA5), index=date, freq='D'
-    metadata: dict        # nom_commune, departement, lat/lon, etc.
+    piezo: pd.Series
+    precip: pd.Series
+    evap: pd.Series
+    temp: pd.Series
+    metadata: dict[str, Any]
 
 
 def _regularize(s: pd.Series) -> pd.Series:
@@ -35,26 +37,100 @@ def _regularize(s: pd.Series) -> pd.Series:
     return s.loc[first_valid:last_valid]
 
 
-def load_station_series(code_bss: str, db_url: str) -> StationSeries:
-    """Fetch piezo + climate series for a station from the gold schema.
+def _safe_float(val) -> float | None:
+    if val is None or pd.isna(val):
+        return None
+    return float(val)
 
-    Strategy:
-    1. Load everything from hubeau_daily_chroniques (piezo + ERA5 joined).
-       For well-instrumented stations this gives quasi-daily coverage.
-    2. Regularize precip/evap to daily with short-gap interpolation.
-    3. If coverage is too low (<80%), fall back to the continuous
-       int_era5_for_all_stations table via the station-ERA5 mapping.
+
+def _safe_str(val) -> str | None:
+    if val is None or pd.isna(val):
+        return None
+    return str(val)
+
+
+def load_station_metadata(code_bss: str, db_url: str) -> dict[str, Any]:
+    """Fast metadata-only query from dim_piezo_stations + BDLISA mapping.
+
+    Returns in <50ms — no heavy time series loading.
     """
     engine = create_engine(db_url)
     try:
-        # --- Load from hubeau_daily_chroniques ---
         query = text("""
-            SELECT date, niveau_nappe_eau, total_precipitation, potential_evaporation,
-                   temperature_2m, nom_commune, code_departement, nom_departement,
-                   station_latitude, station_longitude, altitude_station
-            FROM gold.hubeau_daily_chroniques
-            WHERE code_bss = :code_bss
-            ORDER BY date
+            SELECT s.code_bss, s.nom_commune, s.code_departement, s.nom_departement,
+                   s.latitude, s.longitude, s.altitude_station,
+                   s.premiere_mesure, s.derniere_mesure,
+                   s.nb_mesures_total, s.nb_mois_total,
+                   s.niveau_moyen_global, s.niveau_min_absolu, s.niveau_max_absolu,
+                   s.niveau_stddev_global, s.amplitude_totale,
+                   s.tendance_classification, s.niveau_alerte,
+                   s.classification_derniere_annee, s.qualite_tendance,
+                   s.slope_niveau, s.percentile_derniere_annee,
+                   s.precipitation_moyenne_mensuelle, s.temperature_moyenne_globale,
+                   m.codes_bdlisa, m.nature_eh, m.milieu_eh
+            FROM gold.dim_piezo_stations s
+            LEFT JOIN gold.int_station_era5_mapping m ON m.code_bss = s.code_bss
+            WHERE s.code_bss = :code_bss
+            LIMIT 1
+        """)
+        with engine.connect() as conn:
+            df = pd.read_sql(query, conn, params={"code_bss": code_bss})
+
+        if df.empty:
+            raise ValueError(f"Station {code_bss} not found in dim_piezo_stations")
+
+        r = df.iloc[0]
+        return {
+            "code_bss": code_bss,
+            "nom_commune": _safe_str(r.get("nom_commune")),
+            "code_departement": _safe_str(r.get("code_departement")),
+            "nom_departement": _safe_str(r.get("nom_departement")),
+            "latitude": _safe_float(r.get("latitude")),
+            "longitude": _safe_float(r.get("longitude")),
+            "altitude": _safe_float(r.get("altitude_station")),
+            "premiere_mesure": str(r["premiere_mesure"]) if pd.notna(r.get("premiere_mesure")) else None,
+            "derniere_mesure": str(r["derniere_mesure"]) if pd.notna(r.get("derniere_mesure")) else None,
+            "nb_mesures_total": int(r["nb_mesures_total"]) if pd.notna(r.get("nb_mesures_total")) else None,
+            "nb_mois_total": int(r["nb_mois_total"]) if pd.notna(r.get("nb_mois_total")) else None,
+            "niveau_moyen_global": _safe_float(r.get("niveau_moyen_global")),
+            "niveau_min_absolu": _safe_float(r.get("niveau_min_absolu")),
+            "niveau_max_absolu": _safe_float(r.get("niveau_max_absolu")),
+            "niveau_stddev_global": _safe_float(r.get("niveau_stddev_global")),
+            "amplitude_totale": _safe_float(r.get("amplitude_totale")),
+            "tendance_classification": _safe_str(r.get("tendance_classification")),
+            "niveau_alerte": _safe_str(r.get("niveau_alerte")),
+            "classification_derniere_annee": _safe_str(r.get("classification_derniere_annee")),
+            "qualite_tendance": _safe_str(r.get("qualite_tendance")),
+            "slope_niveau": _safe_float(r.get("slope_niveau")),
+            "percentile_derniere_annee": _safe_float(r.get("percentile_derniere_annee")),
+            "precipitation_moyenne_mensuelle": _safe_float(r.get("precipitation_moyenne_mensuelle")),
+            "temperature_moyenne_globale": _safe_float(r.get("temperature_moyenne_globale")),
+            "codes_bdlisa": _safe_str(r.get("codes_bdlisa")),
+            "nature_eh": _safe_str(r.get("nature_eh")),
+            "milieu_eh": _safe_str(r.get("milieu_eh")),
+        }
+    finally:
+        engine.dispose()
+
+
+def load_station_series(code_bss: str, db_url: str) -> StationSeries:
+    """Fetch piezo + climate series for a station from the gold schema.
+
+    Single merged query with LEFT JOIN for BDLISA metadata.
+    Falls back to ERA5 grid table if inline coverage < 80%.
+    """
+    engine = create_engine(db_url)
+    try:
+        query = text("""
+            SELECT d.date, d.niveau_nappe_eau, d.total_precipitation,
+                   d.potential_evaporation, d.temperature_2m,
+                   d.nom_commune, d.code_departement, d.nom_departement,
+                   d.station_latitude, d.station_longitude, d.altitude_station,
+                   m.codes_bdlisa, m.nature_eh, m.milieu_eh
+            FROM gold.hubeau_daily_chroniques d
+            LEFT JOIN gold.int_station_era5_mapping m ON m.code_bss = d.code_bss
+            WHERE d.code_bss = :code_bss
+            ORDER BY d.date
         """)
 
         with engine.connect() as conn:
@@ -66,37 +142,22 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
         df = df.set_index("date").sort_index()
         df = df[~df.index.duplicated(keep="first")]
 
-        # Metadata from first row
         meta_row = df.iloc[0]
-        metadata = {
-            "nom_commune": str(meta_row.get("nom_commune", "")),
-            "code_departement": str(meta_row.get("code_departement", "")),
-            "nom_departement": str(meta_row.get("nom_departement", "")),
-            "latitude": float(meta_row["station_latitude"]) if pd.notna(meta_row.get("station_latitude")) else None,
-            "longitude": float(meta_row["station_longitude"]) if pd.notna(meta_row.get("station_longitude")) else None,
-            "altitude": float(meta_row["altitude_station"]) if pd.notna(meta_row.get("altitude_station")) else None,
+        metadata: dict[str, Any] = {
+            "nom_commune": _safe_str(meta_row.get("nom_commune")),
+            "code_departement": _safe_str(meta_row.get("code_departement")),
+            "nom_departement": _safe_str(meta_row.get("nom_departement")),
+            "latitude": _safe_float(meta_row.get("station_latitude")),
+            "longitude": _safe_float(meta_row.get("station_longitude")),
+            "altitude": _safe_float(meta_row.get("altitude_station")),
+            "codes_bdlisa": _safe_str(meta_row.get("codes_bdlisa")),
+            "nature_eh": _safe_str(meta_row.get("nature_eh")),
+            "milieu_eh": _safe_str(meta_row.get("milieu_eh")),
         }
 
-        # BDLISA info from mapping table
-        bdlisa_query = text("""
-            SELECT codes_bdlisa, nature_eh, milieu_eh
-            FROM gold.int_station_era5_mapping
-            WHERE code_bss = :code_bss
-            LIMIT 1
-        """)
-        with engine.connect() as conn:
-            bdlisa_df = pd.read_sql(bdlisa_query, conn, params={"code_bss": code_bss})
-        if not bdlisa_df.empty:
-            b = bdlisa_df.iloc[0]
-            metadata["codes_bdlisa"] = str(b.get("codes_bdlisa", "")) if pd.notna(b.get("codes_bdlisa")) else None
-            metadata["nature_eh"] = str(b.get("nature_eh", "")) if pd.notna(b.get("nature_eh")) else None
-            metadata["milieu_eh"] = str(b.get("milieu_eh", "")) if pd.notna(b.get("milieu_eh")) else None
-
-        # Piezo: irregular, Pastas handles it
         piezo = df["niveau_nappe_eau"].dropna()
         piezo.name = "piezo"
 
-        # Try regularizing precip/evap from the joined data
         raw_precip = df["total_precipitation"].dropna()
         raw_evap = df["potential_evaporation"].dropna()
 
@@ -133,35 +194,22 @@ def load_station_series(code_bss: str, db_url: str) -> StationSeries:
 
 
 def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Load continuous ERA5 data via the station-grid mapping table."""
-    meta_query = text("""
-        SELECT era5_latitude, era5_longitude
-        FROM gold.int_station_era5_mapping
-        WHERE code_bss = :code_bss
-        LIMIT 1
+    """Load continuous ERA5 data via the station-grid mapping table (single query)."""
+    query = text("""
+        SELECT e.era5_date AS date, e.total_precipitation,
+               e.potential_evaporation, e.temperature_2m
+        FROM gold.int_era5_for_all_stations e
+        JOIN gold.int_station_era5_mapping m
+          ON m.era5_latitude = e.latitude AND m.era5_longitude = e.longitude
+        WHERE m.code_bss = :code_bss
+        ORDER BY e.era5_date
     """)
 
     with engine.connect() as conn:
-        meta_df = pd.read_sql(meta_query, conn, params={"code_bss": code_bss})
-
-    if meta_df.empty:
-        raise ValueError(f"No ERA5 mapping for station {code_bss}")
-
-    era5_lat = float(meta_df.iloc[0]["era5_latitude"])
-    era5_lon = float(meta_df.iloc[0]["era5_longitude"])
-
-    era5_query = text("""
-        SELECT era5_date AS date, total_precipitation, potential_evaporation, temperature_2m
-        FROM gold.int_era5_for_all_stations
-        WHERE latitude = :lat AND longitude = :lon
-        ORDER BY era5_date
-    """)
-
-    with engine.connect() as conn:
-        era5_df = pd.read_sql(era5_query, conn, params={"lat": era5_lat, "lon": era5_lon}, parse_dates=["date"])
+        era5_df = pd.read_sql(query, conn, params={"code_bss": code_bss}, parse_dates=["date"])
 
     if era5_df.empty:
-        raise ValueError(f"No ERA5 data for station {code_bss} (grid {era5_lat}, {era5_lon})")
+        raise ValueError(f"No ERA5 data for station {code_bss}")
 
     era5_df = era5_df.set_index("date").sort_index()
     era5_df = era5_df[~era5_df.index.duplicated(keep="first")]

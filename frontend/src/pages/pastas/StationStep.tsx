@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { usePastasStationInfo, usePastasPreview, usePastasDiagnose } from '@/hooks/usePastas'
+import { usePastasStationInfo, usePastasPreview } from '@/hooks/usePastas'
 import { usePastasMode } from './PastasLayout'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { StationDetailPanel } from '@/components/pastas/StationDetailPanel'
@@ -30,7 +30,8 @@ export default function StationStep() {
 
   const { data: stationInfo, isLoading: stationInfoLoading } = usePastasStationInfo(codeBss || null)
   const { data: preview, isLoading: previewLoading } = usePastasPreview(codeBss || null)
-  const { data: diagnosis, isLoading: diagnoseLoading } = usePastasDiagnose(codeBss || null)
+  const diagnosis = preview?.diagnostics ?? undefined
+  const diagnoseLoading = previewLoading
 
   // In guided mode, auto-apply recommendations
   useEffect(() => {

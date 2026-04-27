@@ -10,6 +10,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from api.serializers import clean_nans, serialize_timeseries
+from api.utils import force_cpu_if_needed
 from api.schemas.forecasting import (
     ComparisonForecastRequest,
     ForecastRequest,
@@ -37,6 +38,7 @@ def _load_model_and_data(model_id: str):
         raise HTTPException(status_code=404, detail="Model not found")
 
     model = registry.load_model(entry)
+    force_cpu_if_needed(model)
     scalers = registry.load_scalers(entry)
     config = registry.load_model_config(entry)
 
@@ -50,13 +52,26 @@ def _load_model_and_data(model_id: str):
     if train_df is None or val_df is None or test_df is None:
         raise HTTPException(status_code=404, detail="Model data splits not found")
 
-    full_df = pd.concat([train_df, val_df, test_df])
-    full_df = full_df[~full_df.index.duplicated(keep="first")].sort_index()
-
     # Extract column info from config
     columns = config.get("columns", {})
-    target_col = columns.get("target") or (full_df.columns[0] if len(full_df.columns) > 0 else "")
+    target_col = columns.get("target") or (train_df.columns[0] if len(train_df.columns) > 0 else "")
     cov_cols = columns.get("covariates", [])
+
+    # Load covariate splits and merge into target DataFrames
+    # Covariates are saved separately during training (train_cov.csv, etc.)
+    if cov_cols:
+        train_cov_df = registry.load_data(entry, "train_cov")
+        val_cov_df = registry.load_data(entry, "val_cov")
+        test_cov_df = registry.load_data(entry, "test_cov")
+
+        for split_df, cov_df in [(train_df, train_cov_df), (val_df, val_cov_df), (test_df, test_cov_df)]:
+            if cov_df is not None:
+                for col in cov_df.columns:
+                    if col not in split_df.columns:
+                        split_df[col] = cov_df[col]
+
+    full_df = pd.concat([train_df, val_df, test_df])
+    full_df = full_df[~full_df.index.duplicated(keep="first")].sort_index()
 
     preprocessing_config = config.get("preprocessing", {})
     is_global = config.get("type") == "global"

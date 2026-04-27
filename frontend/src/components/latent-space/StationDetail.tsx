@@ -26,7 +26,7 @@ function MetaLine({ label, value }: { label: string; value: string | number | nu
 }
 
 export function StationDetail({ domain, space, stationId, stationMeta, clusterLabel, onClose, onNeighborClick, onFilterBySite }: StationDetailProps) {
-  const { data, isLoading } = useSimilarStations(domain, stationId)
+  const { data, isLoading } = useSimilarStations(domain, stationId, space)
 
   if (!stationId) return null
 

@@ -32,6 +32,8 @@ interface UMAPControlsProps {
   season?: string | null
   onSeasonChange?: (season: string | null) => void
   qualityMetrics?: Record<string, unknown> | null
+  onAutoTune?: () => void
+  isAutoTuning?: boolean
 }
 
 const SEASONS = [
@@ -89,9 +91,9 @@ export function UMAPControls({
   season,
   onSeasonChange,
   qualityMetrics,
+  onAutoTune,
+  isAutoTuning = false,
 }: UMAPControlsProps) {
-  const pre = clusteringParams.umap_prereduction
-
   return (
     <div className="flex items-center gap-3 px-1 py-1.5 overflow-x-auto">
       {/* Quick toggles */}
@@ -144,41 +146,7 @@ export function UMAPControls({
 
       <div className="w-px h-6 bg-white/10 shrink-0" />
 
-      {/* UMAP Pre-reduction (HDBSCAN only) */}
-      {clusteringParams.method === 'hdbscan' && (
-        <>
-          <Section title="UMAP Pre-reduction">
-            <Param label="n_components">
-              <input type="number" className={inputClass} min={2} max={50}
-                value={pre.n_components}
-                onChange={(e) => onClusteringParamsChange({
-                  ...clusteringParams,
-                  umap_prereduction: { ...pre, n_components: Number(e.target.value) },
-                })}
-              />
-            </Param>
-            <Param label="n_neighbors">
-              <input type="number" className={inputClass} min={2} max={100}
-                value={pre.n_neighbors}
-                onChange={(e) => onClusteringParamsChange({
-                  ...clusteringParams,
-                  umap_prereduction: { ...pre, n_neighbors: Number(e.target.value) },
-                })}
-              />
-            </Param>
-            <Param label="min_dist">
-              <input type="number" className={inputClass} min={0} max={1} step={0.05}
-                value={pre.min_dist}
-                onChange={(e) => onClusteringParamsChange({
-                  ...clusteringParams,
-                  umap_prereduction: { ...pre, min_dist: Number(e.target.value) },
-                })}
-              />
-            </Param>
-          </Section>
-          <div className="w-px h-6 bg-white/10 shrink-0" />
-        </>
-      )}
+      {/* Pre-reduction: PCA adaptive (95% variance) — automatic, no manual params */}
 
       {/* Clustering */}
       <Section title="Clustering" defaultOpen>
@@ -288,6 +256,15 @@ export function UMAPControls({
 
       {/* Actions */}
       <div className="flex items-center gap-2 ml-auto shrink-0">
+        {onAutoTune && (
+          <button onClick={onAutoTune} disabled={isAutoTuning || isComputing}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-amber-400 border border-amber-400/30 rounded hover:bg-amber-400/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {isAutoTuning ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" />Tuning...</>
+            ) : 'Auto-tune'}
+          </button>
+        )}
         <button onClick={onReset}
           className="px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary border border-white/10 rounded hover:bg-bg-hover transition-colors"
         >Reset</button>

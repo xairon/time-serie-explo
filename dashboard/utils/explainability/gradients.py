@@ -120,9 +120,14 @@ class GradientExplainer:
         input_array = np.concatenate(features, axis=1)
 
         # Convert to tensor: (batch=1, seq_len, n_features)
+        # Match model dtype to avoid float/double mismatch
+        try:
+            model_dtype = next(self.torch_model.parameters()).dtype
+        except StopIteration:
+            model_dtype = torch.float32
         input_tensor = torch.tensor(
             input_array.reshape(1, -1, input_array.shape[-1]),
-            dtype=torch.float32,
+            dtype=model_dtype,
             device=self.device
         )
         input_tensor.requires_grad = True

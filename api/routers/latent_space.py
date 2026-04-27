@@ -2,21 +2,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections import Counter, defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.cache import get_redis
 from api.database import get_brgm_db
 from api.schemas.cluster_profiling import ProfilingResponse
 from api.schemas.latent_space import (
-    ClusteringRunDetail,
-    ClusteringRunSummary,
-    ComputeRequest,
-    ComputeResponse,
-    ComputedPoint,
+    AutoTuneRequest,
     EmbeddingFilters,
+    RecomputeClusteringRequest,
+    RecomputePCARequest,
+    RecomputeVizRequest,
     SimilarResponse,
     SimilarStation,
     StationMetadata,
@@ -31,6 +32,81 @@ router = APIRouter(prefix="/api/v1/latent-space", tags=["latent-space"])
 _VALID_DOMAINS = {"piezo", "hydro"}
 _MAX_POINTS = 15_000
 _TOP_LIBELLE = 12
+
+# ---------------------------------------------------------------------------
+# Redis cache for computed UMAP + clustering results (per domain/space)
+# ---------------------------------------------------------------------------
+
+_CACHE_PREFIX = "junon:latent-space:compute"
+
+_cache_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_cache_lock(domain: str, space: str) -> asyncio.Lock:
+    key = f"{domain}:{space}"
+    if key not in _cache_locks:
+        _cache_locks[key] = asyncio.Lock()
+    return _cache_locks[key]
+
+
+def _cache_key(domain: str, space: str) -> str:
+    return f"{_CACHE_PREFIX}:{domain}:{space}"
+
+
+def _sanitize_for_json(obj):
+    """Recursively convert Decimal/numpy types to JSON-safe Python types."""
+    import decimal
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(x) for x in obj]
+    try:
+        import numpy as np
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+    except ImportError:
+        pass
+    return obj
+
+
+async def _save_to_cache(domain: str, space: str, data: dict) -> None:
+    """Store compute result in Redis (no TTL — persistent until replaced)."""
+    r = get_redis()
+    if r is None:
+        return
+    data = _sanitize_for_json(data)
+    try:
+        import orjson
+        payload = orjson.dumps(data)
+    except ImportError:
+        payload = json.dumps(data).encode()
+    try:
+        await r.set(_cache_key(domain, space), payload)
+        logger.info("Cached latent-space compute for %s/%s (%d bytes)", domain, space, len(payload))
+    except Exception as exc:
+        logger.warning("Redis SET error for latent-space cache: %s", exc)
+
+
+async def _load_from_cache(domain: str, space: str) -> dict | None:
+    """Load cached compute result from Redis."""
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        raw = await r.get(_cache_key(domain, space))
+        if raw is None:
+            return None
+        import orjson
+        return orjson.loads(raw)
+    except ImportError:
+        return json.loads(raw) if raw else None
+    except Exception as exc:
+        logger.warning("Redis GET error for latent-space cache: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -146,54 +222,16 @@ async def get_stations(
     return StationsResponse(stations=stations)
 
 
-@router.post("/compute", response_model=ComputeResponse)
-async def compute_latent_space(
-    req: ComputeRequest,
-    space: str = Query("multi"),
-    session: AsyncSession = Depends(get_brgm_db),
-) -> ComputeResponse:
-    """Compute on-demand UMAP + clustering for a given set of embeddings."""
-    from dashboard.utils.latent_space import (
-        build_station_query,
-        build_window_query,
-        compute_clustering,
-        compute_umap,
-        parse_pgvector,
-        subsample_stratified,
-    )
+async def _load_embeddings(domain: str, space: str, session):
+    """Load embeddings + metadata from DB. Returns (ids, embeddings_matrix, metadata_list)."""
+    from dashboard.utils.latent_space import build_station_query, decode_eh_metadata, parse_pgvector
     import numpy as np
 
-    domain = req.domain
+    sql, params = build_station_query(domain, EmbeddingFilters(), space=space)
+    result = await session.execute(sql, params)
+    rows = result.fetchall()
 
-    # --- Load embeddings from DB ---
-    try:
-        if req.embeddings_type == "stations":
-            sql, params = build_station_query(domain, req.filters, space=space)
-        else:
-            sql, params = build_window_query(
-                domain,
-                req.filters,
-                req.year_min,
-                req.year_max,
-                req.season,
-                space=space,
-            )
-        result = await session.execute(sql, params)
-        rows = result.fetchall()
-    except Exception as exc:
-        logger.exception("DB error in compute_latent_space: %s", exc)
-        raise HTTPException(status_code=500, detail="Database query failed") from exc
-
-    if not rows:
-        return ComputeResponse(points=[], n_clusters=0)
-
-    # --- Parse embeddings ---
-    ids: list[str] = []
-    raw_embeddings: list[np.ndarray] = []
-    metadata_list: list[dict] = []
-    window_starts: list[str | None] = []
-    window_ends: list[str | None] = []
-
+    ids, raw_embs, metadata_list = [], [], []
     for row in rows:
         raw = getattr(row, "embedding_raw", None)
         if raw is None:
@@ -203,11 +241,8 @@ async def compute_latent_space(
         except Exception:
             continue
         ids.append(str(row.id))
-        raw_embeddings.append(emb)
-        window_starts.append(str(getattr(row, "window_start", None) or ""))
-        window_ends.append(str(getattr(row, "window_end", None) or ""))
+        raw_embs.append(emb)
         if domain == "piezo":
-            from dashboard.utils.latent_space import decode_eh_metadata
             meta = decode_eh_metadata({
                 "libelle_eh": getattr(row, "libelle_eh", None),
                 "milieu_eh": getattr(row, "milieu_eh", None),
@@ -230,117 +265,150 @@ async def compute_latent_space(
         metadata_list.append(meta)
 
     if not ids:
-        return ComputeResponse(points=[], n_clusters=0)
+        return [], None, []
+    return ids, np.stack(raw_embs, axis=0), metadata_list
 
-    embeddings_matrix = np.stack(raw_embeddings, axis=0)
 
-    # --- Subsample if needed ---
-    subsampled = False
-    subsampled_from: int | None = None
-    ids, embeddings_matrix, metadata_list, subsampled, original_count = subsample_stratified(
-        ids, embeddings_matrix, metadata_list, max_points=_MAX_POINTS
+async def _full_pipeline(domain, space, session, variance_threshold=0.95, viz_params=None, clustering_params=None):
+    """Run full PCA -> VIZ + CLUSTERING pipeline. Returns cache dict."""
+    from dashboard.utils.latent_space import compute_pca, compute_viz, compute_clustering_all
+    import numpy as np
+
+    ids, embeddings_matrix, metadata_list = await _load_embeddings(domain, space, session)
+    if embeddings_matrix is None or len(ids) < 20:
+        raise HTTPException(status_code=400, detail=f"Not enough embeddings ({len(ids)})")
+
+    vp = viz_params or {}
+    cp = clustering_params or {}
+
+    def _blocking():
+        pca_result = compute_pca(embeddings_matrix, variance_threshold=variance_threshold)
+        pca_reduced = np.array(pca_result["reduced"])
+        viz_result = compute_viz(pca_reduced, n_neighbors=vp.get("n_neighbors", 50), min_dist=vp.get("min_dist", 0.3))
+        clust_result = compute_clustering_all(pca_reduced, min_cluster_size=cp.get("min_cluster_size"), min_samples=cp.get("min_samples"))
+        return pca_result, viz_result, clust_result
+
+    pca_result, viz_result, clust_result = await asyncio.to_thread(_blocking)
+
+    cache_data = {
+        "pca": pca_result,
+        "viz": viz_result,
+        "clustering": clust_result,
+        "station_ids": ids,
+        "metadata": metadata_list,
+    }
+    await _save_to_cache(domain, space, cache_data)
+    return cache_data
+
+
+@router.get("/cached/{domain}")
+async def get_cached(domain: str, space: str = Query("multi")):
+    if domain not in _VALID_DOMAINS:
+        raise HTTPException(status_code=400, detail=f"Invalid domain: {domain}")
+    cached = await _load_from_cache(domain, space)
+    if cached is None:
+        raise HTTPException(status_code=404, detail="No cached result")
+    # Strip pca.reduced from response (too large, frontend doesn't need it)
+    if "pca" in cached and "reduced" in cached["pca"]:
+        cached["pca"] = {k: v for k, v in cached["pca"].items() if k != "reduced"}
+    return cached
+
+
+@router.post("/recompute-pca")
+async def recompute_pca(req: RecomputePCARequest, session: AsyncSession = Depends(get_brgm_db)):
+    """Recompute PCA, cascade VIZ + CLUSTERING. Updates full cache."""
+    # Load current cache for viz/clustering params (to preserve user's settings)
+    current = await _load_from_cache(req.domain, req.space)
+    viz_params = current.get("viz", {}).get("params", {}) if current else {}
+    clustering_params = current.get("clustering", {}).get("hdbscan", {}).get("params", {}) if current else {}
+
+    cache_data = await _full_pipeline(
+        req.domain, req.space, session,
+        variance_threshold=req.variance_threshold,
+        viz_params=viz_params,
+        clustering_params=clustering_params,
     )
-    if subsampled:
-        subsampled_from = original_count
-        # Align window lists
-        # Re-derive from remaining ids (we need index mapping)
+    # Return without pca.reduced
+    if "pca" in cache_data and "reduced" in cache_data["pca"]:
+        resp = {**cache_data, "pca": {k: v for k, v in cache_data["pca"].items() if k != "reduced"}}
+    else:
+        resp = cache_data
+    return resp
 
-    # Recompute window_starts/window_ends aligned to (potentially) subsampled ids
-    # Build id->window maps before subsample disrupted the alignment
-    # Since subsample_stratified returns indices in sorted order, we need to track
-    # the index mapping. We work around this by rebuilding from metadata, which
-    # always travels with the points.
-    # (window_starts/ends are not in metadata — rebuild by id lookup)
-    id_to_ws: dict[str, str] = {}
-    id_to_we: dict[str, str] = {}
-    for orig_id, ws, we in zip(
-        [str(r.id) for r in rows if getattr(r, "embedding_raw", None) is not None],
-        window_starts,
-        window_ends,
-    ):
-        id_to_ws[orig_id] = ws
-        id_to_we[orig_id] = we
 
-    # --- UMAP + clustering (blocking → offload to thread) ---
-    umap_params = req.umap
-    clustering_params = req.clustering
+@router.post("/recompute-viz")
+async def recompute_viz(req: RecomputeVizRequest):
+    """Recompute UMAP 2D visualization only. Loads PCA from cache."""
+    from dashboard.utils.latent_space import compute_viz
+    import numpy as np
 
-    def _blocking_compute():
-        from dashboard.utils.latent_space import compute_umap_quality
+    async with _get_cache_lock(req.domain, req.space):
+        cached = await _load_from_cache(req.domain, req.space)
+        if cached is None or "pca" not in cached or "reduced" not in cached["pca"]:
+            raise HTTPException(status_code=400, detail="No PCA data in cache. Run Recompute PCA first.")
 
-        coords = compute_umap(
-            embeddings_matrix,
-            n_components=umap_params.n_components,
-            n_neighbors=umap_params.n_neighbors,
-            min_dist=umap_params.min_dist,
-            metric=umap_params.metric,
-        )
-        pre = clustering_params.umap_prereduction
-        labels, metrics = compute_clustering(
-            embeddings_matrix,
-            method=clustering_params.method,
-            params=clustering_params,
-            n_umap_dims=pre.n_components,
-            pre_n_neighbors=pre.n_neighbors,
-            pre_min_dist=pre.min_dist,
-        )
-        # UMAP visualization quality
-        umap_viz_quality = compute_umap_quality(
-            embeddings_matrix, coords, n_neighbors=umap_params.n_neighbors,
-        )
-        umap_viz_quality["input_dim"] = int(embeddings_matrix.shape[1])
-        umap_viz_quality["output_dim"] = umap_params.n_components
-        umap_viz_quality["n_neighbors"] = umap_params.n_neighbors
-        umap_viz_quality["min_dist"] = umap_params.min_dist
-        metrics["umap_visualization"] = umap_viz_quality
-        metrics["n_points"] = len(ids)
+        pca_reduced = np.array(cached["pca"]["reduced"])
 
-        return coords, labels, metrics
-
-    try:
-        coords, labels, metrics = await asyncio.to_thread(_blocking_compute)
-    except Exception as exc:
-        logger.exception("UMAP/clustering failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Computation failed: {exc}") from exc
-
-    # --- Build response ---
-    n_clusters = len(set(labels) - {-1})
-    points: list[ComputedPoint] = []
-
-    for i, point_id in enumerate(ids):
-        meta_dict = metadata_list[i]
-        meta = StationMetadata(
-            libelle_eh=meta_dict.get("libelle_eh"),
-            milieu_eh=meta_dict.get("milieu_eh"),
-            theme_eh=meta_dict.get("theme_eh"),
-            etat_eh=meta_dict.get("etat_eh"),
-            nature_eh=meta_dict.get("nature_eh"),
-            departement=meta_dict.get("departement"),
-            nom_departement=meta_dict.get("nom_departement"),
-            altitude=meta_dict.get("altitude"),
-            nom_cours_eau=meta_dict.get("nom_cours_eau"),
-            statut_station=meta_dict.get("statut_station"),
-        )
-        ws = id_to_ws.get(point_id, "") or None
-        we = id_to_we.get(point_id, "") or None
-        points.append(
-            ComputedPoint(
-                id=point_id,
-                coords=[float(v) for v in coords[i]],
-                cluster_label=int(labels[i]),
-                window_start=ws,
-                window_end=we,
-                metadata=meta,
-            )
+        viz_result = await asyncio.to_thread(
+            compute_viz, pca_reduced, n_neighbors=req.n_neighbors, min_dist=req.min_dist,
         )
 
-    return ComputeResponse(
-        points=points,
-        n_clusters=n_clusters,
-        subsampled=subsampled,
-        subsampled_from=subsampled_from if subsampled else None,
-        metrics=metrics if metrics else None,
-    )
+        # Update viz section atomically
+        cached["viz"] = viz_result
+        await _save_to_cache(req.domain, req.space, cached)
+
+    # Return without pca.reduced
+    resp = {**cached, "pca": {k: v for k, v in cached["pca"].items() if k != "reduced"}}
+    return resp
+
+
+@router.post("/recompute-clustering")
+async def recompute_clustering(req: RecomputeClusteringRequest):
+    """Recompute HDBSCAN + KMeans elbow. Loads PCA from cache."""
+    from dashboard.utils.latent_space import compute_clustering_all
+    import numpy as np
+
+    async with _get_cache_lock(req.domain, req.space):
+        cached = await _load_from_cache(req.domain, req.space)
+        if cached is None or "pca" not in cached or "reduced" not in cached["pca"]:
+            raise HTTPException(status_code=400, detail="No PCA data in cache. Run Recompute PCA first.")
+
+        pca_reduced = np.array(cached["pca"]["reduced"])
+
+        clust_result = await asyncio.to_thread(
+            compute_clustering_all, pca_reduced,
+            min_cluster_size=req.min_cluster_size, min_samples=req.min_samples,
+        )
+
+        cached["clustering"] = clust_result
+        await _save_to_cache(req.domain, req.space, cached)
+
+    resp = {**cached, "pca": {k: v for k, v in cached["pca"].items() if k != "reduced"}}
+    return resp
+
+
+@router.post("/auto-tune")
+async def auto_tune(req: AutoTuneRequest, session: AsyncSession = Depends(get_brgm_db)):
+    """Full pipeline with defaults. Force-replaces entire cache."""
+    cache_data = await _full_pipeline(req.domain, req.space, session)
+    resp = {**cache_data, "pca": {k: v for k, v in cache_data["pca"].items() if k != "reduced"}}
+    return resp
+
+
+async def warmup_cache(session) -> None:
+    """Warm cache for all 4 domain/space combos at startup."""
+    combos = [("piezo", "uni"), ("piezo", "multi"), ("hydro", "uni"), ("hydro", "multi")]
+    for domain, space in combos:
+        cached = await _load_from_cache(domain, space)
+        if cached is not None:
+            logger.info("Cache already warm for %s/%s, skipping", domain, space)
+            continue
+        logger.info("Warming cache for %s/%s ...", domain, space)
+        try:
+            await _full_pipeline(domain, space, session)
+            logger.info("Cache warmed for %s/%s", domain, space)
+        except Exception:
+            logger.exception("Failed to warm cache for %s/%s", domain, space)
 
 
 @router.get("/similar/{domain}/{station_id}", response_model=SimilarResponse)
@@ -377,38 +445,6 @@ async def get_similar_stations(
         )
 
     return SimilarResponse(query_id=station_id, neighbors=neighbors)
-
-
-# ---------------------------------------------------------------------------
-# Pre-computed clustering runs
-# ---------------------------------------------------------------------------
-
-
-@router.get("/clustering-runs/{domain}", response_model=list[ClusteringRunSummary])
-async def list_clustering_runs(
-    domain: str,
-    space: str = Query("multi"),
-    session: AsyncSession = Depends(get_brgm_db),
-):
-    """List available pre-computed clustering runs for a domain."""
-    if domain not in _VALID_DOMAINS:
-        raise HTTPException(status_code=400, detail="Invalid domain")
-
-    from dashboard.utils.latent_space import list_clustering_runs as _list_runs
-    return await _list_runs(session, domain, space=space)
-
-
-@router.get("/clustering-run/{run_id}", response_model=ClusteringRunDetail)
-async def get_clustering_run(
-    run_id: int,
-    session: AsyncSession = Depends(get_brgm_db),
-):
-    """Load a specific clustering run with all labels and UMAP coords."""
-    from dashboard.utils.latent_space import load_clustering_run as _load_run
-    data = await _load_run(session, run_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="Clustering run not found")
-    return data
 
 
 @router.get("/station-windows/{domain}/{station_id}")

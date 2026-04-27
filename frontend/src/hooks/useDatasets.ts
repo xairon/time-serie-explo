@@ -32,6 +32,17 @@ export function useDatasetProfile(id: string | null) {
   })
 }
 
+export function useUpdateDataset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; target_variable?: string; covariates?: string[]; preprocessing?: Record<string, unknown> }) =>
+      api.datasets.update(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['datasets'] })
+    },
+  })
+}
+
 export function useDeleteDataset() {
   const qc = useQueryClient()
   return useMutation({

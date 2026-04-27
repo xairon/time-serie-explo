@@ -24,7 +24,7 @@ class ExplainResult(BaseModel):
     method: str
     success: bool = True
     error_message: Optional[str] = None
-    feature_importance: Optional[dict[str, float]] = None
+    feature_importance: Optional[dict[str, float | None]] = None
     temporal_importance: Optional[list[float]] = None
     gradient_attributions: Optional[list[list[float]]] = None
     attention_weights: Optional[list[list[float]]] = None
@@ -33,3 +33,38 @@ class ExplainResult(BaseModel):
     shap_values: Optional[list[list[float]]] = None
     feature_names: list[str] = Field(default_factory=list)
     model_type: Optional[str] = None
+
+
+class LagImportanceResult(BaseModel):
+    """Result of lag importance (autocorrelation) analysis."""
+
+    lags: list[int]
+    autocorrelations: list[float]
+    partial_autocorrelations: Optional[list[float]] = None
+    significant_lags: Optional[list[int]] = None
+
+
+class ResidualAnalysisResult(BaseModel):
+    """Result of residual analysis."""
+
+    mean_error: float
+    std_error: float
+    skewness: Optional[float] = None
+    kurtosis: Optional[float] = None
+    normality_pvalue: Optional[float] = None
+    acf_lag1: Optional[float] = None
+    bias_status: str = "unknown"
+    residuals: Optional[list[float]] = None
+    dates: Optional[list[str]] = None
+
+
+class SeasonalityResult(BaseModel):
+    """Result of seasonality detection."""
+
+    detected_periods: list[int] = Field(default_factory=list)
+    period_strengths: Optional[dict[str, float]] = None
+    decomposition: Optional[dict[str, list[float]]] = None
+    decomposition_dates: Optional[list[str]] = None
+    variance_trend: Optional[float] = None
+    variance_seasonal: Optional[float] = None
+    variance_residual: Optional[float] = None

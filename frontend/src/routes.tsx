@@ -1,6 +1,12 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useSearchParams } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
+
+function RedirectWithParams({ to }: { to: string }) {
+  const [searchParams] = useSearchParams()
+  const qs = searchParams.toString()
+  return <Navigate to={qs ? `${to}?${qs}` : to} replace />
+}
 
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
@@ -42,9 +48,9 @@ export const router = createBrowserRouter([
           { path: 'results', element: <SW><ResultsStep /></SW> },
           { path: 'scenarios', element: <SW><ScenariosStep /></SW> },
           { path: 'gallery', element: <SW><PastasGalleryPage /></SW> },
-          // Backward compatibility
-          { path: 'fit', element: <Navigate to="/pastas/station" replace /> },
-          { path: 'compare', element: <Navigate to="/pastas/gallery" replace /> },
+          // Backward compatibility — preserve query params
+          { path: 'fit', element: <RedirectWithParams to="/pastas/station" /> },
+          { path: 'compare', element: <RedirectWithParams to="/pastas/gallery" /> },
         ],
       },
 

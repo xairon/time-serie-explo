@@ -228,7 +228,7 @@ def prepare_dataframe_for_darts(
     # Manage missing values BEFORE Darts conversion
     if fill_method == 'Supprimer les lignes':
         df = df.dropna()
-    elif fill_method == 'Interpolation linéaire':
+    elif fill_method in ('Interpolation linéaire', 'Linear interpolation', 'interpolate'):
         df = df.interpolate(method='linear')
     elif fill_method == 'Forward fill':
         df = df.ffill()

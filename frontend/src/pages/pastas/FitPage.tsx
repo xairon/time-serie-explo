@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Loader2, Play } from 'lucide-react'
-import { usePastasFit, usePastasPreview, usePastasModel } from '@/hooks/usePastas'
+import { Loader2, Play, BarChart3, FlaskConical } from 'lucide-react'
+import { usePastasFit, usePastasPreview, usePastasModel, usePastasStationInfo } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
-import { DataPreviewPanel } from '@/components/pastas/DataPreviewPanel'
-import { StationMap } from '@/components/pastas/StationMap'
+import { StationDetailPanel } from '@/components/pastas/StationDetailPanel'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
 import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
+import { ScenarioWorkflow } from '@/components/pastas/ScenarioWorkflow'
 import type { PastasFitResponse } from '@/lib/types'
 
 const DEMO_STATION = '01584X0023/LV3'
@@ -20,7 +20,8 @@ export default function FitPage() {
   // Station picker state — pre-fill from URL query param if present
   const [codeBss, setCodeBss] = useState(searchParams.get('station') ?? '')
 
-  // Preview
+  // Station info (instant) + preview (heavy)
+  const { data: stationInfo, isLoading: stationInfoLoading } = usePastasStationInfo(codeBss || null)
   const { data: preview, isLoading: previewLoading } = usePastasPreview(codeBss || null)
 
   // Config form state
@@ -38,8 +39,9 @@ export default function FitPage() {
   // Temperature stress
   const [includeTemp, setIncludeTemp] = useState(false)
 
-  // Result
+  // Result + right panel mode
   const [fitResult, setFitResult] = useState<PastasFitResponse | null>(null)
+  const [rightTab, setRightTab] = useState<'results' | 'scenarios'>('results')
 
   // Load existing model from ?model= query param
   const modelId = searchParams.get('model')
@@ -54,17 +56,17 @@ export default function FitPage() {
     }
   }, [loadedModel])
 
-  // Apply BDLISA preset when preview loads
+  // Apply BDLISA preset when station info loads (instant)
   const [presetApplied, setPresetApplied] = useState('')
   useEffect(() => {
-    if (preview?.preset && preview.code_bss !== presetApplied) {
-      const p = preview.preset as Record<string, string>
+    if (stationInfo?.preset && codeBss !== presetApplied) {
+      const p = stationInfo.preset as Record<string, string>
       if (p.recharge) setRecharge(p.recharge)
       if (p.response) setResponse(p.response)
       if (p.noise) setNoise(p.noise)
-      setPresetApplied(preview.code_bss)
+      setPresetApplied(codeBss)
     }
-  }, [preview, presetApplied])
+  }, [stationInfo, codeBss, presetApplied])
 
   const canFit = !!codeBss
 
@@ -105,16 +107,16 @@ export default function FitPage() {
       <div className="w-80 shrink-0 space-y-4">
         <OnboardingBanner
           id="fit"
-          title="Calibrer un modèle Pastas"
-          description="Un modèle Pastas relie le niveau piézométrique aux forçages climatiques (pluie, ETP) par une fonction de transfert. Sélectionnez une station, configurez le modèle, et lancez la calibration."
+          title="Calibrate a Pastas model"
+          description="A Pastas model links piezometric levels to climatic forcings (precipitation, PET) via a transfer function. Select a station, configure the model, and run calibration."
           steps={[
-            'Cherchez et sélectionnez une station piézométrique',
-            'Choisissez le modèle de recharge (comment la pluie s\'infiltre) et la fonction de réponse (comment l\'aquifère réagit)',
-            'Activez la validation pour réserver une partie des données en test — le modèle s\'entraîne sur le début et on vérifie qu\'il prédit bien la fin',
-            'Optionnel : ajoutez des stress supplémentaires (pompage, rivière, etc.) si vous avez les données',
-            'Cliquez "Fit Model" — résultats, diagnostics et signatures s\'affichent à droite',
+            'Search and select a piezometric station',
+            'Choose the recharge model (how precipitation infiltrates) and the response function (how the aquifer responds)',
+            'Enable validation to hold out a portion of data for testing — the model trains on earlier data and is verified on the rest',
+            'Optional: add extra stresses (pumping, river, etc.) if you have the data',
+            'Click "Fit Model" — results, diagnostics and signatures appear on the right',
           ]}
-          exampleAction={{ label: 'Charger la station exemple (Craie de Champagne)', onClick: loadDemo }}
+          exampleAction={{ label: 'Load example station (Champagne chalk)', onClick: loadDemo }}
         />
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
@@ -123,14 +125,14 @@ export default function FitPage() {
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-2">Configuration du modèle</h2>
-          {preview?.preset && (preview.preset as Record<string, string>).label && (
+          <h2 className="text-sm font-semibold text-text-primary mb-2">Model Configuration</h2>
+          {stationInfo?.preset != null && (stationInfo.preset as Record<string, string>).label && (
             <div className="mb-3 flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg px-3 py-1.5">
               <span className="text-xs text-accent-cyan font-medium">
-                Config recommandée : {(preview.preset as Record<string, string>).label}
+                Recommended config: {(stationInfo.preset as Record<string, string>).label}
               </span>
               <span className="text-[10px] text-text-muted">
-                {(preview.preset as Record<string, string>).description}
+                {(stationInfo.preset as Record<string, string>).description}
               </span>
             </div>
           )}
@@ -163,15 +165,15 @@ export default function FitPage() {
               className="accent-accent-cyan w-4 h-4"
             />
             <div>
-              <span className="text-sm font-medium text-text-secondary">Inclure la température</span>
-              <p className="text-xs text-text-muted">Ajoute la température ERA5 (°C) comme stress supplémentaire. Peut capturer des effets non-linéaires que l'ETP seule ne modélise pas.</p>
+              <span className="text-sm font-medium text-text-secondary">Include temperature</span>
+              <p className="text-xs text-text-muted">Adds ERA5 temperature (°C) as an additional stress. Can capture non-linear effects that PET alone doesn't model.</p>
             </div>
           </label>
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Nom du run (optionnel)
+            Run name (optional)
           </label>
           <input
             type="text"
@@ -190,12 +192,12 @@ export default function FitPage() {
           {fitMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Calibration en cours…
+              Calibrating…
             </>
           ) : (
             <>
               <Play className="w-4 h-4" />
-              {fitResult ? 'Re-calibrer avec cette config' : 'Lancer la calibration'}
+              {fitResult ? 'Re-calibrate with this config' : 'Run calibration'}
             </>
           )}
         </button>
@@ -211,33 +213,27 @@ export default function FitPage() {
         )}
       </div>
 
-      {/* Right column — preview + results */}
+      {/* Right column — preview + results/scenarios */}
       <div className="flex-1 min-w-0 space-y-4">
-        {previewLoading && (
-          <div className="flex items-center justify-center h-24 text-text-muted text-sm gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading preview…
+        {codeBss && (
+          <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
+            <a href={`/station/piezo/${encodeURIComponent(codeBss)}`} className="text-accent-cyan hover:underline">
+              &larr; View station details
+            </a>
           </div>
         )}
-
-        {preview && !previewLoading && (
-          <>
-            <StationMap
-              lat={typeof preview.metadata.latitude === 'number' ? preview.metadata.latitude : null}
-              lon={typeof preview.metadata.longitude === 'number' ? preview.metadata.longitude : null}
-              label={preview.code_bss}
-            />
-            <DataPreviewPanel
-              preview={preview}
-              onRangeChange={(t0, t1) => {
-                setTmin(t0)
-                setTmax(t1)
-              }}
-            />
-          </>
+        {/* Rich station detail + lazy time series */}
+        {codeBss && (stationInfo || stationInfoLoading) && (
+          <StationDetailPanel
+            stationInfo={stationInfo}
+            stationInfoLoading={stationInfoLoading}
+            preview={preview}
+            previewLoading={previewLoading}
+            onRangeChange={(t0, t1) => { setTmin(t0); setTmax(t1) }}
+          />
         )}
 
-        {!preview && !previewLoading && !codeBss && (
+        {!codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
               <p className="text-text-secondary">No station selected</p>
@@ -249,7 +245,43 @@ export default function FitPage() {
         {fitResult && (
           <>
             {preview && <div className="border-t border-white/5" />}
-            <FitResultsPanel result={fitResult} />
+
+            {/* Pipeline tabs */}
+            <div className="flex items-center gap-1 bg-bg-card border border-white/5 rounded-xl p-1">
+              <button
+                onClick={() => setRightTab('results')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
+                  rightTab === 'results'
+                    ? 'bg-accent-cyan/10 text-accent-cyan'
+                    : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Results & Diagnostics
+              </button>
+              <button
+                onClick={() => setRightTab('scenarios')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
+                  rightTab === 'scenarios'
+                    ? 'bg-purple-500/10 text-purple-400'
+                    : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                What-if Scenarios
+              </button>
+            </div>
+
+            {/* Tab content */}
+            {rightTab === 'results' ? (
+              <FitResultsPanel result={fitResult} codeBss={codeBss} />
+            ) : (
+              <ScenarioWorkflow
+                model={fitResult}
+                codeBss={codeBss}
+                onRefit={(newResult) => { setFitResult(newResult); setRightTab('results') }}
+              />
+            )}
           </>
         )}
       </div>

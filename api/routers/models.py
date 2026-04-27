@@ -58,21 +58,32 @@ async def list_available_models():
 
         # Get default hyperparams from model config
         model_config = ALL_MODELS.get(name, {}) if isinstance(ALL_MODELS, dict) else {}
-        default_hp = {}
-        if isinstance(model_config, dict):
-            for k, v in model_config.items():
-                if k not in ("description", "category", "name"):
-                    # For tuple ranges (min, max, default), use default
-                    if isinstance(v, (list, tuple)) and len(v) == 3:
-                        default_hp[k] = v[2]
-                    else:
-                        default_hp[k] = v
+        default_hp: dict = {}
+
+        # Extract from the nested 'hyperparams' key (the actual tunable params)
+        raw_hp = model_config.get("hyperparams", {}) if isinstance(model_config, dict) else {}
+        for k, v in raw_hp.items():
+            # Tuple ranges (min, max, default) → use default (3rd element)
+            if isinstance(v, (list, tuple)) and len(v) == 3:
+                default_hp[k] = v[2]
+            # List of choices → use first as default
+            elif isinstance(v, list) and len(v) > 0:
+                default_hp[k] = v[0]
+            else:
+                default_hp[k] = v
+
+        # Always include common params for torch models
+        if is_torch:
+            default_hp.setdefault("input_chunk_length", 30)
+            default_hp.setdefault("output_chunk_length", 7)
+
+        description = model_config.get("description", f"{'Deep Learning' if is_torch else 'Global Baseline'} model") if isinstance(model_config, dict) else ""
 
         results.append(
             AvailableModel(
                 name=name,
                 is_torch=is_torch,
-                description=f"{'Deep Learning' if is_torch else 'Global Baseline'} model",
+                description=description,
                 category=category,
                 default_hyperparams=default_hp,
             )
@@ -168,8 +179,21 @@ async def get_model_test_info(model_id: str):
     if not target_col and len(test_df.columns) > 0:
         target_col = test_df.columns[0]
 
+    # Extract target values for full test set overview chart
+    if target_col and target_col in test_df.columns:
+        test_values = test_df[target_col].tolist()
+    elif len(test_df.columns) > 0:
+        test_values = test_df.iloc[:, 0].tolist()
+    else:
+        test_values = []
+
+    # Replace NaN with None for JSON serialization
+    import math
+    test_values = [None if (isinstance(v, float) and math.isnan(v)) else v for v in test_values]
+
     return {
         "test_dates": test_dates,
+        "test_values": test_values,
         "test_length": test_len,
         "input_chunk_length": input_chunk,
         "output_chunk_length": output_chunk,

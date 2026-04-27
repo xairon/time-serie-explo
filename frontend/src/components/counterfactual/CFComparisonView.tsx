@@ -102,7 +102,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
       t.push({
         x: gtDates,
         y: gtValues,
-        name: 'Observe (GT)',
+        name: 'Observed (GT)',
         type: 'scatter',
         mode: 'lines',
         line: { color: '#10b981', width: 2 },
@@ -113,7 +113,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
     t.push({
       x: ref.dates,
       y: ref.original,
-      name: 'Modele (sans perturbation)',
+      name: 'Model (no perturbation)',
       type: 'scatter',
       mode: 'lines',
       line: { color: '#06b6d4', width: 2, dash: 'dash' },
@@ -383,7 +383,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                 />
                 <MetricRow
                   label="Parameters/features"
-                  physcf={physcf ? '7 (contraints)' : '\u2014'}
+                  physcf={physcf ? '7 (constrained)' : '\u2014'}
                   comte={comteInfo ? `${comteInfo.swapped_features.length}/${comteInfo.best_mask?.length ?? 3}` : '\u2014'}
                   winner={w.params}
                 />
@@ -466,7 +466,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
             <h4 className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
               <Shuffle className="w-4 h-4" />
               CoMTE
-              <span className="text-[10px] font-normal text-text-secondary">Ates et al. 2021 — substitution de features</span>
+              <span className="text-[10px] font-normal text-text-secondary">Ates et al. 2021 — feature substitution</span>
             </h4>
             {comte ? (
               <div className="space-y-3">
@@ -576,7 +576,7 @@ export function CFComparisonView({ results, streaming, modelId, gtDates, gtValue
                     comte={pastasResults.comte?.status !== 'error' ? pastasResults.comte?.rmse_0.toFixed(4) ?? '\u2014' : '\u2014'}
                   />
                   <MetricRow
-                    label={`Seuil \u03b5 (\u03b3=${pastasResults.physcf?.gamma ?? pastasResults.comte?.gamma ?? 1.5})`}
+                    label={`Threshold \u03b5 (\u03b3=${pastasResults.physcf?.gamma ?? pastasResults.comte?.gamma ?? 1.5})`}
                     physcf={pastasResults.physcf?.status !== 'error' ? pastasResults.physcf?.epsilon.toFixed(4) ?? '\u2014' : '\u2014'}
                     comte={pastasResults.comte?.status !== 'error' ? pastasResults.comte?.epsilon.toFixed(4) ?? '\u2014' : '\u2014'}
                   />

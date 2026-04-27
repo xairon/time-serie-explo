@@ -12,7 +12,7 @@ export function CalValToggle({ valSplit, onChange }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <label className="text-sm font-medium text-text-secondary">Validation</label>
-          <span className="ml-1 text-text-muted cursor-help" title="Réserve une partie des données pour tester le modèle sur des données qu'il n'a pas vues pendant l'entraînement. Permet de vérifier que le modèle généralise bien.">ⓘ</span>
+          <span className="ml-1 text-text-muted cursor-help" title="Hold out a portion of data to test the model on data it hasn't seen during training. Checks that the model generalizes well.">ⓘ</span>
         </div>
         <button
           onClick={() => onChange(enabled ? null : 0.3)}
@@ -22,12 +22,12 @@ export function CalValToggle({ valSplit, onChange }: Props) {
               : 'border-white/10 text-text-muted'
           }`}
         >
-          {enabled ? 'Activé' : 'Désactivé'}
+          {enabled ? 'Enabled' : 'Disabled'}
         </button>
       </div>
       {!enabled && (
         <p className="text-xs text-text-muted">
-          Le modèle sera entraîné sur toute la période. Activez pour réserver une partie des données en test.
+          The model will train on the full period. Enable to hold out a portion for testing.
         </p>
       )}
       {enabled && (
@@ -42,11 +42,11 @@ export function CalValToggle({ valSplit, onChange }: Props) {
             className="w-full accent-accent-cyan"
           />
           <div className="flex justify-between text-xs text-text-muted">
-            <span>Entraînement : {(100 - pct).toFixed(0)}% (premières années)</span>
-            <span>Test : {pct.toFixed(0)}% (dernières années)</span>
+            <span>Training: {(100 - pct).toFixed(0)}% (early years)</span>
+            <span>Test: {pct.toFixed(0)}% (late years)</span>
           </div>
           <p className="text-xs text-text-muted mt-1">
-            Les métriques de test montrent la qualité du modèle sur des données inédites.
+            Test metrics show model quality on unseen data.
           </p>
         </div>
       )}

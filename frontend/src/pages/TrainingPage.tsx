@@ -47,7 +47,7 @@ export default function TrainingPage() {
   useEffect(() => {
     if (!sse.data) return
     const { current_epoch, total_epochs, train_loss, val_loss, best_val_loss, status } = sse.data
-    const timestamp = new Date().toLocaleTimeString('fr-FR')
+    const timestamp = new Date().toLocaleTimeString('en-GB')
     let msg = `[${timestamp}] `
     if (status) {
       msg += status
@@ -64,7 +64,7 @@ export default function TrainingPage() {
 
   // Log SSE state changes
   useEffect(() => {
-    const timestamp = new Date().toLocaleTimeString('fr-FR')
+    const timestamp = new Date().toLocaleTimeString('en-GB')
     if (sse.status === 'connected') {
       setLogs((prev) => [...prev, `[${timestamp}] SSE connection established`])
     } else if (sse.status === 'done') {
@@ -139,7 +139,7 @@ export default function TrainingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Entrainement</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Training</h1>
         <p className="text-sm text-text-secondary">
           Configure and launch forecast model training
         </p>
@@ -185,9 +185,9 @@ export default function TrainingPage() {
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
           {/* Phase steps */}
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-text-primary mr-4">Phase :</h3>
+            <h3 className="text-sm font-semibold text-text-primary mr-4">Phase:</h3>
             {(['preparing', 'training', 'completed'] as const).map((p, i) => {
-              const labels = { preparing: 'Preparation', training: 'Training', completed: 'Done' }
+              const labels = { preparing: 'Preparing', training: 'Training', completed: 'Done' }
               const isActive = phase === p
               const isPast = (phase === 'training' && p === 'preparing') ||
                 (phase === 'completed' && (p === 'preparing' || p === 'training'))
@@ -261,7 +261,7 @@ export default function TrainingPage() {
               <thead>
                 <tr className="bg-bg-hover">
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Nom
+                    Name
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
                     Architecture
@@ -296,7 +296,7 @@ export default function TrainingPage() {
                     <td className="px-3 py-1.5 text-text-secondary text-xs">{m.data_source ?? '—'}</td>
                     <td className="px-3 py-1.5 text-text-secondary text-xs">{m.primary_station ?? '—'}</td>
                     <td className="px-3 py-1.5 text-text-secondary text-xs whitespace-nowrap">
-                      {new Date(m.created_at).toLocaleDateString('fr-FR')}
+                      {new Date(m.created_at).toLocaleDateString('en-GB')}
                     </td>
                     {historyMetricKeys.map((key) => {
                       const val = m.metrics[key]

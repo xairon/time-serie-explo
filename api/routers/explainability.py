@@ -485,8 +485,8 @@ async def residual_analysis(model_id: str):
             )
 
         # Align pred and actual by date index (handles sparse stride timestamps)
-        pred_df = pred_series.pd_dataframe()
-        actual_df = test_series.pd_dataframe()
+        pred_df = pred_series.to_dataframe()
+        actual_df = test_series.to_dataframe()
         aligned = actual_df.reindex(pred_df.index).dropna()
         if len(aligned) == 0:
             raise ValueError("No overlapping dates between predictions and test set")

@@ -1,3 +1,4 @@
+import React from 'react'
 import Plot from 'react-plotly.js'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Data, Layout } from 'plotly.js-dist-min'
@@ -17,6 +18,7 @@ interface EmbeddingScatterProps {
   domain: 'piezo' | 'hydro'
   highlightedSite?: string | null
   onPointClick?: (id: string) => void
+  onDeselect?: () => void
   loading?: boolean
   className?: string
 }
@@ -43,6 +45,7 @@ export function EmbeddingScatter({
   domain,
   highlightedSite,
   onPointClick,
+  onDeselect,
   loading = false,
   className = '',
 }: EmbeddingScatterProps) {
@@ -221,24 +224,34 @@ export function EmbeddingScatter({
     hovermode: 'closest',
   }
 
-  const handleClick = onPointClick
-    ? (eventData: Readonly<Plotly.PlotMouseEvent>) => {
-        const pt = eventData.points?.[0]
-        if (pt && Array.isArray(pt.customdata) && pt.customdata[0]) {
-          onPointClick(pt.customdata[0] as string)
-        }
-      }
-    : undefined
+  // Track whether a Plotly point click just happened (to distinguish from background clicks)
+  const pointClickedRef = React.useRef(false)
+  const clickTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handlePlotClick = (eventData: Readonly<Plotly.PlotMouseEvent>) => {
+    const pt = eventData.points?.[0]
+    if (pt && Array.isArray(pt.customdata) && pt.customdata[0]) {
+      pointClickedRef.current = true
+      if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current)
+      clickTimeoutRef.current = setTimeout(() => { pointClickedRef.current = false }, 300)
+      onPointClick?.(pt.customdata[0] as string)
+    }
+  }
+
+  const handleContainerClick = () => {
+    if (pointClickedRef.current) return
+    onDeselect?.()
+  }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} onClick={handleContainerClick}>
       <Plot
         data={traces}
         layout={layout}
         config={{ ...plotlyConfig, scrollZoom: true }}
         useResizeHandler
         style={{ width: '100%', height: '100%' }}
-        onClick={handleClick}
+        onClick={handlePlotClick}
       />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-bg-card/70 rounded-xl z-10">

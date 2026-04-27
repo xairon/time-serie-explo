@@ -22,6 +22,7 @@ from api.schemas.datasets import (
     DatasetPreview,
     DatasetProfile,
     DatasetSummary,
+    DatasetUpdateRequest,
     ImportDBRequest,
 )
 
@@ -143,6 +144,23 @@ async def get_dataset(dataset_id: str):
         **summary.model_dump(),
         preprocessing=getattr(ds, "preprocessing", None) or {},
     )
+
+
+@router.patch("/{dataset_id}", response_model=DatasetSummary)
+async def update_dataset(dataset_id: str, req: DatasetUpdateRequest):
+    """Update dataset configuration (target variable, covariates, preprocessing)."""
+    registry = _get_registry()
+    ds = _find_dataset(registry, dataset_id)
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    updated = registry.update_metadata(
+        ds,
+        target_column=req.target_variable,
+        covariate_columns=req.covariates,
+        preprocessing_config=req.preprocessing,
+    )
+    return _ds_to_summary(updated)
 
 
 @router.delete("/{dataset_id}", status_code=204)

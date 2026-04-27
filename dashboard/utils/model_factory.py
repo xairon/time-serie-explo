@@ -121,6 +121,10 @@ class ModelFactory:
         # =====================================================================
         # MODÈLES PYTORCH (Deep Learning)
         # =====================================================================
+        # Ensure required chunk lengths have defaults
+        params.setdefault('input_chunk_length', 30)
+        params.setdefault('output_chunk_length', 7)
+
         if device is None:
             if hasattr(torch, 'xpu') and torch.xpu.is_available():
                 device = 'xpu'
