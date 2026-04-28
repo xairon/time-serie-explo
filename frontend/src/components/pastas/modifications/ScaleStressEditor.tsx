@@ -64,7 +64,7 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1">Scaling factor</label>
+        <label className="block text-xs text-text-muted mb-1" title="Multiplier applied to the stress. 0.8 = 20% reduction, 1.2 = 20% increase.">Scaling factor</label>
         <div className="flex gap-1 mb-2">
           {QUICK_FACTORS.map(f => (
             <button
@@ -82,8 +82,10 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
         </div>
         <input
           type="number"
-          value={data.factor}
-          onChange={(e) => update({ factor: parseFloat(e.target.value) || 1 })}
+          value={data.factor || ''}
+          onChange={(e) => update({ factor: e.target.value === '' ? 1 : parseFloat(e.target.value) })}
+          onBlur={() => { if (!data.factor) update({ factor: 1 }) }}
+          placeholder="e.g. 0.8"
           className={inputClass}
           step="0.05"
           min={limits?.hard_min ?? 0}

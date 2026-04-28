@@ -32,10 +32,10 @@ const TYPE_META: Record<
   ModificationData['type'],
   { label: string; icon: React.ElementType; color: string }
 > = {
-  pumping_synthetic: { label: 'Synthetic pumping', icon: Droplets, color: 'text-blue-400' },
-  pumping_upload: { label: 'Pumping (CSV)', icon: Droplets, color: 'text-blue-400' },
-  linear_trend: { label: 'Linear trend', icon: TrendingUp, color: 'text-yellow-400' },
-  scale_stress: { label: 'Scale a stress', icon: ArrowUpDown, color: 'text-purple-400' },
+  pumping_synthetic: { label: 'Well', icon: Droplets, color: 'text-blue-400' },
+  pumping_upload: { label: 'Pumping data', icon: Droplets, color: 'text-blue-400' },
+  linear_trend: { label: 'Trend', icon: TrendingUp, color: 'text-yellow-400' },
+  scale_stress: { label: 'Climate adjustment', icon: ArrowUpDown, color: 'text-purple-400' },
 }
 
 export function ModificationCard({ index, data, onChange, onDelete, pumpingProfiles, scaleStressLimits, linearTrendLimits, adaptiveBounds }: ModificationCardProps) {

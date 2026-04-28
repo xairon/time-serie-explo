@@ -47,7 +47,7 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1">Slope (m/yr)</label>
+        <label className="block text-xs text-text-muted mb-1" title="Rate of water level change per year. Negative = declining trend, positive = rising trend.">Slope (m/yr)</label>
         <div className="flex gap-1 mb-2">
           {QUICK_SLOPES.map(s => (
             <button
@@ -65,8 +65,9 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
         </div>
         <input
           type="number"
-          value={data.slope_m_per_year}
-          onChange={(e) => update({ slope_m_per_year: parseFloat(e.target.value) || 0 })}
+          value={data.slope_m_per_year || ''}
+          onChange={(e) => update({ slope_m_per_year: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+          placeholder="e.g. -0.01"
           className={inputClass}
           step="0.001"
           min={limits?.hard_min}

@@ -25,9 +25,9 @@ interface PumpingSyntheticEditorProps {
 }
 
 const USAGES = [
-  { value: 'aep' as const, label: 'AEP' },
-  { value: 'irrigation' as const, label: 'Irrigation' },
-  { value: 'industrial' as const, label: 'Industrial' },
+  { value: 'aep' as const, label: 'AEP', tooltip: 'Drinking water supply — typically 50-200 m³/d, constant year-round' },
+  { value: 'irrigation' as const, label: 'Irrigation', tooltip: 'Agricultural — typically 200-1000 m³/d, seasonal (summer)' },
+  { value: 'industrial' as const, label: 'Industrial', tooltip: 'Industrial use — typically 100-500 m³/d, constant or semi-constant' },
 ] as const
 
 function RangeWarning({ value, range, label }: { value: number; range?: PumpingRange; label: string }) {
@@ -225,6 +225,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
             <button
               key={u.value}
               onClick={() => selectUsage(u.value)}
+              title={u.tooltip}
               className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
                 data.usage === u.value
                   ? 'bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30'
@@ -367,8 +368,10 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           </label>
           <input
             type="number"
-            value={data.rate_m3d}
-            onChange={(e) => update({ rate_m3d: parseFloat(e.target.value) || 0 })}
+            value={data.rate_m3d || ''}
+            onChange={(e) => update({ rate_m3d: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+            onBlur={() => { if (!data.rate_m3d) update({ rate_m3d: 0 }) }}
+            placeholder="e.g. 100"
             className={inputClass}
             step="10"
             min={rateRange?.hard_min ?? 0}
@@ -378,11 +381,13 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           {adaptiveBounds && <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />}
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Distance to piezo (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance from the well to the observation piezometer">Distance to piezometer (m)</label>
           <input
             type="number"
-            value={data.distance_m}
-            onChange={(e) => update({ distance_m: parseFloat(e.target.value) || 0 })}
+            value={data.distance_m || ''}
+            onChange={(e) => update({ distance_m: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+            onBlur={() => { if (!data.distance_m) update({ distance_m: 100 }) }}
+            placeholder="e.g. 500"
             className={inputClass}
             step="100"
             min={distRange?.hard_min ?? 1}

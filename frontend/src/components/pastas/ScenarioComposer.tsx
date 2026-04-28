@@ -17,10 +17,10 @@ interface ScenarioComposerProps {
 type AddMenuType = ModificationData['type']
 
 const ADD_OPTIONS: { type: AddMenuType; label: string; description: string; icon: React.ElementType }[] = [
-  { type: 'pumping_synthetic', label: 'Synthetic pumping', description: 'Fictitious well with constant, seasonal, or pulse flow rate', icon: Droplets },
-  { type: 'pumping_upload', label: 'Pumping (CSV)', description: 'Import a real pumping history', icon: Droplets },
-  { type: 'linear_trend', label: 'Linear trend', description: 'Progressive decline or rise of the level', icon: TrendingUp },
-  { type: 'scale_stress', label: 'Scale a stress', description: 'Multiply precipitation or PET by a factor', icon: ArrowUpDown },
+  { type: 'pumping_synthetic', label: 'Add a well', description: 'Simulate a pumping well with configurable flow rate and schedule', icon: Droplets },
+  { type: 'pumping_upload', label: 'Upload pumping data', description: 'Import a real pumping time series from CSV', icon: Droplets },
+  { type: 'linear_trend', label: 'Add a trend', description: 'Simulate a progressive rise or decline of the water level over time', icon: TrendingUp },
+  { type: 'scale_stress', label: 'Adjust climate', description: 'Scale rainfall or evapotranspiration (e.g. -20% precipitation for drought)', icon: ArrowUpDown },
 ]
 
 function defaultForType(type: AddMenuType, tmin: string, tmax: string, profile?: PumpingProfileData | null): ModificationData {

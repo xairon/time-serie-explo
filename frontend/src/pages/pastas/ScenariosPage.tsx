@@ -221,7 +221,7 @@ export default function ScenariosPage() {
         {/* Contextual presets */}
         {runId && presetsData && (
           <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-text-primary mb-3">Scénarios prêts à l'emploi</h2>
+            <h2 className="text-sm font-semibold text-text-primary mb-3">Preset Scenarios</h2>
             <div className="grid grid-cols-2 gap-1.5">
               {presetsData.presets.map((p) => (
                 <button
@@ -317,7 +317,7 @@ export default function ScenariosPage() {
         {/* Saved scenarios */}
         {runId && savedScenarios.length > 0 && (
           <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-text-primary mb-3">Mes scénarios</h2>
+            <h2 className="text-sm font-semibold text-text-primary mb-3">Saved Scenarios</h2>
             <div className="space-y-1.5">
               {savedScenarios.map((s) => (
                 <div

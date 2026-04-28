@@ -68,21 +68,23 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
           <p className="text-xs text-accent-cyan">{data.rows.length} rows loaded</p>
         ) : (
           <p className="text-xs text-text-muted">
-            Click to load a CSV — columns: <code>date, Q_m3d</code>
+            Click to load a CSV — columns: <code>date</code> (YYYY-MM-DD), <code>Q_m3d</code> (flow in m³/d)
           </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Distance to piezometer (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance from the well to the observation piezometer">Distance to piezometer (m)</label>
           <input
             type="number"
-            value={data.distance_m}
-            onChange={(e) => update({ distance_m: parseFloat(e.target.value) || 0 })}
+            value={data.distance_m || ''}
+            onChange={(e) => update({ distance_m: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+            onBlur={() => { if (!data.distance_m) update({ distance_m: 100 }) }}
+            placeholder="e.g. 500"
             className={inputClass}
             step="100"
-            min="0"
+            min="1"
           />
         </div>
         <div>
