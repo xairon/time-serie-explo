@@ -14,12 +14,15 @@ import { UnifiedAnalysisChart } from './UnifiedAnalysisChart'
 
 // --- Accordion ---
 
-function Section({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+function Section({ title, defaultOpen = true, extra, children }: { title: string; defaultOpen?: boolean; extra?: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-bg-primary rounded-lg border border-white/5 overflow-hidden">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-bg-hover transition-colors">
-        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{title}</span>
+        <span className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{title}</span>
+          {extra}
+        </span>
         <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
@@ -276,41 +279,45 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       )}
 
       {/* ═══════════ 4. MODEL ANALYSIS (unified chart) ═══════════ */}
-      <Section title={`Model Analysis — ${periodLabel}`}>
-        <div className="flex items-center gap-1 mb-2">
-          <ExportCsvButton
-            filename={`${result.code_bss}_observed_simulated_residuals.csv`}
-            title="Export observed, simulated & residuals as CSV"
-            label="Time series"
-            getColumns={() => {
-              const cols: CsvColumn[] = [
-                { header: 'date', values: observed.index },
-                { header: 'observed', values: observed.values },
-                { header: 'simulated', values: simulated.values },
-              ]
-              const resVals = observed.values.map((obs, i) => {
-                const sim = simulated.values[i]
-                return obs != null && sim != null ? obs - sim : null
-              })
-              cols.push({ header: 'residuals', values: resVals })
-              return cols
-            }}
-          />
-          <ExportCsvButton
-            filename={`${result.code_bss}_contributions.csv`}
-            title="Export stress contributions as CSV"
-            label="Contributions"
-            getColumns={() => {
-              const entries = Object.entries(contributions)
-              if (entries.length === 0) return []
-              const cols: CsvColumn[] = [{ header: 'date', values: entries[0][1].index }]
-              for (const [name, ts] of entries) {
-                cols.push({ header: name, values: ts.values })
-              }
-              return cols
-            }}
-          />
-        </div>
+      <Section
+        title={`Model Analysis — ${periodLabel}`}
+        extra={
+          <span className="flex items-center gap-1">
+            <ExportCsvButton
+              filename={`${result.code_bss}_observed_simulated_residuals.csv`}
+              title="Export observed, simulated & residuals as CSV"
+              label="Time series"
+              getColumns={() => {
+                const cols: CsvColumn[] = [
+                  { header: 'date', values: observed.index },
+                  { header: 'observed', values: observed.values },
+                  { header: 'simulated', values: simulated.values },
+                ]
+                const resVals = observed.values.map((obs, i) => {
+                  const sim = simulated.values[i]
+                  return obs != null && sim != null ? obs - sim : null
+                })
+                cols.push({ header: 'residuals', values: resVals })
+                return cols
+              }}
+            />
+            <ExportCsvButton
+              filename={`${result.code_bss}_contributions.csv`}
+              title="Export stress contributions as CSV"
+              label="Contributions"
+              getColumns={() => {
+                const entries = Object.entries(contributions)
+                if (entries.length === 0) return []
+                const cols: CsvColumn[] = [{ header: 'date', values: entries[0][1].index }]
+                for (const [name, ts] of entries) {
+                  cols.push({ header: name, values: ts.values })
+                }
+                return cols
+              }}
+            />
+          </span>
+        }
+      >
         {selectedOutlierDate && (
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-orange-400 font-medium">Zoomed on: {new Date(selectedOutlierDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}</span>
