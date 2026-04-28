@@ -28,15 +28,15 @@ function approximateStowa(metrics: Record<string, number>): StowaResult | null {
     gain_significance: null,
     overall_pass: null,
     suggestions: evp < 70
-      ? ['EVP inférieur à 70%. Essayez d\'autres configurations ou ajoutez des stress.']
-      : ['Résultat partiel — lancez l\'auto-fit pour l\'évaluation STOWA complète.'],
+      ? ['EVP below 70%. Try other configurations or add stresses.']
+      : ['Partial result — run auto-fit for the full STOWA assessment.'],
   }
 }
 
 export default function ResultsStep() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { mode, pipeline, setCodeBss, selectModel } = usePastasMode()
+  const { pipeline, setCodeBss, selectModel } = usePastasMode()
 
   const runId = searchParams.get('model') ?? pipeline.selectedRunId
   const codeBss = searchParams.get('station') ?? pipeline.codeBss ?? ''
@@ -132,19 +132,10 @@ export default function ResultsStep() {
         </div>
       )}
 
-      {/* Full results panel — collapse sections 5-7 in guided mode */}
       <FitResultsPanel
         result={model}
         codeBss={effectiveCodeBss}
-        {...(mode === 'guided' ? {} : {})}
       />
-
-      {/* In guided mode, add a note about collapsed sections */}
-      {mode === 'guided' && (
-        <div className="text-xs text-text-muted text-center py-2">
-          Switch to Expert mode for detailed parameters, diagnostics, and signatures.
-        </div>
-      )}
     </div>
   )
 }

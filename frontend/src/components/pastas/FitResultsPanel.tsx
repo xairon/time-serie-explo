@@ -281,6 +281,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           <ExportCsvButton
             filename={`${result.code_bss}_observed_simulated_residuals.csv`}
             title="Export observed, simulated & residuals as CSV"
+            label="Time series"
             getColumns={() => {
               const cols: CsvColumn[] = [
                 { header: 'date', values: observed.index },
@@ -298,6 +299,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           <ExportCsvButton
             filename={`${result.code_bss}_contributions.csv`}
             title="Export stress contributions as CSV"
+            label="Contributions"
             getColumns={() => {
               const entries = Object.entries(contributions)
               if (entries.length === 0) return []

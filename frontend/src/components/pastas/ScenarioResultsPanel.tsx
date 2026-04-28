@@ -146,6 +146,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
           <ExportCsvButton
             filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
             title="Export baseline, scenario & delta as CSV"
+            label="CSV"
             getColumns={() => [
               { header: 'date', values: baseline.index },
               { header: 'baseline', values: baseline.values },
@@ -210,6 +211,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
             <ExportCsvButton
               filename={`${codeBss ?? 'scenario'}_scenario_contributions.csv`}
               title="Export baseline & scenario contributions as CSV"
+              label="CSV"
               getColumns={() => {
                 const cols: CsvColumn[] = [{ header: 'date', values: (contributions_baseline[allContribNames[0]] ?? contributions_scenario[allContribNames[0]])?.index ?? [] }]
                 for (const name of allContribNames) {
