@@ -14,6 +14,7 @@ import pastas as ps
 from dashboard.utils.pastas.io import load_model
 from dashboard.utils.pastas.scenario_presets import (
     AquiferFamily,
+    PUMPING_RFUNC_DEFAULTS,
     detect_aquifer_family,
     validate_modifications,
 )
@@ -55,26 +56,18 @@ def _fill_nan_optimal(model: ps.Model) -> None:
                     model.parameters.loc[pname, "optimal"] = float(val)
 
 
-def _get_calibrated_time_params(model: ps.Model) -> dict[str, float]:
-    """Extract time-shape response function params from the calibrated recharge.
+def _get_pumping_rfunc_params(
+    model: ps.Model, aquifer_family: AquiferFamily | None,
+) -> dict[str, float]:
+    """Get physically appropriate response function params for pumping.
 
-    Only transfers a (time constant), n (shape), and f (Hantush leakage).
-    Does NOT transfer A (gain) — it has different physical meaning for
-    recharge vs pumping.
+    Uses aquifer-family-specific defaults for horizontal pressure propagation,
+    which is much slower than vertical recharge percolation.
     """
-    for sm in model.stressmodels.values():
-        if isinstance(sm, ps.RechargeModel):
-            params = {}
-            prefix = sm.name + "_"
-            for pname in model.parameters.index:
-                if pname.startswith(prefix):
-                    short = pname[len(prefix):]
-                    if short in ("a", "n", "f"):
-                        val = model.parameters.loc[pname, "optimal"]
-                        if pd.notna(val):
-                            params[short] = float(val)
-            return params
-    return {}
+    defaults = PUMPING_RFUNC_DEFAULTS.get(aquifer_family or "sedimentary")
+    if defaults is None:
+        defaults = PUMPING_RFUNC_DEFAULTS["sedimentary"]
+    return {"a": defaults.a, "n": defaults.n}
 
 
 def _extend_to_model_range(
@@ -151,7 +144,7 @@ def _generate_pumping_series(
 # Modification handlers
 # ---------------------------------------------------------------------------
 
-def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any]) -> None:
+def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any], aquifer_family: AquiferFamily | None = None) -> None:
     """Add a synthetic pumping stress model."""
     name = mod.get("name", "pumping")
     start = str(mod["start"])
@@ -191,11 +184,11 @@ def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any]) -> None:
     )
     model.add_stressmodel(sm)
 
-    _transfer_time_params(model, name, _get_calibrated_time_params(model))
+    _transfer_time_params(model, name, _get_pumping_rfunc_params(model, aquifer_family))
     _fill_nan_optimal(model)
 
 
-def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any]) -> None:
+def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any], aquifer_family: AquiferFamily | None = None) -> None:
     """Add a pumping stress model from user-provided CSV rows."""
     name = mod.get("name", "pumping_upload")
     csv_rows = mod["csv_rows"]
@@ -226,7 +219,7 @@ def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any]) -> None:
     )
     model.add_stressmodel(sm)
 
-    _transfer_time_params(model, name, _get_calibrated_time_params(model))
+    _transfer_time_params(model, name, _get_pumping_rfunc_params(model, aquifer_family))
     _fill_nan_optimal(model)
 
 
@@ -323,7 +316,7 @@ _HANDLERS = {
 }
 
 
-def apply_modification(model: ps.Model, mod: dict[str, Any]) -> None:
+def apply_modification(model: ps.Model, mod: dict[str, Any], aquifer_family: AquiferFamily | None = None) -> None:
     """Apply a single modification to a Pastas model in-place."""
     mod_type = mod["type"]
     handler = _HANDLERS.get(mod_type)
@@ -332,7 +325,10 @@ def apply_modification(model: ps.Model, mod: dict[str, Any]) -> None:
             f"Unknown modification type '{mod_type}'. "
             f"Available: {list(_HANDLERS.keys())}"
         )
-    handler(model, mod)
+    if mod_type in ("pumping_synthetic", "pumping_upload"):
+        handler(model, mod, aquifer_family=aquifer_family)
+    else:
+        handler(model, mod)
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +389,7 @@ def simulate_scenario(
 
     for i, mod in enumerate(modifications):
         try:
-            apply_modification(scenario_model, mod)
+            apply_modification(scenario_model, mod, aquifer_family=aquifer_family)
         except Exception as exc:
             warnings.append(f"Modification #{i} ({mod.get('type', '?')}) failed: {exc}")
             logger.warning("Modification %d failed: %s", i, exc, exc_info=True)

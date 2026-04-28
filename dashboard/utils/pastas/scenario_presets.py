@@ -114,6 +114,26 @@ SCALE_STRESS_LIMITS = Range(default=1.0, typical_min=0.5, typical_max=2.0, hard_
 LINEAR_TREND_LIMITS = Range(default=-0.01, typical_min=-0.1, typical_max=0.1, hard_min=-1.0, hard_max=1.0)
 
 
+@dataclass(frozen=True)
+class PumpingRfuncDefaults:
+    """Default response function parameters for pumping per aquifer family.
+
+    These represent horizontal pressure propagation timescales, which are
+    much slower than the vertical recharge timescale calibrated in the model.
+    """
+    a: float    # time constant (days) — controls persistence
+    n: float    # shape — controls delay before peak response
+
+
+PUMPING_RFUNC_DEFAULTS: dict[AquiferFamily, PumpingRfuncDefaults] = {
+    "alluvial":    PumpingRfuncDefaults(a=200, n=1.5),
+    "sedimentary": PumpingRfuncDefaults(a=500, n=2.0),
+    "karst":       PumpingRfuncDefaults(a=150, n=1.2),
+    "fractured":   PumpingRfuncDefaults(a=300, n=1.8),
+    "volcanic":    PumpingRfuncDefaults(a=400, n=2.0),
+}
+
+
 def get_pumping_profile(
     usage: PumpingUsage,
     family: AquiferFamily,
