@@ -343,7 +343,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
 
       {/* Results */}
       {simResult && (
-        <ScenarioResultsPanel result={simResult} modifications={modifications} />
+        <ScenarioResultsPanel result={simResult} modifications={modifications} codeBss={codeBss} />
       )}
 
       {!simResult && !simulateMut.isPending && (

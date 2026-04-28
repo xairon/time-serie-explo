@@ -5,6 +5,8 @@ import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasScenarioResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import type { ModificationData } from './ModificationCard'
+import { ExportCsvButton } from './ExportCsvButton'
+import type { CsvColumn } from '@/lib/csv-export'
 
 const MOD_LABELS: Record<string, string> = {
   pumping_synthetic: 'Synthetic pumping',
@@ -13,8 +15,8 @@ const MOD_LABELS: Record<string, string> = {
   scale_stress: 'Stress scaling',
 }
 
-function Section({ title, defaultOpen = true, children }: {
-  title: string; defaultOpen?: boolean; children: React.ReactNode
+function Section({ title, defaultOpen = true, extra, children }: {
+  title: string; defaultOpen?: boolean; extra?: React.ReactNode; children: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
@@ -23,7 +25,10 @@ function Section({ title, defaultOpen = true, children }: {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-bg-hover transition-colors"
       >
-        <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{title}</span>
+        <span className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{title}</span>
+          {extra}
+        </span>
         <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
@@ -59,9 +64,10 @@ const CONTRIB_COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e', '
 interface Props {
   result: PastasScenarioResponse
   modifications?: ModificationData[]
+  codeBss?: string
 }
 
-export function ScenarioResultsPanel({ result, modifications }: Props) {
+export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) {
   const { baseline, scenario, delta, contributions_baseline, contributions_scenario, warnings } = result
 
   const deltaStats = computeStats(delta.values)
@@ -134,7 +140,21 @@ export function ScenarioResultsPanel({ result, modifications }: Props) {
       )}
 
       {/* Baseline vs Scenario — side by side */}
-      <Section title="Baseline vs Scenario">
+      <Section
+        title="Baseline vs Scenario"
+        extra={
+          <ExportCsvButton
+            filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
+            title="Export baseline, scenario & delta as CSV"
+            getColumns={() => [
+              { header: 'date', values: baseline.index },
+              { header: 'baseline', values: baseline.values },
+              { header: 'scenario', values: scenario.values },
+              { header: 'delta', values: delta.values },
+            ]}
+          />
+        }
+      >
         <Plot
           data={[
             {
@@ -183,7 +203,26 @@ export function ScenarioResultsPanel({ result, modifications }: Props) {
 
       {/* Per-stress contributions — separate charts */}
       {allContribNames.length > 0 && (
-        <Section title="Stress Contributions" defaultOpen={false}>
+        <Section
+          title="Stress Contributions"
+          defaultOpen={false}
+          extra={
+            <ExportCsvButton
+              filename={`${codeBss ?? 'scenario'}_scenario_contributions.csv`}
+              title="Export baseline & scenario contributions as CSV"
+              getColumns={() => {
+                const cols: CsvColumn[] = [{ header: 'date', values: (contributions_baseline[allContribNames[0]] ?? contributions_scenario[allContribNames[0]])?.index ?? [] }]
+                for (const name of allContribNames) {
+                  const bl = contributions_baseline[name]
+                  const sc = contributions_scenario[name]
+                  if (bl) cols.push({ header: `${name}_baseline`, values: bl.values })
+                  if (sc) cols.push({ header: `${name}_scenario`, values: sc.values })
+                }
+                return cols
+              }}
+            />
+          }
+        >
           <p className="text-xs text-text-muted mb-3">
             Each stress contribution shown independently. Gray dashed = baseline, solid color = scenario.
             {newContribs.length > 0 && <span className="text-accent-cyan"> New: {newContribs.join(', ')}</span>}

@@ -353,7 +353,7 @@ export default function ScenariosPage() {
       {/* Right column */}
       <div className="flex-1 min-w-0">
         {simResult ? (
-          <ScenarioResultsPanel result={simResult} modifications={modifications} />
+          <ScenarioResultsPanel result={simResult} modifications={modifications} codeBss={codeBss} />
         ) : (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-3">
