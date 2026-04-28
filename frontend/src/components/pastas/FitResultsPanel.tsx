@@ -298,6 +298,10 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                   return obs != null && sim != null ? obs - sim : null
                 })
                 cols.push({ header: 'residuals', values: resVals })
+                if (val_period) {
+                  const valStart = val_period[0]
+                  cols.push({ header: 'period', values: observed.index.map(d => d >= valStart ? 'test' : 'train') })
+                }
                 return cols
               }}
             />
@@ -308,9 +312,14 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
               getColumns={() => {
                 const entries = Object.entries(contributions)
                 if (entries.length === 0) return []
-                const cols: CsvColumn[] = [{ header: 'date', values: entries[0][1].index }]
+                const dates = entries[0][1].index
+                const cols: CsvColumn[] = [{ header: 'date', values: dates }]
                 for (const [name, ts] of entries) {
                   cols.push({ header: name, values: ts.values })
+                }
+                if (val_period) {
+                  const valStart = val_period[0]
+                  cols.push({ header: 'period', values: dates.map(d => d >= valStart ? 'test' : 'train') })
                 }
                 return cols
               }}
