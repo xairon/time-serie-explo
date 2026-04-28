@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { ChevronDown, Brain, AlertTriangle, Droplets, Clock, Activity } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import type { PastasFitResponse } from '@/lib/types'
+import { ExportCsvButton } from './ExportCsvButton'
+import type { CsvColumn } from '@/lib/csv-export'
 import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasRecession, usePastasBaseflow, usePastasDecomposition, usePastasInputQuality } from '@/hooks/usePastas'
 import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
@@ -275,6 +277,38 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {/* ═══════════ 4. MODEL ANALYSIS (unified chart) ═══════════ */}
       <Section title={`Model Analysis — ${periodLabel}`}>
+        <div className="flex items-center gap-1 mb-2">
+          <ExportCsvButton
+            filename={`${result.code_bss}_observed_simulated_residuals.csv`}
+            title="Export observed, simulated & residuals as CSV"
+            getColumns={() => {
+              const cols: CsvColumn[] = [
+                { header: 'date', values: observed.index },
+                { header: 'observed', values: observed.values },
+                { header: 'simulated', values: simulated.values },
+              ]
+              const resVals = observed.values.map((obs, i) => {
+                const sim = simulated.values[i]
+                return obs != null && sim != null ? obs - sim : null
+              })
+              cols.push({ header: 'residuals', values: resVals })
+              return cols
+            }}
+          />
+          <ExportCsvButton
+            filename={`${result.code_bss}_contributions.csv`}
+            title="Export stress contributions as CSV"
+            getColumns={() => {
+              const entries = Object.entries(contributions)
+              if (entries.length === 0) return []
+              const cols: CsvColumn[] = [{ header: 'date', values: entries[0][1].index }]
+              for (const [name, ts] of entries) {
+                cols.push({ header: name, values: ts.values })
+              }
+              return cols
+            }}
+          />
+        </div>
         {selectedOutlierDate && (
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[10px] text-orange-400 font-medium">Zoomed on: {new Date(selectedOutlierDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}</span>
