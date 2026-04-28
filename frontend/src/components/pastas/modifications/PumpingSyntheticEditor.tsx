@@ -386,8 +386,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           min={rateRange?.hard_min ?? 0}
           max={effectiveHardMax}
         />
-        <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />
-        {adaptiveBounds && <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />}
+        {adaptiveBounds ? <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} /> : <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />}
       </div>
 
       {data.rfunc === 'Hantush' && (
