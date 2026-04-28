@@ -97,15 +97,25 @@ function generatePreview(pattern: string, rate: number, seasonMonths: number[], 
 function DrawdownIndicator({ rate, bounds }: { rate: number; bounds: AdaptiveBoundsData }) {
   if (rate <= 0) return null
   const drawdown = Math.abs(rate * bounds.step_response_at_t)
-  const color = drawdown < bounds.soft_drawdown_m
-    ? 'text-green-400'
-    : drawdown < bounds.hard_drawdown_m
-      ? 'text-yellow-400'
-      : 'text-red-400'
+  const isSafe = drawdown < bounds.soft_drawdown_m
+  const isWarning = drawdown >= bounds.soft_drawdown_m && drawdown < bounds.hard_drawdown_m
+  const isDanger = drawdown >= bounds.hard_drawdown_m
+  const color = isSafe ? 'text-green-400' : isWarning ? 'text-yellow-400' : 'text-red-400'
+  const bgColor = isSafe ? 'bg-green-500/5 border-green-500/20' : isWarning ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-red-500/5 border-red-500/20'
+  const label = isSafe ? 'Realistic' : isWarning ? 'High' : 'Unrealistic'
+  const hint = isDanger
+    ? `This rate would lower the water table by ${drawdown.toFixed(1)} m — far beyond typical aquifer capacity. Try reducing the flow rate below ${Math.floor(bounds.soft_drawdown_m / Math.abs(bounds.step_response_at_t))} m³/d.`
+    : isWarning
+      ? `Significant drawdown (${drawdown.toFixed(1)} m). The aquifer can likely sustain this, but it's at the upper limit.`
+      : `Drawdown of ${drawdown.toFixed(2)} m — well within the aquifer's capacity.`
   return (
-    <p className={`text-[10px] mt-1 ${color}`}>
-      Estimated drawdown: {drawdown.toFixed(2)} m (t = {bounds.t_final_days} d)
-    </p>
+    <div className={`text-[10px] mt-1.5 px-2 py-1.5 rounded border ${bgColor}`}>
+      <div className="flex items-center gap-1.5">
+        <span className={`font-semibold ${color}`}>{label}</span>
+        <span className="text-text-muted">— estimated water level drop: {drawdown.toFixed(2)} m after {bounds.t_final_days} days</span>
+      </div>
+      <p className="text-text-muted mt-0.5">{hint}</p>
+    </div>
   )
 }
 
