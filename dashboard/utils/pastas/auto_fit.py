@@ -193,6 +193,20 @@ def run_auto_fit(
     candidates: list[AutoFitCandidate] = []
     global_start = time.perf_counter()
 
+    # Early overlap / data validation — fail fast instead of repeating
+    # the same error for every config in the grid.
+    from dashboard.utils.pastas.builder import _validate_series, ValidationError
+    try:
+        _validate_series(gwl, precip, evap)
+    except ValidationError as exc:
+        msg = str(exc)
+        logger.warning("auto_fit pre-validation failed: %s", msg)
+        return AutoFitResult(
+            candidates=[AutoFitCandidate(config={}, error=msg, elapsed_s=0.0)],
+            best=None,
+            total_elapsed_s=time.perf_counter() - global_start,
+        )
+
     for idx, cfg in enumerate(grid):
         recharge = cfg["recharge"]
         response = cfg["response"]

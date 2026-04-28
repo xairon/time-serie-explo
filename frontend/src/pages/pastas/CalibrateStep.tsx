@@ -432,6 +432,31 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
     return (b.nse ?? -Infinity) - (a.nse ?? -Infinity)
   })
 
+  const errors = sorted.filter(c => c.error)
+  const uniqueErrors = [...new Set(errors.map(c => c.error))]
+  const allFailed = errors.length === sorted.length && uniqueErrors.length === 1
+
+  if (allFailed) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary">Auto-fit Results</h2>
+          <p className="text-xs text-text-muted mt-0.5">
+            {result.candidates.length} configuration{result.candidates.length > 1 ? 's' : ''} tested in {result.total_elapsed_s.toFixed(1)}s
+          </p>
+        </div>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-400">All configurations failed</p>
+            <p className="text-xs text-red-300/80 mt-1">{uniqueErrors[0]}</p>
+            <p className="text-xs text-text-muted mt-2">Check that the station has enough data overlap between piezometric observations and climate stresses (precipitation, evapotranspiration). A minimum of 1 year of overlap is required.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Summary */}
