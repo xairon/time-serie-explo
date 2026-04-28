@@ -79,18 +79,38 @@ dashboard/
 
 ## Pastas Pipeline
 
+### Core
 - **Config**: `dashboard/utils/pastas/config.py` — BDLISA aquifer presets
-- **Builder**: `dashboard/utils/pastas/builder.py` — model construction (accepts `add_trend` flag)
+- **Builder**: `dashboard/utils/pastas/builder.py` — model construction (accepts `add_trend` flag), `_validate_series()` checks overlap ≥ 365 days
 - **Fit**: `dashboard/utils/pastas/fit_service.py` — fitting + MLflow logging, returns `FitResult`
+- **Auto-fit**: `dashboard/utils/pastas/auto_fit.py` — grid search over configs with early overlap validation (fails fast instead of running N identical errors)
 - **IO**: `dashboard/utils/pastas/io.py` — model load/save with LRU cache (maxsize=32)
-- **Diagnostics**: `dashboard/utils/pastas/diagnostics.py` — QQ, PACF, normality tests
-- **Outlier diagnostics**: `dashboard/utils/pastas/outlier_diagnostics.py` — classify outliers by climate/data/neighbors
+
+### Diagnostics & Analytics
+- **Diagnostics**: `diagnostics.py` — QQ (PIT quantiles), PACF, normality tests
+- **Outlier diagnostics**: `outlier_diagnostics.py` — classify outliers by climate/data/neighbors
 - **Advanced analytics**: `recession.py` (exponential decay with baseline offset), `baseflow.py` (Lyne-Hollick 3-pass on dh/dt), `spectral.py`, `signal_decomposition.py` (STL with gap interpolation), `cross_correlation.py`, `multi_station_residuals.py`, `input_quality.py`
-- **Scenarios**: `scenario.py` (apply modifications to calibrated model), `scenario_presets.py` (referential of realistic pumping profiles per usage x aquifer, validation, persistence, adaptive bounds from step response)
-- **Frontend results**: `FitResultsPanel.tsx` — main results dashboard with lazy-loaded sections (diagnostics, signatures, decomposition only fetch when expanded)
+
+### Scenarios
+- **Engine**: `scenario.py` — deep-copies calibrated model, applies modifications, simulates via superposition (linear TFN principle)
+- **Presets**: `scenario_presets.py` — pumping profiles per usage × aquifer family, validation, adaptive bounds
+- **Physics design decisions**:
+  - New stress models added post-calibration use `_fill_nan_optimal()` to prevent Pastas `hasnans` cascade (which would discard all calibrated parameters)
+  - `load_model()` result is deep-copied immediately to avoid mutating the LRU cache
+  - Pumping response function params (a, n) use **aquifer-family-specific defaults** (`PUMPING_RFUNC_DEFAULTS`), NOT the calibrated recharge params — recharge (vertical percolation, a=50-130d) and pumping (horizontal propagation, a=200-500d) operate on different timescales
+  - Gain A is NOT transferred from recharge — it has different physical meaning (mm recharge → m head vs m³/d pumping → m drawdown)
+  - `gain_scale_factor` computed from active pumping window only (non-zero values), not the zero-padded full series
+  - `up=False` with positive Q values — Pastas convention for extraction (A becomes negative internally)
+  - Superposition is valid for moderate pumping in linear aquifer regime (no dewatering)
+  - Gamma rfunc is a parametic approximation of Theis — acceptable for scenario exploration, not ouvrage dimensioning
+- **Adaptive bounds**: `GET /models/{run_id}/adaptive-bounds` — uses calibrated step response to compute Q limits from drawdown thresholds (soft=0.5m, hard=2.0m)
+
+### Frontend
+- **FitResultsPanel.tsx** — main results dashboard with lazy-loaded sections (diagnostics, signatures, decomposition only fetch when expanded)
+- **CSV export**: per-section download buttons (time series with train/test period column, contributions) — frontend-only via `csv-export.ts`
+- **Scenario export**: baseline/scenario/delta CSV + contributions CSV in section headers
 - **MLflow tags**: `cal_tmin`, `cal_tmax`, `val_tmin`, `val_tmax`, `station_id`, `nature_eh`, `milieu_eh` — use `_get_cal_val_periods(run)` helper
 - **Endpoints return `{cal: ..., val: ...}`** for period-dependent analyses (diagnostics, outliers, spectral, regional)
-- **Adaptive bounds**: `GET /models/{run_id}/adaptive-bounds` — uses calibrated step response to compute Q limits from drawdown thresholds
 
 ## Docker Setup
 
@@ -133,6 +153,11 @@ dashboard/
 - **NaN in time series** — `_series_to_ts()` serializes NaN as `null` (not 0.0). Frontend `TimeSeriesData.values` is `(number | null)[]`.
 - **Curly quotes in TSX** — Docker `tsc -b` rejects Unicode curly quotes ('') in string literals. Always use ASCII quotes.
 - **`add_trend=True` with `tmin=None`** — `builder.py` derives trend start/end from observation index when not specified. Previously crashed with "NaTType does not support toordinal".
+- **Scenario `hasnans` cascade** — after `model.add_stressmodel()`, new params have `optimal=NaN`. Pastas then uses `initial` for ALL params (including calibrated ones). `_fill_nan_optimal()` must be called after every `add_stressmodel()`.
+- **Scenario `load_model()` cache mutation** — always `copy.deepcopy(load_model(run_id))` before calling `simulate()` or `get_contribution()` on the result. The LRU cache returns the same object.
+- **Pumping rfunc ≠ recharge rfunc** — never transfer gain A from recharge to pumping (different physics). Only aquifer-family defaults for time params (a, n).
+- **Auto-fit early validation** — `_validate_series()` runs before the config grid to fail fast on data issues (overlap, NaN ratio). All-same-error configs collapse to a single frontend banner.
+- **Docker `--no-cache` for frontend** — Vite build may cache aggressively. Use `docker compose build --no-cache frontend` if changes don't appear after rebuild.
 
 ## Testing
 

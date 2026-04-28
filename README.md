@@ -14,12 +14,17 @@ Full-stack platform for groundwater level forecasting and analysis. React fronte
 
 ### Pastas Lab (TFN)
 - **Transfer Function-Noise models** for piezometric time series
-- **Auto-fit**: grid search across configurations with STOWA quality criteria
+- **Auto-fit**: grid search across configurations with STOWA quality criteria, early data validation
 - **Calibration/validation** with train/test split
 - **Results dashboard**: performance metrics, response functions, diagnostics, hydrological signatures
+- **CSV export**: time series (obs/sim/residuals with train/test period), stress contributions
 - **What-if scenarios**: synthetic pumping, climate change, trend modifications
-- **Realistic referential**: pumping profiles per usage (AEP, irrigation, industrial) x aquifer family
-- **Adaptive bounds**: drawdown estimation from calibrated step response
+  - Physics-based: aquifer-family-specific response function defaults (alluvial, sedimentary, karst, fractured, volcanic)
+  - Superposition principle: new stresses added to calibrated model without re-solving
+  - Pumping persistence: realistic time constants (200-500 days) distinct from recharge timescale
+- **Preset scenarios**: drinking water well, seasonal irrigation, industrial pumping, summer/prolonged drought, climate trend
+- **Realistic referential**: pumping profiles per usage (AEP, irrigation, industrial) × aquifer family
+- **Adaptive bounds**: drawdown estimation from calibrated step response with visual feedback (Realistic/High/Unrealistic)
 
 ### Observatory
 - **Station map** with BDLISA aquifer overlays
