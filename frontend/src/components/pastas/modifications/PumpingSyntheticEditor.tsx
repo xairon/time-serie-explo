@@ -365,33 +365,34 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs text-text-muted mb-1">
+          Flow rate (m³/d)
+          {adaptiveBounds?.Q_soft != null && rateRange && adaptiveBounds.Q_soft < rateRange.typical_max && (
+            <span className="ml-1 text-[9px] text-accent-cyan">Cal. model</span>
+          )}
+          {!adaptiveBounds?.Q_soft && rateRange && (
+            <span className="ml-1 text-[9px] text-text-muted">Ref.</span>
+          )}
+        </label>
+        <input
+          type="number"
+          value={data.rate_m3d || ''}
+          onChange={(e) => update({ rate_m3d: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+          onBlur={() => { if (!data.rate_m3d) update({ rate_m3d: 0 }) }}
+          placeholder="e.g. 100"
+          className={inputClass}
+          step="10"
+          min={rateRange?.hard_min ?? 0}
+          max={effectiveHardMax}
+        />
+        <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />
+        {adaptiveBounds && <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />}
+      </div>
+
+      {data.rfunc === 'Hantush' && (
         <div>
-          <label className="block text-xs text-text-muted mb-1">
-            Flow rate (m³/d)
-            {adaptiveBounds?.Q_soft != null && rateRange && adaptiveBounds.Q_soft < rateRange.typical_max && (
-              <span className="ml-1 text-[9px] text-accent-cyan">Cal. model</span>
-            )}
-            {!adaptiveBounds?.Q_soft && rateRange && (
-              <span className="ml-1 text-[9px] text-text-muted">Ref.</span>
-            )}
-          </label>
-          <input
-            type="number"
-            value={data.rate_m3d || ''}
-            onChange={(e) => update({ rate_m3d: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-            onBlur={() => { if (!data.rate_m3d) update({ rate_m3d: 0 }) }}
-            placeholder="e.g. 100"
-            className={inputClass}
-            step="10"
-            min={rateRange?.hard_min ?? 0}
-            max={effectiveHardMax}
-          />
-          <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />
-          {adaptiveBounds && <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />}
-        </div>
-        <div>
-          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance from the well to the observation piezometer">Distance to piezometer (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance between the well and the observation piezometer. Only used with the Hantush response function (confined aquifers).">Distance to piezometer (m)</label>
           <input
             type="number"
             value={data.distance_m || ''}
@@ -405,7 +406,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           />
           <RangeWarning value={data.distance_m} range={distRange} label="Distance" />
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -419,7 +420,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1">Response function</label>
+        <label className="block text-xs text-text-muted mb-1" title="How the aquifer responds to pumping. Exponential: simple decay (most aquifers). Hantush: accounts for distance and confinement (confined aquifers only).">Response function</label>
         <select
           value={data.rfunc}
           onChange={(e) => update({ rfunc: e.target.value as 'Exponential' | 'Hantush' })}
