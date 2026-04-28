@@ -4,7 +4,6 @@ from __future__ import annotations
 import copy
 import logging
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any, Optional
 
 import mlflow
@@ -35,6 +34,88 @@ class ScenarioResult:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _fill_nan_optimal(model: ps.Model) -> None:
+    """Ensure all parameters have non-NaN optimal values.
+
+    Pastas uses initial values for the entire model when ANY optimal is NaN.
+    After adding a new stressmodel, its parameters have optimal=NaN. This
+    copies initial→optimal for those rows so the calibrated parameters are
+    preserved via the optimal column.
+    """
+    for pname in model.parameters.index:
+        if pd.isna(model.parameters.loc[pname, "optimal"]):
+            val = model.parameters.loc[pname, "initial"]
+            if pd.notna(val):
+                try:
+                    model.set_parameter(pname, optimal=float(val))
+                except Exception:
+                    model.parameters.loc[pname, "optimal"] = float(val)
+
+
+def _get_calibrated_time_params(model: ps.Model) -> dict[str, float]:
+    """Extract time-shape response function params from the calibrated recharge.
+
+    Only transfers a (time constant), n (shape), and f (Hantush leakage).
+    Does NOT transfer A (gain) — it has different physical meaning for
+    recharge vs pumping.
+    """
+    for sm in model.stressmodels.values():
+        if isinstance(sm, ps.RechargeModel):
+            params = {}
+            prefix = sm.name + "_"
+            for pname in model.parameters.index:
+                if pname.startswith(prefix):
+                    short = pname[len(prefix):]
+                    if short in ("a", "n", "f"):
+                        val = model.parameters.loc[pname, "optimal"]
+                        if pd.notna(val):
+                            params[short] = float(val)
+            return params
+    return {}
+
+
+def _extend_to_model_range(
+    q_series: pd.Series, model: ps.Model,
+) -> pd.Series:
+    """Extend a pumping series with zeros to cover the full model time range."""
+    model_tmin = model.get_tmin(use_oseries=True, use_stresses=True)
+    model_tmax = model.get_tmax(use_oseries=True, use_stresses=True)
+    full_idx = pd.date_range(start=model_tmin, end=model_tmax, freq="D")
+    q_full = pd.Series(0.0, index=full_idx, name=q_series.name or "pumping")
+    common = q_series.index.intersection(full_idx)
+    q_full.loc[common] = q_series.loc[common]
+    return q_full
+
+
+def _pumping_gain_scale_factor(q_series: pd.Series) -> float:
+    """Compute gain_scale_factor from the active (non-zero) pumping window."""
+    nonzero = q_series[q_series > 0]
+    if len(nonzero) > 1:
+        s = float(nonzero.std())
+        if s > 0:
+            return s
+    if len(nonzero) > 0:
+        return float(nonzero.mean())
+    return 1.0
+
+
+def _transfer_time_params(
+    model: ps.Model, stress_name: str, cal_params: dict[str, float],
+) -> None:
+    """Set the time-shape parameters of a new stress from calibrated values."""
+    for short_name, val in cal_params.items():
+        pname = f"{stress_name}_{short_name}"
+        if pname in model.parameters.index:
+            try:
+                model.set_parameter(pname, initial=val, optimal=val)
+            except Exception as exc:
+                logger.warning("Could not set %s=%s: %s", pname, val, exc)
+
+
+# ---------------------------------------------------------------------------
 # Series generators
 # ---------------------------------------------------------------------------
 
@@ -47,24 +128,7 @@ def _generate_pumping_series(
     season_months: list[int] | None = None,
     pulse_duration_days: int = 30,
 ) -> pd.Series:
-    """Generate a pumping rate time series Q(t) in m³/d.
-
-    Parameters
-    ----------
-    start, end:
-        ISO date strings for the stress period.
-    pattern:
-        One of "constant", "seasonal", "pulse".
-    rate_m3d:
-        Peak pumping rate in m³/d.
-    period_days:
-        Period for seasonal pattern (default 365 days).
-    season_months:
-        For "seasonal" pattern: list of active months (1-12).
-        Default [5,6,7,8,9] (May-September / irrigation season).
-    pulse_duration_days:
-        For "pulse" pattern: duration of each pulse in days.
-    """
+    """Generate a pumping rate time series Q(t) in m³/d."""
     idx = pd.date_range(start=start, end=end, freq="D")
 
     if pattern == "seasonal":
@@ -88,11 +152,7 @@ def _generate_pumping_series(
 # ---------------------------------------------------------------------------
 
 def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any]) -> None:
-    """Add a synthetic pumping stress model.
-
-    Expected mod keys: name, start, end, pattern, rate_m3d, rfunc (optional),
-    period_days (optional).
-    """
+    """Add a synthetic pumping stress model."""
     name = mod.get("name", "pumping")
     start = str(mod["start"])
     end = str(mod["end"])
@@ -118,37 +178,25 @@ def _apply_pumping_synthetic(model: ps.Model, mod: dict[str, Any]) -> None:
         pulse_duration_days=pulse_duration_days,
     )
 
-    # Extend the pumping series with zeros to cover the model's full time range.
-    # Pastas raises ValueError if the stress series doesn't cover the simulation window.
-    model_tmin = model.get_tmin(use_oseries=True, use_stresses=True)
-    model_tmax = model.get_tmax(use_oseries=True, use_stresses=True)
-    full_idx = pd.date_range(start=model_tmin, end=model_tmax, freq="D")
-    q_full = pd.Series(0.0, index=full_idx, name="pumping")
-    # Fill the pumping window
-    common = q_series.index.intersection(full_idx)
-    q_full.loc[common] = q_series.loc[common]
-
-    # Pastas computes gain_scale_factor from series.std(); if the series is all
-    # zeros (rate=0), std=0 and the initial amplitude becomes -inf, causing NaN
-    # in simulation. Use gain_scale_factor=1.0 as a safe fallback.
-    gsf = float(q_full.std()) if float(q_full.std()) > 0 else 1.0
+    q_full = _extend_to_model_range(q_series, model)
+    gsf = _pumping_gain_scale_factor(q_series)
 
     sm = ps.StressModel(
         q_full,
         rfunc=rfunc_cls(),
         name=name,
-        up=False,  # pumping lowers GWL
+        up=False,
         settings="well",
         gain_scale_factor=gsf,
     )
     model.add_stressmodel(sm)
 
+    _transfer_time_params(model, name, _get_calibrated_time_params(model))
+    _fill_nan_optimal(model)
+
 
 def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any]) -> None:
-    """Add a pumping stress model from user-provided CSV rows.
-
-    Expected mod keys: name, csv_rows ([{date, Q_m3d}, ...]), rfunc (optional).
-    """
+    """Add a pumping stress model from user-provided CSV rows."""
     name = mod.get("name", "pumping_upload")
     csv_rows = mod["csv_rows"]
     rfunc_name = mod.get("rfunc", "Gamma")
@@ -165,9 +213,11 @@ def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any]) -> None:
     q_series = pd.Series(values, index=dates, name=name).sort_index()
     q_series.index.freq = pd.infer_freq(q_series.index)
 
-    gsf = float(q_series.std()) if float(q_series.std()) > 0 else 1.0
+    q_full = _extend_to_model_range(q_series, model)
+    gsf = _pumping_gain_scale_factor(q_series)
+
     sm = ps.StressModel(
-        q_series,
+        q_full,
         rfunc=rfunc_cls(),
         name=name,
         up=False,
@@ -176,12 +226,12 @@ def _apply_pumping_upload(model: ps.Model, mod: dict[str, Any]) -> None:
     )
     model.add_stressmodel(sm)
 
+    _transfer_time_params(model, name, _get_calibrated_time_params(model))
+    _fill_nan_optimal(model)
+
 
 def _apply_linear_trend(model: ps.Model, mod: dict[str, Any]) -> None:
-    """Add a LinearTrend stressmodel.
-
-    Expected mod keys: start, end, name (optional).
-    """
+    """Add a LinearTrend stressmodel."""
     start = str(mod["start"])
     end = str(mod["end"])
     name = mod.get("name", "trend")
@@ -189,31 +239,26 @@ def _apply_linear_trend(model: ps.Model, mod: dict[str, Any]) -> None:
     lt = ps.LinearTrend(start=start, end=end, name=name)
     model.add_stressmodel(lt)
 
-    # Set initial slope if provided.
-    # LinearTrend parameter is named "{name}_a" (m/day), so convert m/year → m/day.
     slope = mod.get("slope_m_per_year") or mod.get("slope")
     if slope is not None:
         param_name = f"{name}_a"
         slope_per_day = float(slope) / 365.25
         if param_name in model.parameters.index:
-            model.set_parameter(param_name, initial=slope_per_day)
+            model.set_parameter(param_name, initial=slope_per_day, optimal=slope_per_day)
+
+    _fill_nan_optimal(model)
 
 
 def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
-    """Scale precip or evap series in a RechargeModel.
-
-    Expected mod keys: stress_index (0=precip, 1=evap), factor, start (optional), end (optional).
-    """
+    """Scale precip or evap series in a RechargeModel."""
     stress_raw = mod.get("stress", mod.get("stress_index", 0))
     stress_index = 1 if stress_raw in ("evap", 1) else 0
     factor = float(mod["factor"])
     start = mod.get("start")
     end = mod.get("end")
 
-    # Find the recharge stress model
     rm_name = mod.get("stressmodel_name", "recharge")
     if rm_name not in model.stressmodels:
-        # Fall back to first RechargeModel
         for name, sm in model.stressmodels.items():
             if isinstance(sm, ps.RechargeModel):
                 rm_name = name
@@ -223,13 +268,10 @@ def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
 
     rm: ps.RechargeModel = model.stressmodels[rm_name]
 
-    # Extract calibrated parameter values before deleting
     params_before = model.parameters.copy()
 
-    # Get the two stress series
     series_list = [ts.series.copy() for ts in rm.stress]
 
-    # Scale the target series within the window
     target = series_list[stress_index].copy()
     if start is not None or end is not None:
         mask = pd.Series(True, index=target.index)
@@ -242,11 +284,9 @@ def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
         target *= factor
     series_list[stress_index] = target
 
-    # Preserve rfunc class and recharge class
     rfunc_cls = type(rm.rfunc)
     recharge_cls = type(rm.recharge)
 
-    # Delete old recharge model and add new one with scaled series
     model.del_stressmodel(rm_name)
 
     new_rm = ps.RechargeModel(
@@ -258,7 +298,6 @@ def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
     )
     model.add_stressmodel(new_rm)
 
-    # Restore calibrated parameter values
     for param_name in model.parameters.index:
         if param_name in params_before.index:
             row = params_before.loc[param_name]
@@ -266,11 +305,10 @@ def _apply_scale_stress(model: ps.Model, mod: dict[str, Any]) -> None:
             if pd.notna(optimal):
                 try:
                     model.set_parameter(param_name, initial=float(optimal), optimal=float(optimal))
-                except Exception:
-                    try:
-                        model.set_parameter(param_name, initial=float(optimal))
-                    except Exception:
-                        logger.debug("Could not restore parameter %s", param_name)
+                except Exception as exc:
+                    logger.warning("Could not restore parameter %s: %s", param_name, exc)
+
+    _fill_nan_optimal(model)
 
 
 # ---------------------------------------------------------------------------
@@ -286,15 +324,7 @@ _HANDLERS = {
 
 
 def apply_modification(model: ps.Model, mod: dict[str, Any]) -> None:
-    """Apply a single modification to a Pastas model in-place.
-
-    Parameters
-    ----------
-    model:
-        A calibrated Pastas model (will be mutated).
-    mod:
-        Modification dict with at least a "type" key.
-    """
+    """Apply a single modification to a Pastas model in-place."""
     mod_type = mod["type"]
     handler = _HANDLERS.get(mod_type)
     if handler is None:
@@ -327,33 +357,18 @@ def simulate_scenario(
     tmax: Optional[str],
     modifications: list[dict[str, Any]],
 ) -> ScenarioResult:
-    """Load a calibrated model, apply modifications, and simulate.
-
-    Parameters
-    ----------
-    run_id:
-        MLflow run ID of the calibrated Pastas model.
-    tmin, tmax:
-        Simulation window (ISO date strings or None for model defaults).
-    modifications:
-        Ordered list of modification dicts. Each must have a "type" key.
-
-    Returns
-    -------
-    ScenarioResult
-        Contains baseline, scenario, delta, and per-stress contributions.
-    """
+    """Load a calibrated model, apply modifications, and simulate."""
     warnings: list[str] = []
 
-    # Load original model (cached)
-    original = load_model(run_id)
+    # Deep-copy immediately — load_model() is LRU-cached and must not be mutated.
+    original = copy.deepcopy(load_model(run_id))
 
     # --- Validate modifications against aquifer family ---
     aquifer_family = resolve_aquifer_family(run_id)
     validation = validate_modifications(modifications, aquifer_family)
     if not validation.valid:
         raise ValueError(
-            "Modifications invalides : " + " ; ".join(validation.errors)
+            "Invalid modifications: " + " ; ".join(validation.errors)
         )
     warnings.extend(validation.warnings)
 
