@@ -52,8 +52,6 @@ interface Props {
   onBboxChange?: (bbox: [number, number, number, number] | null) => void
   activeWfsLayers?: Set<WfsLayerId>
   wfsData?: Record<string, any>
-  highlightedBasinCode?: string | null
-  highlightedSiteCode?: string | null
   selectedStationCode?: string | null
   showTerrain?: boolean
   flyToBbox?: [number, number, number, number] | null
@@ -205,7 +203,6 @@ export function ObservatoryMap({
   onRegionClick, onHERClick, onSpatialFilter, onBboxChange,
   activeWfsLayers = new Set() as Set<WfsLayerId>,
   wfsData,
-  highlightedBasinCode = null, highlightedSiteCode = null,
   selectedStationCode = null, showTerrain = false,
   flyToBbox = null, onFlyToComplete,
 }: Props) {
@@ -468,47 +465,6 @@ export function ObservatoryMap({
     if (!mapRef.current || !mapLoadedRef.current) return; const map = mapRef.current; if (!map.getLayer('bassins-fill')) return
     map.setPaintProperty('bassins-fill', 'fill-opacity', ['case', ['==', ['get', 'CdBH'], activeCodeBassin ?? '$$NONE$$'], 0.35, ['boolean', ['feature-state', 'hover'], false], 0.20, 0.10])
   }, [activeCodeBassin])
-
-  // Basin/Site highlight
-  useEffect(() => {
-    if (!mapRef.current || !mapLoadedRef.current) return; const map = mapRef.current
-    const highlightCode = highlightedBasinCode || highlightedSiteCode
-    if (highlightCode) {
-      ;['piezo-clusters', 'piezo-cluster-count', 'piezo-unclustered', 'hydro-clusters', 'hydro-cluster-count', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none') })
-      const isBasin = !!highlightedBasinCode; const overlayType: 'piezo' | 'hydro' = isBasin ? 'piezo' : 'hydro'; const overlayIcon = isBasin ? 'piezo-marker' : 'hydro-marker'
-      const relatedFeatures = allFeaturesRef.current.filter(f => isBasin ? f.properties.type === 'piezo' && f.properties.codes_bdlisa?.includes(highlightCode) : f.properties.type === 'hydro' && f.properties.code_site === highlightCode)
-      const relatedGeoJSON = featuresToGeoJSON(relatedFeatures)
-      if (!map.getSource('basin-stations')) {
-        map.addSource('basin-stations', { type: 'geojson', data: relatedGeoJSON as any })
-        map.addLayer({ id: 'basin-stations-layer', type: 'symbol', source: 'basin-stations', layout: { 'icon-image': overlayIcon, 'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.5, 8, 0.65, 12, 0.85], 'icon-allow-overlap': true }, paint: { 'icon-color': buildClassificationColorExpression() as any, 'icon-opacity': 0.95, 'icon-halo-color': '#000000', 'icon-halo-width': 0.8 } })
-        map.on('click', 'basin-stations-layer', (e) => { const code = e.features?.[0]?.properties?.code; const type = e.features?.[0]?.properties?.type as 'piezo' | 'hydro' | undefined; if (code) onStationClickRef.current?.(code, type ?? overlayType) })
-        map.on('mouseenter', 'basin-stations-layer', () => { map.getCanvas().style.cursor = 'pointer' }); map.on('mouseleave', 'basin-stations-layer', () => { map.getCanvas().style.cursor = '' })
-      } else {
-        const src = map.getSource('basin-stations') as maplibregl.GeoJSONSource; src.setData(relatedGeoJSON as any)
-        if (map.getLayer('basin-stations-layer')) { map.setLayoutProperty('basin-stations-layer', 'visibility', 'visible'); map.setLayoutProperty('basin-stations-layer', 'icon-image', overlayIcon) }
-      }
-      const adminFills = ['regions-fill', 'depts-fill', 'her-fill', 'bassins-fill']; const adminLines = ['regions-line', 'depts-line', 'her-line', 'bassins-line']
-      adminFills.forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'fill-opacity', 0.03) }); adminLines.forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-opacity', 0.1) })
-      if (relatedFeatures.length > 0) {
-        const coords = relatedFeatures.map(f => (f.geometry as GeoJSON.Point).coordinates); const lngs = coords.map(c => c[0]); const lats = coords.map(c => c[1])
-        const bbox: [number, number, number, number] = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]
-        map.fitBounds(bbox as maplibregl.LngLatBoundsLike, { padding: 100, maxZoom: 12, duration: 600 })
-      }
-    } else {
-      if (map.getLayer('basin-stations-layer')) map.setLayoutProperty('basin-stations-layer', 'visibility', 'none')
-      const piezoVis = showPiezoRef.current ? 'visible' : 'none'; const hydroVis = showHydroRef.current ? 'visible' : 'none'
-      ;['piezo-clusters', 'piezo-cluster-count', 'piezo-unclustered', 'piezo-excluded-layer'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', piezoVis) })
-      ;['hydro-clusters', 'hydro-cluster-count', 'hydro-unclustered', 'hydro-excluded-layer'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', hydroVis) })
-      if (map.getLayer('regions-fill')) map.setPaintProperty('regions-fill', 'fill-opacity', ['case', ['boolean', ['feature-state', 'hover'], false], 0.35, 0.15])
-      if (map.getLayer('regions-line')) map.setPaintProperty('regions-line', 'line-opacity', 0.7)
-      if (map.getLayer('depts-fill')) map.setPaintProperty('depts-fill', 'fill-opacity', ['case', ['==', ['get', 'code'], activeCodeDeptRef.current ?? '$$NONE$$'], 0.30, ['boolean', ['feature-state', 'hover'], false], 0.25, 0.12])
-      if (map.getLayer('depts-line')) map.setPaintProperty('depts-line', 'line-opacity', 0.6)
-      if (map.getLayer('her-fill')) map.setPaintProperty('her-fill', 'fill-opacity', ['case', ['boolean', ['feature-state', 'hover'], false], 0.30, 0.15])
-      if (map.getLayer('her-line')) map.setPaintProperty('her-line', 'line-opacity', 1)
-      if (map.getLayer('bassins-fill')) map.setPaintProperty('bassins-fill', 'fill-opacity', ['case', ['==', ['get', 'CdBH'], activeCodeBassinRef.current ?? '$$NONE$$'], 0.35, ['boolean', ['feature-state', 'hover'], false], 0.20, 0.10])
-      if (map.getLayer('bassins-line')) map.setPaintProperty('bassins-line', 'line-opacity', 0.5)
-    }
-  }, [highlightedBasinCode, highlightedSiteCode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Selected station ring
   useEffect(() => {
