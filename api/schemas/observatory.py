@@ -91,18 +91,6 @@ class PiezoYearly(BaseModel):
     niveau_moy_mobile_5ans: float | None = None
 
 
-class PiezoTrend(BaseModel):
-    code_bss: str
-    saison: str | None = None
-    code_departement: str | None = None
-    nom_departement: str | None = None
-    variation_annuelle_m: float | None = None
-    fiabilite_tendance: float | None = None
-    nb_points: int | None = None
-    classification_tendance: str | None = None
-    projection_variation_5ans_m: float | None = None
-
-
 class PiezoPercentiles(BaseModel):
     p10: float | None = None
     p25: float | None = None
@@ -122,23 +110,6 @@ class PiezoSPI(BaseModel):
     value: float | None = None
     spi: float | None = None
     classification: str = "UNKNOWN"
-
-
-class PiezoSiblingStation(BaseModel):
-    code_bss: str
-    nom_commune: str | None = None
-    code_departement: str | None = None
-    classification: str | None = None
-    derniere_mesure: date | None = None
-    distance_km: float | None = None
-
-
-class PiezoBasinSiblings(BaseModel):
-    code_bdlisa: str
-    nom_bdlisa: str | None = None
-    nature_bdlisa: str | None = None
-    nb_stations: int
-    siblings: list[PiezoSiblingStation]
 
 
 # ---------------------------------------------------------------------------
@@ -209,19 +180,6 @@ class HydroYearly(BaseModel):
     nb_jours_mesures_annuel: float | None = None
     percentile_resultat_historique: float | None = None
     classification_resultat_annuel: str | None = None
-
-
-class HydroTrend(BaseModel):
-    code_station: str
-    grandeur_hydro_elab: str | None = None
-    saison: str | None = None
-    code_departement: str | None = None
-    nom_departement: str | None = None
-    variation_annuelle: float | None = None
-    fiabilite_tendance: float | None = None
-    nb_points: int | None = None
-    classification_tendance: str | None = None
-    projection_variation_5ans: float | None = None
 
 
 class HydroPercentiles(BaseModel):
@@ -297,15 +255,6 @@ class NationalStats(BaseModel):
     hydro_haut: int = 0
     hydro_tres_haut: int = 0
     hydro_extremement_haut: int = 0
-
-
-class DepartmentStats(BaseModel):
-    code_departement: str
-    nom_departement: str | None = None
-    nb_piezo: int
-    nb_hydro: int
-    pct_tres_bas: float | None = None
-    avg_variation: float | None = None
 
 
 # ---------------------------------------------------------------------------

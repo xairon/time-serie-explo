@@ -1,7 +1,7 @@
 """Observatory hydro router — sync SQLAlchemy against BRGM data warehouse."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -16,7 +16,6 @@ from api.schemas.observatory import (
     HydroSPI,
     HydroSSFI,
     HydroStation,
-    HydroTrend,
     HydroYearly,
 )
 from dashboard.utils.cache import get_cached
@@ -30,7 +29,6 @@ DAILY_TTL = 21600
 MONTHLY_TTL = 43200
 YEARLY_TTL = 86400
 PERCENTILES_TTL = 86400
-TRENDS_TTL = 43200
 SSFI_TTL = 86400
 SIBLINGS_TTL = 3600
 
@@ -55,7 +53,6 @@ _FLOW_COLS_YEARLY = (
     "resultat_moyen_annuel", "resultat_min_annuel", "resultat_max_annuel", "amplitude_annuelle",
 )
 _FLOW_COLS_PERCENTILES = ("p10", "p25", "p75", "p90")
-_FLOW_COLS_TRENDS = ("variation_annuelle", "projection_variation_5ans")
 
 
 def _qmnj_to_m3_s(value):
@@ -76,10 +73,6 @@ def _convert_qmnj_row(row: dict, columns) -> dict:
 
 ClassificationType = Literal[
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
-]
-SaisonType = Literal["annuel", "printemps", "ete", "automne", "hiver"]
-ClassificationTendanceType = Literal[
-    "HAUSSE_FORTE", "HAUSSE_SIGNIFICATIVE", "STABLE", "BAISSE_SIGNIFICATIVE", "BAISSE_FORTE"
 ]
 
 
@@ -531,70 +524,3 @@ def get_station(code_station: str):
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)
 
 
-# ---------------------------------------------------------------------------
-# GET /trends
-# ---------------------------------------------------------------------------
-
-@router.get("/trends", response_model=list[HydroTrend])
-def get_trends(
-    saison: Optional[SaisonType] = Query(None),
-    code_departement: Optional[str] = Query(None, min_length=1, max_length=3),
-    classification_tendance: Optional[ClassificationTendanceType] = Query(None),
-    fiabilite_min: Optional[float] = Query(None),
-    grandeur_hydro_elab: Optional[str] = Query(None),
-    active_only: bool = Query(True),
-):
-    params = {
-        "saison": saison,
-        "code_departement": code_departement,
-        "classification_tendance": classification_tendance,
-        "fiabilite_min": fiabilite_min,
-        "grandeur_hydro_elab": grandeur_hydro_elab,
-        "active_only": active_only,
-    }
-
-    def fetch():
-        conditions = ["1=1"]
-        bind: dict = {}
-        join_clause = ""
-        if active_only:
-            join_clause = " JOIN gold.dim_hydro_stations ds ON t.code_station = ds.code_station AND ds.derniere_mesure >= :recent_cutoff"
-            bind["recent_cutoff"] = date.today() - timedelta(days=90)
-        if saison is not None:
-            conditions.append("t.saison = :saison")
-            bind["saison"] = saison
-        if code_departement is not None:
-            conditions.append("t.code_departement = :dept")
-            bind["dept"] = code_departement
-        if classification_tendance is not None:
-            conditions.append("t.classification_tendance = :classif")
-            bind["classif"] = classification_tendance
-        if fiabilite_min is not None:
-            conditions.append("t.fiabilite_tendance >= :fiab_min")
-            bind["fiab_min"] = fiabilite_min
-        if grandeur_hydro_elab is not None:
-            conditions.append("t.grandeur_hydro_elab = :grandeur")
-            bind["grandeur"] = grandeur_hydro_elab
-
-        where = " AND ".join(conditions)
-        query = f"""
-            SELECT t.code_station, t.grandeur_hydro_elab, t.saison, t.code_departement, t.nom_departement,
-                   t.variation_annuelle, t.fiabilite_tendance, t.nb_points,
-                   t.classification_tendance, t.projection_variation_5ans
-            FROM gold.agg_hydro_trends t{join_clause}
-            WHERE {where}
-            ORDER BY t.code_station
-        """
-        engine = create_engine(_brgm_url())
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text(query), bind)
-                rows = [dict(r._mapping) for r in result]
-        finally:
-            engine.dispose()
-        for r in rows:
-            if r.get("grandeur_hydro_elab") != "H":
-                _convert_qmnj_row(r, _FLOW_COLS_TRENDS)
-        return rows
-
-    return get_cached("obs_hydro_trends", params, TRENDS_TTL, fetch)

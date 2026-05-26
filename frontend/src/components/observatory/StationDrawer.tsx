@@ -3,7 +3,7 @@ import { X, ExternalLink, TrendingUp, TrendingDown, Minus, Droplets, Waves } fro
 import { ClassificationBadge } from './ClassificationBadge'
 import { formatNumber, formatDate } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
-import { usePiezoStationDetail, useHydroStationDetail, usePiezoSiblings, useHydroSiblings, useObsPastasSummary } from '@/hooks/useObservatory'
+import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, useObsPastasSummary } from '@/hooks/useObservatory'
 
 interface Props {
   code: string
@@ -53,7 +53,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
   const { data: station, isLoading, isError } = isPiezo ? piezoQuery : hydroQuery
 
   const stationCode = isPiezo ? (station as any)?.code_bss ?? code : (station as any)?.code_station ?? code
-  const piezoSiblings = usePiezoSiblings(isPiezo ? stationCode : '')
   const hydroSiblings = useHydroSiblings(!isPiezo ? stationCode : '')
   const { data: pastasSummary } = useObsPastasSummary(isPiezo ? stationCode : '')
 
@@ -128,24 +127,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
             <InfoRow label="Data" value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? 'measurements' : 'days'}</>} sub={dataPeriodYears ? `${dataPeriodYears} years of record` : undefined} />
           </div>
         </div>
-
-        {isPiezo && piezoSiblings.data && piezoSiblings.data.siblings.length > 0 && (
-          <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Aquifer - {piezoSiblings.data.nb_stations} stations</div>
-            <p className="text-xs text-text-primary mb-2 font-medium">{piezoSiblings.data.code_bdlisa}</p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {piezoSiblings.data.siblings.slice(0, 5).map(sib => (
-                <Link key={sib.code_bss} to={`/station/piezo/${sib.code_bss}`} className="flex items-center justify-between py-1 px-1.5 rounded hover:bg-bg-hover text-xs transition-colors">
-                  <span className="text-text-primary truncate">{sib.nom_commune || sib.code_bss}</span>
-                  <span className="flex items-center gap-1.5 shrink-0 ml-2">
-                    {sib.distance_km != null && <span className="text-[10px] text-text-secondary">{sib.distance_km} km</span>}
-                    {sib.classification && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CLASSIFICATION_COLORS[sib.classification] ?? '#6b7280' }} title={sib.classification} />}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {!isPiezo && hydroSiblings.data && hydroSiblings.data.siblings.length > 0 && (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">

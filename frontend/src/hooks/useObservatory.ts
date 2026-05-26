@@ -49,16 +49,6 @@ export function useStationsGeoJSON() {
   })
 }
 
-export function usePiezoSiblings(code: string) {
-  return useQuery({
-    queryKey: ['obs-siblings', 'piezo', code],
-    queryFn: () => observatoryApi.piezo.siblings(code),
-    enabled: !!code,
-    staleTime: 3_600_000,
-    retry: false,
-  })
-}
-
 export function useHydroSiblings(code: string) {
   return useQuery({
     queryKey: ['obs-siblings', 'hydro', code],

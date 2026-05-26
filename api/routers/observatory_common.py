@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import create_engine, text
 
 from api.config import settings
-from api.schemas.observatory import Alert, DepartmentStats, NationalStats
+from api.schemas.observatory import Alert, NationalStats
 from dashboard.utils.cache import get_cached
 
 router = APIRouter(prefix="/api/v1/observatory", tags=["observatory-common"])
@@ -296,55 +296,6 @@ def get_national_stats():
             engine.dispose()
 
     return get_cached("obs_national_stats", {}, STATS_TTL, fetch)
-
-
-# ---------------------------------------------------------------------------
-# GET /stats/departments
-# ---------------------------------------------------------------------------
-
-@router.get("/stats/departments", response_model=list[DepartmentStats])
-def get_department_stats():
-    def fetch():
-        recent_cutoff = date.today() - timedelta(days=90)
-        query = """
-            WITH piezo AS (
-                SELECT code_departement, nom_departement,
-                       count(*) AS nb_piezo,
-                       count(*) FILTER (WHERE classification_derniere_annee IN ('EXTREMEMENT_BAS', 'TRES_BAS')) AS tres_bas
-                FROM gold.dim_piezo_stations
-                WHERE code_departement IS NOT NULL AND derniere_mesure >= :recent_cutoff
-                GROUP BY code_departement, nom_departement
-            ),
-            hydro AS (
-                SELECT code_departement, count(*) AS nb_hydro
-                FROM gold.dim_hydro_stations
-                WHERE code_departement IS NOT NULL AND derniere_mesure >= :recent_cutoff
-                GROUP BY code_departement
-            ),
-            trends AS (
-                SELECT code_departement, avg(variation_annuelle_m) AS avg_variation
-                FROM gold.agg_station_trends
-                WHERE saison = 'annuel'
-                GROUP BY code_departement
-            )
-            SELECT p.code_departement, p.nom_departement,
-                   p.nb_piezo, COALESCE(h.nb_hydro, 0) AS nb_hydro,
-                   ROUND(p.tres_bas::numeric / NULLIF(p.nb_piezo, 0) * 100, 1) AS pct_tres_bas,
-                   t.avg_variation
-            FROM piezo p
-            LEFT JOIN hydro h ON p.code_departement = h.code_departement
-            LEFT JOIN trends t ON p.code_departement = t.code_departement
-            ORDER BY p.code_departement
-        """
-        engine = create_engine(_brgm_url())
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text(query), {"recent_cutoff": recent_cutoff})
-                return [dict(r._mapping) for r in result]
-        finally:
-            engine.dispose()
-
-    return get_cached("obs_department_stats", {}, STATS_TTL, fetch)
 
 
 # ---------------------------------------------------------------------------

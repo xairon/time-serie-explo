@@ -1,13 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, Info, Droplets, Waves, Brain } from 'lucide-react'
-import { usePiezoStationDetail, useHydroStationDetail, usePiezoSiblings, useHydroSiblings, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
+import { ArrowLeft, Info, Waves, Brain } from 'lucide-react'
+import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
 import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
-import { formatDate } from '@/lib/observatory-utils'
 
 type Resolution = 'daily' | 'monthly' | 'yearly'
 const RESOLUTION_OPTIONS: { value: Resolution; label: string }[] = [{ value: 'daily', label: 'Daily' }, { value: 'monthly', label: 'Monthly' }, { value: 'yearly', label: 'Yearly' }]
@@ -61,7 +60,6 @@ export default function StationPage() {
   const stationLoading = isPiezo ? piezoLoading : hydroLoading
   const type = isPiezo ? 'piezo' as const : 'hydro' as const
 
-  const { data: piezoSiblings } = usePiezoSiblings(isPiezo ? code : '')
   const { data: hydroSiblings } = useHydroSiblings(!isPiezo ? code : '')
   const { data: spliData } = usePiezoSPLI(isPiezo ? code : '')
   const { data: ssfiData } = useHydroSSFI(!isPiezo ? code : '')
@@ -103,14 +101,6 @@ export default function StationPage() {
             {isPiezo ? (<><div><MetaRow label="Data period" value={formatPeriod(station.premiere_mesure, station.derniere_mesure)} /><MetaRow label="Duration" value={formatDuration(station.nb_mois_total)} /><MetaRow label="Measurements" value={station.nb_mesures_total?.toLocaleString() ?? null} /><MetaRow label="Last measurement" value={formatDateEN(station.derniere_mesure)} /><MetaRow label="Station altitude" value={station.altitude_station != null ? `${station.altitude_station.toFixed(0)} m NGF` : null} /></div><div><MetaRow label="BSS Code" value={station.code_bss ?? null} mono /><MetaRow label="Coordinates" value={station.latitude != null && station.longitude != null ? `${station.latitude.toFixed(4)} N, ${station.longitude.toFixed(4)} E` : null} /><MetaRow label="BDLISA Code" value={station.codes_bdlisa ? (<a href={`https://bdlisa.eaufrance.fr/hydrogeounit/${station.codes_bdlisa.split(',')[0]}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{station.codes_bdlisa}</a>) : null} /><MetaRow label="Historic min" value={station.niveau_min_absolu != null ? `${station.niveau_min_absolu.toFixed(2)} m NGF` : null} /><MetaRow label="Historic max" value={station.niveau_max_absolu != null ? `${station.niveau_max_absolu.toFixed(2)} m NGF` : null} /></div><div className="col-span-full flex flex-wrap gap-3 pt-2 border-t border-white/5"><a href={`https://ades.eaufrance.fr/Fiche/PtEau?code=${station.code_bss}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">ADES</a><a href="https://hubeau.eaufrance.fr/page/api-piezometrie" target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">Hub'Eau</a></div></>) : (<><div><MetaRow label="Data period" value={formatPeriod(station.premiere_mesure, station.derniere_mesure)} /><MetaRow label="Duration" value={formatDuration(station.nb_mois_total)} /><MetaRow label="Last measurement" value={formatDateEN(station.derniere_mesure)} /></div><div><MetaRow label="Station code" value={station.code_station ?? null} mono /><MetaRow label="Coordinates" value={station.latitude_station != null && station.longitude_station != null ? `${station.latitude_station.toFixed(4)} N, ${station.longitude_station.toFixed(4)} E` : null} /><MetaRow label="River code" value={station.code_cours_eau ? (<a href={`https://services.sandre.eaufrance.fr/Courdo/Fiche/client/fiche_courdo.php?CdSandre=${station.code_cours_eau}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-mono">{station.code_cours_eau}</a>) : null} /><MetaRow label="Historic min" value={station.resultat_min_global != null ? `${station.resultat_min_global.toFixed(2)} ${hydroUnit}` : null} /><MetaRow label="Historic max" value={station.resultat_max_global != null ? `${station.resultat_max_global.toFixed(2)} ${hydroUnit}` : null} /></div><div className="col-span-full flex flex-wrap gap-3 pt-2 border-t border-white/5"><a href={`https://www.vigicrues.gouv.fr/niv3-station.php?CdStationHydro=${station.code_station}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">VigiCrues</a><a href="https://hubeau.eaufrance.fr/page/api-hydrometrie" target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-400 hover:underline">Hub'Eau</a></div></>)}
           </div>
         </section>
-
-        {isPiezo && piezoSiblings && piezoSiblings.siblings.length > 0 && (
-          <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4">
-            <h2 className="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2"><Droplets className="w-4 h-4" />Aquifer<span className="text-xs font-mono text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded-full">{piezoSiblings.nb_stations}</span></h2>
-            <p className="text-xs text-gray-500 mb-3">Other piezometers in the same BDLISA basin ({piezoSiblings.code_bdlisa}), sorted by proximity</p>
-            <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b border-white/5"><th className="text-left py-2 px-2 text-gray-500 font-medium">Station</th><th className="text-left py-2 px-2 text-gray-500 font-medium">Dept.</th><th className="text-left py-2 px-2 text-gray-500 font-medium">Status</th><th className="text-left py-2 px-2 text-gray-500 font-medium">Last measurement</th><th className="text-right py-2 px-2 text-gray-500 font-medium">Distance</th></tr></thead><tbody>{piezoSiblings.siblings.map(sib => (<tr key={sib.code_bss} className="border-b border-white/5 hover:bg-bg-hover transition-colors"><td className="py-1.5 px-2"><Link to={`/station/piezo/${sib.code_bss}`} className="text-accent-cyan hover:underline font-mono">{sib.code_bss}</Link>{sib.nom_commune && <span className="text-gray-500 ml-1.5">{sib.nom_commune}</span>}</td><td className="py-1.5 px-2 text-gray-400">{sib.code_departement}</td><td className="py-1.5 px-2">{sib.classification && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: CLASSIFICATION_COLORS[sib.classification] ?? '#6b7280' }} /><span className="text-gray-300">{sib.classification.replace(/_/g, ' ').toLowerCase()}</span></span>}</td><td className="py-1.5 px-2 text-gray-400">{formatDate(sib.derniere_mesure)}</td><td className="py-1.5 px-2 text-right text-gray-400 font-mono">{sib.distance_km != null ? `${sib.distance_km} km` : '--'}</td></tr>))}</tbody></table></div>
-          </section>
-        )}
 
         {!isPiezo && hydroSiblings && hydroSiblings.siblings.length > 0 && (
           <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4">

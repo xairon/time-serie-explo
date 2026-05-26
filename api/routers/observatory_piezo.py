@@ -1,8 +1,7 @@
 """Observatory piezo router — sync SQLAlchemy against BRGM data warehouse."""
 from __future__ import annotations
 
-import math
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -10,14 +9,12 @@ from sqlalchemy import create_engine, text
 
 from api.config import settings
 from api.schemas.observatory import (
-    PiezoBasinSiblings,
     PiezoDaily,
     PiezoMonthly,
     PiezoPercentiles,
     PiezoSPI,
     PiezoSPLI,
     PiezoStation,
-    PiezoTrend,
     PiezoYearly,
 )
 from dashboard.utils.cache import get_cached
@@ -31,16 +28,10 @@ DAILY_TTL = 21600
 MONTHLY_TTL = 43200
 YEARLY_TTL = 86400
 PERCENTILES_TTL = 86400
-TRENDS_TTL = 43200
 SPLI_TTL = 86400
-SIBLINGS_TTL = 3600
 
 ClassificationType = Literal[
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
-]
-SaisonType = Literal["annuel", "printemps", "ete", "automne", "hiver"]
-ClassificationTendanceType = Literal[
-    "HAUSSE_FORTE", "HAUSSE_SIGNIFICATIVE", "STABLE", "BAISSE_SIGNIFICATIVE", "BAISSE_FORTE"
 ]
 
 
@@ -375,77 +366,6 @@ def get_spi(code_bss: str):
     return get_cached("obs_piezo_spi", {"code_bss": code_bss}, SPLI_TTL, fetch)
 
 
-@router.get("/stations/{code_bss:path}/siblings", response_model=PiezoBasinSiblings)
-def get_siblings(
-    code_bss: str,
-    limit: int = Query(20, ge=1, le=100),
-):
-    """Return other piezo stations in the same BDLISA groundwater body, sorted by distance."""
-
-    def fetch():
-        engine = create_engine(_brgm_url())
-        try:
-            with engine.connect() as conn:
-                row = conn.execute(
-                    text("SELECT codes_bdlisa, latitude, longitude FROM gold.dim_piezo_stations WHERE code_bss = :code"),
-                    {"code": code_bss},
-                ).mappings().first()
-                if not row:
-                    raise HTTPException(404, f"Piezo station {code_bss} not found")
-                codes_bdlisa = row["codes_bdlisa"]
-                if not codes_bdlisa:
-                    raise HTTPException(404, f"No BDLISA code for station {code_bss}")
-
-                bdlisa_code = codes_bdlisa.split(",")[0].strip()
-                ref_lat = row["latitude"] or 0.0
-                ref_lon = row["longitude"] or 0.0
-
-                query = """
-                    SELECT code_bss, nom_commune, code_departement, classification_derniere_annee,
-                           derniere_mesure, latitude, longitude
-                    FROM gold.dim_piezo_stations
-                    WHERE codes_bdlisa IS NOT NULL
-                      AND codes_bdlisa LIKE :bdlisa_pattern
-                      AND code_bss != :code
-                    ORDER BY code_bss
-                """
-                result = conn.execute(text(query), {"bdlisa_pattern": f"{bdlisa_code}%", "code": code_bss})
-                siblings = [dict(r._mapping) for r in result]
-        finally:
-            engine.dispose()
-
-        for s in siblings:
-            lat = s.get("latitude") or 0.0
-            lon = s.get("longitude") or 0.0
-            dlat = math.radians(lat - ref_lat)
-            dlon = math.radians(lon - ref_lon) * math.cos(math.radians((ref_lat + lat) / 2))
-            s["distance_km"] = round(math.sqrt(dlat**2 + dlon**2) * 6371, 1)
-
-        siblings.sort(key=lambda s: s["distance_km"])
-        nb_total = len(siblings)
-        siblings = siblings[:limit]
-
-        return {
-            "code_bdlisa": bdlisa_code,
-            "nom_bdlisa": None,
-            "nature_bdlisa": None,
-            "nb_stations": nb_total + 1,
-            "siblings": [
-                {
-                    "code_bss": s["code_bss"],
-                    "nom_commune": s.get("nom_commune"),
-                    "code_departement": s.get("code_departement"),
-                    "classification": s.get("classification_derniere_annee"),
-                    "derniere_mesure": s.get("derniere_mesure"),
-                    "distance_km": s["distance_km"],
-                }
-                for s in siblings
-            ],
-        }
-
-    return get_cached("obs_piezo_siblings", {"code_bss": code_bss, "limit": limit}, SIBLINGS_TTL, fetch)
-
-
 @router.get("/stations/{code_bss:path}", response_model=PiezoStation)
 def get_station(code_bss: str):
     def fetch():
@@ -476,57 +396,3 @@ def get_station(code_bss: str):
     return get_cached("obs_piezo_detail", {"code_bss": code_bss}, DETAIL_TTL, fetch)
 
 
-@router.get("/trends", response_model=list[PiezoTrend])
-def get_trends(
-    saison: Optional[SaisonType] = Query(None),
-    code_departement: Optional[str] = Query(None, min_length=1, max_length=3),
-    classification_tendance: Optional[ClassificationTendanceType] = Query(None),
-    fiabilite_min: Optional[float] = Query(None),
-    active_only: bool = Query(True),
-):
-    params = {
-        "saison": saison,
-        "code_departement": code_departement,
-        "classification_tendance": classification_tendance,
-        "fiabilite_min": fiabilite_min,
-        "active_only": active_only,
-    }
-
-    def fetch():
-        conditions = ["1=1"]
-        bind: dict = {}
-        join_clause = ""
-        if active_only:
-            join_clause = " JOIN gold.dim_piezo_stations ds ON t.code_bss = ds.code_bss AND ds.derniere_mesure >= :recent_cutoff"
-            bind["recent_cutoff"] = date.today() - timedelta(days=90)
-        if saison is not None:
-            conditions.append("t.saison = :saison")
-            bind["saison"] = saison
-        if code_departement is not None:
-            conditions.append("t.code_departement = :dept")
-            bind["dept"] = code_departement
-        if classification_tendance is not None:
-            conditions.append("t.classification_tendance = :classif")
-            bind["classif"] = classification_tendance
-        if fiabilite_min is not None:
-            conditions.append("t.fiabilite_tendance >= :fiab_min")
-            bind["fiab_min"] = fiabilite_min
-
-        where = " AND ".join(conditions)
-        query = f"""
-            SELECT t.code_bss, t.saison, t.code_departement, t.nom_departement,
-                   t.variation_annuelle_m, t.fiabilite_tendance, t.nb_points,
-                   t.classification_tendance, t.projection_variation_5ans_m
-            FROM gold.agg_station_trends t{join_clause}
-            WHERE {where}
-            ORDER BY t.code_bss
-        """
-        engine = create_engine(_brgm_url())
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text(query), bind)
-                return [dict(r._mapping) for r in result]
-        finally:
-            engine.dispose()
-
-    return get_cached("obs_piezo_trends", params, TRENDS_TTL, fetch)
