@@ -25,9 +25,9 @@ interface PumpingSyntheticEditorProps {
 }
 
 const USAGES = [
-  { value: 'aep' as const, label: 'AEP', tooltip: 'Drinking water supply — typically 50-200 m³/d, constant year-round' },
-  { value: 'irrigation' as const, label: 'Irrigation', tooltip: 'Agricultural — typically 200-1000 m³/d, seasonal (summer)' },
-  { value: 'industrial' as const, label: 'Industrial', tooltip: 'Industrial use — typically 100-500 m³/d, constant or semi-constant' },
+  { value: 'aep' as const, label: 'AEP', tooltip: 'Alimentation en eau potable — typiquement 50-200 m³/j, constant toute l\'année' },
+  { value: 'irrigation' as const, label: 'Irrigation', tooltip: 'Agricole — typiquement 200-1000 m³/j, saisonnier (été)' },
+  { value: 'industrial' as const, label: 'Industriel', tooltip: 'Usage industriel — typiquement 100-500 m³/j, constant ou semi-constant' },
 ] as const
 
 function RangeWarning({ value, range, label }: { value: number; range?: PumpingRange; label: string }) {
@@ -35,7 +35,7 @@ function RangeWarning({ value, range, label }: { value: number; range?: PumpingR
   if (value < range.typical_min || value > range.typical_max) {
     return (
       <p className="text-[10px] mt-1 text-yellow-400">
-        Warning: unusual {label} — typical range: {range.typical_min}–{range.typical_max}
+        Attention : {label} inhabituel(le) — plage typique : {range.typical_min}–{range.typical_max}
       </p>
     )
   }
@@ -43,16 +43,16 @@ function RangeWarning({ value, range, label }: { value: number; range?: PumpingR
 }
 
 const PATTERNS: { value: PumpingSyntheticData['pattern']; label: string; desc: string }[] = [
-  { value: 'constant', label: 'Constant', desc: 'Same rate every day over the full period' },
-  { value: 'seasonal', label: 'Seasonal', desc: 'Active only during selected months, every year' },
-  { value: 'pulse', label: 'Pulse', desc: 'Single pumping event of configurable duration' },
+  { value: 'constant', label: 'Constant', desc: 'Même débit chaque jour sur la période complète' },
+  { value: 'seasonal', label: 'Saisonnier', desc: 'Actif uniquement durant les mois sélectionnés, chaque année' },
+  { value: 'pulse', label: 'Impulsion', desc: 'Évènement de pompage unique de durée configurable' },
 ]
 
 const SEASON_PRESETS: { label: string; months: number[] }[] = [
-  { label: 'Summer (May-Sep)', months: [5, 6, 7, 8, 9] },
-  { label: 'Winter (Nov-Mar)', months: [11, 12, 1, 2, 3] },
-  { label: 'Irrigation (Jun-Aug)', months: [6, 7, 8] },
-  { label: 'Full year', months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+  { label: 'Été (mai-sep)', months: [5, 6, 7, 8, 9] },
+  { label: 'Hiver (nov-mars)', months: [11, 12, 1, 2, 3] },
+  { label: 'Irrigation (juin-août)', months: [6, 7, 8] },
+  { label: 'Année complète', months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
 ]
 
 const MONTH_LABELS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
@@ -102,17 +102,17 @@ function DrawdownIndicator({ rate, bounds }: { rate: number; bounds: AdaptiveBou
   const isDanger = drawdown >= bounds.hard_drawdown_m
   const color = isSafe ? 'text-green-400' : isWarning ? 'text-yellow-400' : 'text-red-400'
   const bgColor = isSafe ? 'bg-green-500/5 border-green-500/20' : isWarning ? 'bg-yellow-500/5 border-yellow-500/20' : 'bg-red-500/5 border-red-500/20'
-  const label = isSafe ? 'Realistic' : isWarning ? 'High' : 'Unrealistic'
+  const label = isSafe ? 'Réaliste' : isWarning ? 'Élevé' : 'Irréaliste'
   const hint = isDanger
-    ? `This rate would lower the water table by ${drawdown.toFixed(1)} m — far beyond typical aquifer capacity. Try reducing the flow rate below ${Math.floor(bounds.soft_drawdown_m / Math.abs(bounds.step_response_at_t))} m³/d.`
+    ? `Ce débit ferait baisser la nappe de ${drawdown.toFixed(1)} m — bien au-delà de la capacité typique de l'aquifère. Essayez de réduire le débit en dessous de ${Math.floor(bounds.soft_drawdown_m / Math.abs(bounds.step_response_at_t))} m³/j.`
     : isWarning
-      ? `Significant drawdown (${drawdown.toFixed(1)} m). The aquifer can likely sustain this, but it's at the upper limit.`
-      : `Drawdown of ${drawdown.toFixed(2)} m — well within the aquifer's capacity.`
+      ? `Rabattement significatif (${drawdown.toFixed(1)} m). L'aquifère peut probablement le supporter, mais on est à la limite supérieure.`
+      : `Rabattement de ${drawdown.toFixed(2)} m — bien dans la capacité de l'aquifère.`
   return (
     <div className={`text-[10px] mt-1.5 px-2 py-1.5 rounded border ${bgColor}`}>
       <div className="flex items-center gap-1.5">
         <span className={`font-semibold ${color}`}>{label}</span>
-        <span className="text-text-muted">— estimated water level drop: {drawdown.toFixed(2)} m after {bounds.t_final_days} days</span>
+        <span className="text-text-muted">— baisse estimée du niveau : {drawdown.toFixed(2)} m après {bounds.t_final_days} jours</span>
       </div>
       <p className="text-text-muted mt-0.5">{hint}</p>
     </div>
@@ -130,35 +130,35 @@ function ExpertPanel({ bounds, staticRange }: { bounds: AdaptiveBoundsData; stat
         className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-secondary transition-colors"
       >
         <ChevronDown className={`w-3 h-3 transition-transform ${open ? '' : '-rotate-90'}`} />
-        {isWell ? 'Calibrated model' : 'Aquifer sensitivity'}
+        {isWell ? 'Modèle calibré' : 'Sensibilité de l\'aquifère'}
       </button>
       {open && (
         <div className="mt-1.5 bg-bg-primary border border-white/5 rounded-lg p-2.5 space-y-1">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
             <span className="text-text-muted">Gain A</span>
-            <span className="text-text-secondary font-mono">{bounds.gain_A.toExponential(3)} m/(m³/d)</span>
+            <span className="text-text-secondary font-mono">{bounds.gain_A.toExponential(3)} m/(m³/j)</span>
             <span className="text-text-muted">t95</span>
-            <span className="text-text-secondary font-mono">{Math.round(bounds.t95_days)} d</span>
-            <span className="text-text-muted">Step response (at t)</span>
+            <span className="text-text-secondary font-mono">{Math.round(bounds.t95_days)} j</span>
+            <span className="text-text-muted">Réponse indicielle (à t)</span>
             <span className="text-text-secondary font-mono">{bounds.step_response_at_t.toExponential(3)}</span>
             {isWell && bounds.Q_soft != null && (
               <>
-                <span className="text-text-muted">Q soft (model)</span>
-                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_soft)} m³/d</span>
+                <span className="text-text-muted">Q douce (modèle)</span>
+                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_soft)} m³/j</span>
               </>
             )}
             {isWell && bounds.Q_hard != null && (
               <>
-                <span className="text-text-muted">Q hard (model)</span>
-                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_hard)} m³/d</span>
+                <span className="text-text-muted">Q haute (modèle)</span>
+                <span className="text-text-secondary font-mono">{Math.round(bounds.Q_hard)} m³/j</span>
               </>
             )}
             {staticRange && (
               <>
-                <span className="text-text-muted">Q soft (ref.)</span>
-                <span className="text-text-secondary font-mono">{staticRange.typical_max} m³/d</span>
-                <span className="text-text-muted">Q hard (ref.)</span>
-                <span className="text-text-secondary font-mono">{staticRange.hard_max} m³/d</span>
+                <span className="text-text-muted">Q douce (réf.)</span>
+                <span className="text-text-secondary font-mono">{staticRange.typical_max} m³/j</span>
+                <span className="text-text-muted">Q haute (réf.)</span>
+                <span className="text-text-secondary font-mono">{staticRange.hard_max} m³/j</span>
               </>
             )}
           </div>
@@ -168,7 +168,7 @@ function ExpertPanel({ bounds, staticRange }: { bounds: AdaptiveBoundsData; stat
                 ? 'border-accent-cyan/20 text-accent-cyan bg-accent-cyan/5'
                 : 'border-white/10 text-text-muted'
             }`}>
-              Source: {isWell ? 'calibrated model' : 'static reference'}
+              Source : {isWell ? 'modèle calibré' : 'référence statique'}
             </span>
           </div>
         </div>
@@ -229,7 +229,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
     <div className="space-y-3">
       {/* Usage selector */}
       <div>
-        <label className="block text-xs text-text-muted mb-1.5">Pumping type</label>
+        <label className="block text-xs text-text-muted mb-1.5">Type de pompage</label>
         <div className="flex gap-1">
           {USAGES.map(u => (
             <button
@@ -253,14 +253,14 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
                 : 'bg-bg-primary text-text-muted border border-white/5 hover:border-white/10'
             }`}
           >
-            Custom
+            Personnalisé
           </button>
         </div>
       </div>
 
       {/* Pattern selector */}
       <div>
-        <label className="block text-xs text-text-muted mb-1.5">Pumping pattern</label>
+        <label className="block text-xs text-text-muted mb-1.5">Profil de pompage</label>
         <div className="space-y-1">
           {PATTERNS.map((p) => (
             <button
@@ -282,7 +282,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
       {/* Season month picker (seasonal only) */}
       {data.pattern === 'seasonal' && (
         <div>
-          <label className="block text-xs text-text-muted mb-1.5">Active months</label>
+          <label className="block text-xs text-text-muted mb-1.5">Mois actifs</label>
           <div className="flex gap-1 mb-2">
             {SEASON_PRESETS.map(p => {
               const match = p.months.length === activeMonths.length && p.months.every(m => activeMonths.includes(m))
@@ -326,7 +326,7 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
       {/* Pulse duration (pulse only) */}
       {data.pattern === 'pulse' && (
         <div>
-          <label className="block text-xs text-text-muted mb-1">Pulse duration (days)</label>
+          <label className="block text-xs text-text-muted mb-1">Durée de l'impulsion (jours)</label>
           <input
             type="number"
             value={pulseDays}
@@ -342,8 +342,8 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
       {preview.values.length > 0 && (
         <div className="bg-bg-primary rounded-lg border border-white/5 p-2">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-text-muted">Pumping schedule preview</span>
-            <span className="text-[10px] text-text-muted">peak {data.rate_m3d} m³/d</span>
+            <span className="text-[10px] text-text-muted">Aperçu du calendrier de pompage</span>
+            <span className="text-[10px] text-text-muted">pic {data.rate_m3d} m³/j</span>
           </div>
           <div className="flex items-end gap-px h-12">
             {preview.values.map((v, i) => (
@@ -367,12 +367,12 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
 
       <div>
         <label className="block text-xs text-text-muted mb-1">
-          Flow rate (m³/d)
+          Débit (m³/j)
           {adaptiveBounds?.Q_soft != null && rateRange && adaptiveBounds.Q_soft < rateRange.typical_max && (
-            <span className="ml-1 text-[9px] text-accent-cyan">Cal. model</span>
+            <span className="ml-1 text-[9px] text-accent-cyan">Modèle cal.</span>
           )}
           {!adaptiveBounds?.Q_soft && rateRange && (
-            <span className="ml-1 text-[9px] text-text-muted">Ref.</span>
+            <span className="ml-1 text-[9px] text-text-muted">Réf.</span>
           )}
         </label>
         <input
@@ -380,53 +380,53 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           value={data.rate_m3d || ''}
           onChange={(e) => update({ rate_m3d: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
           onBlur={() => { if (!data.rate_m3d) update({ rate_m3d: 0 }) }}
-          placeholder="e.g. 100"
+          placeholder="ex. 100"
           className={inputClass}
           step="10"
           min={rateRange?.hard_min ?? 0}
           max={effectiveHardMax}
         />
-        {adaptiveBounds ? <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} /> : <RangeWarning value={data.rate_m3d} range={rateRange} label="Flow rate" />}
+        {adaptiveBounds ? <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} /> : <RangeWarning value={data.rate_m3d} range={rateRange} label="débit" />}
       </div>
 
       {data.rfunc === 'Hantush' && (
         <div>
-          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance between the well and the observation piezometer. Only used with the Hantush response function (confined aquifers).">Distance to piezometer (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title="Distance horizontale entre le forage et le piézomètre d'observation. Utilisée uniquement avec la fonction de réponse Hantush (aquifères captifs).">Distance au piézomètre (m)</label>
           <input
             type="number"
             value={data.distance_m || ''}
             onChange={(e) => update({ distance_m: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             onBlur={() => { if (!data.distance_m) update({ distance_m: 100 }) }}
-            placeholder="e.g. 500"
+            placeholder="ex. 500"
             className={inputClass}
             step="100"
             min={distRange?.hard_min ?? 1}
             max={distRange?.hard_max}
           />
-          <RangeWarning value={data.distance_m} range={distRange} label="Distance" />
+          <RangeWarning value={data.distance_m} range={distRange} label="distance" />
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Start</label>
+          <label className="block text-xs text-text-muted mb-1">Début</label>
           <input type="date" value={data.start} onChange={(e) => update({ start: e.target.value })} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">End</label>
+          <label className="block text-xs text-text-muted mb-1">Fin</label>
           <input type="date" value={data.end} onChange={(e) => update({ end: e.target.value })} className={inputClass} />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1" title="How the aquifer responds to pumping. Exponential: simple decay (most aquifers). Hantush: accounts for distance and confinement (confined aquifers only).">Response function</label>
+        <label className="block text-xs text-text-muted mb-1" title="Comment l'aquifère répond au pompage. Exponentielle : décroissance simple (la plupart des aquifères). Hantush : prend en compte la distance et le confinement (aquifères captifs uniquement).">Fonction de réponse</label>
         <select
           value={data.rfunc}
           onChange={(e) => update({ rfunc: e.target.value as 'Exponential' | 'Hantush' })}
           className={inputClass}
         >
           {RFUNCS.map((r) => (
-            <option key={r} value={r}>{r === 'Exponential' ? 'Exponential (unconfined)' : 'Hantush (confined)'}</option>
+            <option key={r} value={r}>{r === 'Exponential' ? 'Exponentielle (libre)' : 'Hantush (captif)'}</option>
           ))}
         </select>
       </div>

@@ -16,12 +16,12 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const INDICATORS = [
-  { key: 'coverage' as const, label: 'Coverage', Icon: BarChart3, tip: 'Percentage of days with actual measurements between the first and last observation. Green > 80%, orange 50-80%, red < 50%. Low coverage means the model must interpolate over long missing periods.' },
-  { key: 'gaps' as const, label: 'Gaps', Icon: Clock, tip: 'Largest consecutive gap without data (in days). Green < 30 days, orange 30-180 days, red > 180 days. Gaps > 6 months can distort the calibration — consider trimming the period to start after the gap.' },
-  { key: 'trend' as const, label: 'Trend', Icon: TrendingDown, tip: 'Mann-Kendall test for monotonic trend in the water level. If a significant trend is detected (p < 0.05), consider adding a LinearTrend stress to the Pastas model so residuals stay stationary.' },
-  { key: 'breakpoints' as const, label: 'Breakpoints', Icon: Scissors, tip: 'Pettitt change-point test — detects a single abrupt shift in the mean level (e.g. new pumping well, land-use change). If detected, the period before the break may need to be excluded.' },
-  { key: 'seasonality' as const, label: 'Seasonality', Icon: Waves, tip: 'Autocorrelation at lag 12 months (ACF₁₂) — measures the strength of the annual cycle. Green > 0.3 (strong, the model can capture it), orange 0.1-0.3, red < 0.1 (weak or no annual signal — the aquifer may be deep or heavily influenced by pumping).' },
-  { key: 'record_length' as const, label: 'Record', Icon: Calendar, tip: 'Total duration of available data in years. Green ≥ 15 years (robust calibration), orange 5-15 years, red < 5 years. Short records limit the model\'s ability to capture low-frequency variability and drought cycles.' },
+  { key: 'coverage' as const, label: 'Couverture', Icon: BarChart3, tip: 'Pourcentage de jours avec des mesures réelles entre la première et la dernière observation. Vert > 80%, orange 50-80%, rouge < 50%. Une couverture faible signifie que le modèle doit interpoler sur de longues périodes manquantes.' },
+  { key: 'gaps' as const, label: 'Lacunes', Icon: Clock, tip: 'Plus grande lacune consécutive sans données (en jours). Vert < 30 jours, orange 30-180 jours, rouge > 180 jours. Les lacunes > 6 mois peuvent biaiser la calibration — envisager de tronquer la période pour commencer après la lacune.' },
+  { key: 'trend' as const, label: 'Tendance', Icon: TrendingDown, tip: 'Test de Mann-Kendall pour la tendance monotone du niveau d\'eau. Si une tendance significative est détectée (p < 0,05), envisager d\'ajouter un stress LinearTrend au modèle Pastas pour que les résidus restent stationnaires.' },
+  { key: 'breakpoints' as const, label: 'Ruptures', Icon: Scissors, tip: 'Test de rupture de Pettitt — détecte un saut abrupt unique de la moyenne (ex. nouveau forage de pompage, changement d\'usage des sols). Si détecté, la période avant la rupture peut nécessiter une exclusion.' },
+  { key: 'seasonality' as const, label: 'Saisonnalité', Icon: Waves, tip: 'Autocorrélation au décalage de 12 mois (ACF₁₂) — mesure la force du cycle annuel. Vert > 0,3 (fort, le modèle peut le capturer), orange 0,1-0,3, rouge < 0,1 (signal annuel faible ou absent — l\'aquifère peut être profond ou fortement influencé par le pompage).' },
+  { key: 'record_length' as const, label: 'Chronique', Icon: Calendar, tip: 'Durée totale des données disponibles en années. Vert ≥ 15 ans (calibration robuste), orange 5-15 ans, rouge < 5 ans. Des chroniques courtes limitent la capacité du modèle à capturer la variabilité basse fréquence et les cycles de sécheresse.' },
 ]
 
 function SkeletonCard() {
@@ -44,7 +44,7 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
     return (
       <div className="space-y-3">
         <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-          Pre-fit Diagnostics
+          Diagnostics pré-calibration
         </div>
         <div className="grid grid-cols-3 gap-2">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -68,7 +68,7 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
   return (
     <div className="space-y-3">
       <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-        Pre-fit Diagnostics
+        Diagnostics pré-calibration
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -106,7 +106,7 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
       {recommendations.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-            Recommendations
+            Recommandations
           </div>
           <div className="space-y-1.5">
             {recommendations.map((rec, i) => (
@@ -117,14 +117,14 @@ export function PreFitDiagnosticPanel({ diagnosis, isLoading, onApplyRecommendat
                 <p className="text-xs text-text-secondary leading-snug">{rec.message}</p>
                 {mode === 'guided' ? (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20 shrink-0">
-                    Auto-applied
+                    Appliqué automatiquement
                   </span>
                 ) : (
                   <button
                     onClick={() => onApplyRecommendation(rec)}
                     className="text-xs px-2 py-0.5 rounded-full border border-accent-cyan/40 text-accent-cyan hover:bg-accent-cyan/10 transition-colors shrink-0"
                   >
-                    Apply
+                    Appliquer
                   </button>
                 )}
               </div>

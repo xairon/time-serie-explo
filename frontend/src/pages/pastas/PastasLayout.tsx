@@ -46,10 +46,10 @@ const STORAGE_KEY = 'pastas_mode'
 
 const TABS = [
   { to: '/pastas/station', icon: MapPin, label: 'Station' },
-  { to: '/pastas/calibrate', icon: SlidersHorizontal, label: 'Calibrate' },
-  { to: '/pastas/results', icon: BarChart3, label: 'Results' },
-  { to: '/pastas/scenarios', icon: FlaskConical, label: 'Scenarios' },
-  { to: '/pastas/gallery', icon: LayoutGrid, label: 'Gallery' },
+  { to: '/pastas/calibrate', icon: SlidersHorizontal, label: 'Calibrer' },
+  { to: '/pastas/results', icon: BarChart3, label: 'Résultats' },
+  { to: '/pastas/scenarios', icon: FlaskConical, label: 'Scénarios' },
+  { to: '/pastas/gallery', icon: LayoutGrid, label: 'Galerie' },
 ] as const
 
 function readStoredMode(): 'guided' | 'expert' {

@@ -18,16 +18,16 @@ export default function ScenariosStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">No model selected</p>
+          <p className="text-sm text-text-secondary">Aucun modèle sélectionné</p>
           <p className="text-xs">
-            Fit a model first, then come back to run what-if scenarios.
+            Calibrez d'abord un modèle, puis revenez pour lancer des scénarios prospectifs.
           </p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go to Calibrate
+            Aller à la calibration
           </button>
         </div>
       </div>
@@ -39,7 +39,7 @@ export default function ScenariosStep() {
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Loading model...</p>
+          <p className="text-sm">Chargement du modèle...</p>
         </div>
       </div>
     )
@@ -49,13 +49,13 @@ export default function ScenariosStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-red-400">Failed to load model</p>
+          <p className="text-sm text-red-400">Échec du chargement du modèle</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go back to Calibrate
+            Retour à la calibration
           </button>
         </div>
       </div>
@@ -79,10 +79,10 @@ export default function ScenariosStep() {
           to={`/pastas/results?model=${runId}&station=${effectiveCodeBss}`}
           className="text-accent-cyan hover:underline"
         >
-          Results
+          Résultats
         </Link>
         <span>/</span>
-        <span className="text-text-secondary">Scenarios</span>
+        <span className="text-text-secondary">Scénarios</span>
       </div>
 
       {/* Scenario workflow */}

@@ -95,7 +95,7 @@ export function StationMap({ lat, lon, label, metadata, siblings, onSiblingClick
         onClick={() => setStyle(s => s === 'dark' ? 'satellite' : 'dark')}
         className="absolute top-2 left-2 bg-bg-card/80 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary transition-colors z-10"
       >
-        {style === 'dark' ? 'Light map' : 'Dark map'}
+        {style === 'dark' ? 'Carte claire' : 'Carte sombre'}
       </button>
       {bdlisaCode && (
         <div className="absolute bottom-2 left-2 bg-bg-card/80 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[10px] text-text-muted z-10">

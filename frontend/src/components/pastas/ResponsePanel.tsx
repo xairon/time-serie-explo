@@ -40,7 +40,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
     showlegend: false,
   }
 
-  const title = responseType ? `Response Function — ${responseType}` : 'Response Function'
+  const title = responseType ? `Fonction de réponse — ${responseType}` : 'Fonction de réponse'
 
   return (
     <div className="space-y-3">
@@ -52,10 +52,10 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
         {responseParams.map((p) => {
           const paramName = p.name.replace('recharge_', '')
           const paramTooltips: Record<string, string> = {
-            A: 'Gain - steady-state response amplitude. The larger A, the more sensitive the aquifer is to input (recharge).',
-            n: 'Shape - controls the signal rise. n > 1: delayed response (inertia). n close to 1: fast response.',
-            a: 'Time scale - controls the response duration. The larger a, the longer the aquifer takes to react.',
-            f: 'Fraction (FlexModel) - split between fast and slow recharge.',
+            A: 'Gain - amplitude de réponse en régime permanent. Plus A est grand, plus l\'aquifère est sensible à l\'entrée (recharge).',
+            n: 'Forme - contrôle la montée du signal. n > 1 : réponse retardée (inertie). n proche de 1 : réponse rapide.',
+            a: 'Échelle de temps - contrôle la durée de la réponse. Plus a est grand, plus l\'aquifère met de temps à réagir.',
+            f: 'Fraction (FlexModel) - répartition entre recharge rapide et lente.',
           }
           return (
             <div
@@ -72,15 +72,15 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
           )
         })}
         {t50 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Half-response time — delay to reach 50% of the final effect. Indicates the initial reactivity of the aquifer.">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Temps de demi-réponse — délai pour atteindre 50% de l'effet final. Indique la réactivité initiale de l'aquifère.">
             <span className="text-text-muted">t₅₀</span>
-            <span className="ml-1 font-mono text-accent-cyan">{t50} d</span>
+            <span className="ml-1 font-mono text-accent-cyan">{t50} j</span>
           </div>
         )}
         {t95 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="95% response time — delay to reach 95% of the final effect. Represents the effective memory of the aquifer. Short (< 100 d) = alluvial. Long (> 500 d) = deep sedimentary or confined.">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Temps de réponse à 95% — délai pour atteindre 95% de l'effet final. Représente la mémoire effective de l'aquifère. Court (< 100 j) = alluvial. Long (> 500 j) = sédimentaire profond ou captif.">
             <span className="text-text-muted">t₉₅</span>
-            <span className="ml-1 font-mono text-accent-cyan">{t95} d</span>
+            <span className="ml-1 font-mono text-accent-cyan">{t95} j</span>
           </div>
         )}
       </div>
@@ -88,7 +88,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
       <div className="grid grid-cols-2 gap-3">
         {hasStep && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">If recharge increases by 1 mm/d and stays constant, how the water level rises over time. The curve eventually stabilizes at the gain A.</p>
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">Si la recharge augmente de 1 mm/j et reste constante, comment le niveau monte au cours du temps. La courbe se stabilise à la valeur du gain A.</p>
             <Plot
               data={[
                 {
@@ -101,8 +101,8 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Step Response', font: { size: 11 } },
-                xaxis: { title: { text: 'Days' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                title: { text: 'Réponse indicielle', font: { size: 11 } },
+                xaxis: { title: { text: 'Jours' }, gridcolor: 'rgba(255,255,255,0.05)' },
                 yaxis: { title: { text: 'm' }, gridcolor: 'rgba(255,255,255,0.05)' },
                 shapes: (() => {
                   const shapes: Partial<Plotly.Shape>[] = []
@@ -137,7 +137,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
         )}
         {hasBlock && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">Effect of a single-day recharge pulse. The peak shows the maximum reactivity, the decline shows the drainage speed.</p>
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">Effet d'une impulsion de recharge sur une journée. Le pic montre la réactivité maximale, la décroissance montre la vitesse de drainage.</p>
             <Plot
               data={[
                 {
@@ -150,9 +150,9 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Block Response', font: { size: 11 } },
-                xaxis: { title: { text: 'Days' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                yaxis: { title: { text: 'm/(mm/d)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                title: { text: 'Réponse bloc', font: { size: 11 } },
+                xaxis: { title: { text: 'Jours' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { title: { text: 'm/(mm/j)' }, gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler
               className="w-full"

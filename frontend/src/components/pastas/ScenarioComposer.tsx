@@ -17,10 +17,10 @@ interface ScenarioComposerProps {
 type AddMenuType = ModificationData['type']
 
 const ADD_OPTIONS: { type: AddMenuType; label: string; description: string; icon: React.ElementType }[] = [
-  { type: 'pumping_synthetic', label: 'Add a well', description: 'Simulate a pumping well with configurable flow rate and schedule', icon: Droplets },
-  { type: 'pumping_upload', label: 'Upload pumping data', description: 'Import a real pumping time series from CSV', icon: Droplets },
-  { type: 'linear_trend', label: 'Add a trend', description: 'Simulate a progressive rise or decline of the water level over time', icon: TrendingUp },
-  { type: 'scale_stress', label: 'Adjust climate', description: 'Scale rainfall or evapotranspiration (e.g. -20% precipitation for drought)', icon: ArrowUpDown },
+  { type: 'pumping_synthetic', label: 'Ajouter un forage', description: 'Simuler un forage de pompage avec débit et calendrier configurables', icon: Droplets },
+  { type: 'pumping_upload', label: 'Importer des données de pompage', description: 'Importer une chronique de pompage réelle depuis un CSV', icon: Droplets },
+  { type: 'linear_trend', label: 'Ajouter une tendance', description: 'Simuler une hausse ou baisse progressive du niveau au cours du temps', icon: TrendingUp },
+  { type: 'scale_stress', label: 'Ajuster le climat', description: 'Modifier les précipitations ou l\'évapotranspiration (ex. -20% de précipitations pour sécheresse)', icon: ArrowUpDown },
 ]
 
 function defaultForType(type: AddMenuType, tmin: string, tmax: string, profile?: PumpingProfileData | null): ModificationData {
@@ -70,7 +70,7 @@ export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingP
     <div className="space-y-3">
       {modifications.length === 0 && (
         <p className="text-xs text-text-muted text-center py-2">
-          No modifications yet. Add one below.
+          Aucune modification pour le moment. Ajoutez-en une ci-dessous.
         </p>
       )}
 
@@ -95,7 +95,7 @@ export function ScenarioComposer({ modifications, onChange, tmin, tmax, pumpingP
           className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary border border-white/10 rounded-lg hover:border-white/20 transition-colors w-full justify-center"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add a modification
+          Ajouter une modification
         </button>
 
         {menuOpen && (

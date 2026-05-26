@@ -17,13 +17,13 @@ export function ComparisonView({ models }: Props) {
       {/* Metrics table */}
       <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
         <div className="px-3 py-2 border-b border-white/5">
-          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Metrics Comparison</span>
+          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Comparaison des métriques</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Metric</th>
+                <th className="text-left px-3 py-2">Métrique</th>
                 {models.map((m, i) => (
                   <th key={m.run_id} className="text-right px-3 py-2">
                     <span style={{ color: COLORS[i] }}>{m.name}</span>
@@ -66,7 +66,7 @@ export function ComparisonView({ models }: Props) {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Param</th>
+                <th className="text-left px-3 py-2">Paramètre</th>
                 {models.map((m, i) => (
                   <th key={m.run_id} className="text-right px-3 py-2" style={{ color: COLORS[i] }}>{m.name}</th>
                 ))}
@@ -88,7 +88,7 @@ export function ComparisonView({ models }: Props) {
 
       {/* Overlay plot */}
       <div className="bg-bg-card rounded-lg border border-white/5 p-3">
-        <div className="text-xs font-semibold text-text-secondary mb-1 uppercase tracking-wide">Simulation Overlay</div>
+        <div className="text-xs font-semibold text-text-secondary mb-1 uppercase tracking-wide">Superposition des simulations</div>
         <Plot
           data={[
             // Observed from first model (they should all share the same obs)
@@ -97,7 +97,7 @@ export function ComparisonView({ models }: Props) {
               y: models[0].observed.values,
               type: 'scatter',
               mode: 'lines',
-              name: 'Observed',
+              name: 'Observé',
               line: { color: '#6b7280', width: 1 },
             },
             // Each model's simulation
@@ -117,7 +117,7 @@ export function ComparisonView({ models }: Props) {
             margin: { t: 10, r: 20, b: 30, l: 50 },
             height: 300,
             xaxis: { gridcolor: 'rgba(255,255,255,0.03)' },
-            yaxis: { title: { text: 'Head (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+            yaxis: { title: { text: 'Niveau (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
             legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
           }}
           useResizeHandler

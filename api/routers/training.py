@@ -185,8 +185,8 @@ async def start_training(req: TrainingRequest):
     if active:
         raise HTTPException(
             status_code=409,
-            detail=f"A training job is already running (task {active[0].task_id}). "
-                   "Wait for it to finish or cancel it before starting another.",
+            detail=f"Un entraînement est déjà en cours (tâche {active[0].task_id}). "
+                   "Attendez sa fin ou annulez-le avant d'en démarrer un autre.",
         )
 
     task = task_manager.create(task_type="training", config=req.model_dump())
@@ -216,7 +216,7 @@ async def stream_training_metrics(task_id: str):
 
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
 
     async def event_generator():
         metrics_file = Path(task.metrics_file) if task.metrics_file else None
@@ -276,7 +276,7 @@ async def stream_training_metrics(task_id: str):
 async def cancel_training(task_id: str):
     """Cancel a running training task."""
     if not task_manager.cancel(task_id):
-        raise HTTPException(status_code=404, detail="Task not found or already finished")
+        raise HTTPException(status_code=404, detail="Tâche introuvable ou déjà terminée")
     return {"status": "cancelled", "task_id": task_id}
 
 
@@ -285,7 +285,7 @@ async def training_status(task_id: str):
     """Get the current status and result of a training task."""
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
 
     result = TrainingResult(
         task_id=task.task_id,

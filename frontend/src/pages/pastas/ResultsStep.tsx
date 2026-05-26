@@ -28,8 +28,8 @@ function approximateStowa(metrics: Record<string, number>): StowaResult | null {
     gain_significance: null,
     overall_pass: null,
     suggestions: evp < 70
-      ? ['EVP below 70%. Try other configurations or add stresses.']
-      : ['Partial result — run auto-fit for the full STOWA assessment.'],
+      ? ['EVP inférieur à 70%. Essayez d\'autres configurations ou ajoutez des stress.']
+      : ['Résultat partiel — lancez la calibration automatique pour l\'évaluation STOWA complète.'],
   }
 }
 
@@ -54,13 +54,13 @@ export default function ResultsStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">No model selected</p>
+          <p className="text-sm text-text-secondary">Aucun modèle sélectionné</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go back to Calibrate
+            Retour à la calibration
           </button>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function ResultsStep() {
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Loading model results...</p>
+          <p className="text-sm">Chargement des résultats du modèle...</p>
         </div>
       </div>
     )
@@ -82,13 +82,13 @@ export default function ResultsStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-red-400">Failed to load model</p>
+          <p className="text-sm text-red-400">Échec du chargement du modèle</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go back to Calibrate
+            Retour à la calibration
           </button>
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function ResultsStep() {
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/15 text-purple-400 text-sm font-medium border border-purple-500/25 hover:bg-purple-500/25 transition-colors"
         >
           <FlaskConical className="w-4 h-4" />
-          Run Scenarios
+          Lancer des scénarios
         </Link>
       </div>
 
@@ -126,7 +126,7 @@ export default function ResultsStep() {
       {stowa && (
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">
-            STOWA Assessment
+            Évaluation STOWA
           </h3>
           <StowaVerdictBanner stowa={stowa} />
         </div>

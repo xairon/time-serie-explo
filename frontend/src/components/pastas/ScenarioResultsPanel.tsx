@@ -9,10 +9,10 @@ import { ExportCsvButton } from './ExportCsvButton'
 import type { CsvColumn } from '@/lib/csv-export'
 
 const MOD_LABELS: Record<string, string> = {
-  pumping_synthetic: 'Synthetic pumping',
-  pumping_upload: 'Pumping (CSV)',
-  linear_trend: 'Linear trend',
-  scale_stress: 'Stress scaling',
+  pumping_synthetic: 'Pompage synthétique',
+  pumping_upload: 'Pompage (CSV)',
+  linear_trend: 'Tendance linéaire',
+  scale_stress: 'Ajustement de stress',
 }
 
 function Section({ title, defaultOpen = true, extra, children }: {
@@ -53,10 +53,10 @@ function computeStats(values: number[]) {
 
 function severityColor(meanDelta: number): { bg: string; border: string; text: string; label: string } {
   const abs = Math.abs(meanDelta)
-  if (abs < 0.05) return { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', label: 'Negligible' }
-  if (abs < 0.2) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-400', label: 'Moderate' }
-  if (abs < 0.5) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: 'Significant' }
-  return { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', label: 'Severe' }
+  if (abs < 0.05) return { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', label: 'Négligeable' }
+  if (abs < 0.2) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-400', label: 'Modéré' }
+  if (abs < 0.5) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: 'Significatif' }
+  return { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', label: 'Sévère' }
 }
 
 const CONTRIB_COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e', '#eab308', '#06b6d4']
@@ -87,7 +87,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Warnings</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
           {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
@@ -107,17 +107,17 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
                 </span>
               </div>
               <p className="text-xs text-text-secondary mt-0.5">
-                Average level change over the simulation period
-                {' · '}Range: {deltaStats.min.toFixed(3)} m to {deltaStats.max > 0 ? '+' : ''}{deltaStats.max.toFixed(3)} m
+                Variation moyenne du niveau sur la période de simulation
+                {' · '}Plage : {deltaStats.min.toFixed(3)} m à {deltaStats.max > 0 ? '+' : ''}{deltaStats.max.toFixed(3)} m
               </p>
             </div>
             <div className="flex gap-4 shrink-0">
               <div className="text-center">
-                <div className="text-[10px] text-text-muted">Baseline</div>
+                <div className="text-[10px] text-text-muted">Référence</div>
                 <div className="text-sm font-mono text-text-primary">{baselineStats?.mean.toFixed(2)} m</div>
               </div>
               <div className="text-center">
-                <div className="text-[10px] text-text-muted">Scenario</div>
+                <div className="text-[10px] text-text-muted">Scénario</div>
                 <div className={`text-sm font-mono ${severity.text}`}>{scenarioStats?.mean.toFixed(2)} m</div>
               </div>
             </div>
@@ -132,8 +132,8 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
             <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 text-[10px] text-text-secondary bg-bg-card">
               <span className="font-medium">{MOD_LABELS[mod.type] ?? mod.type}</span>
               {mod.type === 'scale_stress' && <span className="text-text-muted">({mod.stress} ×{mod.factor})</span>}
-              {mod.type === 'pumping_synthetic' && <span className="text-text-muted">({mod.rate_m3d} m³/d, {mod.pattern})</span>}
-              {mod.type === 'linear_trend' && <span className="text-text-muted">({mod.slope_m_per_year > 0 ? '+' : ''}{mod.slope_m_per_year} m/yr)</span>}
+              {mod.type === 'pumping_synthetic' && <span className="text-text-muted">({mod.rate_m3d} m³/j, {mod.pattern})</span>}
+              {mod.type === 'linear_trend' && <span className="text-text-muted">({mod.slope_m_per_year > 0 ? '+' : ''}{mod.slope_m_per_year} m/an)</span>}
             </span>
           ))}
         </div>
@@ -141,11 +141,11 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
 
       {/* Baseline vs Scenario — side by side */}
       <Section
-        title="Baseline vs Scenario"
+        title="Référence vs Scénario"
         extra={
           <ExportCsvButton
             filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
-            title="Export baseline, scenario & delta as CSV"
+            title="Exporter référence, scénario et delta en CSV"
             label="CSV"
             getColumns={() => [
               { header: 'date', values: baseline.index },
@@ -160,11 +160,11 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
           data={[
             {
               x: baseline.index, y: baseline.values, type: 'scatter', mode: 'lines',
-              name: 'Baseline', line: { color: '#6b7280', width: 1.5 },
+              name: 'Référence', line: { color: '#6b7280', width: 1.5 },
             },
             {
               x: scenario.index, y: scenario.values, type: 'scatter', mode: 'lines',
-              name: 'Scenario', line: { color: '#22d3ee', width: 2 },
+              name: 'Scénario', line: { color: '#22d3ee', width: 2 },
             },
           ]}
           layout={{
@@ -177,7 +177,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
 
       {/* Delta / Impact */}
       {delta?.index?.length > 0 && (
-        <Section title="Impact (Δh = scenario − baseline)">
+        <Section title="Impact (Δh = scénario − référence)">
           <Plot
             data={[{
               x: delta.index,
@@ -205,12 +205,12 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
       {/* Per-stress contributions — separate charts */}
       {allContribNames.length > 0 && (
         <Section
-          title="Stress Contributions"
+          title="Contributions par stress"
           defaultOpen={false}
           extra={
             <ExportCsvButton
               filename={`${codeBss ?? 'scenario'}_scenario_contributions.csv`}
-              title="Export baseline & scenario contributions as CSV"
+              title="Exporter les contributions de référence et de scénario en CSV"
               label="CSV"
               getColumns={() => {
                 const cols: CsvColumn[] = [{ header: 'date', values: (contributions_baseline[allContribNames[0]] ?? contributions_scenario[allContribNames[0]])?.index ?? [] }]
@@ -226,8 +226,8 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
           }
         >
           <p className="text-xs text-text-muted mb-3">
-            Each stress contribution shown independently. Gray dashed = baseline, solid color = scenario.
-            {newContribs.length > 0 && <span className="text-accent-cyan"> New: {newContribs.join(', ')}</span>}
+            Chaque contribution de stress affichée indépendamment. Pointillés gris = référence, couleur pleine = scénario.
+            {newContribs.length > 0 && <span className="text-accent-cyan"> Nouveau : {newContribs.join(', ')}</span>}
           </p>
           <div className="space-y-2">
             {allContribNames.map((name, i) => {
@@ -239,13 +239,13 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
               if (bl?.index?.length) {
                 traces.push({
                   x: bl.index, y: bl.values, type: 'scatter' as const, mode: 'lines' as const,
-                  name: 'Baseline', line: { color: '#6b7280', width: 1, dash: 'dot' as const },
+                  name: 'Référence', line: { color: '#6b7280', width: 1, dash: 'dot' as const },
                 })
               }
               if (sc?.index?.length) {
                 traces.push({
                   x: sc.index, y: sc.values, type: 'scatter' as const, mode: 'lines' as const,
-                  name: 'Scenario', line: { color, width: 2 },
+                  name: 'Scénario', line: { color, width: 2 },
                   fill: 'tozeroy' as const, fillcolor: color + '15',
                 })
               }
@@ -259,7 +259,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[10px] font-semibold" style={{ color }}>{name}</span>
                     {isNew && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">new</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">nouveau</span>
                     )}
                   </div>
                   <Plot

@@ -134,7 +134,7 @@ export function IPSBandsChart({
             y: cfCounterfactual,
             type: 'scatter' as const,
             mode: 'lines' as const,
-            name: 'Counterfactual',
+            name: 'Contrefactuel',
             line: { color: '#06b6d4', width: 2, dash: 'dash' as const },
           },
         ]
@@ -148,7 +148,7 @@ export function IPSBandsChart({
     },
     yaxis: {
       ...darkLayout.yaxis,
-      title: { text: 'Piezometric level (m NGF)' },
+      title: { text: 'Niveau piézométrique (m NGF)' },
     },
     legend: {
       ...darkLayout.legend,

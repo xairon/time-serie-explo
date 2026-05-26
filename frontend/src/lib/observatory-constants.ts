@@ -13,24 +13,24 @@ export const CLASSIFICATION_COLORS: Record<string, string> = {
 }
 
 export const CLASSIFICATION_LABELS: Record<string, string> = {
-  EXTREMEMENT_BAS: 'Extremely low',
-  TRES_BAS: 'Very low',
-  BAS: 'Low',
+  EXTREMEMENT_BAS: 'Extrêmement bas',
+  TRES_BAS: 'Très bas',
+  BAS: 'Bas',
   NORMAL: 'Normal',
-  HAUT: 'High',
-  TRES_HAUT: 'Very high',
-  EXTREMEMENT_HAUT: 'Extremely high',
-  UNKNOWN: 'Unclassified',
+  HAUT: 'Haut',
+  TRES_HAUT: 'Très haut',
+  EXTREMEMENT_HAUT: 'Extrêmement haut',
+  UNKNOWN: 'Non classé',
 }
 
 export const CLASSIFICATION_ORDER = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT'] as const
 
 export const TREND_LABELS: Record<string, string> = {
-  HAUSSE_FORTE: 'Strong rise',
-  HAUSSE_SIGNIFICATIVE: 'Significant rise',
+  HAUSSE_FORTE: 'Hausse forte',
+  HAUSSE_SIGNIFICATIVE: 'Hausse significative',
   STABLE: 'Stable',
-  BAISSE_SIGNIFICATIVE: 'Significant decline',
-  BAISSE_FORTE: 'Strong decline',
+  BAISSE_SIGNIFICATIVE: 'Baisse significative',
+  BAISSE_FORTE: 'Baisse forte',
 }
 
 export const TREND_COLORS: Record<string, string> = {
@@ -55,7 +55,7 @@ const SANDRE_ZONAGE_COLORS: Record<string, string> = {
 export const WFS_LAYERS: WfsLayerConfig[] = [
   {
     id: 'region-hydro',
-    label: 'Hydrographic regions',
+    label: 'Régions hydrographiques',
     group: 'sandre',
     minZoom: 0,
     geometryType: 'polygon',
@@ -64,7 +64,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'secteur-hydro',
-    label: 'Hydrographic sectors',
+    label: 'Secteurs hydrographiques',
     group: 'sandre',
     minZoom: 6,
     geometryType: 'polygon',
@@ -73,7 +73,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'sous-secteur-hydro',
-    label: 'Hydrographic sub-sectors',
+    label: 'Sous-secteurs hydrographiques',
     group: 'sandre',
     minZoom: 7,
     geometryType: 'polygon',
@@ -82,7 +82,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'zone-hydro',
-    label: 'Hydrographic zones',
+    label: 'Zones hydrographiques',
     group: 'sandre',
     minZoom: 9,
     geometryType: 'polygon',
@@ -91,7 +91,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'cours-eau-1',
-    label: 'Major rivers (>100km)',
+    label: 'Cours d\'eau majeurs (>100km)',
     group: 'carthage',
     minZoom: 6,
     geometryType: 'line',
@@ -100,7 +100,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'cours-eau-2',
-    label: 'Secondary rivers (50-100km)',
+    label: 'Cours d\'eau secondaires (50-100km)',
     group: 'carthage',
     minZoom: 8,
     geometryType: 'line',
@@ -109,7 +109,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'plan-eau',
-    label: 'Lakes',
+    label: 'Plans d\'eau',
     group: 'carthage',
     minZoom: 8,
     geometryType: 'polygon',
@@ -118,7 +118,7 @@ export const WFS_LAYERS: WfsLayerConfig[] = [
   },
   {
     id: 'masse-eau-riv',
-    label: 'Water bodies (WFD)',
+    label: 'Masses d\'eau (DCE)',
     group: 'hydroeco',
     minZoom: 8,
     geometryType: 'line',
@@ -142,21 +142,21 @@ export interface LayerGroup {
 export const LAYER_GROUPS: LayerGroup[] = [
   {
     id: 'sandre',
-    label: 'SANDRE Zoning',
+    label: 'Zonage SANDRE',
     icon: '\u{1F30A}',
     mode: 'radio',
     layers: WFS_LAYERS.filter(l => l.group === 'sandre'),
   },
   {
     id: 'carthage',
-    label: 'Hydrographic network',
+    label: 'Réseau hydrographique',
     icon: '\u{1F3DE}',
     mode: 'checkbox',
     layers: WFS_LAYERS.filter(l => l.group === 'carthage'),
   },
   {
     id: 'hydroeco',
-    label: 'Hydro-ecology',
+    label: 'Hydro-écologie',
     icon: '\u{1F9EA}',
     mode: 'checkbox',
     layers: WFS_LAYERS.filter(l => l.group === 'hydroeco'),

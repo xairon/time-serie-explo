@@ -5,14 +5,14 @@ const COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e']
 
 const LABELS: Record<string, string> = {
   recharge: 'Recharge (P − f·E)',
-  constant_d: 'Base level',
-  temperature: 'Temperature effect',
+  constant_d: 'Niveau de base',
+  temperature: 'Effet de la température',
 }
 
 const DESCRIPTIONS: Record<string, string> = {
-  recharge: 'How rainfall minus evapotranspiration drives the water table. Positive = water table rises (wet period), negative = drops (dry period). The shape and timing reveal the aquifer\'s response to climate.',
-  constant_d: 'The baseline water level around which the aquifer fluctuates. Changes indicate long-term drift or reference level.',
-  temperature: 'Direct thermal effect on the aquifer (expansion, viscosity changes). Small compared to recharge but captures seasonal temperature-driven variations not explained by evapotranspiration alone.',
+  recharge: "Comment les précipitations moins l'évapotranspiration influencent la nappe. Positif = la nappe monte (période humide), négatif = elle baisse (période sèche). La forme et la chronologie révèlent la réponse de l'aquifère au climat.",
+  constant_d: "Niveau de référence autour duquel la nappe fluctue. Les changements indiquent une dérive à long terme ou un niveau de référence.",
+  temperature: "Effet thermique direct sur l'aquifère (dilatation, changements de viscosité). Faible par rapport à la recharge mais capture les variations saisonnières liées à la température non expliquées par la seule évapotranspiration.",
 }
 
 interface Props {
@@ -26,7 +26,7 @@ export function ContributionsChart({ contributions }: Props) {
   return (
     <div className="space-y-2">
       <p className="text-[10px] text-text-muted">
-        Each panel shows one stress contribution to the simulated head. The sum of all contributions equals the simulation.
+        Chaque panneau montre une contribution de stress au niveau simulé. La somme de toutes les contributions est égale à la simulation.
       </p>
       {entries.map(([name, ts], i) => {
         const color = COLORS[i % COLORS.length]
@@ -38,7 +38,7 @@ export function ContributionsChart({ contributions }: Props) {
           <div key={name} className="bg-bg-card rounded-lg border border-white/5 p-2">
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-[10px] font-semibold" style={{ color }}>{label}</span>
-              <span className="text-[10px] text-text-muted">amplitude: {range.toFixed(2)} m</span>
+              <span className="text-[10px] text-text-muted">amplitude : {range.toFixed(2)} m</span>
             </div>
             {DESCRIPTIONS[name] && <p className="text-[9px] text-text-muted mb-1 leading-relaxed">{DESCRIPTIONS[name]}</p>}
             <Plot

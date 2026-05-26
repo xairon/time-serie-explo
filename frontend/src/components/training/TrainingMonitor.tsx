@@ -25,7 +25,7 @@ export function TrainingMonitor({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">Training monitor</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Moniteur d'entraînement</h3>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
@@ -40,12 +40,12 @@ export function TrainingMonitor({
           />
           <span className="text-xs text-text-secondary">
             {status === 'connected'
-              ? 'Running'
+              ? 'En cours'
               : status === 'done'
-                ? 'Completed'
+                ? 'Terminé'
                 : status === 'error'
-                  ? 'Error'
-                  : 'Waiting'}
+                  ? 'Erreur'
+                  : 'En attente'}
           </span>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function TrainingMonitor({
         <div>
           <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
             <span>
-              Epoch {metrics.current_epoch} / {metrics.total_epochs}
+              Époque {metrics.current_epoch} / {metrics.total_epochs}
             </span>
             <span>{progress}%</span>
           </div>
@@ -72,19 +72,19 @@ export function TrainingMonitor({
       {metrics && (
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-bg-hover rounded-lg p-3 text-center">
-            <p className="text-[10px] text-text-secondary uppercase">Train Loss</p>
+            <p className="text-[10px] text-text-secondary uppercase">Perte entraînement</p>
             <p className="text-lg font-bold text-text-primary">
               {metrics.train_loss?.toFixed(5) ?? '—'}
             </p>
           </div>
           <div className="bg-bg-hover rounded-lg p-3 text-center">
-            <p className="text-[10px] text-text-secondary uppercase">Val Loss</p>
+            <p className="text-[10px] text-text-secondary uppercase">Perte validation</p>
             <p className="text-lg font-bold text-text-primary">
               {metrics.val_loss?.toFixed(5) ?? '—'}
             </p>
           </div>
           <div className="bg-bg-hover rounded-lg p-3 text-center">
-            <p className="text-[10px] text-text-secondary uppercase">Best Val</p>
+            <p className="text-[10px] text-text-secondary uppercase">Meilleure validation</p>
             <p className="text-lg font-bold text-accent-green">
               {metrics.best_val_loss?.toFixed(5) ?? '—'}
             </p>
@@ -112,7 +112,7 @@ export function TrainingMonitor({
           onClick={onCancel}
           className="w-full bg-bg-hover text-text-primary px-4 py-2 rounded-lg border border-white/10 hover:bg-accent-red/10 hover:text-accent-red transition-colors text-sm"
         >
-          Cancel
+          Annuler
         </button>
       )}
     </div>

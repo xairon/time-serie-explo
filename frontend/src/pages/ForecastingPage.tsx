@@ -9,14 +9,14 @@ import { useModelDetail, useModelTestInfo } from '@/hooks/useModels'
 
 /** Tooltip descriptions for each metric (matches Streamlit) */
 const METRIC_TOOLTIPS: Record<string, string> = {
-  MAE: 'Mean Absolute Error — average error in variable units',
-  RMSE: 'Root Mean Squared Error — penalizes large errors more',
+  MAE: 'Mean Absolute Error — erreur moyenne en unités de la variable',
+  RMSE: 'Root Mean Squared Error — pénalise davantage les grandes erreurs',
   sMAPE: 'Symmetric Mean Absolute Percentage Error (%)',
-  WAPE: 'Weighted Absolute Percentage Error (%) — more stable than MAPE',
-  NRMSE: 'Normalized RMSE — % of range (max-min)',
-  NSE: 'Nash-Sutcliffe Efficiency — 1=perfect, <0 worse than mean',
-  KGE: 'Kling-Gupta Efficiency — combines correlation, bias, variability',
-  Dir_Acc: 'Directional Accuracy — % of correct directions',
+  WAPE: 'Weighted Absolute Percentage Error (%) — plus stable que MAPE',
+  NRMSE: 'RMSE normalisée — % de l\'étendue (max-min)',
+  NSE: 'Nash-Sutcliffe Efficiency — 1=parfait, <0 pire que la moyenne',
+  KGE: 'Kling-Gupta Efficiency — combine corrélation, biais et variabilité',
+  Dir_Acc: 'Directional Accuracy — % de directions correctes',
 }
 
 /** Display order for metrics (matches Streamlit) */
@@ -181,9 +181,9 @@ export default function ForecastingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Forecasting</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Prévision</h1>
         <p className="text-sm text-text-secondary">
-          Piezometric prediction with sliding window on the test set
+          Prévision piézométrique avec fenêtre glissante sur le jeu de test
         </p>
       </div>
 
@@ -199,13 +199,13 @@ export default function ForecastingPage() {
           {modelDetail && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Dataset
+                Jeu de données
               </h4>
               {datasetSplits && (
                 <div className="space-y-1">
                   {datasetSplits.train != null && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Train</span>
+                      <span className="text-text-secondary">Entraînement</span>
                       <span className="text-text-primary">{datasetSplits.train} pts</span>
                     </div>
                   )}
@@ -226,7 +226,7 @@ export default function ForecastingPage() {
               {testInfo && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Test range</span>
+                    <span className="text-text-secondary">Plage de test</span>
                     <span className="text-text-primary text-[10px]">
                       {new Date(testInfo.test_dates[0]).toLocaleDateString('en-GB')} — {new Date(testInfo.test_dates[testInfo.test_length - 1]).toLocaleDateString('en-GB')}
                     </span>
@@ -240,7 +240,7 @@ export default function ForecastingPage() {
           {modelDetail && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Model
+                Modèle
               </h4>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -249,14 +249,14 @@ export default function ForecastingPage() {
                 </div>
                 {inputChunkLength != null && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Input</span>
-                    <span className="text-text-primary">{inputChunkLength} days</span>
+                    <span className="text-text-secondary">Entrée</span>
+                    <span className="text-text-primary">{inputChunkLength} jours</span>
                   </div>
                 )}
                 {outputChunkLength != null && (
                   <div className="flex justify-between text-xs">
                     <span className="text-text-secondary">Horizon</span>
-                    <span className="text-text-primary">{outputChunkLength} days</span>
+                    <span className="text-text-primary">{outputChunkLength} jours</span>
                   </div>
                 )}
                 {modelDetail.preprocessing_config?.normalization != null && (
@@ -282,7 +282,7 @@ export default function ForecastingPage() {
               ) : (
                 <ChevronRight className="w-3.5 h-3.5" />
               )}
-              Hyperparameters ({displayHyperparams.length})
+              Hyperparamètres ({displayHyperparams.length})
             </button>
             {hyperparamsOpen && (
               <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 bg-white/[0.02] rounded-lg p-3">
@@ -309,11 +309,11 @@ export default function ForecastingPage() {
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">
-              Sliding window on test set ({testInfo.output_chunk_length}d prediction)
+              Fenêtre glissante sur le jeu de test (prévision à {testInfo.output_chunk_length}j)
             </h3>
             {windowInfo && (
               <p className="text-xs text-text-secondary">
-                {new Date(windowInfo.startDate).toLocaleDateString('en-GB')} → {new Date(windowInfo.endDate).toLocaleDateString('en-GB')} ({windowInfo.horizon}d)
+                {new Date(windowInfo.startDate).toLocaleDateString('en-GB')} → {new Date(windowInfo.endDate).toLocaleDateString('en-GB')} ({windowInfo.horizon}j)
               </p>
             )}
           </div>
@@ -336,7 +336,7 @@ export default function ForecastingPage() {
           </div>
 
           <p className="text-[10px] text-text-secondary">
-            Input: {testInfo.input_chunk_length} days of context | Prediction: {testInfo.output_chunk_length} days
+            Entrée : {testInfo.input_chunk_length} jours de contexte | Prévision : {testInfo.output_chunk_length} jours
           </p>
         </div>
       )}
@@ -345,7 +345,7 @@ export default function ForecastingPage() {
       {testInfo && testInfo.test_values && sliderIdx !== null && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-2">
-            Test set overview
+            Vue d'ensemble du jeu de test
           </h3>
           <TestSetOverview
             testDates={testInfo.test_dates}
@@ -362,7 +362,7 @@ export default function ForecastingPage() {
       {isError && (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4">
           <p className="text-sm text-accent-red">
-            Error: {(error as Error).message}
+            Erreur : {(error as Error).message}
           </p>
         </div>
       )}
@@ -385,7 +385,7 @@ export default function ForecastingPage() {
             <>
               {/* Metrics grid - ordered like Streamlit */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-text-primary">Window metrics</h4>
+                <h4 className="text-sm font-semibold text-text-primary">Métriques de la fenêtre</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {METRIC_ORDER.filter((key) => displayResult.metrics[key] != null).map((key) => {
                     const val = displayResult.metrics[key]
@@ -412,7 +412,7 @@ export default function ForecastingPage() {
                       {relativeInfo.relRMSE != null && (
                         <> et RMSE ≈ <span className="text-text-primary font-medium">{relativeInfo.relRMSE.toFixed(1)}%</span></>
                       )}
-                      {' '}of scale ({relativeInfo.scaleLabel} = {relativeInfo.scaleValue.toFixed(4)})
+                      {' '}de l'échelle ({relativeInfo.scaleLabel} = {relativeInfo.scaleValue.toFixed(4)})
                     </p>
                   </div>
                 )}
@@ -422,15 +422,15 @@ export default function ForecastingPage() {
               {windowInfo && (
                 <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                   <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide">
-                    Forecast window
+                    Fenêtre de prévision
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Start</span>
+                      <span className="text-text-secondary">Début</span>
                       <span className="text-text-primary">{new Date(windowInfo.startDate).toLocaleDateString('en-GB')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">End</span>
+                      <span className="text-text-secondary">Fin</span>
                       <span className="text-text-primary">{new Date(windowInfo.endDate).toLocaleDateString('en-GB')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
@@ -454,8 +454,8 @@ export default function ForecastingPage() {
             <div className="bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center min-h-[200px]">
               <p className="text-xs text-text-secondary text-center">
                 {modelId
-                  ? 'Move the slider to generate a forecast.'
-                  : 'Select a model to get started.'}
+                  ? 'Déplacez le curseur pour générer une prévision.'
+                  : 'Sélectionnez un modèle pour commencer.'}
               </p>
             </div>
           )}

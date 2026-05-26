@@ -12,7 +12,7 @@ export function KPIBar({ filteredPiezo, filteredHydro, totalPiezo, totalHydro }:
       <div className="flex items-center justify-center gap-6 px-4 py-2">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full shrink-0 bg-accent-cyan" aria-hidden="true" />
-          <span className="text-xs text-text-secondary">Piezo</span>
+          <span className="text-xs text-text-secondary">Piézo</span>
           <span className="text-sm font-semibold text-text-primary font-mono">
             {isFiltered ? `${filteredPiezo.toLocaleString()} / ${totalPiezo.toLocaleString()}` : totalPiezo.toLocaleString()}
           </span>

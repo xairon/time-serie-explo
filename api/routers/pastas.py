@@ -44,7 +44,7 @@ def _validate_run_id(run_id: str) -> None:
     Prevents path traversal in artifact/model paths and SSRF via MLflow client.
     """
     if not _RUN_ID_RE.match(run_id):
-        raise HTTPException(400, "Invalid run_id format")
+        raise HTTPException(400, "Format run_id invalide")
 
 
 def _clean_tmin_tmax(params: dict) -> tuple[Optional[str], Optional[str]]:
@@ -301,7 +301,7 @@ def fit_model(req: FitRequest) -> FitResponse:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         logger.exception("Pastas fit failed: %s", exc)
-        raise HTTPException(500, f"Fit failed: {exc}") from exc
+        raise HTTPException(500, f"Échec de la calibration : {exc}") from exc
 
     return FitResponse(
         run_id=result.run_id,
@@ -340,7 +340,7 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
     filter_str = ""
     if code_bss:
         if not re.fullmatch(r"[A-Za-z0-9/_.X-]+", code_bss):
-            raise HTTPException(422, "Invalid code_bss format")
+            raise HTTPException(422, "Format code_bss invalide")
         filter_str = f"tags.station_id = '{code_bss}'"
 
     runs = client.search_runs(
@@ -396,7 +396,7 @@ def get_model(run_id: str) -> FitResponse:
         raise HTTPException(404, str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to load model %s: %s", run_id, exc)
-        raise HTTPException(500, f"Failed to load model: {exc}") from exc
+        raise HTTPException(500, f"Échec du chargement du modèle : {exc}") from exc
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -415,7 +415,7 @@ def get_model(run_id: str) -> FitResponse:
         simulated = model.simulate(tmin=tmin, tmax=tmax_full)
         residuals = model.residuals(tmin=tmin, tmax=tmax)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to reconstruct series: {exc}") from exc
+        raise HTTPException(500, f"Échec de la reconstruction des séries : {exc}") from exc
 
     contributions: dict[str, pd.Series] = {}
     for sm_name in model.stressmodels:
@@ -474,7 +474,7 @@ def get_signatures(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -485,13 +485,13 @@ def get_signatures(run_id: str):
         obs = model.observations(tmin=tmin, tmax=tmax)
         sim = model.simulate(tmin=tmin, tmax=tmax)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to compute series: {exc}") from exc
+        raise HTTPException(500, f"Échec du calcul des séries : {exc}") from exc
 
     try:
         return compute_signatures(obs, sim)
     except Exception as exc:
         logger.exception("Signatures computation failed: %s", exc)
-        raise HTTPException(500, f"Signatures computation failed: {exc}") from exc
+        raise HTTPException(500, f"Échec du calcul des signatures : {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -508,7 +508,7 @@ def get_diagnostics(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -542,7 +542,7 @@ def get_outlier_diagnostics(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -590,7 +590,7 @@ def get_confidence_bands(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -615,7 +615,7 @@ def get_recession(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -640,7 +640,7 @@ def get_baseflow(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -665,7 +665,7 @@ def get_spectral(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -697,7 +697,7 @@ def get_decomposition(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -723,7 +723,7 @@ def get_cross_correlation(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -754,7 +754,7 @@ def get_regional_residuals(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -791,7 +791,7 @@ def get_input_quality(run_id: str):
     try:
         run = client.get_run(run_id)
     except Exception:
-        raise HTTPException(404, f"Run '{run_id}' not found")
+        raise HTTPException(404, f"Exécution '{run_id}' introuvable")
     code_bss = run.data.params.get("dataset_id", run.data.tags.get("station_id", ""))
 
     engine = create_engine(_brgm_url())
@@ -816,7 +816,7 @@ def export_pas(run_id: str):
     try:
         model = load_model(run_id)
     except FileNotFoundError:
-        raise HTTPException(404, f"Model '{run_id}' not found")
+        raise HTTPException(404, f"Modèle '{run_id}' introuvable")
 
     f = tempfile.NamedTemporaryFile(suffix=".pas", delete=False)
     f.close()
@@ -842,7 +842,7 @@ def export_csv(run_id: str):
     try:
         run = client.get_run(run_id)
     except Exception:
-        raise HTTPException(404, f"Run '{run_id}' not found")
+        raise HTTPException(404, f"Exécution '{run_id}' introuvable")
 
     output = io.StringIO()
     writer = csv.writer(output)

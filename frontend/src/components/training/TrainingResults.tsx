@@ -35,7 +35,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">Results</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Résultats</h3>
         {displaySlidingMetrics && Object.keys(displaySlidingMetrics).length > 0 && (
           <div className="flex items-center gap-1 bg-bg-hover rounded-lg p-0.5">
             <button
@@ -47,7 +47,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Single window
+              Fenêtre unique
             </button>
             <button
               type="button"
@@ -58,7 +58,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Sliding window
+              Fenêtre glissante
             </button>
           </div>
         )}
@@ -84,7 +84,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
           rel="noopener noreferrer"
           className="inline-block text-xs text-accent-cyan hover:underline"
         >
-          View in MLflow
+          Voir dans MLflow
         </a>
       )}
     </div>

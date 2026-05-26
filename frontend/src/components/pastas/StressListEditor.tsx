@@ -9,9 +9,9 @@ export interface StressConfig {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'well', label: 'Pumping well', description: 'Q (m³/j)' },
-  { value: 'river', label: 'River level', description: 'H (m)' },
-  { value: 'custom', label: 'Custom', description: 'Any stress' },
+  { value: 'well', label: 'Forage de pompage', description: 'Q (m³/j)' },
+  { value: 'river', label: 'Niveau de rivière', description: 'H (m)' },
+  { value: 'custom', label: 'Personnalisé', description: 'Stress quelconque' },
 ] as const
 
 interface Props {
@@ -42,7 +42,7 @@ export function StressListEditor({ stresses, onChange }: Props) {
       <button onClick={add}
         className="w-full flex items-center justify-center gap-2 border border-dashed border-white/10 hover:border-white/20 rounded-lg px-4 py-2 text-sm text-text-muted hover:text-text-secondary transition-colors">
         <Plus className="w-4 h-4" />
-        Add stress
+        Ajouter un stress
       </button>
     </div>
   )
@@ -86,17 +86,17 @@ function StressCard({ stress, onChange, onDelete }: {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs text-text-muted">Name</label>
+          <label className="text-xs text-text-muted">Nom</label>
           <input type="text" value={stress.name}
             onChange={e => onChange({ ...stress, name: e.target.value })}
             className="w-full bg-bg-primary border border-white/10 rounded px-2 py-1 text-sm text-text-primary" />
         </div>
         <div>
-          <label className="text-xs text-text-muted">Response function</label>
+          <label className="text-xs text-text-muted">Fonction de réponse</label>
           <select value={stress.rfunc}
             onChange={e => onChange({ ...stress, rfunc: e.target.value })}
             className="w-full bg-bg-primary border border-white/10 rounded px-2 py-1 text-sm text-text-primary">
-            <option value="Exponential">Exponential</option>
+            <option value="Exponential">Exponentielle</option>
             <option value="Gamma">Gamma</option>
             <option value="Hantush">Hantush</option>
           </select>
@@ -105,16 +105,16 @@ function StressCard({ stress, onChange, onDelete }: {
 
       <div>
         <label className="text-xs text-text-muted">
-          CSV data ({TYPE_OPTIONS.find(t => t.value === stress.type)?.description})
+          Données CSV ({TYPE_OPTIONS.find(t => t.value === stress.type)?.description})
         </label>
         <div className="flex items-center gap-2 mt-1">
           <label className="flex items-center gap-1 px-3 py-1.5 bg-bg-primary border border-white/10 rounded text-xs text-text-secondary hover:bg-bg-hover cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />
-            Upload CSV
+            Importer CSV
             <input type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
           </label>
           {stress.csv_rows.length > 0 && (
-            <span className="text-xs text-accent-cyan">{stress.csv_rows.length} rows</span>
+            <span className="text-xs text-accent-cyan">{stress.csv_rows.length} lignes</span>
           )}
         </div>
       </div>

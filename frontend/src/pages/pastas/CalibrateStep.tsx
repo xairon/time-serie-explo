@@ -122,13 +122,13 @@ export default function CalibrateStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">No station selected</p>
+          <p className="text-sm text-text-secondary">Aucune station sélectionnée</p>
           <button
             onClick={() => navigate('/pastas/station')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Go back to Station step
+            Retour à l'étape Station
           </button>
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function CalibrateStep() {
             onClick={() => navigate(`/pastas/station?station=${encodeURIComponent(codeBss)}`)}
             className="text-xs text-text-muted hover:text-text-secondary"
           >
-            Change
+            Changer
           </button>
         </div>
 
@@ -157,9 +157,9 @@ export default function CalibrateStep() {
           /* Guided mode — auto-fit */
           <>
             <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-accent-cyan mb-2">Auto-fit</h2>
+              <h2 className="text-sm font-semibold text-accent-cyan mb-2">Calibration automatique</h2>
               <p className="text-xs text-text-muted mb-3">
-                Automatically tests multiple configurations and selects the best model based on STOWA criteria.
+                Teste automatiquement plusieurs configurations et sélectionne le meilleur modèle selon les critères STOWA.
               </p>
 
               <div className="space-y-3">
@@ -175,15 +175,15 @@ export default function CalibrateStep() {
                     className="accent-accent-cyan w-4 h-4"
                   />
                   <span className="text-xs text-text-secondary flex items-center gap-1">
-                    Include temperature
-                    <InfoTip text="Adds ERA5 2m-temperature as a separate stress. Useful for shallow aquifers where thermal effects influence water levels. Usually minor — try without first." />
+                    Inclure la température
+                    <InfoTip text="Ajoute la température 2 m d'ERA5 comme stress séparé. Utile pour les aquifères peu profonds où les effets thermiques influencent les niveaux. Généralement faible — essayer sans dans un premier temps." />
                   </span>
                 </label>
 
                 <div>
                   <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                    Warm-up period ({warmUpYears} year{warmUpYears !== 1 ? 's' : ''})
-                    <InfoTip text="Data at the start of the series used to initialize the model's internal state (response function memory) but NOT included in the calibration metrics. Choose 1-2 years for fast-responding aquifers (alluvial, shallow), 3-5 years for slow ones (deep sedimentary, confined). If your response time T95 is ~500 days, use at least 2 years." />
+                    Période de préchauffage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
+                    <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
                   </label>
                   <input
                     type="range"
@@ -206,12 +206,12 @@ export default function CalibrateStep() {
               {autoFitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Running auto-fit...
+                  Calibration automatique en cours...
                 </>
               ) : (
                 <>
                   <Zap className="w-4 h-4" />
-                  Auto-fit
+                  Calibration automatique
                 </>
               )}
             </button>
@@ -223,17 +223,17 @@ export default function CalibrateStep() {
               <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex items-center gap-2">
                 <RotateCcw className="w-4 h-4 text-purple-400 shrink-0" />
                 <span className="text-xs text-purple-300">
-                  Pre-filled from Gallery model. Modify parameters and refit.
+                  Pré-rempli depuis un modèle de la galerie. Modifiez les paramètres et recalibrez.
                 </span>
               </div>
             )}
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-text-primary mb-2">Model Configuration</h2>
+              <h2 className="text-sm font-semibold text-text-primary mb-2">Configuration du modèle</h2>
               {stationInfo?.preset != null && (stationInfo.preset as Record<string, string>).label && (
                 <div className="mb-3 flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg px-3 py-1.5">
                   <span className="text-xs text-accent-cyan font-medium">
-                    Recommended: {(stationInfo.preset as Record<string, string>).label}
+                    Recommandé : {(stationInfo.preset as Record<string, string>).label}
                   </span>
                 </div>
               )}
@@ -267,18 +267,18 @@ export default function CalibrateStep() {
                 />
                 <div>
                   <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
-                    Include temperature
-                    <InfoTip text="Adds ERA5 2m-temperature as a separate stress with its own response function. Useful for shallow aquifers where thermal expansion or temperature-dependent viscosity affects levels. Usually small compared to recharge — try without first." />
+                    Inclure la température
+                    <InfoTip text="Ajoute la température 2 m d'ERA5 comme stress séparé avec sa propre fonction de réponse. Utile pour les aquifères peu profonds où la dilatation thermique ou la viscosité dépendante de la température affecte les niveaux. Généralement faible par rapport à la recharge — essayer sans dans un premier temps." />
                   </span>
-                  <p className="text-xs text-text-muted">Adds ERA5 temperature as an additional stress.</p>
+                  <p className="text-xs text-text-muted">Ajoute la température ERA5 comme stress supplémentaire.</p>
                 </div>
               </label>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                Warm-up period ({warmUpYears} year{warmUpYears !== 1 ? 's' : ''})
-                <InfoTip text="Data at the start of the series used to initialize the model's internal state (response function memory) but NOT included in the calibration metrics. Choose 1-2 years for fast-responding aquifers (alluvial, shallow), 3-5 years for slow ones (deep sedimentary, confined). If your response time T95 is ~500 days, use at least 2 years." />
+                Période de préchauffage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
+                <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
               </label>
               <input
                 type="range"
@@ -301,23 +301,23 @@ export default function CalibrateStep() {
                 />
                 <div>
                   <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
-                    Two-pass (add trend)
-                    <InfoTip text="First fits the model without a trend, then checks if residuals still show a significant drift (Mann-Kendall test). If yes, adds a LinearTrend stress and refits. Recommended when the pre-fit diagnostics detected a trend — captures long-term changes (climate, land use, pumping) that recharge alone cannot explain." />
+                    Deux passes (ajout d'une tendance)
+                    <InfoTip text="Calibre d'abord le modèle sans tendance, puis vérifie si les résidus présentent encore une dérive significative (test de Mann-Kendall). Si oui, ajoute un stress LinearTrend et recalibre. Recommandé lorsque les diagnostics pré-calibration ont détecté une tendance — capture les évolutions long terme (climat, usage des sols, pompage) que la seule recharge ne peut expliquer." />
                   </span>
-                  <p className="text-xs text-text-muted">First fit without trend, then add a linear trend stress if residuals show a trend.</p>
+                  <p className="text-xs text-text-muted">Première calibration sans tendance, puis ajout d'un stress de tendance linéaire si les résidus en présentent une.</p>
                 </div>
               </label>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <label className="block text-sm font-medium text-text-secondary mb-1">
-                Run name (optional)
+                Nom de l'exécution (optionnel)
               </label>
               <input
                 type="text"
                 value={modelName}
                 onChange={e => setModelName(e.target.value)}
-                placeholder="e.g. station_01_linear"
+                placeholder="ex. station_01_linear"
                 className="w-full bg-bg-primary border border-white/10 rounded-md px-3 py-2 text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
               />
             </div>
@@ -330,12 +330,12 @@ export default function CalibrateStep() {
               {fitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Calibrating...
+                  Calibration en cours...
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4" />
-                  Fit Model
+                  Calibrer le modèle
                 </>
               )}
             </button>
@@ -347,7 +347,7 @@ export default function CalibrateStep() {
             <p className="text-xs text-red-400">
               {(fitMutation.error ?? autoFitMutation.error) instanceof Error
                 ? ((fitMutation.error ?? autoFitMutation.error) as Error).message
-                : 'Calibration failed. Check backend logs.'}
+                : 'Échec de la calibration. Consultez les logs du backend.'}
             </p>
           </div>
         )}
@@ -369,7 +369,7 @@ export default function CalibrateStep() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 transition-colors"
                 >
                   <Check className="w-4 h-4" />
-                  View Results
+                  Voir les résultats
                 </button>
               </div>
             )}
@@ -380,8 +380,8 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-2">
               <Zap className="w-10 h-10 mx-auto text-text-muted/30" />
-              <p className="text-sm text-text-secondary">Ready to auto-fit</p>
-              <p className="text-xs">Click "Auto-fit" to automatically find the best model configuration.</p>
+              <p className="text-sm text-text-secondary">Prêt pour la calibration automatique</p>
+              <p className="text-xs">Cliquez sur « Calibration automatique » pour trouver la meilleure configuration de modèle.</p>
             </div>
           </div>
         )}
@@ -390,8 +390,8 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-3">
               <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-              <p className="text-sm text-text-secondary">Testing configurations...</p>
-              <p className="text-xs">This may take a few minutes. Each candidate is fitted and evaluated.</p>
+              <p className="text-sm text-text-secondary">Test des configurations...</p>
+              <p className="text-xs">Cela peut prendre quelques minutes. Chaque candidat est calibré et évalué.</p>
             </div>
           </div>
         )}
@@ -400,8 +400,8 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-2">
               <Play className="w-10 h-10 mx-auto text-text-muted/30" />
-              <p className="text-sm text-text-secondary">Configure and fit</p>
-              <p className="text-xs">Set your model parameters and click "Fit Model" to calibrate.</p>
+              <p className="text-sm text-text-secondary">Configurer et calibrer</p>
+              <p className="text-xs">Définissez vos paramètres et cliquez sur « Calibrer le modèle » pour lancer la calibration.</p>
             </div>
           </div>
         )}
@@ -410,7 +410,7 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-3">
               <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-              <p className="text-sm text-text-secondary">Calibrating model...</p>
+              <p className="text-sm text-text-secondary">Calibration du modèle...</p>
             </div>
           </div>
         )}
@@ -440,17 +440,17 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Auto-fit Results</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Résultats de la calibration automatique</h2>
           <p className="text-xs text-text-muted mt-0.5">
-            {result.candidates.length} configuration{result.candidates.length > 1 ? 's' : ''} tested in {result.total_elapsed_s.toFixed(1)}s
+            {result.candidates.length} configuration{result.candidates.length > 1 ? 's' : ''} testée{result.candidates.length > 1 ? 's' : ''} en {result.total_elapsed_s.toFixed(1)} s
           </p>
         </div>
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-400">All configurations failed</p>
+            <p className="text-sm font-semibold text-red-400">Toutes les configurations ont échoué</p>
             <p className="text-xs text-red-300/80 mt-1">{uniqueErrors[0]}</p>
-            <p className="text-xs text-text-muted mt-2">Check that the station has enough data overlap between piezometric observations and climate stresses (precipitation, evapotranspiration). A minimum of 1 year of overlap is required.</p>
+            <p className="text-xs text-text-muted mt-2">Vérifiez que la station dispose d'un recouvrement suffisant entre les observations piézométriques et les stress climatiques (précipitations, évapotranspiration). Au moins 1 an de recouvrement est requis.</p>
           </div>
         </div>
       </div>
@@ -462,12 +462,12 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
       {/* Summary */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Auto-fit Results</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Résultats de la calibration automatique</h2>
           <p className="text-xs text-text-muted mt-0.5">
-            {result.candidates.length} configurations tested in {result.total_elapsed_s.toFixed(1)}s
+            {result.candidates.length} configurations testées en {result.total_elapsed_s.toFixed(1)} s
           </p>
         </div>
-        <p className="text-xs text-text-muted">Click a row to select, then proceed to Results.</p>
+        <p className="text-xs text-text-muted">Cliquez sur une ligne pour sélectionner, puis passez aux résultats.</p>
       </div>
 
       {/* Table */}
@@ -477,18 +477,18 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
             <tr className="text-text-muted border-b border-white/5">
               <th className="text-left px-3 py-2">Configuration</th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">NSE <InfoTip text="Nash-Sutcliffe Efficiency — measures how well the model reproduces the observed variability. 1 = perfect match, 0 = no better than predicting the mean, negative = worse than the mean. Aim for > 0.7." /></span>
+                <span className="inline-flex items-center gap-1">NSE <InfoTip text="Nash-Sutcliffe Efficiency — mesure à quel point le modèle reproduit la variabilité observée. 1 = correspondance parfaite, 0 = pas mieux que prédire la moyenne, négatif = pire que la moyenne. Viser > 0,7." /></span>
               </th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">RMSE <InfoTip text="Root Mean Square Error — average prediction error in meters. Lower is better. Depends on the aquifer's natural variability — compare across models for the same station, not across stations." /></span>
+                <span className="inline-flex items-center gap-1">RMSE <InfoTip text="Erreur quadratique moyenne — erreur moyenne de prédiction en mètres. Plus c'est faible, mieux c'est. Dépend de la variabilité naturelle de l'aquifère — à comparer entre modèles d'une même station, pas entre stations." /></span>
               </th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">KGE <InfoTip text="Kling-Gupta Efficiency — combines correlation, bias ratio, and variability ratio into a single score. More balanced than NSE (which overweights peaks). > 0.7 = good, > 0.9 = excellent." /></span>
+                <span className="inline-flex items-center gap-1">KGE <InfoTip text="Kling-Gupta Efficiency — combine corrélation, biais et rapport de variabilité en un score unique. Plus équilibré que NSE (qui surpondère les pics). > 0,7 = bon, > 0,9 = excellent." /></span>
               </th>
               <th className="text-center px-3 py-2">
-                <span className="inline-flex items-center gap-1">STOWA <InfoTip text="Dutch standard for groundwater model quality (STOWA 2012). Checks 4 criteria: (1) EVP ≥ 70% variance explained, (2) residuals are independent (Runs test), (3) response time T95 is physically plausible, (4) all stresses contribute significantly (gain test). 'Pass' = all 4 met." /></span>
+                <span className="inline-flex items-center gap-1">STOWA <InfoTip text="Norme néerlandaise pour la qualité des modèles piézométriques (STOWA 2012). Vérifie 4 critères : (1) EVP ≥ 70% de variance expliquée, (2) résidus indépendants (test des suites), (3) temps de réponse T95 physiquement plausible, (4) tous les stress contribuent significativement (test du gain). « Pass » = les 4 sont validés." /></span>
               </th>
-              <th className="text-right px-3 py-2">Time</th>
+              <th className="text-right px-3 py-2">Temps</th>
             </tr>
           </thead>
           <tbody>
@@ -556,7 +556,7 @@ function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           {isSelected && <Check className="w-3 h-3 text-accent-cyan shrink-0" />}
-          {!isSelected && isBest && <span className="text-accent-cyan text-[10px] font-semibold shrink-0">BEST</span>}
+          {!isSelected && isBest && <span className="text-accent-cyan text-[10px] font-semibold shrink-0">MEILLEUR</span>}
           <span className="font-mono text-text-primary">{configLabel}</span>
         </div>
       </td>
@@ -570,11 +570,11 @@ function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
               ? 'bg-green-500/10 text-green-400 border border-green-500/20'
               : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
           }`}>
-            {c.stowa.overall_pass ? 'Pass' : 'Partial'}
+            {c.stowa.overall_pass ? 'Pass' : 'Partiel'}
           </span>
         ) : '--'}
       </td>
-      <td className="px-3 py-2 text-right text-text-muted">{c.elapsed_s.toFixed(1)}s</td>
+      <td className="px-3 py-2 text-right text-text-muted">{c.elapsed_s.toFixed(1)} s</td>
     </tr>
   )
 }

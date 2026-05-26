@@ -107,16 +107,16 @@ export default function FitPage() {
       <div className="w-80 shrink-0 space-y-4">
         <OnboardingBanner
           id="fit"
-          title="Calibrate a Pastas model"
-          description="A Pastas model links piezometric levels to climatic forcings (precipitation, PET) via a transfer function. Select a station, configure the model, and run calibration."
+          title="Calibrer un modèle Pastas"
+          description="Un modèle Pastas relie les niveaux piézométriques aux forçages climatiques (précipitations, ETP) via une fonction de transfert. Sélectionnez une station, configurez le modèle et lancez la calibration."
           steps={[
-            'Search and select a piezometric station',
-            'Choose the recharge model (how precipitation infiltrates) and the response function (how the aquifer responds)',
-            'Enable validation to hold out a portion of data for testing — the model trains on earlier data and is verified on the rest',
-            'Optional: add extra stresses (pumping, river, etc.) if you have the data',
-            'Click "Fit Model" — results, diagnostics and signatures appear on the right',
+            'Rechercher et sélectionner une station piézométrique',
+            "Choisir le modèle de recharge (mode d'infiltration des précipitations) et la fonction de réponse (mode de réponse de l'aquifère)",
+            "Activer la validation pour mettre de côté une portion des données pour le test — le modèle est calibré sur les premières années et vérifié sur le reste",
+            "Optionnel : ajouter des stress supplémentaires (pompage, rivière, etc.) si vous disposez des données",
+            "Cliquer sur « Calibrer le modèle » — les résultats, diagnostics et signatures apparaissent à droite",
           ]}
-          exampleAction={{ label: 'Load example station (Champagne chalk)', onClick: loadDemo }}
+          exampleAction={{ label: 'Charger une station exemple (craie de Champagne)', onClick: loadDemo }}
         />
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
@@ -125,11 +125,11 @@ export default function FitPage() {
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-2">Model Configuration</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-2">Configuration du modèle</h2>
           {stationInfo?.preset != null && (stationInfo.preset as Record<string, string>).label && (
             <div className="mb-3 flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg px-3 py-1.5">
               <span className="text-xs text-accent-cyan font-medium">
-                Recommended config: {(stationInfo.preset as Record<string, string>).label}
+                Config recommandée : {(stationInfo.preset as Record<string, string>).label}
               </span>
               <span className="text-[10px] text-text-muted">
                 {(stationInfo.preset as Record<string, string>).description}
@@ -165,21 +165,21 @@ export default function FitPage() {
               className="accent-accent-cyan w-4 h-4"
             />
             <div>
-              <span className="text-sm font-medium text-text-secondary">Include temperature</span>
-              <p className="text-xs text-text-muted">Adds ERA5 temperature (°C) as an additional stress. Can capture non-linear effects that PET alone doesn't model.</p>
+              <span className="text-sm font-medium text-text-secondary">Inclure la température</span>
+              <p className="text-xs text-text-muted">Ajoute la température ERA5 (°C) comme stress supplémentaire. Peut capturer des effets non linéaires que l'ETP seule ne modélise pas.</p>
             </div>
           </label>
         </div>
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Run name (optional)
+            Nom de l'exécution (optionnel)
           </label>
           <input
             type="text"
             value={modelName}
             onChange={(e) => setModelName(e.target.value)}
-            placeholder="e.g. station_01_linear"
+            placeholder="ex. station_01_linear"
             className="w-full bg-bg-primary border border-white/10 rounded-md px-3 py-2 text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
           />
         </div>
@@ -192,12 +192,12 @@ export default function FitPage() {
           {fitMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Calibrating…
+              Calibration en cours…
             </>
           ) : (
             <>
               <Play className="w-4 h-4" />
-              {fitResult ? 'Re-calibrate with this config' : 'Run calibration'}
+              {fitResult ? 'Recalibrer avec cette config' : 'Lancer la calibration'}
             </>
           )}
         </button>
@@ -207,7 +207,7 @@ export default function FitPage() {
             <p className="text-xs text-red-400">
               {fitMutation.error instanceof Error
                 ? fitMutation.error.message
-                : 'Fit failed. Check backend logs.'}
+                : 'Échec de la calibration. Consultez les logs du backend.'}
             </p>
           </div>
         )}
@@ -218,7 +218,7 @@ export default function FitPage() {
         {codeBss && (
           <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
             <a href={`/station/piezo/${encodeURIComponent(codeBss)}`} className="text-accent-cyan hover:underline">
-              &larr; View station details
+              &larr; Voir le détail de la station
             </a>
           </div>
         )}
@@ -236,8 +236,8 @@ export default function FitPage() {
         {!codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
-              <p className="text-text-secondary">No station selected</p>
-              <p>Select a station to preview its data.</p>
+              <p className="text-text-secondary">Aucune station sélectionnée</p>
+              <p>Sélectionnez une station pour prévisualiser ses données.</p>
             </div>
           </div>
         )}
@@ -257,7 +257,7 @@ export default function FitPage() {
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
-                Results & Diagnostics
+                Résultats et diagnostics
               </button>
               <button
                 onClick={() => setRightTab('scenarios')}
@@ -268,7 +268,7 @@ export default function FitPage() {
                 }`}
               >
                 <FlaskConical className="w-4 h-4" />
-                What-if Scenarios
+                Scénarios prospectifs
               </button>
             </div>
 

@@ -133,7 +133,7 @@ def list_stations(
                     raise ValueError
                 min_lon, min_lat, max_lon, max_lat = (float(p) for p in parts)
             except ValueError:
-                raise HTTPException(400, "Invalid bbox format")
+                raise HTTPException(400, "Format bbox invalide")
             conditions.append("latitude_station BETWEEN :min_lat AND :max_lat")
             conditions.append("longitude_station BETWEEN :min_lon AND :max_lon")
             bind.update(min_lat=min_lat, max_lat=max_lat, min_lon=min_lon, max_lon=max_lon)
@@ -205,7 +205,7 @@ def get_percentiles(code_station: str):
         finally:
             engine.dispose()
         if not row or row["p10"] is None:
-            raise HTTPException(404, f"No data for hydro station {code_station}")
+            raise HTTPException(404, f"Aucune donnée pour la station hydrométrique {code_station}")
         return _convert_qmnj_row(dict(row), _FLOW_COLS_PERCENTILES)
 
     return get_cached("obs_hydro_pctl", {"code_station": code_station}, PERCENTILES_TTL, fetch)
@@ -252,7 +252,7 @@ def get_daily(
                         {"code": code_station},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Hydro station {code_station} not found")
+                        raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
             engine.dispose()
         for r in rows:
@@ -307,7 +307,7 @@ def get_monthly(
                         {"code": code_station},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Hydro station {code_station} not found")
+                        raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
             engine.dispose()
         for r in rows:
@@ -360,7 +360,7 @@ def get_yearly(
                         {"code": code_station},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Hydro station {code_station} not found")
+                        raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
             engine.dispose()
         for r in rows:
@@ -396,7 +396,7 @@ def get_ssfi(code_station: str):
                         {"code": code_station},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Hydro station {code_station} not found")
+                        raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
                     return []
         finally:
             engine.dispose()
@@ -434,7 +434,7 @@ def get_spi(code_station: str):
                         {"code": code_station},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Hydro station {code_station} not found")
+                        raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
                     return []
         finally:
             engine.dispose()
@@ -463,10 +463,10 @@ def get_siblings(code_station: str):
                     {"code": code_station},
                 ).mappings().first()
                 if not row:
-                    raise HTTPException(404, f"Hydro station {code_station} not found")
+                    raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
                 code_site = row["code_site"]
                 if not code_site:
-                    raise HTTPException(404, f"No site code for station {code_station}")
+                    raise HTTPException(404, f"Aucun code de site pour la station {code_station}")
 
                 query = """
                     SELECT code_station, libelle_station, grandeur_hydro_principale,
@@ -526,7 +526,7 @@ def get_station(code_station: str):
         finally:
             engine.dispose()
         if not row:
-            raise HTTPException(404, f"Hydro station {code_station} not found")
+            raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         return _convert_qmnj_row(dict(row), _FLOW_COLS_DIM)
 
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)

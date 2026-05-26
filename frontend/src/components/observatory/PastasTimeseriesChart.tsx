@@ -3,7 +3,7 @@ import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import { CHART_TOOLTIP_STYLE } from '@/lib/observatory-types'
 import type { ObsPastasTimeseriesPoint } from '@/lib/observatory-types'
 
-const PERIODS = [{ label: '5y', months: 60 }, { label: '10y', months: 120 }, { label: 'Max', months: Infinity }] as const
+const PERIODS = [{ label: '5 ans', months: 60 }, { label: '10 ans', months: 120 }, { label: 'Max', months: Infinity }] as const
 interface Props { data: ObsPastasTimeseriesPoint[] }
 
 export function PastasTimeseriesChart({ data }: Props) {
@@ -13,7 +13,7 @@ export function PastasTimeseriesChart({ data }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-text-primary">PASTAS Model -- Observed vs Simulated</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Modèle PASTAS -- Observé vs Simulé</h3>
         <div className="flex gap-1">{PERIODS.map(({ label, months }) => (<button key={label} onClick={() => setPeriod(months)} aria-pressed={period === months} className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${period === months ? 'bg-accent-cyan/20 text-accent-cyan' : 'text-text-secondary hover:text-text-primary'}`}>{label}</button>))}</div>
       </div>
       <ResponsiveContainer width="100%" height={300}>
@@ -21,7 +21,7 @@ export function PastasTimeseriesChart({ data }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
           <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}` }} stroke="transparent" />
           <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} stroke="transparent" domain={['auto', 'auto']} label={{ value: 'm NGF', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
-          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v: any) => new Date(v).toLocaleDateString('en-GB', { year: 'numeric', month: 'long' })} formatter={(value: any, name: any) => [value != null ? Number(value).toFixed(2) : '--', name === 'simulated' ? 'Simulated' : 'Observed']} />
+          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v: any) => new Date(v).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })} formatter={(value: any, name: any) => [value != null ? Number(value).toFixed(2) : '--', name === 'simulated' ? 'Simulé' : 'Observé']} />
           <Line dataKey="observed" name="observed" stroke="transparent" dot={{ r: 2, fill: '#9ca3af', strokeWidth: 0 }} activeDot={{ r: 3, fill: '#9ca3af' }} connectNulls={false} isAnimationActive={false} />
           <Line dataKey="simulated" name="simulated" stroke="#06b6d4" strokeWidth={1.5} dot={false} isAnimationActive={false} />
         </ComposedChart>

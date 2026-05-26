@@ -4,7 +4,7 @@ interface Props {
 }
 
 const OPTIONS: { value: 'guided' | 'expert'; label: string }[] = [
-  { value: 'guided', label: 'Guided' },
+  { value: 'guided', label: 'Guidé' },
   { value: 'expert', label: 'Expert' },
 ]
 

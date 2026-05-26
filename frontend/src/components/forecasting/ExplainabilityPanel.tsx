@@ -42,7 +42,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   return (
     <div className="text-center py-6">
       <p className="text-xs text-red-400 mb-2">{message}</p>
-      <button onClick={onRetry} className="text-xs text-accent-cyan hover:underline">Retry</button>
+      <button onClick={onRetry} className="text-xs text-accent-cyan hover:underline">Réessayer</button>
     </div>
   )
 }
@@ -58,10 +58,10 @@ function extractImportance(data: ExplainResult): { features: string[]; values: n
 }
 
 const HYDRO_LABELS: Record<string, string> = {
-  total_precipitation: 'Precipitation',
-  potential_evaporation: 'Evapotranspiration (PET)',
-  temperature_2m: 'Temperature',
-  niveau_nappe_eau: 'Water level (autoregressive)',
+  total_precipitation: 'Précipitations',
+  potential_evaporation: 'Évapotranspiration (ETP)',
+  temperature_2m: 'Température',
+  niveau_nappe_eau: 'Niveau de nappe (autorégressif)',
 }
 
 function hydroLabel(name: string): string {
@@ -99,7 +99,7 @@ function DriversSection({ modelId }: { modelId: string }) {
   if (!mutation.data) return null
 
   const importance = extractImportance(mutation.data)
-  if (!importance) return <p className="text-xs text-text-muted py-4">No feature importance data available.</p>
+  if (!importance) return <p className="text-xs text-text-muted py-4">Aucune donnée d'importance des variables disponible.</p>
 
   const total = importance.values.reduce((s, v) => s + Math.abs(v), 0)
   const features = importance.features.map(hydroLabel)
@@ -118,7 +118,7 @@ function DriversSection({ modelId }: { modelId: string }) {
           }]}
           layout={{
             ...darkLayout,
-            xaxis: { ...darkLayout.xaxis, title: { text: 'Correlation strength' } },
+            xaxis: { ...darkLayout.xaxis, title: { text: 'Force de corrélation' } },
             yaxis: { ...darkLayout.yaxis, autorange: 'reversed' as const },
             margin: { t: 5, r: 20, b: 35, l: 160 },
           }}
@@ -136,20 +136,20 @@ function DriversSection({ modelId }: { modelId: string }) {
           return (
             <p key={feat} className="text-xs text-text-secondary">
               <span className="font-medium" style={{ color: colors[i] }}>{label}</span>
-              {' '}accounts for <span className="text-text-primary font-mono">{pct.toFixed(0)}%</span> of the signal.
-              {isTarget && ' The water level is strongly autocorrelated — recent levels predict future levels.'}
-              {feat === 'total_precipitation' && pct > 30 && ' Precipitation is a major driver — typical for shallow or alluvial aquifers.'}
-              {feat === 'potential_evaporation' && pct > 20 && ' Evapotranspiration significantly depletes recharge during warm months.'}
-              {feat === 'temperature_2m' && pct > 30 && ' Strong temperature influence — may indicate thermal effects or correlation with evapotranspiration.'}
+              {' '}représente <span className="text-text-primary font-mono">{pct.toFixed(0)}%</span> du signal.
+              {isTarget && ' Le niveau de nappe est fortement autocorrélé — les niveaux récents prédisent les niveaux futurs.'}
+              {feat === 'total_precipitation' && pct > 30 && ' Les précipitations sont un facteur majeur — typique des aquifères superficiels ou alluviaux.'}
+              {feat === 'potential_evaporation' && pct > 20 && ' L\'évapotranspiration réduit significativement la recharge pendant les mois chauds.'}
+              {feat === 'temperature_2m' && pct > 30 && ' Forte influence de la température — peut indiquer des effets thermiques ou une corrélation avec l\'évapotranspiration.'}
             </p>
           )
         })}
       </div>
 
       <div className="flex gap-4 text-[10px] text-text-muted">
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#06b6d4' }} /> Strong (&gt;40%)</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#eab308' }} /> Moderate (15-40%)</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#6b7280' }} /> Weak (&lt;15%)</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#06b6d4' }} /> Forte (&gt;40%)</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#eab308' }} /> Modérée (15-40%)</span>
+        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#6b7280' }} /> Faible (&lt;15%)</span>
       </div>
     </div>
   )
@@ -170,7 +170,7 @@ function QualitySection({ modelId }: { modelId: string }) {
   const balanced = d.bias_status === 'balanced' || d.bias_status === 'equilibre'
   const normal = d.normality_pvalue != null ? d.normality_pvalue >= 0.05 : null
   const acfOk = d.acf_lag1 != null ? Math.abs(d.acf_lag1) < 0.3 : null
-  const direction = d.mean_error < 0 ? 'overestimates' : 'underestimates'
+  const direction = d.mean_error < 0 ? 'surestime' : 'sous-estime'
 
   return (
     <div className="space-y-3">
@@ -178,12 +178,12 @@ function QualitySection({ modelId }: { modelId: string }) {
         {balanced ? <CheckCircle className="w-6 h-6 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0" />}
         <div>
           <p className={`text-sm font-semibold ${balanced ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {balanced ? 'Unbiased predictions' : 'Systematic bias detected'}
+            {balanced ? 'Prévisions non biaisées' : 'Biais systématique détecté'}
           </p>
           <p className="text-xs text-text-muted">
             {balanced
-              ? 'Prediction errors are centered around zero — no systematic over/under-estimation.'
-              : `The model ${direction} the water level by ${Math.abs(d.mean_error).toFixed(3)} m on average.`}
+              ? 'Les erreurs de prévision sont centrées autour de zéro — pas de sur/sous-estimation systématique.'
+              : `Le modèle ${direction} le niveau de nappe de ${Math.abs(d.mean_error).toFixed(3)} m en moyenne.`}
           </p>
         </div>
       </div>
@@ -191,34 +191,34 @@ function QualitySection({ modelId }: { modelId: string }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="bg-bg-hover rounded-lg p-3">
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-[10px] text-text-muted uppercase">Mean error</span>
-            <InfoTip text="Average prediction error (bias). A value close to zero means no systematic over- or under-estimation. Positive = model underestimates levels." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Erreur moyenne</span>
+            <InfoTip text="Erreur moyenne de prévision (biais). Une valeur proche de zéro signifie qu'il n'y a pas de sur- ou sous-estimation systématique. Positif = le modèle sous-estime les niveaux." iconSize={10} />
           </div>
           <p className="text-base font-bold font-mono text-text-primary">{d.mean_error.toFixed(3)} <span className="text-xs text-text-muted font-normal">m</span></p>
         </div>
         <div className="bg-bg-hover rounded-lg p-3">
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-[10px] text-text-muted uppercase">Typical error</span>
-            <InfoTip text="Standard deviation of prediction errors — the typical magnitude of mistakes. 95% of errors fall within ±2σ. Compare with the natural amplitude of the water level to assess significance." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Erreur typique</span>
+            <InfoTip text="Écart-type des erreurs de prévision — magnitude typique des erreurs. 95% des erreurs sont dans ±2σ. Comparez avec l'amplitude naturelle du niveau de nappe pour évaluer la signification." iconSize={10} />
           </div>
           <p className="text-base font-bold font-mono text-text-primary">±{d.std_error.toFixed(3)} <span className="text-xs text-text-muted font-normal">m</span></p>
         </div>
         <div className="bg-bg-hover rounded-lg p-3">
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-[10px] text-text-muted uppercase">Normal errors</span>
-            <InfoTip text="D'Agostino-Pearson normality test on residuals. 'Yes' means errors are random and well-behaved. 'No' means the model misses some patterns — look for clusters in the error chart below." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Erreurs normales</span>
+            <InfoTip text="Test de normalité D'Agostino-Pearson sur les résidus. 'Oui' signifie que les erreurs sont aléatoires et bien réparties. 'Non' signifie que le modèle manque certains motifs — cherchez les regroupements dans le graphique d'erreurs ci-dessous." iconSize={10} />
           </div>
           <p className="text-base font-bold">
-            {normal === null ? <span className="text-text-muted">?</span> : normal ? <span className="text-emerald-400">Yes</span> : <span className="text-amber-400">No</span>}
+            {normal === null ? <span className="text-text-muted">?</span> : normal ? <span className="text-emerald-400">Oui</span> : <span className="text-amber-400">Non</span>}
           </p>
         </div>
         <div className="bg-bg-hover rounded-lg p-3">
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-[10px] text-text-muted uppercase">Independent</span>
-            <InfoTip text="Autocorrelation at lag 1 (ACF₁). Low (< 0.3) means successive errors are independent — good. High means errors are correlated: if the model is wrong today, it will likely be wrong tomorrow too, suggesting missing dynamics." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Indépendantes</span>
+            <InfoTip text="Autocorrélation au lag 1 (ACF₁). Faible (< 0.3) signifie que les erreurs successives sont indépendantes — bon. Élevée signifie que les erreurs sont corrélées : si le modèle se trompe aujourd'hui, il se trompera probablement demain aussi, suggérant des dynamiques manquantes." iconSize={10} />
           </div>
           <p className="text-base font-bold">
-            {acfOk === null ? <span className="text-text-muted">?</span> : acfOk ? <span className="text-emerald-400">Yes</span> : <span className="text-amber-400">No</span>}
+            {acfOk === null ? <span className="text-text-muted">?</span> : acfOk ? <span className="text-emerald-400">Oui</span> : <span className="text-amber-400">Non</span>}
           </p>
           {d.acf_lag1 != null && <p className="text-[10px] text-text-muted mt-0.5">ACF₁ = {d.acf_lag1.toFixed(3)}</p>}
         </div>
@@ -226,21 +226,21 @@ function QualitySection({ modelId }: { modelId: string }) {
 
       {d.residuals && d.dates && (
         <div>
-          <p className="text-xs text-text-muted mb-1">Error over time — ideally scattered evenly around zero</p>
+          <p className="text-xs text-text-muted mb-1">Erreur au cours du temps — idéalement répartie uniformément autour de zéro</p>
           <div className="h-[200px]">
             <Plot
               data={[{
                 type: 'scatter', mode: 'markers',
                 x: d.dates, y: d.residuals,
                 marker: { color: '#f43f5e', size: 3, opacity: 0.6 },
-                hovertemplate: '%{x|%d/%m/%Y}<br>Error: %{y:.4f} m<extra></extra>',
+                hovertemplate: '%{x|%d/%m/%Y}<br>Erreur : %{y:.4f} m<extra></extra>',
               }]}
               layout={{
                 ...darkLayout,
                 margin: { t: 5, r: 20, b: 30, l: 50 },
                 height: 200,
                 xaxis: { ...darkLayout.xaxis },
-                yaxis: { ...darkLayout.yaxis, title: { text: 'Error (m)' } },
+                yaxis: { ...darkLayout.yaxis, title: { text: 'Erreur (m)' } },
                 shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 0, y1: 0, line: { color: 'rgba(255,255,255,0.15)', dash: 'dash', width: 1 } }],
               }}
               config={plotlyConfig}
@@ -275,7 +275,7 @@ function BehaviorSection({ modelId }: { modelId: string }) {
     ? Math.max(...lag.significant_lags)
     : null
 
-  const periodLabels: Record<number, string> = { 7: 'Weekly', 30: 'Monthly', 90: 'Quarterly', 365: 'Annual' }
+  const periodLabels: Record<number, string> = { 7: 'Hebdomadaire', 30: 'Mensuel', 90: 'Trimestriel', 365: 'Annuel' }
 
   return (
     <div className="space-y-4">
@@ -284,21 +284,21 @@ function BehaviorSection({ modelId }: { modelId: string }) {
         <div className="bg-bg-hover rounded-lg p-3 border border-accent-cyan/20">
           <div className="flex items-center gap-1 mb-1">
             <Clock className="w-3.5 h-3.5 text-accent-cyan" />
-            <span className="text-[10px] text-text-muted uppercase">Aquifer memory</span>
-            <InfoTip text="How many days of past data significantly influence today's water level. Longer memory = slower, deeper aquifer. Short memory = fast-responding (alluvial, shallow). Derived from autocorrelation analysis (ACF)." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Mémoire de l'aquifère</span>
+            <InfoTip text="Nombre de jours de données passées qui influencent significativement le niveau actuel. Mémoire longue = aquifère lent et profond. Mémoire courte = réponse rapide (alluvial, superficiel). Dérivée de l'analyse d'autocorrélation (ACF)." iconSize={10} />
           </div>
           {lagLoading ? (
             <div className="h-6 bg-white/5 rounded animate-pulse mt-1" />
           ) : memoryHorizon != null ? (
-            <p className="text-lg font-bold text-accent-cyan">{memoryHorizon} <span className="text-xs text-text-muted font-normal">days</span></p>
+            <p className="text-lg font-bold text-accent-cyan">{memoryHorizon} <span className="text-xs text-text-muted font-normal">jours</span></p>
           ) : (
             <p className="text-sm text-text-muted">—</p>
           )}
           {memoryHorizon != null && (
             <p className="text-[10px] text-text-muted mt-0.5">
-              {memoryHorizon > 180 ? 'Deep or confined aquifer with very long response time.' :
-               memoryHorizon > 60 ? 'Moderate response — typical for sedimentary or semi-confined aquifers.' :
-               'Fast response — typical for alluvial or shallow aquifers.'}
+              {memoryHorizon > 180 ? 'Aquifère profond ou captif avec un temps de réponse très long.' :
+               memoryHorizon > 60 ? 'Réponse modérée — typique des aquifères sédimentaires ou semi-captifs.' :
+               'Réponse rapide — typique des aquifères alluviaux ou superficiels.'}
             </p>
           )}
         </div>
@@ -306,8 +306,8 @@ function BehaviorSection({ modelId }: { modelId: string }) {
         <div className="bg-bg-hover rounded-lg p-3 border border-amber-500/20">
           <div className="flex items-center gap-1 mb-1">
             <Sun className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[10px] text-text-muted uppercase">Detected cycles</span>
-            <InfoTip text="Significant periodic patterns in the water level signal, detected via FFT spectral analysis. Annual cycles are expected for most aquifers. Monthly cycles may indicate tidal or pumping influences." iconSize={10} />
+            <span className="text-[10px] text-text-muted uppercase">Cycles détectés</span>
+            <InfoTip text="Motifs périodiques significatifs dans le signal du niveau de nappe, détectés par analyse spectrale FFT. Les cycles annuels sont attendus pour la plupart des aquifères. Les cycles mensuels peuvent indiquer des influences marégraphiques ou de pompage." iconSize={10} />
           </div>
           {seasonLoading ? (
             <div className="h-6 bg-white/5 rounded animate-pulse mt-1" />
@@ -323,7 +323,7 @@ function BehaviorSection({ modelId }: { modelId: string }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-text-muted mt-1">None detected</p>
+            <p className="text-sm text-text-muted mt-1">Aucun détecté</p>
           )}
         </div>
       </div>
@@ -336,12 +336,12 @@ function BehaviorSection({ modelId }: { modelId: string }) {
               type: 'bar',
               x: lag.lags, y: lag.autocorrelations,
               marker: { color: lag.lags.map(l => lag.significant_lags?.includes(l) ? '#06b6d4' : 'rgba(6,182,212,0.15)') },
-              hovertemplate: 'Day -%{x}<br>Autocorrelation: %{y:.3f}<extra></extra>',
+              hovertemplate: 'Jour -%{x}<br>Autocorrélation : %{y:.3f}<extra></extra>',
             }]}
             layout={{
               ...darkLayout,
               height: 200,
-              xaxis: { ...darkLayout.xaxis, title: { text: 'Lag (days)' } },
+              xaxis: { ...darkLayout.xaxis, title: { text: 'Décalage (jours)' } },
               yaxis: { ...darkLayout.yaxis, title: { text: 'ACF' } },
               margin: { t: 5, r: 20, b: 35, l: 50 },
             }}
@@ -356,14 +356,14 @@ function BehaviorSection({ modelId }: { modelId: string }) {
       {season?.variance_trend != null && season.variance_seasonal != null && season.variance_residual != null && (
         <div className="bg-bg-hover rounded-lg p-3">
           <div className="flex items-center gap-1 mb-2">
-            <span className="text-xs font-medium text-text-secondary">Signal decomposition</span>
-            <InfoTip text="STL decomposition breaks the water level into 3 components: long-term trend (climate change, land use), seasonal cycle (annual recharge/discharge), and residual noise (unpredictable events). A well-modeled aquifer has low residual noise." iconSize={10} />
+            <span className="text-xs font-medium text-text-secondary">Décomposition du signal</span>
+            <InfoTip text="La décomposition STL sépare le niveau de nappe en 3 composantes : tendance long terme (changement climatique, occupation des sols), cycle saisonnier (recharge/décharge annuelle) et bruit résiduel (événements imprévisibles). Un aquifère bien modélisé a un bruit résiduel faible." iconSize={10} />
           </div>
           <div className="h-6 rounded-lg overflow-hidden flex">
             {[
-              { pct: season.variance_trend!, color: '#06b6d4', label: 'Trend' },
-              { pct: season.variance_seasonal!, color: '#8b5cf6', label: 'Seasonal' },
-              { pct: season.variance_residual!, color: '#f43f5e', label: 'Noise' },
+              { pct: season.variance_trend!, color: '#06b6d4', label: 'Tendance' },
+              { pct: season.variance_seasonal!, color: '#8b5cf6', label: 'Saisonnier' },
+              { pct: season.variance_residual!, color: '#f43f5e', label: 'Bruit' },
             ].map(({ pct, color, label }) => (
               <div key={label} className="flex items-center justify-center text-[9px] font-semibold"
                 style={{ width: `${pct}%`, backgroundColor: color, color: pct > 10 ? '#0f172a' : 'transparent' }}>
@@ -372,9 +372,9 @@ function BehaviorSection({ modelId }: { modelId: string }) {
             ))}
           </div>
           <div className="flex gap-3 mt-1.5 text-[10px] text-text-muted">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#06b6d4' }} />Trend {season.variance_trend!.toFixed(0)}%</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#8b5cf6' }} />Seasonal {season.variance_seasonal!.toFixed(0)}%</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#f43f5e' }} />Noise {season.variance_residual!.toFixed(0)}%</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#06b6d4' }} />Tendance {season.variance_trend!.toFixed(0)}%</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#8b5cf6' }} />Saisonnier {season.variance_seasonal!.toFixed(0)}%</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded" style={{ backgroundColor: '#f43f5e' }} />Bruit {season.variance_residual!.toFixed(0)}%</span>
           </div>
         </div>
       )}
@@ -392,9 +392,9 @@ function ExpertSection({ modelId }: { modelId: string }) {
   const [method, setMethod] = useState<ExpertMethod>('permutation')
 
   const METHODS: { key: ExpertMethod; label: string; tip: string }[] = [
-    { key: 'permutation', label: 'Permutation', tip: 'Measures prediction degradation when each variable is randomly shuffled. Model-agnostic, reliable but slow.' },
-    { key: 'shap', label: 'SHAP', tip: 'Shapley values from game theory — fairly distributes the prediction among all input variables. Accounts for interactions between features.' },
-    { key: 'gradients', label: 'Integrated Gradients', tip: 'Traces the gradient path from a baseline (zero input) to the actual input. Shows which timesteps and features the neural network is most sensitive to.' },
+    { key: 'permutation', label: 'Permutation', tip: 'Mesure la dégradation de la prévision lorsque chaque variable est mélangée aléatoirement. Indépendant du modèle, fiable mais lent.' },
+    { key: 'shap', label: 'SHAP', tip: 'Valeurs de Shapley issues de la théorie des jeux — distribue équitablement la prévision entre toutes les variables d\'entrée. Tient compte des interactions entre variables.' },
+    { key: 'gradients', label: 'Gradients Intégrés', tip: 'Suit le chemin du gradient depuis une référence (entrée nulle) jusqu\'à l\'entrée réelle. Montre les pas de temps et variables auxquels le réseau de neurones est le plus sensible.' },
   ]
 
   return (
@@ -420,7 +420,7 @@ function PermutationView({ modelId }: { modelId: string }) {
   if (m.isPending) return <LoadingSkeleton />
   if (m.isError) return <ErrorState message={(m.error as Error).message} onRetry={() => m.mutate({ model_id: modelId })} />
   const imp = m.data ? extractImportance(m.data) : null
-  if (!imp) return <p className="text-xs text-text-muted py-4">No data.</p>
+  if (!imp) return <p className="text-xs text-text-muted py-4">Aucune donnée.</p>
   return (
     <div className="space-y-2">
       <div className="h-[220px]">
@@ -430,7 +430,7 @@ function PermutationView({ modelId }: { modelId: string }) {
           config={plotlyConfig} useResizeHandler style={{ width: '100%', height: '100%' }}
         />
       </div>
-      <p className="text-[10px] text-text-muted">Higher = the model relies more on this variable. If shuffling a variable barely changes predictions, the model doesn't need it.</p>
+      <p className="text-[10px] text-text-muted">Plus élevé = le modèle s'appuie davantage sur cette variable. Si mélanger une variable ne change presque pas les prévisions, le modèle n'en a pas besoin.</p>
     </div>
   )
 }
@@ -441,17 +441,17 @@ function ShapView({ modelId }: { modelId: string }) {
   if (m.isPending) return <LoadingSkeleton />
   if (m.isError) return <ErrorState message={(m.error as Error).message} onRetry={() => m.mutate({ model_id: modelId })} />
   const imp = m.data ? extractImportance(m.data) : null
-  if (!imp) return <p className="text-xs text-text-muted py-4">No data.</p>
+  if (!imp) return <p className="text-xs text-text-muted py-4">Aucune donnée.</p>
   return (
     <div className="space-y-2">
       <div className="h-[220px]">
         <Plot
           data={[{ type: 'bar', orientation: 'h' as const, y: imp.features.map(hydroLabel), x: imp.values, marker: { color: imp.values.map(v => v >= 0 ? '#8b5cf6' : '#f43f5e') } }]}
-          layout={{ ...darkLayout, margin: { t: 5, r: 20, b: 35, l: 160 }, xaxis: { ...darkLayout.xaxis, title: { text: 'Mean SHAP value' } }, yaxis: { ...darkLayout.yaxis, autorange: 'reversed' as const } }}
+          layout={{ ...darkLayout, margin: { t: 5, r: 20, b: 35, l: 160 }, xaxis: { ...darkLayout.xaxis, title: { text: 'Valeur SHAP moyenne' } }, yaxis: { ...darkLayout.yaxis, autorange: 'reversed' as const } }}
           config={plotlyConfig} useResizeHandler style={{ width: '100%', height: '100%' }}
         />
       </div>
-      <p className="text-[10px] text-text-muted">Positive SHAP = pushes prediction up, negative = pushes down. Sign and magnitude show the direction and strength of each variable's influence.</p>
+      <p className="text-[10px] text-text-muted">SHAP positif = pousse la prévision vers le haut, négatif = vers le bas. Le signe et la magnitude indiquent la direction et la force de l'influence de chaque variable.</p>
     </div>
   )
 }
@@ -478,13 +478,13 @@ function GradientsView({ modelId }: { modelId: string }) {
               line: { color: '#10b981', width: 1.5 },
               fill: 'tozeroy' as const,
               fillcolor: 'rgba(16,185,129,0.1)',
-              hovertemplate: 'Day %{x}<br>Attribution: %{y:.4f}<extra></extra>',
+              hovertemplate: 'Jour %{x}<br>Attribution : %{y:.4f}<extra></extra>',
             }]}
             layout={{
               ...darkLayout, height: 200,
               margin: { t: 5, r: 20, b: 35, l: 50 },
-              xaxis: { ...darkLayout.xaxis, title: { text: 'Days before prediction' } },
-              yaxis: { ...darkLayout.yaxis, title: { text: 'Sensitivity' } },
+              xaxis: { ...darkLayout.xaxis, title: { text: 'Jours avant la prévision' } },
+              yaxis: { ...darkLayout.yaxis, title: { text: 'Sensibilité' } },
             }}
             config={plotlyConfig} useResizeHandler style={{ width: '100%', height: '100%' }}
           />
@@ -499,7 +499,7 @@ function GradientsView({ modelId }: { modelId: string }) {
           />
         </div>
       )}
-      <p className="text-[10px] text-text-muted">Temporal chart: which past days the model is most sensitive to. Feature chart: which variables contribute most to the gradient signal.</p>
+      <p className="text-[10px] text-text-muted">Graphique temporel : à quels jours passés le modèle est le plus sensible. Graphique des variables : quelles variables contribuent le plus au signal du gradient.</p>
     </div>
   )
 }
@@ -518,15 +518,15 @@ export function ExplainabilityPanel({ modelId, className = '' }: Props) {
   })
 
   const sections: { key: Section; icon: React.ElementType; title: string; tip: string }[] = [
-    { key: 'drivers', icon: TrendingUp, title: 'What drives the water level', tip: 'Correlation-based feature importance — measures how strongly each meteorological variable (precipitation, temperature, PET) correlates with the water level. Higher = the model relies more on this variable to make predictions.' },
-    { key: 'quality', icon: Activity, title: 'Prediction quality', tip: 'Residual analysis — checks whether prediction errors are random (good) or systematic (bad). Looks at bias, error magnitude, normality, and temporal independence of residuals.' },
-    { key: 'behavior', icon: Clock, title: 'Aquifer response', tip: 'Combines temporal memory analysis (ACF — how far back in time the water level depends on itself) and seasonality detection (FFT — which periodic cycles exist in the signal).' },
-    { key: 'expert', icon: Beaker, title: 'Expert methods', tip: 'Advanced ML interpretability methods: Permutation Importance (model-agnostic), SHAP values (game theory), Integrated Gradients (neural network sensitivity). These provide alternative perspectives on feature importance.' },
+    { key: 'drivers', icon: TrendingUp, title: 'Ce qui pilote le niveau de nappe', tip: 'Importance des variables basée sur la corrélation — mesure la force de corrélation entre chaque variable météorologique (précipitations, température, ETP) et le niveau de nappe. Plus élevé = le modèle s\'appuie davantage sur cette variable pour ses prévisions.' },
+    { key: 'quality', icon: Activity, title: 'Qualité des prévisions', tip: 'Analyse des résidus — vérifie si les erreurs de prévision sont aléatoires (bon) ou systématiques (mauvais). Examine le biais, l\'amplitude des erreurs, la normalité et l\'indépendance temporelle des résidus.' },
+    { key: 'behavior', icon: Clock, title: 'Réponse de l\'aquifère', tip: 'Combine l\'analyse de la mémoire temporelle (ACF — sur quelle durée le niveau de nappe dépend de lui-même) et la détection de saisonnalité (FFT — quels cycles périodiques existent dans le signal).' },
+    { key: 'expert', icon: Beaker, title: 'Méthodes expertes', tip: 'Méthodes avancées d\'interprétabilité ML : Permutation Importance (indépendant du modèle), valeurs SHAP (théorie des jeux), Gradients Intégrés (sensibilité du réseau de neurones). Elles offrent des perspectives alternatives sur l\'importance des variables.' },
   ]
 
   return (
     <div className={`bg-bg-card rounded-xl border border-white/5 p-4 space-y-1 ${className}`}>
-      <h3 className="text-sm font-semibold text-text-primary mb-2">Model Explainability</h3>
+      <h3 className="text-sm font-semibold text-text-primary mb-2">Explicabilité du modèle</h3>
 
       {sections.map(({ key, icon, title, tip }) => (
         <div key={key} className="border-t border-white/5 pt-1">

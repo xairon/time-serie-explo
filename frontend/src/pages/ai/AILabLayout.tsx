@@ -2,9 +2,9 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { Database, GraduationCap, TrendingUp } from 'lucide-react'
 
 const AI_TABS = [
-  { to: '/ai/data', icon: Database, label: 'Data' },
-  { to: '/ai/training', icon: GraduationCap, label: 'Training' },
-  { to: '/ai/forecasting', icon: TrendingUp, label: 'Forecasting' },
+  { to: '/ai/data', icon: Database, label: 'Données' },
+  { to: '/ai/training', icon: GraduationCap, label: 'Entraînement' },
+  { to: '/ai/forecasting', icon: TrendingUp, label: 'Prévision' },
 ] as const
 
 export default function AILabLayout() {

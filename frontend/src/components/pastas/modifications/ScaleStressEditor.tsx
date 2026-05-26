@@ -33,12 +33,12 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
 
   const pctChange = Math.round((data.factor - 1) * 100)
   const pctLabel = pctChange >= 0 ? `+${pctChange}%` : `${pctChange}%`
-  const stressLabel = data.stress === 'precip' ? 'precipitation' : 'evapotranspiration (PET)'
+  const stressLabel = data.stress === 'precip' ? 'précipitations' : 'évapotranspiration (ETP)'
 
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs text-text-muted mb-1">Climate variable</label>
+        <label className="block text-xs text-text-muted mb-1">Variable climatique</label>
         <div className="flex gap-1.5">
           <button
             onClick={() => update({ stress: 'precip' })}
@@ -48,7 +48,7 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
                 : 'bg-bg-primary text-text-muted border border-white/5 hover:border-white/10'
             }`}
           >
-            Precipitation
+            Précipitations
           </button>
           <button
             onClick={() => update({ stress: 'evap' })}
@@ -58,13 +58,13 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
                 : 'bg-bg-primary text-text-muted border border-white/5 hover:border-white/10'
             }`}
           >
-            Evapotranspiration
+            Évapotranspiration
           </button>
         </div>
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1" title="Multiplier applied to the stress. 0.8 = 20% reduction, 1.2 = 20% increase.">Scaling factor</label>
+        <label className="block text-xs text-text-muted mb-1" title="Multiplicateur appliqué au stress. 0,8 = réduction de 20%, 1,2 = augmentation de 20%.">Facteur d'ajustement</label>
         <div className="flex gap-1 mb-2">
           {QUICK_FACTORS.map(f => (
             <button
@@ -85,7 +85,7 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
           value={data.factor || ''}
           onChange={(e) => update({ factor: e.target.value === '' ? 1 : parseFloat(e.target.value) })}
           onBlur={() => { if (!data.factor) update({ factor: 1 }) }}
-          placeholder="e.g. 0.8"
+          placeholder="ex. 0.8"
           className={inputClass}
           step="0.05"
           min={limits?.hard_min ?? 0}
@@ -93,26 +93,26 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
         />
         <p className="text-[10px] mt-1">
           {data.factor === 1
-            ? <span className="text-text-muted">No change</span>
+            ? <span className="text-text-muted">Aucun changement</span>
             : <span className={pctChange < 0 ? 'text-red-400' : 'text-green-400'}>
-                {pctLabel} of {stressLabel}
+                {pctLabel} de {stressLabel}
               </span>
           }
         </p>
         {limits && data.factor !== 1 && (data.factor < limits.typical_min || data.factor > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            Warning: unusual factor — typical range: {limits.typical_min}–{limits.typical_max}
+            Attention : facteur inhabituel — plage typique : {limits.typical_min}–{limits.typical_max}
           </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Start</label>
+          <label className="block text-xs text-text-muted mb-1">Début</label>
           <input type="date" value={data.start} onChange={(e) => update({ start: e.target.value })} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">End</label>
+          <label className="block text-xs text-text-muted mb-1">Fin</label>
           <input type="date" value={data.end} onChange={(e) => update({ end: e.target.value })} className={inputClass} />
         </div>
       </div>

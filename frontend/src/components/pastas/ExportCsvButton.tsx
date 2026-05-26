@@ -8,7 +8,7 @@ interface Props {
   label?: string
 }
 
-export function ExportCsvButton({ filename, getColumns, title = 'Export CSV', label }: Props) {
+export function ExportCsvButton({ filename, getColumns, title = 'Exporter CSV', label }: Props) {
   return (
     <button
       onClick={(e) => {

@@ -152,12 +152,12 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
     <div className="space-y-4">
       <OnboardingBanner
         id="scenarios"
-        title="What-if Scenarios"
-        description="Test how external changes would affect the groundwater level. The calibrated model parameters stay frozen — only the input stresses are modified."
+        title="Scénarios prospectifs"
+        description="Testez l'effet de changements externes sur le niveau de la nappe. Les paramètres calibrés du modèle restent figés — seuls les stress d'entrée sont modifiés."
         steps={[
-          'Add one or more stress modifications (pumping, climate change, trend…)',
-          'Adjust the simulation window if needed',
-          'Click "Run Simulation" to compute the impact',
+          'Ajoutez une ou plusieurs modifications de stress (pompage, changement climatique, tendance…)',
+          'Ajustez la fenêtre de simulation si nécessaire',
+          'Cliquez sur « Lancer la simulation » pour calculer l\'impact',
         ]}
       />
 
@@ -171,7 +171,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
             <FlaskConical className="w-4 h-4 text-accent-cyan" />
             <div className="text-left">
               <div className="text-sm font-medium text-text-primary">
-                Scenario configuration
+                Configuration du scénario
                 {modifications.length > 0 && (
                   <span className="ml-2 text-[10px] font-normal text-text-muted">
                     {modifications.length} modification{modifications.length > 1 ? 's' : ''}
@@ -179,9 +179,9 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                 )}
               </div>
               <div className="text-[10px] text-text-muted">
-                Base model: <span className="font-mono text-accent-cyan">{codeBss}</span>
+                Modèle de base : <span className="font-mono text-accent-cyan">{codeBss}</span>
                 {model.metrics?.nse != null && <span className="ml-2">NSE {model.metrics.nse.toFixed(3)}</span>}
-                {' · '}Window: {effectiveTmin} → {effectiveTmax}
+                {' · '}Fenêtre : {effectiveTmin} → {effectiveTmax}
               </div>
             </div>
           </div>
@@ -192,28 +192,28 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
           <div className="px-4 pb-4 space-y-4 border-t border-white/5">
             {/* Simulation window */}
             <div className="pt-3">
-              <div className="text-xs font-semibold text-text-secondary mb-2">Simulation window</div>
+              <div className="text-xs font-semibold text-text-secondary mb-2">Fenêtre de simulation</div>
               <div className="grid grid-cols-2 gap-3 max-w-md">
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Start</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Début</label>
                   <input type="date" value={tmin} onChange={e => setTmin(e.target.value)} placeholder={obsTmin} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">End</label>
+                  <label className="block text-[10px] text-text-muted mb-1">Fin</label>
                   <input type="date" value={tmax} onChange={e => setTmax(e.target.value)} placeholder={obsTmax} className={inputClass} />
                 </div>
               </div>
-              <p className="text-[10px] text-text-muted mt-1">Leave empty to use the full observation period ({obsTmin} → {obsTmax})</p>
+              <p className="text-[10px] text-text-muted mt-1">Laisser vide pour utiliser la période d'observation complète ({obsTmin} → {obsTmax})</p>
             </div>
 
             {/* Contextual presets */}
             {previewLoading && (
-              <div className="text-xs text-text-muted py-2">Loading aquifer profile...</div>
+              <div className="text-xs text-text-muted py-2">Chargement du profil d'aquifère...</div>
             )}
             {presetsData && (
               <div>
                 <div className="text-xs font-semibold text-text-secondary mb-2">
-                  Quick scenarios
+                  Scénarios rapides
                   {presetsData.aquifer_families[aquiferFamily] && (
                     <span className="ml-2 font-normal text-text-muted">({presetsData.aquifer_families[aquiferFamily]})</span>
                   )}
@@ -235,7 +235,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
 
             {/* Modifications */}
             <div>
-              <div className="text-xs font-semibold text-text-secondary mb-2">Stress modifications</div>
+              <div className="text-xs font-semibold text-text-secondary mb-2">Modifications de stress</div>
               <ScenarioComposer
                 modifications={modifications}
                 onChange={m => { setModifications(m); setSimResult(null) }}
@@ -256,20 +256,20 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {simulateMut.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Simulating…</>
-                  : <><Play className="w-4 h-4" /> Run Simulation</>}
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Simulation en cours…</>
+                  : <><Play className="w-4 h-4" /> Lancer la simulation</>}
               </button>
               {modifications.length > 0 && (
                 <button
                   onClick={() => setSaveDialogOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-white/5 text-text-secondary text-sm border border-white/10 hover:border-white/20 transition-colors"
                 >
-                  <Save className="w-4 h-4" /> Save
+                  <Save className="w-4 h-4" /> Enregistrer
                 </button>
               )}
               {modifications.length === 0 && (
                 <span className="text-xs text-text-muted flex items-center gap-1">
-                  <Plus className="w-3 h-3" /> Add at least one modification to simulate
+                  <Plus className="w-3 h-3" /> Ajoutez au moins une modification pour simuler
                 </span>
               )}
             </div>
@@ -281,7 +281,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                   type="text"
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
-                  placeholder="Scenario name..."
+                  placeholder="Nom du scénario..."
                   className={inputClass}
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -292,10 +292,10 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                     disabled={!saveName.trim() || saveScenarioMut.isPending}
                     className="flex-1 px-3 py-1.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-xs font-medium border border-accent-cyan/30 disabled:opacity-40"
                   >
-                    {saveScenarioMut.isPending ? 'Saving…' : 'Save'}
+                    {saveScenarioMut.isPending ? 'Enregistrement…' : 'Enregistrer'}
                   </button>
                   <button onClick={() => setSaveDialogOpen(false)} className="px-3 py-1.5 rounded-lg text-text-muted text-xs border border-white/10">
-                    Cancel
+                    Annuler
                   </button>
                 </div>
               </div>
@@ -304,7 +304,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
             {/* Saved scenarios */}
             {savedScenarios.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-text-secondary mb-2">Saved scenarios</div>
+                <div className="text-xs font-semibold text-text-secondary mb-2">Scénarios enregistrés</div>
                 <div className="space-y-1">
                   {savedScenarios.map((s) => (
                     <div key={s.name} className="flex items-center justify-between px-3 py-2 rounded-lg border border-white/5 hover:border-white/10 group">
@@ -333,7 +333,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-400">
-                  {simulateMut.error instanceof Error ? simulateMut.error.message : 'Simulation failed. Check backend logs.'}
+                  {simulateMut.error instanceof Error ? simulateMut.error.message : 'Échec de la simulation. Consultez les logs du backend.'}
                 </p>
               </div>
             )}
@@ -350,9 +350,9 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
         <div className="flex items-center justify-center py-16 text-text-muted">
           <div className="text-center space-y-2">
             <FlaskConical className="w-10 h-10 mx-auto text-text-muted/20" />
-            <p className="text-sm text-text-secondary">No simulation results yet</p>
+            <p className="text-sm text-text-secondary">Aucun résultat de simulation pour le moment</p>
             <p className="text-xs max-w-sm">
-              Configure your stress modifications above and click "Run Simulation" to see how they affect the groundwater level.
+              Configurez vos modifications de stress ci-dessus et cliquez sur « Lancer la simulation » pour voir l'effet sur le niveau de la nappe.
             </p>
           </div>
         </div>
@@ -362,7 +362,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
         <div className="flex items-center justify-center py-16 text-text-muted">
           <div className="text-center space-y-3">
             <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-            <p className="text-sm text-text-secondary">Running simulation...</p>
+            <p className="text-sm text-text-secondary">Simulation en cours...</p>
           </div>
         </div>
       )}

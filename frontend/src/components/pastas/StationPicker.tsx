@@ -59,7 +59,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
             value={query}
             onChange={e => { setQuery(e.target.value); if (!e.target.value) onChange('') }}
             onFocus={() => results.length > 0 && setShowResults(true)}
-            placeholder="Search by BSS code, commune, or département..."
+            placeholder="Rechercher par code BSS, commune ou département..."
             className="w-full bg-bg-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
           />
         </div>
@@ -97,7 +97,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
       {codeBss && (
         <div className="flex items-center gap-2 text-xs text-accent-cyan">
           <MapPin className="w-3 h-3" />
-          <span>Selected: {codeBss}</span>
+          <span>Sélectionnée : {codeBss}</span>
         </div>
       )}
     </div>

@@ -15,8 +15,8 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Dashboard</h1>
-        <p className="text-sm text-text-secondary">Junon platform overview</p>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">Tableau de bord</h1>
+        <p className="text-sm text-text-secondary">Vue d'ensemble de la plateforme Junon</p>
       </div>
 
       {/* Status cards */}
@@ -30,25 +30,25 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatusCard
             label="GPU"
-            value={health?.gpu?.available ? health.gpu.device ?? 'Available' : 'Unavailable'}
+            value={health?.gpu?.available ? health.gpu.device ?? 'Disponible' : 'Indisponible'}
             icon={Cpu}
             status={health?.gpu?.available ? 'ok' : 'error'}
           />
           <StatusCard
-            label="Datasets"
+            label="Jeux de données"
             value={datasets?.length ?? 0}
             icon={Database}
             status="neutral"
           />
           <StatusCard
-            label="Models"
+            label="Modèles"
             value={models?.length ?? 0}
             icon={GraduationCap}
             status="neutral"
           />
           <StatusCard
             label="Redis"
-            value={health?.redis === 'ok' ? 'Connected' : 'Offline'}
+            value={health?.redis === 'ok' ? 'Connecté' : 'Hors ligne'}
             icon={Server}
             status={health?.redis === 'ok' ? 'ok' : 'error'}
           />
@@ -58,12 +58,12 @@ export default function DashboardPage() {
       {/* Datasets section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Datasets</h2>
+          <h2 className="text-lg font-semibold text-text-primary">Jeux de données</h2>
           <Link
             to="/data"
             className="text-xs text-accent-cyan hover:underline"
           >
-            Manage data
+            Gérer les données
           </Link>
         </div>
 
@@ -85,12 +85,12 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <Database className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">No datasets imported</p>
+            <p className="text-sm text-text-secondary mb-3">Aucun jeu de données importé</p>
             <Link
               to="/data"
               className="text-sm text-accent-cyan hover:underline"
             >
-              Import data
+              Importer des données
             </Link>
           </div>
         )}
@@ -99,12 +99,12 @@ export default function DashboardPage() {
       {/* Models section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Trained models</h2>
+          <h2 className="text-lg font-semibold text-text-primary">Modèles entraînés</h2>
           <Link
             to="/training"
             className="text-xs text-accent-cyan hover:underline"
           >
-            Train a model
+            Entraîner un modèle
           </Link>
         </div>
 
@@ -126,12 +126,12 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <GraduationCap className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">No trained models</p>
+            <p className="text-sm text-text-secondary mb-3">Aucun modèle entraîné</p>
             <Link
               to="/training"
               className="text-sm text-accent-cyan hover:underline"
             >
-              Start training
+              Démarrer l'entraînement
             </Link>
           </div>
         )}

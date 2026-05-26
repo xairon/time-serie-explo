@@ -17,10 +17,10 @@ const inputClass =
   'w-full bg-bg-primary border border-white/10 rounded-md px-3 py-1.5 text-text-primary text-sm focus:outline-none focus:border-accent-cyan/50'
 
 const QUICK_SLOPES = [
-  { label: '−5 cm/yr', value: -0.05 },
-  { label: '−1 cm/yr', value: -0.01 },
-  { label: '+1 cm/yr', value: 0.01 },
-  { label: '+5 cm/yr', value: 0.05 },
+  { label: '−5 cm/an', value: -0.05 },
+  { label: '−1 cm/an', value: -0.01 },
+  { label: '+1 cm/an', value: 0.01 },
+  { label: '+5 cm/an', value: 0.05 },
 ]
 
 export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorProps) {
@@ -37,17 +37,17 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Start</label>
+          <label className="block text-xs text-text-muted mb-1">Début</label>
           <input type="date" value={data.start} onChange={(e) => update({ start: e.target.value })} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">End</label>
+          <label className="block text-xs text-text-muted mb-1">Fin</label>
           <input type="date" value={data.end} onChange={(e) => update({ end: e.target.value })} className={inputClass} />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1" title="Rate of water level change per year. Negative = declining trend, positive = rising trend.">Slope (m/yr)</label>
+        <label className="block text-xs text-text-muted mb-1" title="Vitesse de variation du niveau d'eau par an. Négatif = tendance baissière, positif = tendance haussière.">Pente (m/an)</label>
         <div className="flex gap-1 mb-2">
           {QUICK_SLOPES.map(s => (
             <button
@@ -67,7 +67,7 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
           type="number"
           value={data.slope_m_per_year || ''}
           onChange={(e) => update({ slope_m_per_year: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-          placeholder="e.g. -0.01"
+          placeholder="ex. -0.01"
           className={inputClass}
           step="0.001"
           min={limits?.hard_min}
@@ -75,7 +75,7 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
         />
         {years > 0 && (
           <p className="text-[10px] mt-1">
-            Over {years.toFixed(1)} years: total change of{' '}
+            Sur {years.toFixed(1)} ans : variation totale de{' '}
             <span className={totalChange < 0 ? 'text-red-400' : 'text-green-400'}>
               {totalChange > 0 ? '+' : ''}{(totalChange * 100).toFixed(1)} cm
             </span>
@@ -83,7 +83,7 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
         )}
         {limits && (data.slope_m_per_year < limits.typical_min || data.slope_m_per_year > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            Warning: unusual slope — typical range: {limits.typical_min} to {limits.typical_max} m/yr
+            Attention : pente inhabituelle — plage typique : {limits.typical_min} à {limits.typical_max} m/an
           </p>
         )}
       </div>

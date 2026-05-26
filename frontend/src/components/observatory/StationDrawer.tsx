@@ -12,11 +12,11 @@ interface Props {
 }
 
 const TREND_CONFIG: Record<string, { label: string; icon: typeof TrendingUp; color: string }> = {
-  HAUSSE_FORTE:         { label: 'Strong rise',         icon: TrendingUp,   color: '#3b82f6' },
-  HAUSSE_SIGNIFICATIVE: { label: 'Significant rise',    icon: TrendingUp,   color: '#60a5fa' },
-  STABLE:               { label: 'Stable',              icon: Minus,        color: '#10b981' },
-  BAISSE_SIGNIFICATIVE: { label: 'Significant decline', icon: TrendingDown, color: '#f97316' },
-  BAISSE_FORTE:         { label: 'Strong decline',      icon: TrendingDown, color: '#ef4444' },
+  HAUSSE_FORTE:         { label: 'Hausse forte',          icon: TrendingUp,   color: '#3b82f6' },
+  HAUSSE_SIGNIFICATIVE: { label: 'Hausse significative',  icon: TrendingUp,   color: '#60a5fa' },
+  STABLE:               { label: 'Stable',                icon: Minus,        color: '#10b981' },
+  BAISSE_SIGNIFICATIVE: { label: 'Baisse significative',  icon: TrendingDown, color: '#f97316' },
+  BAISSE_FORTE:         { label: 'Baisse forte',          icon: TrendingDown, color: '#ef4444' },
 }
 
 function isRecent(dateStr: string | null | undefined): boolean {
@@ -30,7 +30,7 @@ function DrawerSkeleton({ onClose }: { onClose: () => void }) {
     <div className="p-4">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1 space-y-2"><div className="h-3 w-16 bg-white/10 rounded animate-pulse" /><div className="h-5 w-40 bg-white/10 rounded animate-pulse" /><div className="h-3 w-24 bg-white/10 rounded animate-pulse" /></div>
-        <button onClick={onClose} aria-label="Close" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button>
+        <button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button>
       </div>
       <div className="space-y-3"><div className="h-16 w-full bg-white/5 rounded-lg animate-pulse" /><div className="h-16 w-full bg-white/5 rounded-lg animate-pulse" /><div className="h-12 w-full bg-white/5 rounded-lg animate-pulse" /></div>
     </div>
@@ -57,7 +57,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
   const { data: pastasSummary } = useObsPastasSummary(isPiezo ? stationCode : '')
 
   const content = (() => {
-    if (isError) return (<div className="p-4"><div className="flex items-start justify-between mb-4"><p className="text-sm text-red-400">Unable to load this station.</p><button onClick={onClose} aria-label="Close" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button></div></div>)
+    if (isError) return (<div className="p-4"><div className="flex items-start justify-between mb-4"><p className="text-sm text-red-400">Impossible de charger cette station.</p><button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button></div></div>)
     if (isLoading || !station) return <DrawerSkeleton onClose={onClose} />
 
     const s = station as any
@@ -85,7 +85,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${isPiezo ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo'}`}>{isPiezo ? 'Piezometer' : 'Hydrometry'}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${isPiezo ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo'}`}>{isPiezo ? 'Piézomètre' : 'Hydrométrie'}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${recent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{recent ? 'Active' : 'Inactive'}</span>
               {pastasSummary && (<span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: (pastasSummary.evp ?? 0) >= 70 ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', color: (pastasSummary.evp ?? 0) >= 70 ? '#10b981' : '#f59e0b' }}>PASTAS {pastasSummary.evp != null ? `${pastasSummary.evp.toFixed(0)}%` : ''}</span>)}
             </div>
@@ -93,44 +93,44 @@ export function StationDrawer({ code, type, onClose }: Props) {
             <p className="text-xs text-text-secondary mt-0.5">{dept} - {sCode}</p>
             {!isPiezo && s.nom_cours_eau && (<p className="text-xs text-accent-indigo/80 mt-0.5 flex items-center gap-1"><Waves className="w-3 h-3" />{s.nom_cours_eau}</p>)}
           </div>
-          <button onClick={onClose} aria-label="Close" className="p-1 hover:bg-bg-hover rounded ml-2 flex-shrink-0"><X className="w-4 h-4 text-text-secondary" /></button>
+          <button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded ml-2 flex-shrink-0"><X className="w-4 h-4 text-text-secondary" /></button>
         </div>
 
         {recent ? (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Current status</div>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">État actuel</div>
             <div className="flex items-center justify-between">
               <ClassificationBadge classification={classification} />
               {currentValue != null && (<span className="text-lg font-semibold font-mono" style={{ color: classColor }}>{formatNumber(currentValue)} <span className="text-xs text-text-secondary font-normal">{unit}</span></span>)}
             </div>
-            {historicMean != null && currentValue != null && (<div className="mt-2 text-[11px] text-text-secondary">Historic mean: <span className="text-text-primary font-mono">{formatNumber(historicMean)}</span> {unit}<span className="ml-1.5">({currentValue > historicMean ? '+' : ''}{formatNumber(currentValue - historicMean, 2)} {unit})</span></div>)}
+            {historicMean != null && currentValue != null && (<div className="mt-2 text-[11px] text-text-secondary">Moyenne historique : <span className="text-text-primary font-mono">{formatNumber(historicMean)}</span> {unit}<span className="ml-1.5">({currentValue > historicMean ? '+' : ''}{formatNumber(currentValue - historicMean, 2)} {unit})</span></div>)}
           </div>
         ) : (
-          <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">Inactive station -- last measurement on {formatDate(lastMeasure)}</div></div>
+          <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">Station inactive — dernière mesure le {formatDate(lastMeasure)}</div></div>
         )}
 
         {recent && trendConf && (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Trend</div>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Tendance</div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2"><trendConf.icon className="w-4 h-4" style={{ color: trendConf.color }} /><span className="text-sm font-medium" style={{ color: trendConf.color }}>{trendConf.label}</span></div>
-              {slope != null && (<span className="text-xs font-mono text-text-primary">{slope > 0 ? '+' : ''}{formatNumber(slope, 3)} m/yr</span>)}
+              {slope != null && (<span className="text-xs font-mono text-text-primary">{slope > 0 ? '+' : ''}{formatNumber(slope, 3)} m/an</span>)}
             </div>
           </div>
         )}
 
         <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-          <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">History</div>
+          <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Historique</div>
           <div className="divide-y divide-white/5">
-            {histMin != null && histMax != null && <InfoRow label="Range" value={<><span className="font-mono">{formatNumber(histMin)}</span> -- <span className="font-mono">{formatNumber(histMax)}</span> {unit}</>} />}
-            <InfoRow label="Last measurement" value={formatDate(lastMeasure)} />
-            <InfoRow label="Data" value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? 'measurements' : 'days'}</>} sub={dataPeriodYears ? `${dataPeriodYears} years of record` : undefined} />
+            {histMin != null && histMax != null && <InfoRow label="Plage" value={<><span className="font-mono">{formatNumber(histMin)}</span> -- <span className="font-mono">{formatNumber(histMax)}</span> {unit}</>} />}
+            <InfoRow label="Dernière mesure" value={formatDate(lastMeasure)} />
+            <InfoRow label="Données" value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? 'mesures' : 'jours'}</>} sub={dataPeriodYears ? `${dataPeriodYears} années d'enregistrement` : undefined} />
           </div>
         </div>
 
         {!isPiezo && hydroSiblings.data && hydroSiblings.data.siblings.length > 0 && (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Hydrometric site - {hydroSiblings.data.nb_stations} stations</div>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Site hydrométrique - {hydroSiblings.data.nb_stations} stations</div>
             <p className="text-xs text-text-primary mb-2 font-medium">{hydroSiblings.data.libelle_site || hydroSiblings.data.code_site}{hydroSiblings.data.nom_cours_eau ? ` - ${hydroSiblings.data.nom_cours_eau}` : ''}</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {hydroSiblings.data.siblings.slice(0, 5).map(sib => (
@@ -145,9 +145,9 @@ export function StationDrawer({ code, type, onClose }: Props) {
           </div>
         )}
 
-        {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">Alert: {s.niveau_alerte}</span></div></div>)}
+        {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">Alerte : {s.niveau_alerte}</span></div></div>)}
 
-        <Link to={`/station/${type}/${sCode}`} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">View details <ExternalLink className="w-4 h-4" /></Link>
+        <Link to={`/station/${type}/${sCode}`} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">Voir les détails <ExternalLink className="w-4 h-4" /></Link>
       </div>
     )
   })()

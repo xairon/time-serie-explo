@@ -28,16 +28,16 @@ export function ExportMenu({ runId }: Props) {
         <div className="absolute right-0 mt-1 bg-bg-card border border-white/10 rounded-lg shadow-xl z-10 py-1 w-44">
           <a href={`${API_BASE}/pastas/models/${runId}/export/pas`}
             className="block px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Download .pas
+            Télécharger .pas
           </a>
           <a href={`${API_BASE}/pastas/models/${runId}/export/csv`}
             className="block px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Download metrics CSV
+            Télécharger métriques CSV
           </a>
           <button
             onClick={() => { navigator.clipboard.writeText(runId); setOpen(false) }}
             className="block w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Copy run ID
+            Copier l'identifiant d'exécution
           </button>
         </div>
       )}

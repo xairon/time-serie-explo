@@ -12,7 +12,7 @@ export function CalValToggle({ valSplit, onChange }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <label className="text-sm font-medium text-text-secondary">Validation</label>
-          <span className="ml-1 text-text-muted cursor-help" title="Hold out a portion of data to test the model on data it hasn't seen during training. Checks that the model generalizes well.">ⓘ</span>
+          <span className="ml-1 text-text-muted cursor-help" title="Réserver une partie des données pour tester le modèle sur des données non vues pendant la calibration. Vérifie que le modèle généralise bien.">ⓘ</span>
         </div>
         <button
           onClick={() => onChange(enabled ? null : 0.3)}
@@ -22,12 +22,12 @@ export function CalValToggle({ valSplit, onChange }: Props) {
               : 'border-white/10 text-text-muted'
           }`}
         >
-          {enabled ? 'Enabled' : 'Disabled'}
+          {enabled ? 'Activée' : 'Désactivée'}
         </button>
       </div>
       {!enabled && (
         <p className="text-xs text-text-muted">
-          The model will train on the full period. Enable to hold out a portion for testing.
+          Le modèle sera calibré sur la période complète. Activez pour réserver une portion pour les tests.
         </p>
       )}
       {enabled && (
@@ -42,11 +42,11 @@ export function CalValToggle({ valSplit, onChange }: Props) {
             className="w-full accent-accent-cyan"
           />
           <div className="flex justify-between text-xs text-text-muted">
-            <span>Training: {(100 - pct).toFixed(0)}% (early years)</span>
-            <span>Test: {pct.toFixed(0)}% (late years)</span>
+            <span>Calibration : {(100 - pct).toFixed(0)}% (premières années)</span>
+            <span>Test : {pct.toFixed(0)}% (dernières années)</span>
           </div>
           <p className="text-xs text-text-muted mt-1">
-            Test metrics show model quality on unseen data.
+            Les métriques de test montrent la qualité du modèle sur des données non vues.
           </p>
         </div>
       )}

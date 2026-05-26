@@ -50,8 +50,8 @@ function groupByMonth(
   }
 
   const MONTH_NAMES = [
-    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    '', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+    'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc',
   ]
 
   const result: MonthData[] = []
@@ -155,7 +155,7 @@ export default function IPSMonthlyGrid({
               {/* GT column */}
               {m.gtClass && (
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] font-medium text-text-secondary">Observed</span>
+                  <span className="text-[10px] font-medium text-text-secondary">Observé</span>
                   <IPSBadge cls={m.gtClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
                   {m.gtZ !== null && (
                     <span className="text-[10px] text-text-secondary">
@@ -168,7 +168,7 @@ export default function IPSMonthlyGrid({
               {/* Pred column */}
               {m.predClass && (
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] font-medium text-text-secondary">Model</span>
+                  <span className="text-[10px] font-medium text-text-secondary">Modèle</span>
                   <IPSBadge cls={m.predClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
                   {m.predZ !== null && (
                     <span className="text-[10px] text-text-secondary">

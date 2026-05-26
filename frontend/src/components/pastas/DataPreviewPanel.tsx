@@ -2,11 +2,11 @@ import Plot from 'react-plotly.js'
 import type { PastasStationPreview } from '@/lib/types'
 
 const BDLISA_LABELS: Record<string, string> = {
-  '0': 'Basement', '3': 'Alluvial', '4': 'Karst', '5': 'Sedimentary',
-  '6': 'Volcanic', '7': 'Mountain',
+  '0': 'Socle', '3': 'Alluvial', '4': 'Karst', '5': 'Sédimentaire',
+  '6': 'Volcanique', '7': 'Montagne',
 }
 const MILIEU_LABELS: Record<string, string> = {
-  '1': 'porous', '2': 'fractured', '3': 'karstic', '4': 'dual porosity',
+  '1': 'poreux', '2': 'fissuré', '3': 'karstique', '4': 'double porosité',
   '5': 'alluvial', '8': 'composite',
 }
 const BDLISA_COLORS: Record<string, string> = {
@@ -51,21 +51,21 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
         {[
           { label: 'Observations', value: stats.n_obs_piezo },
           {
-            label: 'Period',
+            label: 'Période',
             value: Array.isArray(stats.date_range)
               ? `${(stats.date_range[0] as string)?.slice(0, 4)}–${(stats.date_range[1] as string)?.slice(0, 4)}`
               : '—',
           },
           {
-            label: 'Mean level',
+            label: 'Niveau moyen',
             value: typeof stats.piezo_mean === 'number' ? `${(stats.piezo_mean as number).toFixed(2)} m` : '—',
           },
           {
-            label: 'Gap max',
-            value: typeof stats.piezo_max_gap_days === 'number' ? `${stats.piezo_max_gap_days} d` : '—',
+            label: 'Lacune max',
+            value: typeof stats.piezo_max_gap_days === 'number' ? `${stats.piezo_max_gap_days} j` : '—',
           },
           {
-            label: 'Daily coverage',
+            label: 'Couverture journalière',
             value:
               typeof stats.piezo_pct_daily === 'number'
                 ? `${(stats.piezo_pct_daily as number).toFixed(0)}%`
@@ -88,7 +88,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: piezo.index,
               y: piezo.values,
-              name: 'Piezo (m)',
+              name: 'Piézo (m)',
               type: 'scatter',
               mode: 'lines',
               line: { color: '#60a5fa', width: 1 },
@@ -98,7 +98,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: precip.index,
               y: precip.values,
-              name: 'Precip (mm/d)',
+              name: 'Précip. (mm/j)',
               type: 'bar',
               marker: { color: 'rgba(59,130,246,0.3)' },
               xaxis: 'x',
@@ -107,7 +107,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: evap.index,
               y: evap.values,
-              name: 'PET (mm/d)',
+              name: 'ETP (mm/j)',
               type: 'scatter',
               mode: 'lines',
               line: { color: '#f97316', width: 1 },
@@ -133,17 +133,17 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
               rangeslider: { visible: true, thickness: 0.06 },
             },
             yaxis: {
-              title: { text: 'Piezo (m)' },
+              title: { text: 'Piézo (m)' },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.7, 1],
             },
             yaxis2: {
-              title: { text: 'P (mm/d)' },
+              title: { text: 'P (mm/j)' },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.38, 0.65],
             },
             yaxis3: {
-              title: { text: 'PET (mm/d)' },
+              title: { text: 'ETP (mm/j)' },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.0, 0.3],
             },

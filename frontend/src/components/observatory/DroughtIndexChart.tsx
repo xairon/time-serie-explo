@@ -6,19 +6,19 @@ interface DataPoint { mois: string; value: number | null; spli?: number | null; 
 interface Props { data: DataPoint[]; indexKey: 'spi' | 'spli' | 'ssfi' | 'sgi'; label: string }
 
 const ZONE_BANDS: { y1?: number; y2?: number; color: string; label: string }[] = [
-  { y2: -1.75, color: 'rgba(153,27,27,0.15)', label: 'Extremely low' }, { y1: -1.75, y2: -1.28, color: 'rgba(239,68,68,0.12)', label: 'Very low' },
-  { y1: -1.28, y2: -0.84, color: 'rgba(249,115,22,0.12)', label: 'Low' }, { y1: -0.84, y2: 0.84, color: 'rgba(34,197,94,0.08)', label: 'Normal' },
-  { y1: 0.84, y2: 1.28, color: 'rgba(59,130,246,0.12)', label: 'High' }, { y1: 1.28, y2: 1.75, color: 'rgba(99,102,241,0.12)', label: 'Very high' },
-  { y1: 1.75, color: 'rgba(49,46,129,0.15)', label: 'Extremely high' },
+  { y2: -1.75, color: 'rgba(153,27,27,0.15)', label: 'Extrêmement bas' }, { y1: -1.75, y2: -1.28, color: 'rgba(239,68,68,0.12)', label: 'Très bas' },
+  { y1: -1.28, y2: -0.84, color: 'rgba(249,115,22,0.12)', label: 'Bas' }, { y1: -0.84, y2: 0.84, color: 'rgba(34,197,94,0.08)', label: 'Normal' },
+  { y1: 0.84, y2: 1.28, color: 'rgba(59,130,246,0.12)', label: 'Haut' }, { y1: 1.28, y2: 1.75, color: 'rgba(99,102,241,0.12)', label: 'Très haut' },
+  { y1: 1.75, color: 'rgba(49,46,129,0.15)', label: 'Extrêmement haut' },
 ]
 const CLASS_COLORS: Record<string, string> = { EXTREMEMENT_BAS: '#991b1b', TRES_BAS: '#ef4444', BAS: '#f97316', NORMAL: '#10b981', HAUT: '#3b82f6', TRES_HAUT: '#1d4ed8', EXTREMEMENT_HAUT: '#312e81', UNKNOWN: '#6b7280' }
-const PERIODS = [{ label: '5y', months: 60 }, { label: '10y', months: 120 }, { label: 'Max', months: Infinity }] as const
+const PERIODS = [{ label: '5 ans', months: 60 }, { label: '10 ans', months: 120 }, { label: 'Max', months: Infinity }] as const
 
 export function DroughtIndexChart({ data, indexKey, label }: Props) {
   const [period, setPeriod] = useState<number>(120)
   const filtered = useMemo(() => { if (period === Infinity) return data; const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - period); const cutoffMs = cutoff.getTime(); return data.filter(d => new Date(d.mois).getTime() >= cutoffMs) }, [data, period])
   const chartData = useMemo(() => filtered.map(d => ({ ...d, fill: CLASS_COLORS[d.classification] ?? CLASS_COLORS.UNKNOWN })), [filtered])
-  if (!chartData.length) return <div className="flex items-center justify-center h-48 text-text-secondary text-sm">Insufficient data (min. 5 years)</div>
+  if (!chartData.length) return <div className="flex items-center justify-center h-48 text-text-secondary text-sm">Données insuffisantes (min. 5 ans)</div>
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -32,12 +32,12 @@ export function DroughtIndexChart({ data, indexKey, label }: Props) {
           <ReferenceLine yAxisId="left" y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
           <XAxis dataKey="mois" tick={{ fill: '#9ca3af', fontSize: 11 }} tickFormatter={(v: string) => { const d = new Date(v); return `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}` }} stroke="transparent" />
           <YAxis yAxisId="left" domain={[-3, 3]} tick={{ fill: '#9ca3af', fontSize: 11 }} stroke="transparent" label={{ value: indexKey.toUpperCase(), angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
-          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v: any) => new Date(v).toLocaleDateString('en-GB', { year: 'numeric', month: 'long' })} formatter={(value: any, name: any) => { if (name === indexKey.toUpperCase()) return [value?.toFixed(2) ?? '--', name]; return [value, name] }} />
+          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelFormatter={(v: any) => new Date(v).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })} formatter={(value: any, name: any) => { if (name === indexKey.toUpperCase()) return [value?.toFixed(2) ?? '--', name]; return [value, name] }} />
           <Bar yAxisId="left" dataKey={indexKey} name={indexKey.toUpperCase()} isAnimationActive={false}>{chartData.map((entry, i) => (<Cell key={i} fill={entry.fill} />))}</Bar>
         </ComposedChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 justify-end">
-        {[{ label: 'Extr. low (< -1.75)', color: '#991b1b' }, { label: 'Very low', color: '#ef4444' }, { label: 'Low', color: '#f97316' }, { label: 'Normal', color: '#10b981' }, { label: 'High', color: '#3b82f6' }, { label: 'Very high', color: '#1d4ed8' }, { label: 'Extr. high (> 1.75)', color: '#312e81' }].map(z => (<span key={z.label} className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: z.color }} />{z.label}</span>))}
+        {[{ label: 'Extr. bas (< -1.75)', color: '#991b1b' }, { label: 'Très bas', color: '#ef4444' }, { label: 'Bas', color: '#f97316' }, { label: 'Normal', color: '#10b981' }, { label: 'Haut', color: '#3b82f6' }, { label: 'Très haut', color: '#1d4ed8' }, { label: 'Extr. haut (> 1.75)', color: '#312e81' }].map(z => (<span key={z.label} className="flex items-center gap-1 text-xs text-gray-500"><span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: z.color }} />{z.label}</span>))}
       </div>
     </div>
   )

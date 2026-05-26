@@ -18,7 +18,7 @@ function StowaMiniBadge({ nse, evp }: { nse: number | null; evp: number | null }
   const evpPass = evp != null && evp >= 70
   const nsePass = nse != null && nse >= 0.5
   return (
-    <div className="flex items-center gap-0.5" title={`EVP ${evpPass ? 'pass' : 'fail'}, NSE ${nsePass ? 'pass' : 'fail'}`}>
+    <div className="flex items-center gap-0.5" title={`EVP ${evpPass ? 'OK' : 'KO'}, NSE ${nsePass ? 'OK' : 'KO'}`}>
       <span className={`w-2 h-2 rounded-full ${evpPass ? 'bg-green-400' : 'bg-red-400'}`} />
       <span className={`w-2 h-2 rounded-full ${nsePass ? 'bg-green-400' : 'bg-red-400'}`} />
     </div>
@@ -51,14 +51,14 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
           <a href={`/station/piezo/${encodeURIComponent(m.code_bss)}`} className="text-xs font-mono text-accent-cyan hover:underline mt-0.5 block">{m.code_bss}</a>
         </div>
         <div className="flex items-center gap-0.5 shrink-0 ml-2">
-          <button onClick={onView} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-accent-cyan transition-colors" title="View results">
+          <button onClick={onView} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-accent-cyan transition-colors" title="Voir les résultats">
             <Eye className="w-4 h-4" />
           </button>
-          <button onClick={onRefit} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-purple-400 transition-colors" title="Refit with same config">
+          <button onClick={onRefit} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-purple-400 transition-colors" title="Recalibrer avec la même config">
             <RotateCcw className="w-4 h-4" />
           </button>
           <ExportMenu runId={m.run_id} />
-          <button onClick={onDelete} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-red-400 transition-colors" title="Delete">
+          <button onClick={onDelete} className="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-red-400 transition-colors" title="Supprimer">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -72,7 +72,7 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
           <ConfigTag label={m.noise_type.replace('NoiseModel', '').replace('Noise', '')} color="border-amber-500/30 text-amber-400 bg-amber-500/10" />
         )}
         {m.noise_type === 'none' && (
-          <ConfigTag label="No noise" color="border-white/10 text-text-muted bg-white/5" />
+          <ConfigTag label="Sans bruit" color="border-white/10 text-text-muted bg-white/5" />
         )}
         <ConfigTag label={m.solver_type} color="border-purple-500/30 text-purple-400 bg-purple-500/10" />
         {m.include_temp && (
@@ -83,7 +83,7 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
       {/* Metrics */}
       <div className={`grid ${m.has_validation ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
         <div className={`rounded-lg border border-accent-cyan/20 p-2 ${m.has_validation ? '' : ''}`}>
-          {m.has_validation && <div className="text-[9px] uppercase tracking-wider text-accent-cyan font-semibold mb-1">Train</div>}
+          {m.has_validation && <div className="text-[9px] uppercase tracking-wider text-accent-cyan font-semibold mb-1">Calibration</div>}
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             <div className="flex items-baseline justify-between">
               <span className="text-[10px] text-text-muted">NSE</span>
@@ -97,7 +97,7 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
         </div>
         {m.has_validation && (
           <div className="rounded-lg border border-orange-500/20 p-2">
-            <div className="text-[9px] uppercase tracking-wider text-orange-400 font-semibold mb-1">Test</div>
+            <div className="text-[9px] uppercase tracking-wider text-orange-400 font-semibold mb-1">Validation</div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
               <div className="flex items-baseline justify-between">
                 <span className="text-[10px] text-text-muted">NSE</span>
@@ -114,7 +114,7 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
-        <span className="text-[10px] text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('en-GB')}</span>
+        <span className="text-[10px] text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('fr-FR')}</span>
         {m.aic != null && (
           <span className="text-[10px] text-text-muted">AIC {m.aic.toFixed(1)}</span>
         )}
@@ -180,7 +180,7 @@ export function ModelTable() {
     return map
   }, [sorted])
 
-  if (isLoading) return <div className="text-text-muted text-sm py-8 text-center">Loading...</div>
+  if (isLoading) return <div className="text-text-muted text-sm py-8 text-center">Chargement...</div>
 
   return (
     <div className="space-y-4">
@@ -190,7 +190,7 @@ export function ModelTable() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
-            placeholder="Filter by station, name, config..."
+            placeholder="Filtrer par station, nom, config..."
             value={filter}
             onChange={e => setFilter(e.target.value)}
             className="w-full bg-bg-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
@@ -227,7 +227,7 @@ export function ModelTable() {
 
       {sorted.length === 0 ? (
         <div className="text-text-muted text-sm py-12 text-center">
-          {filter ? 'No models match.' : 'No calibrated models. Go to the Fit tab to create one.'}
+          {filter ? 'Aucun modèle ne correspond.' : 'Aucun modèle calibré. Rendez-vous dans l\'onglet Calibrer pour en créer un.'}
         </div>
       ) : view === 'grid' ? (
         <div>
@@ -240,19 +240,19 @@ export function ModelTable() {
               <div key={station}>
                 <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
                   <a href={`/station/piezo/${encodeURIComponent(station)}`} className="text-sm font-mono text-accent-cyan hover:underline">{station}</a>
-                  <span className="text-xs text-text-muted">{models.length} model(s)</span>
+                  <span className="text-xs text-text-muted">{models.length} modèle(s)</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {models.map(m => (
                     <div key={m.run_id} className="relative">
                       {bestNse && m.run_id === bestNse.run_id && (
-                        <span className="absolute -top-1.5 -right-1.5 z-10 text-sm" title="Best STOWA-passing model">★</span>
+                        <span className="absolute -top-1.5 -right-1.5 z-10 text-sm" title="Meilleur modèle validant STOWA">★</span>
                       )}
                       <ModelCard
                         m={m}
                         onView={() => viewModel(m)}
                         onRefit={() => refitModel(m)}
-                        onDelete={() => { if (confirm('Delete this model?')) deleteMut.mutate(m.run_id) }}
+                        onDelete={() => { if (confirm('Supprimer ce modèle ?')) deleteMut.mutate(m.run_id) }}
                       />
                     </div>
                   ))}
@@ -267,17 +267,17 @@ export function ModelTable() {
             <div key={station}>
               <div className="flex items-center gap-2 mb-1.5">
                 <a href={`/station/piezo/${encodeURIComponent(station)}`} className="text-sm font-mono text-accent-cyan hover:underline">{station}</a>
-                <span className="text-xs text-text-muted">{models.length} model(s)</span>
+                <span className="text-xs text-text-muted">{models.length} modèle(s)</span>
               </div>
               <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-text-muted border-b border-white/5 text-xs uppercase tracking-wide">
-                        <th className="px-3 py-2 text-left">Name</th>
+                        <th className="px-3 py-2 text-left">Nom</th>
                         <th className="px-3 py-2 text-left">Config</th>
-                        <th className="px-3 py-2 text-right">NSE train</th>
-                        <th className="px-3 py-2 text-right">NSE test</th>
+                        <th className="px-3 py-2 text-right">NSE cal.</th>
+                        <th className="px-3 py-2 text-right">NSE val.</th>
                         <th className="px-3 py-2 text-right">EVP %</th>
                         <th className="px-3 py-2 text-left">Date</th>
                         <th className="px-3 py-2 text-right">Actions</th>
@@ -299,17 +299,17 @@ export function ModelTable() {
                           <td className={`px-3 py-2 text-right font-mono ${nseColor(m.nse)}`}>{m.nse?.toFixed(3) ?? '—'}</td>
                           <td className={`px-3 py-2 text-right font-mono ${nseColor(m.val_nse)}`}>{m.val_nse?.toFixed(3) ?? '—'}</td>
                           <td className="px-3 py-2 text-right text-text-primary">{m.evp?.toFixed(1) ?? '—'}</td>
-                          <td className="px-3 py-2 text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('en-GB')}</td>
+                          <td className="px-3 py-2 text-text-muted">{new Date(Number(m.created_at)).toLocaleDateString('fr-FR')}</td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-0.5">
-                              <button onClick={() => viewModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-accent-cyan transition-colors" title="View results">
+                              <button onClick={() => viewModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-accent-cyan transition-colors" title="Voir les résultats">
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => refitModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-purple-400 transition-colors" title="Refit">
+                              <button onClick={() => refitModel(m)} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-purple-400 transition-colors" title="Recalibrer">
                                 <RotateCcw className="w-3.5 h-3.5" />
                               </button>
                               <ExportMenu runId={m.run_id} />
-                              <button onClick={() => { if (confirm('Delete this model?')) deleteMut.mutate(m.run_id) }} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-red-400 transition-colors" title="Delete">
+                              <button onClick={() => { if (confirm('Supprimer ce modèle ?')) deleteMut.mutate(m.run_id) }} className="p-1 hover:bg-bg-hover rounded text-text-muted hover:text-red-400 transition-colors" title="Supprimer">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -325,7 +325,7 @@ export function ModelTable() {
         </div>
       )}
 
-      <div className="text-xs text-text-muted">{sorted.length} model(s)</div>
+      <div className="text-xs text-text-muted">{sorted.length} modèle(s)</div>
     </div>
   )
 }

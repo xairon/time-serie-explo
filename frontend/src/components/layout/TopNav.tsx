@@ -10,9 +10,9 @@ import {
 import { useHealth } from '@/hooks/useHealth'
 
 const NAV_ITEMS = [
-  { to: '/', icon: Map, label: 'Observatory', end: true },
+  { to: '/', icon: Map, label: 'Observatoire', end: true },
   { to: '/pastas', icon: Waves, label: 'Pastas Lab', end: false },
-  { to: '/ai', icon: Brain, label: 'AI Lab', end: false },
+  { to: '/ai', icon: Brain, label: 'Lab IA', end: false },
 ] as const
 
 export function TopNav() {
@@ -63,21 +63,21 @@ export function TopNav() {
             GPU
           </span>
         )}
-        <div className="flex items-center gap-1.5" title={isHealthy ? 'API connected' : 'API unavailable'}>
+        <div className="flex items-center gap-1.5" title={isHealthy ? 'API connectée' : 'API indisponible'}>
           <div
             className={`w-2 h-2 rounded-full ${
               isHealthy ? 'bg-accent-green' : 'bg-accent-red'
             }`}
           />
           <span className="text-xs text-text-secondary hidden sm:block">
-            {isHealthy ? 'OK' : 'Offline'}
+            {isHealthy ? 'OK' : 'Hors ligne'}
           </span>
         </div>
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="md:hidden p-2 hover:bg-bg-hover rounded-lg"
-          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-label={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>

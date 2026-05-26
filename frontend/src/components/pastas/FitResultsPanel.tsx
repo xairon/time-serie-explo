@@ -45,12 +45,12 @@ function ControlledSection({ title, open, onToggle, children }: { title: string;
 // --- Metrics ---
 
 const METRIC_DEFS: Record<string, { label: string; tooltip: string; format: (v: number) => string; quality: (v: number) => 'good' | 'ok' | 'poor' }> = {
-  nse: { label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency — does the model reproduce observed variability? 1 = perfect reproduction, 0 = no better than the mean, negative = worse than the mean. Aim for > 0.7.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  kge: { label: 'KGE', tooltip: 'Kling-Gupta Efficiency — combines correlation, bias, and variability into a single score. More balanced than NSE (which overweights peaks). > 0.7 = good, > 0.9 = excellent.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  evp: { label: 'EVP %', tooltip: 'Explained Variance (%) — what proportion of piezometric signal variability does the model capture? > 70% = acceptable, > 90% = excellent.', format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
-  rmse: { label: 'RMSE', tooltip: 'Root Mean Square Error (m) — average prediction error in meters. Lower = better. Depends on the natural variability of the aquifer — compare across models for the same station, not between stations.', format: v => v.toFixed(4), quality: () => 'ok' },
-  rsq: { label: 'R²', tooltip: 'Coefficient of determination — proportion of signal variance explained by the model. 1 = perfect, 0 = no linear correlation.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  mae: { label: 'MAE', tooltip: 'Mean Absolute Error (m) — average prediction error. Less sensitive to extreme values than RMSE.', format: v => v.toFixed(4), quality: () => 'ok' },
+  nse: { label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency — le modèle reproduit-il la variabilité observée ? 1 = reproduction parfaite, 0 = pas mieux que la moyenne, négatif = pire que la moyenne. Viser > 0,7.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+  kge: { label: 'KGE', tooltip: 'Kling-Gupta Efficiency — combine corrélation, biais et variabilité en un score unique. Plus équilibré que NSE (qui surpondère les pics). > 0,7 = bon, > 0,9 = excellent.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+  evp: { label: 'EVP %', tooltip: 'Variance expliquée (%) — quelle proportion de la variabilité du signal piézométrique le modèle capture-t-il ? > 70% = acceptable, > 90% = excellent.', format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
+  rmse: { label: 'RMSE', tooltip: 'Erreur quadratique moyenne (m) — erreur moyenne de prédiction en mètres. Plus faible = mieux. Dépend de la variabilité naturelle de l\'aquifère — à comparer entre modèles d\'une même station, pas entre stations.', format: v => v.toFixed(4), quality: () => 'ok' },
+  rsq: { label: 'R²', tooltip: 'Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+  mae: { label: 'MAE', tooltip: 'Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE.', format: v => v.toFixed(4), quality: () => 'ok' },
 }
 const Q_COLORS = { good: 'text-green-400', ok: 'text-accent-cyan', poor: 'text-red-400' }
 const Q_BORDERS = { good: 'border-green-500/20', ok: 'border-white/5', poor: 'border-red-500/20' }
@@ -171,7 +171,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   }, [outlierData, viewPeriod])
 
   const periodColor = viewPeriod === 'val' ? '#f97316' : '#22d3ee'
-  const periodLabel = viewPeriod === 'cal' ? 'Train' : viewPeriod === 'val' ? 'Test' : 'Full period'
+  const periodLabel = viewPeriod === 'cal' ? 'Calibration' : viewPeriod === 'val' ? 'Validation' : 'Période complète'
 
   // --- Aquifer KPIs ---
   const t95Days = useMemo(() => {
@@ -216,7 +216,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Warnings</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
           {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
@@ -225,8 +225,8 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {aiModel && (
         <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2.5">
           <Brain className="w-4 h-4 text-purple-400 shrink-0" />
-          <span className="text-xs text-purple-300 flex-1">AI Model: <span className="font-medium text-purple-200">{aiModel.model_name}</span>{aiModel.metrics?.NSE != null && ` — NSE ${aiModel.metrics.NSE.toFixed(3)}`}</span>
-          <a href="/ai/forecasting" className="text-[10px] text-purple-400 hover:underline shrink-0">View →</a>
+          <span className="text-xs text-purple-300 flex-1">Modèle IA : <span className="font-medium text-purple-200">{aiModel.model_name}</span>{aiModel.metrics?.NSE != null && ` — NSE ${aiModel.metrics.NSE.toFixed(3)}`}</span>
+          <a href="/ai/forecasting" className="text-[10px] text-purple-400 hover:underline shrink-0">Voir →</a>
         </div>
       )}
 
@@ -234,8 +234,8 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       <Section title="Performance">
         {validation_metrics ? (
           <div className="grid grid-cols-2 gap-3">
-            <MetricGrid metrics={metrics} title="Train" period={cal_period} borderColor="border-accent-cyan/20" />
-            <MetricGrid metrics={validation_metrics} title="Test (unseen)" period={val_period} borderColor="border-orange-500/20" />
+            <MetricGrid metrics={metrics} title="Calibration" period={cal_period} borderColor="border-accent-cyan/20" />
+            <MetricGrid metrics={validation_metrics} title="Validation (non vue)" period={val_period} borderColor="border-orange-500/20" />
           </div>
         ) : <MetricGrid metrics={metrics} />}
       </Section>
@@ -244,7 +244,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {inputQualityData && inputQualityData.n_flagged > 0 && (
         <div className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2 overflow-x-auto">
           <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-          <span className="text-[10px] text-orange-400 font-medium shrink-0">{inputQualityData.n_flagged} suspect months:</span>
+          <span className="text-[10px] text-orange-400 font-medium shrink-0">{inputQualityData.n_flagged} mois suspects :</span>
           <div className="flex gap-1 flex-nowrap">
             {inputQualityData.flagged?.map((f: any) => (
               <button
@@ -253,7 +253,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 title={f.reason}
                 className="px-1.5 py-0.5 rounded text-[9px] font-mono border border-orange-500/20 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 transition-colors whitespace-nowrap shrink-0"
               >
-                {new Date(f.month).toLocaleDateString('en-GB', { year: '2-digit', month: 'short' })}
+                {new Date(f.month).toLocaleDateString('fr-FR', { year: '2-digit', month: 'short' })}
               </button>
             ))}
           </div>
@@ -264,7 +264,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {hasValidation && (
         <div className="flex items-center gap-1 bg-bg-primary rounded-lg border border-white/5 p-1">
           {(['cal', 'val', 'full'] as ViewPeriod[]).map(p => {
-            const labels: Record<ViewPeriod, string> = { cal: 'Train', val: 'Test', full: 'Full period' }
+            const labels: Record<ViewPeriod, string> = { cal: 'Calibration', val: 'Validation', full: 'Période complète' }
             const colors: Record<ViewPeriod, string> = { cal: 'text-accent-cyan', val: 'text-orange-400', full: 'text-text-primary' }
             return (
               <button key={p} onClick={() => { setViewPeriod(p); setSelectedOutlierDate(null) }}
@@ -280,13 +280,13 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {/* ═══════════ 4. MODEL ANALYSIS (unified chart) ═══════════ */}
       <Section
-        title={`Model Analysis — ${periodLabel}`}
+        title={`Analyse du modèle — ${periodLabel}`}
         extra={
           <span className="flex items-center gap-1">
             <ExportCsvButton
               filename={`${result.code_bss}_observed_simulated_residuals.csv`}
-              title="Export observed, simulated & residuals as CSV"
-              label="Time series"
+              title="Exporter observé, simulé et résidus en CSV"
+              label="Séries temporelles"
               getColumns={() => {
                 const cols: CsvColumn[] = [
                   { header: 'date', values: observed.index },
@@ -300,14 +300,14 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 cols.push({ header: 'residuals', values: resVals })
                 if (val_period) {
                   const valStart = val_period[0]
-                  cols.push({ header: 'period', values: observed.index.map(d => d >= valStart ? 'test' : 'train') })
+                  cols.push({ header: 'period', values: observed.index.map(d => d >= valStart ? 'val' : 'cal') })
                 }
                 return cols
               }}
             />
             <ExportCsvButton
               filename={`${result.code_bss}_contributions.csv`}
-              title="Export stress contributions as CSV"
+              title="Exporter les contributions de stress en CSV"
               label="Contributions"
               getColumns={() => {
                 const entries = Object.entries(contributions)
@@ -319,7 +319,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
                 }
                 if (val_period) {
                   const valStart = val_period[0]
-                  cols.push({ header: 'period', values: dates.map(d => d >= valStart ? 'test' : 'train') })
+                  cols.push({ header: 'period', values: dates.map(d => d >= valStart ? 'val' : 'cal') })
                 }
                 return cols
               }}
@@ -329,12 +329,12 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       >
         {selectedOutlierDate && (
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-orange-400 font-medium">Zoomed on: {new Date(selectedOutlierDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}</span>
-            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Reset zoom</button>
+            <span className="text-[10px] text-orange-400 font-medium">Zoom sur : {new Date(selectedOutlierDate).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short' })}</span>
+            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Réinitialiser le zoom</button>
           </div>
         )}
         {currentOutliers && currentOutliers.n_outliers > 0 && (
-          <p className="text-[10px] text-text-muted mb-1">{currentOutliers.n_outliers} outlier months — click a red bar to investigate</p>
+          <p className="text-[10px] text-text-muted mb-1">{currentOutliers.n_outliers} mois atypiques — cliquez sur une barre rouge pour investiguer</p>
         )}
         {monthlyStats && sliceByPeriod.obsX.length > 0 && (
           <>
@@ -379,63 +379,63 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       </Section>
 
       {/* ═══════════ 5. AQUIFER CHARACTERIZATION ═══════════ */}
-      <Section title="Aquifer Characterization">
+      <Section title="Caractérisation de l'aquifère">
         <div className="grid grid-cols-3 gap-2 mb-3">
-          <AquiferKPI icon={Clock} label="Response Time" value={t95Days != null ? String(t95Days) : null} unit="days"
-            description={`T95 — time for the aquifer to reach 95% of its response to a recharge change. ${t95Days != null && t95Days < 100 ? 'Fast response (unconfined alluvial, shallow aquifer).' : t95Days != null && t95Days < 500 ? 'Moderate response (shallow sedimentary).' : t95Days != null ? 'Slow response (deep sedimentary, confined).' : ''}`} />
-          <AquiferKPI icon={Droplets} label="Baseflow Index" value={baseflowData?.bfi != null ? baseflowData.bfi.toFixed(2) : null}
-            description={`Proportion of the piezometric signal due to baseflow (slow) vs fast rainfall response. ${baseflowData?.bfi > 0.7 ? 'Inertial aquifer, dominated by slow flow.' : baseflowData?.bfi > 0.4 ? 'Mixed response (slow flow + fast response).' : 'Highly reactive aquifer to precipitation.'}`} />
-          <AquiferKPI icon={Activity} label="Recession Constant" value={recessionData?.T_median_days != null ? String(recessionData.T_median_days) : null} unit="days"
-            description={`Median aquifer drainage duration during recession periods. The longer T, the longer the aquifer retains water. ${recessionData?.n_segments ? `Computed from ${recessionData.n_segments} recession episodes.` : ''}`} />
+          <AquiferKPI icon={Clock} label="Temps de réponse" value={t95Days != null ? String(t95Days) : null} unit="jours"
+            description={`T95 — temps pour que l'aquifère atteigne 95% de sa réponse à une variation de recharge. ${t95Days != null && t95Days < 100 ? 'Réponse rapide (alluvial libre, aquifère peu profond).' : t95Days != null && t95Days < 500 ? 'Réponse modérée (sédimentaire peu profond).' : t95Days != null ? 'Réponse lente (sédimentaire profond, captif).' : ''}`} />
+          <AquiferKPI icon={Droplets} label="Indice de débit de base" value={baseflowData?.bfi != null ? baseflowData.bfi.toFixed(2) : null}
+            description={`Proportion du signal piézométrique due au débit de base (lent) par rapport à la réponse rapide aux pluies. ${baseflowData?.bfi > 0.7 ? 'Aquifère inertiel, dominé par les écoulements lents.' : baseflowData?.bfi > 0.4 ? 'Réponse mixte (écoulements lents + réponse rapide).' : 'Aquifère très réactif aux précipitations.'}`} />
+          <AquiferKPI icon={Activity} label="Constante de tarissement" value={recessionData?.T_median_days != null ? String(recessionData.T_median_days) : null} unit="jours"
+            description={`Durée médiane de drainage de l'aquifère en période de tarissement. Plus T est grand, plus l'aquifère retient l'eau longtemps. ${recessionData?.n_segments ? `Calculée à partir de ${recessionData.n_segments} épisodes de tarissement.` : ''}`} />
         </div>
         {hasStepResponse && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-3">
-            <p className="text-[10px] text-text-muted mb-1">Response function — how the aquifer transforms an input signal (recharge) into piezometric level variation. Dashed lines mark 50% (t50) and 95% (t95) of the final response.</p>
+            <p className="text-[10px] text-text-muted mb-1">Fonction de réponse — comment l'aquifère transforme un signal d'entrée (recharge) en variation du niveau piézométrique. Les pointillés marquent 50% (t50) et 95% (t95) de la réponse finale.</p>
             <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
           </div>
         )}
       </Section>
 
       {/* ═══════════ 6. SIGNAL STRUCTURE ═══════════ */}
-      <ControlledSection title="Signal Structure" open={decompositionOpen} onToggle={() => setDecompositionOpen(v => !v)}>
+      <ControlledSection title="Structure du signal" open={decompositionOpen} onToggle={() => setDecompositionOpen(v => !v)}>
         {decompositionData?.index?.length > 0 ? (
           <>
             <p className="text-[10px] text-text-muted mb-2 leading-relaxed">
-              Decomposition of the piezometric signal into independent components (STL method).
-              The <span className="text-accent-cyan">trend</span> represents the long-term level evolution (recharge, climate, pumping).
-              The <span className="text-purple-400">seasonality</span> represents the annual cycle (winter recharge, summer low water).
-              The residual (not shown) is what the model cannot explain with these two components.
+              Décomposition du signal piézométrique en composantes indépendantes (méthode STL).
+              La <span className="text-accent-cyan">tendance</span> représente l'évolution à long terme du niveau (recharge, climat, pompage).
+              La <span className="text-purple-400">saisonnalité</span> représente le cycle annuel (recharge hivernale, étiage estival).
+              Le résidu (non affiché) est ce que le modèle ne peut expliquer avec ces deux composantes.
             </p>
             <div className="flex items-center gap-4 mb-2">
-              <span className="text-[10px] text-text-muted" title="Proportion of signal variance explained by the trend. Close to 1 = dominant trend (long-term decline or rise). Close to 0 = no marked trend.">
-                Trend strength: <span className="text-text-primary font-mono font-semibold">{decompositionData.trend_strength}</span>
+              <span className="text-[10px] text-text-muted" title="Proportion de la variance du signal expliquée par la tendance. Proche de 1 = tendance dominante (baisse ou hausse long terme). Proche de 0 = pas de tendance marquée.">
+                Force de la tendance : <span className="text-text-primary font-mono font-semibold">{decompositionData.trend_strength}</span>
               </span>
-              <span className="text-[10px] text-text-muted" title="Proportion of signal variance explained by the annual cycle. Close to 1 = highly seasonal aquifer (typical unconfined alluvial). Low = high-inertia or confined aquifer.">
-                Seasonal strength: <span className="text-text-primary font-mono font-semibold">{decompositionData.seasonal_strength}</span>
+              <span className="text-[10px] text-text-muted" title="Proportion de la variance du signal expliquée par le cycle annuel. Proche de 1 = aquifère très saisonnier (typique alluvial libre). Faible = aquifère à forte inertie ou captif.">
+                Force saisonnière : <span className="text-text-primary font-mono font-semibold">{decompositionData.seasonal_strength}</span>
               </span>
-              <span className="text-[9px] text-text-muted ml-auto">0 = absent component, 1 = dominant component</span>
+              <span className="text-[9px] text-text-muted ml-auto">0 = composante absente, 1 = composante dominante</span>
             </div>
             <div className="flex gap-3">
-              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.trend }} label="Long-term Trend" color="#22d3ee" />
-              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.seasonal }} label="Seasonal Cycle" color="#a78bfa" />
+              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.trend }} label="Tendance long terme" color="#22d3ee" />
+              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.seasonal }} label="Cycle saisonnier" color="#a78bfa" />
             </div>
           </>
-        ) : <p className="text-xs text-text-muted">Loading...</p>}
+        ) : <p className="text-xs text-text-muted">Chargement...</p>}
       </ControlledSection>
 
       {/* ═══════════ 7. STATISTICAL DIAGNOSTICS ═══════════ */}
-      <ControlledSection title="Statistical Diagnostics" open={diagnosticsOpen} onToggle={() => setDiagnosticsOpen(v => !v)}>
-        {currentDiagnostics ? <DiagnosticsPanel diagnostics={currentDiagnostics} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      <ControlledSection title="Diagnostics statistiques" open={diagnosticsOpen} onToggle={() => setDiagnosticsOpen(v => !v)}>
+        {currentDiagnostics ? <DiagnosticsPanel diagnostics={currentDiagnostics} /> : <p className="text-xs text-text-muted">Chargement...</p>}
       </ControlledSection>
 
       {/* ═══════════ 8. MODEL INFO ═══════════ */}
       {parameters.length > 0 && (
-        <ControlledSection title="Model Parameters" open={paramsOpen} onToggle={() => setParamsOpen(v => !v)}>
+        <ControlledSection title="Paramètres du modèle" open={paramsOpen} onToggle={() => setParamsOpen(v => !v)}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Name</th><th className="text-right px-3 py-2">Optimal</th>
-                <th className="text-right px-3 py-2">Std. err</th><th className="text-right px-3 py-2">Initial</th>
+                <th className="text-left px-3 py-2">Nom</th><th className="text-right px-3 py-2">Optimal</th>
+                <th className="text-right px-3 py-2">Erreur-type</th><th className="text-right px-3 py-2">Initial</th>
               </tr></thead>
               <tbody>{parameters.map(p => (
                 <tr key={p.name} className="border-b border-white/5 hover:bg-bg-hover">
@@ -450,8 +450,8 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         </ControlledSection>
       )}
 
-      <ControlledSection title="Hydrological Signatures" open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
-        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">Loading...</p>}
+      <ControlledSection title="Signatures hydrologiques" open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
+        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">Chargement...</p>}
       </ControlledSection>
     </div>
   )

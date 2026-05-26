@@ -12,8 +12,8 @@ export function ConvergencePlot({ lossHistory, className = '' }: ConvergencePlot
 
   const layout: Partial<Layout> = {
     ...darkLayout,
-    xaxis: { ...darkLayout.xaxis, title: { text: 'Iteration' } },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Loss' } },
+    xaxis: { ...darkLayout.xaxis, title: { text: 'Itération' } },
+    yaxis: { ...darkLayout.yaxis, title: { text: 'Perte' } },
     margin: { ...darkLayout.margin, t: 20 },
   }
 
@@ -27,7 +27,7 @@ export function ConvergencePlot({ lossHistory, className = '' }: ConvergencePlot
             y: lossHistory,
             type: 'scatter',
             mode: 'lines',
-            name: 'Loss',
+            name: 'Perte',
             line: { color: '#06b6d4', width: 2 },
             fill: 'tozeroy',
             fillcolor: 'rgba(6, 182, 212, 0.08)',

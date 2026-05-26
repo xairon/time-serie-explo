@@ -93,7 +93,7 @@ async def stream_progress(task_id: str):
     """SSE stream of analysis progress."""
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(404, "Task not found")
+        raise HTTPException(404, "Tâche introuvable")
 
     from sse_starlette.sse import EventSourceResponse
 
@@ -131,9 +131,9 @@ def get_results(task_id: str):
     """Get full results after completion."""
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(404, "Task not found")
+        raise HTTPException(404, "Tâche introuvable")
     if task.status != TaskStatus.COMPLETED:
-        raise HTTPException(400, f"Task status: {task.status.value}")
+        raise HTTPException(400, f"État de la tâche : {task.status.value}")
     return task.result
 
 
@@ -142,7 +142,7 @@ def get_layer_result(task_id: str, layer_name: str):
     """Get partial result for a specific layer (enables progressive rendering)."""
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(404, "Task not found")
+        raise HTTPException(404, "Tâche introuvable")
     valid_layers = {"pastas", "changepoints", "clean_periods", "ml_xai", "embeddings", "fusion"}
     if layer_name not in valid_layers:
         raise HTTPException(400, f"Invalid layer: {layer_name}. Valid: {valid_layers}")
@@ -155,7 +155,7 @@ def get_layer_result(task_id: str, layer_name: str):
 def cancel_analysis(task_id: str):
     """Cancel a running analysis."""
     if not task_manager.cancel(task_id):
-        raise HTTPException(404, "Task not found or already finished")
+        raise HTTPException(404, "Tâche introuvable ou déjà terminée")
     task = task_manager.get(task_id)
     return {"status": "cancelled", "partial_results": task.result if task else None}
 

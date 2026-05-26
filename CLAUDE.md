@@ -149,7 +149,7 @@ dashboard/
 - Frontend hooks use TanStack React Query (5min stale time, 30min GC)
 - API client in `frontend/src/lib/api.ts` — centralized fetch with timeout handling
 - Long-running tasks (training, CF generation) use SSE streams
-- **All UI text in English** — labels, titles, tooltips, descriptions, axis labels. No French anywhere in the frontend.
+- **All UI text in French** — labels, titles, tooltips, descriptions, axis labels, error messages, button text. Audience is BRGM (French hydrogeology agency). Code identifiers, API paths/params, comments stay English. Number/date formatters use `fr-FR` locale. Hub'Eau classifications stay in their stored capitalized form (`EXTREMEMENT_BAS`, etc.) and are rendered as "Extrêmement bas". Acronyms (BSS, BDLISA, SANDRE, MLflow, NGF, IA, CSV, SSFI/SPI/SPLI) stay as-is. See memory `glossary-brgm-hydro.md` for canonical translations.
 
 ## Gotchas
 

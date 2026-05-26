@@ -2,26 +2,26 @@ import { usePastasOptions } from '@/hooks/usePastas'
 
 const DESCRIPTIONS: Record<string, Record<string, string>> = {
   recharge: {
-    Linear: 'P − f·E: linear excess precipitation (von Asmuth 2002)',
-    FlexModel: 'Full soil water balance: root zone, interception, optional snow',
-    Berendrecht: 'Non-linear: exponential storage-runoff relationship (Berendrecht 2006)',
-    Peterson: 'Non-linear: power law, logarithmic transforms (Peterson 2014)',
+    Linear: 'P − f·E : excès de précipitations linéaire (von Asmuth 2002)',
+    FlexModel: 'Bilan hydrique complet : zone racinaire, interception, neige optionnelle',
+    Berendrecht: 'Non linéaire : relation exponentielle stockage-ruissellement (Berendrecht 2006)',
+    Peterson: 'Non linéaire : loi de puissance, transformations logarithmiques (Peterson 2014)',
   },
   response: {
-    Gamma: '3 parameters (A, a, n) — delayed response, most common',
-    Exponential: '2 parameters (A, a) — simple decay, fast response',
-    Hantush: '3 parameters — confined aquifer, includes leaky factor',
-    DoubleExponential: '4 parameters — two response times (karst: conduits + matrix)',
-    FourParam: '4 parameters (A, a, b, n) — very flexible, complex behavior',
+    Gamma: '3 paramètres (A, a, n) — réponse retardée, la plus courante',
+    Exponential: '2 paramètres (A, a) — décroissance simple, réponse rapide',
+    Hantush: '3 paramètres — aquifère captif, inclut un facteur de drainance',
+    DoubleExponential: '4 paramètres — deux temps de réponse (karst : conduits + matrice)',
+    FourParam: '4 paramètres (A, a, b, n) — très flexible, comportement complexe',
   },
   noise: {
-    ArNoiseModel: 'AR(1) — corrects residual autocorrelation',
-    ArmaNoiseModel: 'ARMA(1,1) — better noise modeling (recommended for karst)',
-    none: 'No noise model — raw residuals',
+    ArNoiseModel: 'AR(1) — corrige l\'autocorrélation des résidus',
+    ArmaNoiseModel: 'ARMA(1,1) — meilleure modélisation du bruit (recommandé pour les karsts)',
+    none: 'Pas de modèle de bruit — résidus bruts',
   },
   solver: {
-    LeastSquares: 'Least squares (scipy) — fast, deterministic, default',
-    Lmfit: 'Levenberg-Marquardt (lmfit) — better bounds handling',
+    LeastSquares: 'Moindres carrés (scipy) — rapide, déterministe, par défaut',
+    Lmfit: 'Levenberg-Marquardt (lmfit) — meilleure gestion des bornes',
   },
 }
 
@@ -56,8 +56,8 @@ export function PastasConfigForm({
   return (
     <div className="space-y-4">
       <ConfigSelect
-        label="Recharge model"
-        tooltip="How recharge (P − E) is computed before convolution"
+        label="Modèle de recharge"
+        tooltip="Mode de calcul de la recharge (P − E) avant convolution"
         value={recharge}
         onChange={onRechargeChange}
         options={options?.recharge ?? ['Linear']}
@@ -67,8 +67,8 @@ export function PastasConfigForm({
       />
 
       <ConfigSelect
-        label="Response function"
-        tooltip="Shape of the aquifer impulse response to stress"
+        label="Fonction de réponse"
+        tooltip="Forme de la réponse impulsionnelle de l'aquifère au stress"
         value={response}
         onChange={onResponseChange}
         options={options?.response ?? ['Gamma']}
@@ -79,8 +79,8 @@ export function PastasConfigForm({
 
       <div className="grid grid-cols-2 gap-4">
         <ConfigSelect
-          label="Noise model"
-          tooltip="Stochastic model on residuals"
+          label="Modèle de bruit"
+          tooltip="Modèle stochastique sur les résidus"
           value={noise}
           onChange={onNoiseChange}
           options={options?.noise ?? ['ArNoiseModel', 'none']}
@@ -90,8 +90,8 @@ export function PastasConfigForm({
         />
 
         <ConfigSelect
-          label="Solver"
-          tooltip="Parameter optimization algorithm"
+          label="Solveur"
+          tooltip="Algorithme d'optimisation des paramètres"
           value={solver}
           onChange={onSolverChange}
           options={options?.solver ?? ['LeastSquares']}
@@ -104,7 +104,7 @@ export function PastasConfigForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Calibration start
+            Début de calibration
           </label>
           <input
             type="date"
@@ -112,11 +112,11 @@ export function PastasConfigForm({
             onChange={(e) => onTminChange(e.target.value)}
             className={selectClass}
           />
-          <p className="text-xs text-text-muted mt-1">Empty = start of data</p>
+          <p className="text-xs text-text-muted mt-1">Vide = début des données</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Calibration end
+            Fin de calibration
           </label>
           <input
             type="date"
@@ -124,7 +124,7 @@ export function PastasConfigForm({
             onChange={(e) => onTmaxChange(e.target.value)}
             className={selectClass}
           />
-          <p className="text-xs text-text-muted mt-1">Empty = end of data</p>
+          <p className="text-xs text-text-muted mt-1">Vide = fin des données</p>
         </div>
       </div>
     </div>

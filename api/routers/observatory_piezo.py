@@ -87,7 +87,7 @@ def list_stations(
                     raise ValueError
                 min_lon, min_lat, max_lon, max_lat = (float(p) for p in parts)
             except ValueError:
-                raise HTTPException(400, "Invalid bbox format")
+                raise HTTPException(400, "Format bbox invalide")
             conditions.append("latitude BETWEEN :min_lat AND :max_lat")
             conditions.append("longitude BETWEEN :min_lon AND :max_lon")
             bind.update(min_lat=min_lat, max_lat=max_lat, min_lon=min_lon, max_lon=max_lon)
@@ -151,7 +151,7 @@ def get_percentiles(code_bss: str):
         finally:
             engine.dispose()
         if not row or row["p10"] is None:
-            raise HTTPException(404, f"No data for piezo station {code_bss}")
+            raise HTTPException(404, f"Aucune donnée pour la station piézométrique {code_bss}")
         return dict(row)
 
     return get_cached("obs_piezo_pctl", {"code_bss": code_bss}, PERCENTILES_TTL, fetch)
@@ -194,7 +194,7 @@ def get_daily(
                         {"code": code_bss},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Piezo station {code_bss} not found")
+                        raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
             engine.dispose()
         return rows
@@ -242,7 +242,7 @@ def get_monthly(
                         {"code": code_bss},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Piezo station {code_bss} not found")
+                        raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
             engine.dispose()
         return rows
@@ -290,7 +290,7 @@ def get_yearly(
                         {"code": code_bss},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Piezo station {code_bss} not found")
+                        raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
             engine.dispose()
         return rows
@@ -320,7 +320,7 @@ def get_spli(code_bss: str):
                         {"code": code_bss},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Piezo station {code_bss} not found")
+                        raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
                     return []
         finally:
             engine.dispose()
@@ -354,7 +354,7 @@ def get_spi(code_bss: str):
                         {"code": code_bss},
                     ).first()
                     if exists is None:
-                        raise HTTPException(404, f"Piezo station {code_bss} not found")
+                        raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
                     return []
         finally:
             engine.dispose()
@@ -390,7 +390,7 @@ def get_station(code_bss: str):
         finally:
             engine.dispose()
         if not row:
-            raise HTTPException(404, f"Piezo station {code_bss} not found")
+            raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         return dict(row)
 
     return get_cached("obs_piezo_detail", {"code_bss": code_bss}, DETAIL_TTL, fetch)

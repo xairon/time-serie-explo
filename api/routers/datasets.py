@@ -105,13 +105,13 @@ async def create_dataset(
                     break
                 written += len(chunk)
                 if written > MAX_UPLOAD_BYTES:
-                    raise HTTPException(413, f"Upload exceeds {MAX_UPLOAD_BYTES // (1024*1024)} MB")
+                    raise HTTPException(413, f"Téléversement dépasse {MAX_UPLOAD_BYTES // (1024*1024)} Mo")
                 tmp.write(chunk)
         df = pd.read_csv(tmp_path, index_col=0, parse_dates=True)
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}")
+        raise HTTPException(status_code=400, detail=f"Échec de lecture du CSV : {exc}")
 
     cov_cols = [c.strip() for c in covariate_columns.split(",") if c.strip()]
     station_list = [s.strip() for s in stations.split(",") if s.strip()]
@@ -128,7 +128,7 @@ async def create_dataset(
             preprocessing_config={},
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to save dataset: {exc}")
+        raise HTTPException(status_code=500, detail=f"Échec d'enregistrement du jeu de données : {exc}")
 
     return DatasetSummary(
         id=dataset_dir.name,

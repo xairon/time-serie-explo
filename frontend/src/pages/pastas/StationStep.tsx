@@ -66,15 +66,15 @@ export default function StationStep() {
       <div className="w-80 shrink-0 space-y-4">
         <OnboardingBanner
           id="station-step"
-          title="Select a station"
-          description="Choose a piezometric station to analyze. The diagnostics panel will check data quality and suggest optimal calibration settings."
+          title="Sélectionner une station"
+          description="Choisissez une station piézométrique à analyser. Le panneau de diagnostics vérifiera la qualité des données et suggérera les réglages de calibration optimaux."
           steps={[
-            'Search by BSS code, commune, or department',
-            'Review station metadata and time series preview',
-            'Check pre-fit diagnostics for data quality issues',
-            'Click "Next: Calibrate" to proceed with model fitting',
+            'Rechercher par code BSS, commune ou département',
+            'Vérifier les métadonnées de la station et l\'aperçu de la série',
+            'Examiner les diagnostics pré-calibration pour les problèmes de qualité',
+            'Cliquer sur « Suivant : Calibrer » pour passer à la calibration',
           ]}
-          exampleAction={{ label: 'Load example station (Champagne chalk)', onClick: loadDemo }}
+          exampleAction={{ label: 'Charger une station exemple (craie de Champagne)', onClick: loadDemo }}
         />
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
@@ -88,7 +88,7 @@ export default function StationStep() {
           disabled={!codeBss}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Next: Calibrate
+          Suivant : Calibrer
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -98,7 +98,7 @@ export default function StationStep() {
         {codeBss && (
           <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
             <a href={`/station/piezo/${encodeURIComponent(codeBss)}`} className="text-accent-cyan hover:underline">
-              &larr; View station details
+              &larr; Voir le détail de la station
             </a>
           </div>
         )}
@@ -128,20 +128,20 @@ export default function StationStep() {
         {/* Guided mode summary */}
         {mode === 'guided' && diagnosis && !diagnoseLoading && (
           <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-accent-cyan mb-2">Summary</h3>
+            <h3 className="text-sm font-semibold text-accent-cyan mb-2">Résumé</h3>
             <div className="space-y-1">
               {diagnosis.recommended_tmin && diagnosis.recommended_tmax && (
                 <p className="text-xs text-text-secondary">
-                  Recommended period: {diagnosis.recommended_tmin} to {diagnosis.recommended_tmax}
+                  Période recommandée : du {diagnosis.recommended_tmin} au {diagnosis.recommended_tmax}
                 </p>
               )}
               {diagnosis.recommendations.length > 0 ? (
                 <p className="text-xs text-text-secondary">
-                  {diagnosis.recommendations.length} recommendation(s) will be auto-applied during calibration.
+                  {diagnosis.recommendations.length} recommandation(s) seront appliquées automatiquement durant la calibration.
                 </p>
               ) : (
                 <p className="text-xs text-text-secondary">
-                  Data quality looks good. Ready to calibrate.
+                  La qualité des données est satisfaisante. Prêt à calibrer.
                 </p>
               )}
             </div>
@@ -151,8 +151,8 @@ export default function StationStep() {
         {!codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
-              <p className="text-text-secondary">No station selected</p>
-              <p>Search and select a piezometric station to preview its data and diagnostics.</p>
+              <p className="text-text-secondary">Aucune station sélectionnée</p>
+              <p>Recherchez et sélectionnez une station piézométrique pour prévisualiser ses données et diagnostics.</p>
             </div>
           </div>
         )}

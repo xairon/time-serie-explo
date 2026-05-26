@@ -561,16 +561,16 @@ export function ObservatoryMap({
 
   return (
     <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Interactive map of French hydrological stations" />
+      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Carte interactive des stations hydrologiques françaises" />
       {tooltip && (
         <div className="absolute z-20 bg-gray-900/95 border border-white/10 rounded px-2 py-1 text-xs text-white pointer-events-none" style={{ left: tooltip.x + 12, top: tooltip.y - 8 }}>{tooltip.name}</div>
       )}
       <div className="absolute bottom-3 left-3 z-10 bg-gray-900/90 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 text-[10px] space-y-1.5">
-        <div className="text-gray-400 font-medium uppercase tracking-wider mb-1">Status</div>
+        <div className="text-gray-400 font-medium uppercase tracking-wider mb-1">État</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
           {[
-            ['#991b1b', 'Extr. low'], ['#ef4444', 'Very low'], ['#f97316', 'Low'], ['#10b981', 'Normal'],
-            ['#3b82f6', 'High'], ['#1d4ed8', 'Very high'], ['#312e81', 'Extr. high'], ['#6b7280', 'Unclassified'],
+            ['#991b1b', 'Extr. bas'], ['#ef4444', 'Très bas'], ['#f97316', 'Bas'], ['#10b981', 'Normal'],
+            ['#3b82f6', 'Haut'], ['#1d4ed8', 'Très haut'], ['#312e81', 'Extr. haut'], ['#6b7280', 'Non classé'],
           ].map(([color, label]) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
@@ -579,7 +579,7 @@ export function ObservatoryMap({
           ))}
         </div>
         <div className="border-t border-white/10 pt-1 mt-1 flex gap-3">
-          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981' }} /><span className="text-gray-300">Piezo</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981' }} /><span className="text-gray-300">Piézo</span></div>
           <div className="flex items-center gap-1.5">
             <svg width="12" height="14" viewBox="0 0 12 14" className="shrink-0"><path d="M6,1 Q6,1 10,8 A4.5,4.5 0 1,1 2,8 Q6,1 6,1Z" fill="#10b981" /></svg>
             <span className="text-gray-300">Hydro</span>

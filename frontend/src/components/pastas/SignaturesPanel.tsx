@@ -11,54 +11,54 @@ interface Props {
 }
 
 const SIGNATURE_TOOLTIPS: Record<string, string> = {
-  cv_period_mean: 'Coefficient of variation of mean head per period — measures how variable the average level is across months/years.',
-  magnitude: 'Range divided by minimum head — overall amplitude relative to the minimum level.',
-  interannual_variation: 'Year-to-year variability in mean head — high = large annual differences.',
-  mean_annual_maximum: 'Average of annual peak levels — typical high water mark.',
-  parde_seasonality: 'Pardé index — strength of the seasonal pattern (1 = no seasonality, higher = stronger).',
-  avg_seasonal_fluctuation: 'Average intra-annual amplitude (high - low within each year).',
-  date_min: 'Average date of annual minimum level (day of year, circular mean).',
-  date_max: 'Average date of annual maximum level (day of year, circular mean).',
-  cv_date_min: 'How consistent is the timing of annual lows? Low CV = predictable timing.',
-  cv_date_max: 'How consistent is the timing of annual highs? Low CV = predictable timing.',
-  rise_rate: 'Mean positive daily change — how fast the water table rises (m/day).',
-  fall_rate: 'Mean negative daily change — how fast the water table drops (m/day).',
-  cv_rise_rate: 'Variability of rise speed — high CV = erratic recharge events.',
-  cv_fall_rate: 'Variability of fall speed — high CV = irregular drainage.',
-  high_pulse_count: 'Average number of high-level events per year (above 75th percentile).',
-  high_pulse_duration: 'Average duration of high-level events (days).',
-  low_pulse_count: 'Average number of low-level events per year (below 25th percentile).',
-  low_pulse_duration: 'Average duration of low-level events (days).',
-  reversals_avg: 'Average annual count of direction changes (rise↔fall) — measures flashiness.',
-  reversals_cv: 'Variability of annual reversals — consistent vs erratic behavior.',
-  colwell_constancy: 'Colwell index: how constant is the head level? 1 = perfectly constant.',
-  colwell_contingency: 'Colwell index: how predictable is the seasonal pattern? Higher = more predictable.',
-  recession_constant: 'Exponential decay rate during falling periods — aquifer drainage speed.',
-  recovery_constant: 'Exponential rise rate during recovery periods — recharge responsiveness.',
-  duration_curve_slope: 'Slope of the head duration curve (30-70th percentile range) — flow regime variability.',
-  duration_curve_ratio: 'Ratio between low and high percentiles on the duration curve.',
-  richards_pathlength: 'Total path length of the time series (sum of |changes|) — overall "movement".',
-  baselevel_index: 'Base level index — ratio of base flow to total flow, adapted for heads.',
-  baselevel_stability: 'Stability of the base level over time.',
-  bimodality_coefficient: 'Whether the level distribution has two modes (dry/wet seasons).',
-  autocorr_time: 'Number of days until autocorrelation drops below cutoff — aquifer memory/inertia.',
+  cv_period_mean: 'Coefficient de variation du niveau moyen par période — mesure la variabilité du niveau moyen entre mois/années.',
+  magnitude: 'Plage divisée par le niveau minimum — amplitude globale relative au niveau minimum.',
+  interannual_variation: 'Variabilité d\'une année à l\'autre du niveau moyen — élevé = grandes différences annuelles.',
+  mean_annual_maximum: 'Moyenne des pics annuels — niveau de hautes eaux typique.',
+  parde_seasonality: 'Indice de Pardé — force du schéma saisonnier (1 = pas de saisonnalité, plus haut = plus fort).',
+  avg_seasonal_fluctuation: 'Amplitude moyenne intra-annuelle (haut - bas dans chaque année).',
+  date_min: 'Date moyenne du minimum annuel (jour de l\'année, moyenne circulaire).',
+  date_max: 'Date moyenne du maximum annuel (jour de l\'année, moyenne circulaire).',
+  cv_date_min: 'Régularité de la date des basses eaux annuelles ? CV bas = calendrier prévisible.',
+  cv_date_max: 'Régularité de la date des hautes eaux annuelles ? CV bas = calendrier prévisible.',
+  rise_rate: 'Variation positive moyenne par jour — vitesse de remontée de la nappe (m/j).',
+  fall_rate: 'Variation négative moyenne par jour — vitesse de baisse de la nappe (m/j).',
+  cv_rise_rate: 'Variabilité de la vitesse de remontée — CV élevé = événements de recharge erratiques.',
+  cv_fall_rate: 'Variabilité de la vitesse de baisse — CV élevé = drainage irrégulier.',
+  high_pulse_count: "Nombre moyen d'événements de hautes eaux par an (au-dessus du 75e percentile).",
+  high_pulse_duration: 'Durée moyenne des événements de hautes eaux (jours).',
+  low_pulse_count: "Nombre moyen d'événements de basses eaux par an (en dessous du 25e percentile).",
+  low_pulse_duration: 'Durée moyenne des événements de basses eaux (jours).',
+  reversals_avg: "Nombre annuel moyen de changements de direction (hausse↔baisse) — mesure la rapidité de réaction.",
+  reversals_cv: 'Variabilité du nombre annuel de retournements — comportement régulier vs erratique.',
+  colwell_constancy: 'Indice de Colwell : constance du niveau ? 1 = parfaitement constant.',
+  colwell_contingency: 'Indice de Colwell : prévisibilité du schéma saisonnier ? Plus élevé = plus prévisible.',
+  recession_constant: 'Taux de décroissance exponentielle en période de tarissement — vitesse de drainage de l\'aquifère.',
+  recovery_constant: 'Taux de remontée exponentielle en période de récupération — réactivité à la recharge.',
+  duration_curve_slope: 'Pente de la courbe de durée du niveau (plage 30-70e percentile) — variabilité du régime.',
+  duration_curve_ratio: 'Ratio entre les percentiles bas et hauts sur la courbe de durée.',
+  richards_pathlength: 'Longueur de chemin totale de la série (somme des |variations|) — « mouvement » global.',
+  baselevel_index: 'Indice de niveau de base — ratio du débit de base au débit total, adapté aux niveaux.',
+  baselevel_stability: 'Stabilité du niveau de base dans le temps.',
+  bimodality_coefficient: 'Si la distribution du niveau a deux modes (saison sèche/humide).',
+  autocorr_time: 'Nombre de jours avant que l\'autocorrélation passe sous le seuil — mémoire/inertie de l\'aquifère.',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  variability: 'Variability',
-  seasonality: 'Seasonality & Timing',
-  dynamics: 'Rise & Fall Dynamics',
-  pulses: 'Pulse Events',
-  reversals: 'Reversals',
-  predictability: 'Predictability',
-  recession: 'Recession & Recovery',
-  duration_curve: 'Duration Curve',
-  structure: 'Structural Properties',
+  variability: 'Variabilité',
+  seasonality: 'Saisonnalité et calendrier',
+  dynamics: 'Dynamique de montée/descente',
+  pulses: 'Événements d\'impulsion',
+  reversals: 'Retournements',
+  predictability: 'Prévisibilité',
+  recession: 'Tarissement et récupération',
+  duration_curve: 'Courbe de durée',
+  structure: 'Propriétés structurelles',
 }
 
 const RADAR_PRESETS: Record<string, { label: string; keys: string[] }> = {
   core: {
-    label: 'Core Validation',
+    label: 'Validation principale',
     keys: [
       'parde_seasonality', 'avg_seasonal_fluctuation',
       'rise_rate', 'fall_rate',
@@ -67,7 +67,7 @@ const RADAR_PRESETS: Record<string, { label: string; keys: string[] }> = {
     ],
   },
   seasonal: {
-    label: 'Seasonal',
+    label: 'Saisonnier',
     keys: [
       'parde_seasonality', 'avg_seasonal_fluctuation',
       'date_min', 'date_max', 'cv_date_min', 'cv_date_max',
@@ -75,7 +75,7 @@ const RADAR_PRESETS: Record<string, { label: string; keys: string[] }> = {
     ],
   },
   dynamics: {
-    label: 'Dynamics',
+    label: 'Dynamique',
     keys: [
       'rise_rate', 'fall_rate', 'cv_rise_rate', 'cv_fall_rate',
       'recession_constant', 'recovery_constant',
@@ -169,7 +169,7 @@ export function SignaturesPanel({ signatures }: Props) {
     <div className="space-y-3">
       {/* Radar preset bar */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted uppercase tracking-wide shrink-0">Radar:</span>
+        <span className="text-[10px] text-text-muted uppercase tracking-wide shrink-0">Radar :</span>
         <div className="flex flex-wrap gap-1">
           {Object.entries(RADAR_PRESETS).map(([key, { label }]) => (
             <button
@@ -192,18 +192,18 @@ export function SignaturesPanel({ signatures }: Props) {
                 : 'border-white/10 text-text-muted hover:text-text-secondary'
             }`}
           >
-            All ({allKeys.length})
+            Tout ({allKeys.length})
           </button>
           {!radarConfig.preset && (
             <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-purple-500/15 border-purple-500/25 text-purple-400">
-              Custom ({radarKeys.length})
+              Personnalisé ({radarKeys.length})
             </span>
           )}
         </div>
         <button
           onClick={() => setShowConfig(!showConfig)}
           className={`p-1 rounded transition-colors ${showConfig ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'}`}
-          title="Configure radar signatures"
+          title="Configurer les signatures du radar"
         >
           <Settings2 className="w-3.5 h-3.5" />
         </button>
@@ -212,7 +212,7 @@ export function SignaturesPanel({ signatures }: Props) {
       {/* Signature picker */}
       {showConfig && (
         <div className="bg-bg-card rounded-lg border border-white/5 p-3 space-y-2">
-          <p className="text-[10px] text-text-muted">Click signatures to add/remove from radar:</p>
+          <p className="text-[10px] text-text-muted">Cliquez sur les signatures pour les ajouter/retirer du radar :</p>
           {categoryEntries.map(([cat, sigs]) => {
             const validSigs = sigs.filter(s => s in signatures.observed)
             if (validSigs.length === 0) return null
@@ -252,7 +252,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 type: 'scatterpolar',
                 r: [...obsNorm, obsNorm[0]],
                 theta: [...labels, labels[0]],
-                name: 'Observed',
+                name: 'Observé',
                 fill: 'toself',
                 fillcolor: 'rgba(96,165,250,0.1)',
                 line: { color: '#60a5fa' },
@@ -261,7 +261,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 type: 'scatterpolar',
                 r: [...simNorm, simNorm[0]],
                 theta: [...labels, labels[0]],
-                name: 'Simulated',
+                name: 'Simulé',
                 fill: 'toself',
                 fillcolor: 'rgba(249,115,22,0.1)',
                 line: { color: '#f97316' },
@@ -299,7 +299,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 : 'border-white/10 text-text-muted hover:text-text-secondary'
             }`}
           >
-            All
+            Tout
           </button>
           {categoryEntries.map(([cat]) => (
             <button
@@ -320,9 +320,9 @@ export function SignaturesPanel({ signatures }: Props) {
             <thead>
               <tr className="text-text-muted border-b border-white/5">
                 <th className="text-left px-3 py-2">Signature</th>
-                <th className="text-right px-3 py-2">Observed</th>
-                <th className="text-right px-3 py-2">Simulated</th>
-                <th className="text-right px-3 py-2" title="Simulated / observed ratio. Close to 1.0 = good reproduction. Green = deviation < 10%.">
+                <th className="text-right px-3 py-2">Observé</th>
+                <th className="text-right px-3 py-2">Simulé</th>
+                <th className="text-right px-3 py-2" title="Ratio simulé / observé. Proche de 1,0 = bonne reproduction. Vert = écart < 10%.">
                   Ratio <span className="opacity-50 cursor-help">ⓘ</span>
                 </th>
               </tr>
@@ -380,7 +380,7 @@ function CategoryGroup({ category, sigKeys, observed, simulated, radarKeys }: {
           <tr key={k} className="border-b border-white/5 hover:bg-bg-hover" title={SIGNATURE_TOOLTIPS[k] ?? ''}>
             <td className="px-3 py-1.5 text-text-secondary cursor-help">
               <span className="flex items-center gap-1.5">
-                {inRadar && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan shrink-0" title="Shown in radar" />}
+                {inRadar && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan shrink-0" title="Affiché dans le radar" />}
                 {formatLabel(k)}
                 {SIGNATURE_TOOLTIPS[k] && <span className="opacity-30">ⓘ</span>}
               </span>

@@ -10,42 +10,42 @@ const TESTS = [
     label: 'Durbin-Watson',
     format: (v: number) => v.toFixed(2),
     good: (v: number) => v > 1.5 && v < 2.5,
-    tooltip: 'Residual autocorrelation. Ideal is around 2.0 (no correlation between successive errors). Close to 0 = the model misses a regular structure in the signal. Close to 4 = over-correction. Without a noise model (ArNoiseModel), DW < 1.5 is expected and does not indicate a bad model.',
+    tooltip: 'Autocorrélation des résidus. L\'idéal est autour de 2,0 (pas de corrélation entre erreurs successives). Proche de 0 = le modèle manque une structure régulière du signal. Proche de 4 = sur-correction. Sans modèle de bruit (ArNoiseModel), DW < 1,5 est attendu et n\'indique pas un mauvais modèle.',
   },
   {
     key: 'jarque_bera_pvalue',
     label: 'Jarque-Bera p',
     format: (v: number) => v.toFixed(3),
     good: (v: number) => v > 0.05,
-    tooltip: 'Residual normality test. p > 0.05 = Gaussian errors (good sign, random noise). p near 0 = non-normal distribution, common on long series even with a good model.',
+    tooltip: 'Test de normalité des résidus. p > 0,05 = erreurs gaussiennes (bon signe, bruit aléatoire). p proche de 0 = distribution non normale, fréquent sur des chroniques longues même avec un bon modèle.',
   },
   {
     key: 'shapiro_wilk_pvalue',
     label: 'Shapiro-Wilk p',
     format: (v: number) => v.toFixed(3),
     good: (v: number) => v > 0.05,
-    tooltip: 'Another normality test, more powerful. p > 0.05 = Gaussian residuals. Often fails on long series even if the model is correct — interpret alongside the QQ plot.',
+    tooltip: 'Autre test de normalité, plus puissant. p > 0,05 = résidus gaussiens. Échoue souvent sur des chroniques longues même si le modèle est correct — interpréter avec le QQ-plot.',
   },
   {
     key: 'ljung_box_p_lag10',
     label: 'Ljung-Box p (lag 10)',
     format: (v: number) => v.toFixed(3),
     good: (v: number) => v > 0.05,
-    tooltip: 'Are residuals independent? p > 0.05 = white noise (the model captured everything). p near 0 = unmodeled structure remains (residual seasonality, trend, etc.).',
+    tooltip: 'Les résidus sont-ils indépendants ? p > 0,05 = bruit blanc (le modèle a tout capturé). p proche de 0 = il reste une structure non modélisée (saisonnalité résiduelle, tendance, etc.).',
   },
   {
     key: 'skewness',
-    label: 'Skewness',
+    label: 'Asymétrie',
     format: (v: number) => v.toFixed(3),
     good: (v: number) => Math.abs(v) < 1.0,
-    tooltip: 'Error distribution asymmetry. Close to 0 = symmetric errors (the model does not systematically over- or underestimate). > 0 = right tail (underestimates peaks). < 0 = left tail.',
+    tooltip: 'Asymétrie de la distribution des erreurs. Proche de 0 = erreurs symétriques (le modèle ne sur- ou sous-estime pas systématiquement). > 0 = queue à droite (sous-estime les pics). < 0 = queue à gauche.',
   },
   {
     key: 'kurtosis',
-    label: 'Kurtosis',
+    label: 'Aplatissement',
     format: (v: number) => v.toFixed(3),
     good: (v: number) => Math.abs(v) < 3,
-    tooltip: 'Distribution flatness. Close to 0 = Gaussian shape. High = heavy tails (extreme errors more frequent than expected — poorly modeled events).',
+    tooltip: 'Aplatissement de la distribution. Proche de 0 = forme gaussienne. Élevé = queues lourdes (erreurs extrêmes plus fréquentes qu\'attendu — événements mal modélisés).',
   },
 ]
 
@@ -68,13 +68,13 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
   return (
     <div className="space-y-3">
       <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-        Residual Diagnostics
+        Diagnostics des résidus
       </div>
       <p className="text-xs text-text-muted leading-relaxed">
-        These tests check whether the model errors (observed minus simulated) behave like random noise.
-        If so, the model has captured all the signal structure.
-        Otherwise, unexploited information remains (residual seasonality, trend, etc.).
-        <span className="text-green-400">Green</span> = OK, <span className="text-red-400">red</span> = room for improvement (common with a simple model).
+        Ces tests vérifient si les erreurs du modèle (observé moins simulé) se comportent comme un bruit aléatoire.
+        Si oui, le modèle a capturé toute la structure du signal.
+        Sinon, il reste de l'information inexploitée (saisonnalité résiduelle, tendance, etc.).
+        <span className="text-green-400">Vert</span> = OK, <span className="text-red-400">rouge</span> = marge d'amélioration (fréquent avec un modèle simple).
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -112,7 +112,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
           return (
             <div className="bg-bg-card rounded-lg border border-white/5 p-2">
               <p className="text-[9px] text-text-muted px-1 mb-0.5">
-                Each point = a residual quantile vs the theoretical Gaussian distribution. If points follow the red diagonal, errors are Gaussian. Deviations at the extremes = poorly modeled extreme events.
+                Chaque point = un quantile des résidus vs la distribution gaussienne théorique. Si les points suivent la diagonale rouge, les erreurs sont gaussiennes. Les écarts aux extrêmes = événements extrêmes mal modélisés.
               </p>
               <Plot
                 data={[
@@ -125,10 +125,10 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
                 ]}
                 layout={{
                   ...chartBase,
-                  title: { text: 'QQ Plot', font: { size: 11 } },
+                  title: { text: 'QQ-plot', font: { size: 11 } },
                   margin: { t: 25, r: 10, b: 30, l: 40 },
-                  xaxis: { title: { text: 'Theoretical' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                  yaxis: { title: { text: 'Observed' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                  xaxis: { title: { text: 'Théorique' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                  yaxis: { title: { text: 'Observé' }, gridcolor: 'rgba(255,255,255,0.05)' },
                 }}
                 useResizeHandler className="w-full"
                 config={{ displayModeBar: false }}
@@ -140,8 +140,8 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
         {pacfValues && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
             <p className="text-[9px] text-text-muted px-1 mb-0.5">
-              Partial correlation of residuals at each lag. Bars exceeding the red lines (significance threshold) indicate residual structure at that lag.
-              Ideal: all bars within the confidence zone (white noise).
+              Corrélation partielle des résidus à chaque décalage. Les barres dépassant les lignes rouges (seuil de significativité) indiquent une structure résiduelle à ce décalage.
+              Idéal : toutes les barres dans la zone de confiance (bruit blanc).
             </p>
             <Plot
               data={[
@@ -155,9 +155,9 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Partial Autocorrelation (PACF)', font: { size: 11 } },
+                title: { text: 'Autocorrélation partielle (PACF)', font: { size: 11 } },
                 margin: { t: 25, r: 10, b: 30, l: 40 },
-                xaxis: { title: { text: 'Lag (days)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                xaxis: { title: { text: 'Décalage (jours)' }, gridcolor: 'rgba(255,255,255,0.05)' },
                 yaxis: { gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler className="w-full"
@@ -169,7 +169,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
         {histCounts && histBins && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2 col-span-2">
             <p className="text-[9px] text-text-muted px-1 mb-0.5">
-              Error distribution (observed minus simulated). Centered on 0 = no systematic bias. Bell-shaped = Gaussian errors. Asymmetric = the model recurrently overestimates or underestimates.
+              Distribution des erreurs (observé moins simulé). Centrée sur 0 = pas de biais systématique. Forme en cloche = erreurs gaussiennes. Asymétrique = le modèle sur- ou sous-estime de manière récurrente.
             </p>
             <Plot
               data={[{
@@ -180,11 +180,11 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
               }]}
               layout={{
                 ...chartBase,
-                title: { text: 'Residual Distribution', font: { size: 11 } },
+                title: { text: 'Distribution des résidus', font: { size: 11 } },
                 margin: { t: 25, r: 10, b: 30, l: 40 },
                 height: 180,
-                xaxis: { title: { text: 'Residual (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                yaxis: { title: { text: 'Count' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                xaxis: { title: { text: 'Résidu (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { title: { text: 'Nombre' }, gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler className="w-full"
               config={{ displayModeBar: false }}

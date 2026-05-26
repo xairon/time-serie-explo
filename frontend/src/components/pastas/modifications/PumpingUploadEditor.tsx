@@ -65,37 +65,37 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
       >
         <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
         {data.rows.length > 0 ? (
-          <p className="text-xs text-accent-cyan">{data.rows.length} rows loaded</p>
+          <p className="text-xs text-accent-cyan">{data.rows.length} lignes chargées</p>
         ) : (
           <p className="text-xs text-text-muted">
-            Click to load a CSV — columns: <code>date</code> (YYYY-MM-DD), <code>Q_m3d</code> (flow in m³/d)
+            Cliquer pour charger un CSV — colonnes : <code>date</code> (AAAA-MM-JJ), <code>Q_m3d</code> (débit en m³/j)
           </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1" title="Horizontal distance from the well to the observation piezometer">Distance to piezometer (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title="Distance horizontale du forage au piézomètre d'observation">Distance au piézomètre (m)</label>
           <input
             type="number"
             value={data.distance_m || ''}
             onChange={(e) => update({ distance_m: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             onBlur={() => { if (!data.distance_m) update({ distance_m: 100 }) }}
-            placeholder="e.g. 500"
+            placeholder="ex. 500"
             className={inputClass}
             step="100"
             min="1"
           />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Response function</label>
+          <label className="block text-xs text-text-muted mb-1">Fonction de réponse</label>
           <select
             value={data.rfunc}
             onChange={(e) => update({ rfunc: e.target.value as 'Exponential' | 'Hantush' })}
             className={inputClass}
           >
             {RFUNCS.map((r) => (
-              <option key={r} value={r}>{r === 'Exponential' ? 'Exponential' : 'Hantush'}</option>
+              <option key={r} value={r}>{r === 'Exponential' ? 'Exponentielle' : 'Hantush'}</option>
             ))}
           </select>
         </div>

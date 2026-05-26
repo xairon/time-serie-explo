@@ -838,7 +838,7 @@ async def stream_cf_progress(task_id: str):
 
     task = task_manager.get(task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tâche introuvable")
 
     async def event_generator():
         metrics_file = Path(task.metrics_file) if task.metrics_file else None

@@ -25,7 +25,7 @@ const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 
 function SW({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<div className="flex items-center justify-center h-full text-text-secondary">Loading...</div>}>{children}</Suspense>
+  return <Suspense fallback={<div className="flex items-center justify-center h-full text-text-secondary">Chargement...</div>}>{children}</Suspense>
 }
 
 export const router = createBrowserRouter([
@@ -73,7 +73,7 @@ export const router = createBrowserRouter([
       { path: '/dashboard', element: <SW><DashboardPage /></SW> },
 
       // 404
-      { path: '*', element: <div className="flex flex-col items-center justify-center h-full gap-4"><h1 className="text-4xl font-bold text-text-primary">404</h1><p className="text-text-secondary">Page not found</p></div> },
+      { path: '*', element: <div className="flex flex-col items-center justify-center h-full gap-4"><h1 className="text-4xl font-bold text-text-primary">404</h1><p className="text-text-secondary">Page introuvable</p></div> },
     ],
   },
 ])

@@ -43,26 +43,26 @@ export function StowaVerdictBanner({ stowa }: Props) {
     {
       label: `EVP ${stowa.evp_value.toFixed(1)}%`,
       pass: stowa.evp_pass,
-      detail: stowa.evp_pass ? 'Explained variance OK' : 'Low explained variance',
-      tooltip: 'Explained Variance Percentage — how much of the water level variation the model captures. Must be ≥ 70% to pass.',
+      detail: stowa.evp_pass ? 'Variance expliquée OK' : 'Variance expliquée faible',
+      tooltip: 'Pourcentage de variance expliquée — proportion de la variation du niveau d\'eau capturée par le modèle. Doit être ≥ 70% pour réussir.',
     },
     {
-      label: 'Autocorrelation',
+      label: 'Autocorrélation',
       pass: stowa.autocorrelation_pass,
-      detail: stowa.runs_test_pvalue != null ? `p = ${stowa.runs_test_pvalue.toFixed(3)}` : 'Not evaluated',
-      tooltip: 'Wald-Wolfowitz Runs Test — checks if model residuals are random (no systematic patterns left). A low p-value means the model is missing some signal.',
+      detail: stowa.runs_test_pvalue != null ? `p = ${stowa.runs_test_pvalue.toFixed(3)}` : 'Non évalué',
+      tooltip: 'Test des suites de Wald-Wolfowitz — vérifie si les résidus du modèle sont aléatoires (aucun motif systématique restant). Un p faible signifie que le modèle manque du signal.',
     },
     {
-      label: stowa.t95_days != null ? `t95 = ${stowa.t95_days.toFixed(0)}d` : 't95',
+      label: stowa.t95_days != null ? `t95 = ${stowa.t95_days.toFixed(0)} j` : 't95',
       pass: stowa.t95_pass,
-      detail: stowa.t95_threshold != null ? `threshold ${stowa.t95_threshold.toFixed(0)}d` : 'Not evaluated',
-      tooltip: 'Step response time t95 — how many days it takes for the groundwater to reach 95% of its response to a rainfall event. Must be less than half the calibration period.',
+      detail: stowa.t95_threshold != null ? `seuil ${stowa.t95_threshold.toFixed(0)} j` : 'Non évalué',
+      tooltip: 'Temps de réponse indicielle t95 — nombre de jours pour que la nappe atteigne 95% de sa réponse à un événement pluvieux. Doit être inférieur à la moitié de la période de calibration.',
     },
     {
       label: 'Gain',
       pass: stowa.gain_pass,
-      detail: stowa.gain_significance != null ? `significance ${stowa.gain_significance.toFixed(2)}` : 'Not evaluated',
-      tooltip: 'Gain significance — tests whether the recharge parameter (A) is statistically significant. |optimal/stderr| must be > 1.96 (95% confidence level).',
+      detail: stowa.gain_significance != null ? `significativité ${stowa.gain_significance.toFixed(2)}` : 'Non évalué',
+      tooltip: 'Significativité du gain — teste si le paramètre de recharge (A) est statistiquement significatif. |optimal/stderr| doit être > 1,96 (niveau de confiance 95%).',
     },
   ]
 
@@ -74,7 +74,7 @@ export function StowaVerdictBanner({ stowa }: Props) {
         ))}
 
         <div
-          title="STOWA verdict — Dutch standard (STOWA 2012) for Transfer Function Noise model quality. All 4 criteria must pass for the model to be accepted."
+          title="Verdict STOWA — norme néerlandaise (STOWA 2012) pour la qualité des modèles à fonction de transfert et bruit (TFN). Les 4 critères doivent réussir pour que le modèle soit accepté."
           className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-lg border font-semibold cursor-help ${
             stowa.overall_pass === null
               ? 'bg-white/5 border-white/10 text-text-muted'
@@ -91,7 +91,7 @@ export function StowaVerdictBanner({ stowa }: Props) {
             <>
               <span className="text-base leading-none">{stowa.overall_pass ? '✓' : '!'}</span>
               <span className="text-xs text-center">
-                {stowa.overall_pass ? 'Model accepted' : 'Needs attention'}
+                {stowa.overall_pass ? 'Modèle accepté' : 'Attention requise'}
               </span>
             </>
           )}

@@ -13,9 +13,9 @@ const FALLBACK_COLORS = ['#f97316', '#f43f5e', '#fbbf24', '#14b8a6']
 
 const CONTRIB_LABELS: Record<string, string> = {
   recharge: 'Recharge (P − f·E)',
-  temperature: 'Temperature',
-  constant_d: 'Base level',
-  Constant_d: 'Base level',
+  temperature: 'Température',
+  constant_d: 'Niveau de base',
+  Constant_d: 'Niveau de base',
 }
 
 interface Props {
@@ -55,18 +55,18 @@ export function UnifiedAnalysisChart({
     t.push({
       x: obsX, y: obsY,
       type: 'scatter', mode: 'lines',
-      name: 'Observed',
+      name: 'Observé',
       line: { color: '#9ca3af', width: 1 },
       yaxis: 'y',
-      hovertemplate: '<b>Observed</b>: %{y:.2f} m<extra></extra>',
+      hovertemplate: '<b>Observé</b> : %{y:.2f} m<extra></extra>',
     })
     t.push({
       x: simX, y: simY,
       type: 'scatter', mode: 'lines',
-      name: 'Simulated',
+      name: 'Simulé',
       line: { color: periodColor, width: 2 },
       yaxis: 'y',
-      hovertemplate: '<b>Simulated</b>: %{y:.2f} m<extra></extra>',
+      hovertemplate: '<b>Simulé</b> : %{y:.2f} m<extra></extra>',
     })
 
     // ═══ PANEL 2: Contributions ═══
@@ -94,7 +94,7 @@ export function UnifiedAnalysisChart({
         name: label,
         line: { color, width: 1.5 },
         yaxis: 'y2',
-        hovertemplate: `<b>${label}</b>: %{y:+.3f} m<extra></extra>`,
+        hovertemplate: `<b>${label}</b> : %{y:+.3f} m<extra></extra>`,
       })
     }
 
@@ -123,10 +123,10 @@ export function UnifiedAnalysisChart({
       t.push({
         x: monthlyDates, y: monthlyResiduals,
         type: 'bar',
-        name: 'Residual',
+        name: 'Résidu',
         marker: { color: barColors },
         yaxis: 'y3',
-        hovertemplate: '<b>Residual</b>: %{y:+.3f} m<extra></extra>',
+        hovertemplate: '<b>Résidu</b> : %{y:+.3f} m<extra></extra>',
       })
 
       // ±2σ threshold lines
@@ -139,7 +139,7 @@ export function UnifiedAnalysisChart({
     // ═══ SHARED: Train/Test split marker ═══
     if (viewPeriod === 'full' && splitDate) {
       s.push({ type: 'line', x0: splitDate, x1: splitDate, y0: 0, y1: 1, yref: 'paper', line: { color: 'rgba(251,191,36,0.35)', dash: 'dash', width: 1.5 } })
-      a.push({ x: splitDate, y: 1.01, yref: 'paper', text: 'Train → Test', showarrow: false, font: { size: 9, color: '#fbbf24' } })
+      a.push({ x: splitDate, y: 1.01, yref: 'paper', text: 'Cal → Val', showarrow: false, font: { size: 9, color: '#fbbf24' } })
     }
 
     // ═══ SHARED: Outlier highlight band ═══
@@ -200,7 +200,7 @@ export function UnifiedAnalysisChart({
       // Panel 3: Residuals (bottom 11%)
       yaxis3: {
         domain: [0.0, 0.11],
-        title: { text: 'Error (m)', font: { size: 9 }, standoff: 8 },
+        title: { text: 'Erreur (m)', font: { size: 9 }, standoff: 8 },
         gridcolor: 'rgba(255,255,255,0.04)',
         zeroline: false,
       },
@@ -209,9 +209,9 @@ export function UnifiedAnalysisChart({
       annotations: [
         ...annotations,
         // Panel labels (left side)
-        { x: -0.01, y: 0.69, xref: 'paper', yref: 'paper', text: 'Water Level', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.69, xref: 'paper', yref: 'paper', text: 'Niveau', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
         { x: -0.01, y: 0.245, xref: 'paper', yref: 'paper', text: 'Contributions', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
-        { x: -0.01, y: 0.055, xref: 'paper', yref: 'paper', text: 'Error', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.055, xref: 'paper', yref: 'paper', text: 'Erreur', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
       ],
     }
     return base

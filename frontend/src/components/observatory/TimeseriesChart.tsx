@@ -15,9 +15,9 @@ interface Props {
 }
 
 const PERIODS = [
-  { label: '1y', months: 12 },
-  { label: '5y', months: 60 },
-  { label: '10y', months: 120 },
+  { label: '1 an', months: 12 },
+  { label: '5 ans', months: 60 },
+  { label: '10 ans', months: 120 },
   { label: 'Max', months: Infinity },
 ] as const
 
@@ -41,7 +41,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
   }, [data, period, isYearly])
 
   if (!filteredData.length) {
-    return <div className="flex items-center justify-center h-64 text-text-secondary text-sm">No data</div>
+    return <div className="flex items-center justify-center h-64 text-text-secondary text-sm">Aucune donnée</div>
   }
 
   const dates = filteredData.map(dateAccessor)
@@ -88,7 +88,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     traces.push({
       x: dates, y: precipValues,
       type: 'bar',
-      name: 'Precipitation (mm)',
+      name: 'Précipitations (mm)',
       marker: { color: 'rgba(56,189,248,0.25)' },
       yaxis: 'y2',
     })
