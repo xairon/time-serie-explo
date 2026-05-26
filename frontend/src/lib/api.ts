@@ -269,30 +269,6 @@ export const api = {
       fetchJson<Record<string, unknown>>(`/pumping-detection/bnpe-context?lat=${lat}&lon=${lon}&radius_km=${radiusKm}`),
   },
 
-  latentSpace: {
-    stations: (domain: string, space: string = 'multi') =>
-      fetchJson<{ stations: Array<Record<string, unknown>> }>(`/latent-space/stations/${domain}?space=${space}`),
-    similar: (domain: string, stationId: string, k: number = 10, space: string = 'multi') =>
-      fetchJson<Record<string, unknown>>(`/latent-space/similar/${domain}/${stationId}?k=${k}&space=${space}`),
-    profiling: (domain: string, hideUnclassified: boolean = false, space: string = 'multi') =>
-      fetchJson<Record<string, unknown>>(
-        `/latent-space/profiling/${domain}?hide_unclassified=${hideUnclassified}&space=${space}`,
-        { timeout: 60_000 },
-      ),
-    stationWindows: (domain: string, stationId: string, space: string = 'multi') =>
-      fetchJson<Record<string, unknown>>(`/latent-space/station-windows/${domain}/${stationId}?space=${space}`),
-    cached: (domain: string, space: string = 'multi') =>
-      fetchJson<Record<string, unknown>>(`/latent-space/cached/${domain}?space=${space}`),
-    recomputePca: (body: { domain: string; space: string; variance_threshold: number }) =>
-      postJson<Record<string, unknown>>('/latent-space/recompute-pca', body, 300_000),
-    recomputeViz: (body: { domain: string; space: string; n_neighbors: number; min_dist: number }) =>
-      postJson<Record<string, unknown>>('/latent-space/recompute-viz', body, 30_000),
-    recomputeClustering: (body: { domain: string; space: string; min_cluster_size?: number; min_samples?: number }) =>
-      postJson<Record<string, unknown>>('/latent-space/recompute-clustering', body, 120_000),
-    autoTune: (body: { domain: string; space: string }) =>
-      postJson<Record<string, unknown>>('/latent-space/auto-tune', body, 300_000),
-  },
-
   pastas: {
     options: () => fetchJson<PastasOptions>('/pastas/options'),
     stationInfo: (codeBss: string) => fetchJson<Record<string, unknown>>(`/pastas/station-info?code_bss=${encodeURIComponent(codeBss)}`),
