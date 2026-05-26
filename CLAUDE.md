@@ -150,6 +150,7 @@ dashboard/
 - API client in `frontend/src/lib/api.ts` — centralized fetch with timeout handling
 - Long-running tasks (training, CF generation) use SSE streams
 - **All UI text in French** — labels, titles, tooltips, descriptions, axis labels, error messages, button text. Audience is BRGM (French hydrogeology agency). Code identifiers, API paths/params, comments stay English. Number/date formatters use `fr-FR` locale. Hub'Eau classifications stay in their stored capitalized form (`EXTREMEMENT_BAS`, etc.) and are rendered as "Extrêmement bas". Acronyms (BSS, BDLISA, SANDRE, MLflow, NGF, IA, CSV, SSFI/SPI/SPLI) stay as-is. See memory `glossary-brgm-hydro.md` for canonical translations.
+- **No implicit map filtering on station click** — clicking a pin on the Observatory map opens the drawer and draws a halo on the selected pin. Nothing else changes: other clusters stay visible, the camera does not auto-zoom, no "spotlight on stations of the same aquifer/site" overlay. Same principle for the StationDrawer / StationPage: a station view shows that station's data, never an implicit list of "related" stations or filtered map state. The user calls this "efficace et stable".
 
 ## Gotchas
 
