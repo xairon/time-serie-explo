@@ -176,6 +176,19 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
 @router.post("/start", response_model=TrainingStatus, status_code=202)
 async def start_training(req: TrainingRequest):
     """Start a training job in a background thread. Returns task_id."""
+    from api.task_manager import TaskStatus
+
+    active = [
+        t for t in task_manager.list_tasks(task_type="training")
+        if t.status in (TaskStatus.PENDING, TaskStatus.RUNNING)
+    ]
+    if active:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A training job is already running (task {active[0].task_id}). "
+                   "Wait for it to finish or cancel it before starting another.",
+        )
+
     task = task_manager.create(task_type="training", config=req.model_dump())
 
     thread = threading.Thread(

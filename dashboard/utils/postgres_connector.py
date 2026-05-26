@@ -155,6 +155,7 @@ def get_table_schema(engine: Engine, table_name: str, schema: str = "public") ->
         List of column dictionaries with name, type, nullable
     """
     schema = _validate_identifier(schema, "schema")
+    table_name = _validate_identifier(table_name, "table")
     inspector = inspect(engine)
 
     try:

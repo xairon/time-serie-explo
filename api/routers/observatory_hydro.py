@@ -180,6 +180,8 @@ def list_stations(
 @router.get("/stations/{code_station}/percentiles", response_model=HydroPercentiles)
 def get_percentiles(code_station: str):
     def fetch():
+        # Match the in-Python sentinel filter (_qmnj_to_m3_s) so percentiles
+        # are not skewed by Hub'Eau placeholders like -4e6 or 1e9 L/s.
         query = """
             SELECT
                 PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY resultat_obs_elab) AS p10,
@@ -187,12 +189,18 @@ def get_percentiles(code_station: str):
                 PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY resultat_obs_elab) AS p75,
                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY resultat_obs_elab) AS p90
             FROM gold.hydro_daily_chroniques
-            WHERE code_station = :code AND resultat_obs_elab IS NOT NULL
+            WHERE code_station = :code
+              AND resultat_obs_elab IS NOT NULL
+              AND resultat_obs_elab > :min_valid
+              AND resultat_obs_elab < :max_valid
         """
         engine = create_engine(_brgm_url())
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"code": code_station})
+                result = conn.execute(
+                    text(query),
+                    {"code": code_station, "min_valid": _QMNJ_MIN_VALID, "max_valid": _QMNJ_MAX_VALID},
+                )
                 row = result.mappings().first()
         finally:
             engine.dispose()

@@ -66,7 +66,7 @@ export default function ObservatoryPage() {
   const { data: geojsonData, isError: geojsonError } = useStationsGeoJSON()
   const [spatialStationCodes, setSpatialStationCodes] = useState<string[] | null>(null)
   const [selectedStation, setSelectedStation] = useState<{ code: string; type: 'piezo' | 'hydro' } | null>(null)
-  const [showPiezo, setShowPiezo] = useState(true); const [showHydro, setShowHydro] = useState(false)
+  const [showPiezo, setShowPiezo] = useState(true); const [showHydro, setShowHydro] = useState(true)
   const [showExcluded, setShowExcluded] = useState(false); const [showTerrain, setShowTerrain] = useState(false)
 
   const filteredFeatures = useMemo<StationGeoJSONFeature[]>(() => {

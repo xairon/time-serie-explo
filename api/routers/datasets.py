@@ -88,15 +88,28 @@ async def create_dataset(
     """Upload a CSV file and register it as a prepared dataset."""
     import pandas as pd
 
+    # Match nginx client_max_body_size to avoid silent OOM on huge uploads.
+    MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
     registry = _get_registry()
 
-    # Read CSV into DataFrame
+    # Stream to a temp file to avoid loading the full payload in memory.
+    tmp_path = None
     try:
-        content = await file.read()
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-            tmp.write(content)
             tmp_path = tmp.name
+            written = 0
+            while True:
+                chunk = await file.read(1 << 20)  # 1 MB
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(413, f"Upload exceeds {MAX_UPLOAD_BYTES // (1024*1024)} MB")
+                tmp.write(chunk)
         df = pd.read_csv(tmp_path, index_col=0, parse_dates=True)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to read CSV: {exc}")
 

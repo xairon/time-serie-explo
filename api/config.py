@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
@@ -23,9 +24,17 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    allowed_origins: list[str] = ["http://localhost:49509"]
+    allowed_origins: Annotated[list[str], NoDecode] = ["http://localhost:49513"]
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     debug: bool = False
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, v):
+        # Accept comma-separated env var value (ALLOWED_ORIGINS=http://a,http://b)
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
     # Paths
     data_dir: str = "/app/data"
     checkpoints_dir: str = "/app/checkpoints"

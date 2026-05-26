@@ -46,8 +46,8 @@ export default function StationPage() {
     setDailyEnd(new Date().toISOString().slice(0, 10))
   }, [])
 
-  const { data: piezoStation, isLoading: piezoLoading } = usePiezoStationDetail(isPiezo ? code : '')
-  const { data: hydroStation, isLoading: hydroLoading } = useHydroStationDetail(!isPiezo ? code : '')
+  const { data: piezoStation, isLoading: piezoLoading, isError: piezoError } = usePiezoStationDetail(isPiezo ? code : '')
+  const { data: hydroStation, isLoading: hydroLoading, isError: hydroError } = useHydroStationDetail(!isPiezo ? code : '')
   const { data: piezoMonthly, isLoading: piezoMonthlyLoading } = usePiezoMonthly(isPiezo ? code : '', { enabled: resolution === 'monthly' })
   const { data: hydroMonthly, isLoading: hydroMonthlyLoading } = useHydroMonthly(!isPiezo ? code : '', { enabled: resolution === 'monthly' })
   const { data: piezoDaily, isLoading: piezoDailyLoading } = usePiezoDaily(isPiezo && resolution === 'daily' ? code : '', dailyStart, dailyEnd, dailyLimit)
@@ -58,6 +58,7 @@ export default function StationPage() {
   const station: any = isPiezo ? piezoStation : hydroStation
   const monthly = isPiezo ? piezoMonthly : hydroMonthly
   const stationLoading = isPiezo ? piezoLoading : hydroLoading
+  const stationError = isPiezo ? piezoError : hydroError
   const type = isPiezo ? 'piezo' as const : 'hydro' as const
 
   const { data: hydroSiblings } = useHydroSiblings(!isPiezo ? code : '')
@@ -70,6 +71,7 @@ export default function StationPage() {
   const activeLoading = resolution === 'daily' ? (isPiezo ? piezoDailyLoading : hydroDailyLoading) : resolution === 'yearly' ? (isPiezo ? piezoYearlyLoading : hydroYearlyLoading) : (isPiezo ? piezoMonthlyLoading : hydroMonthlyLoading)
 
   if (stationLoading) return (<div className="h-full overflow-y-auto"><div className="max-w-7xl mx-auto px-6 py-6 space-y-6"><div className="flex items-center gap-4 animate-pulse"><div className="w-9 h-9 bg-white/10 rounded-lg" /><div><div className="h-3 bg-white/10 rounded w-20 mb-2" /><div className="h-5 bg-white/10 rounded w-48 mb-1" /><div className="h-3 bg-white/5 rounded w-32" /></div></div><SkeletonKPI /><SkeletonChart /></div></div>)
+  if (stationError) return (<div className="flex flex-col items-center justify-center h-full gap-4"><p className="text-red-400">Could not load this station — the API may be unreachable.</p><button onClick={() => window.location.reload()} className="px-3 py-1.5 text-xs rounded-lg bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20">Retry</button><Link to="/" className="text-accent-cyan hover:underline text-sm">Back to observatory</Link></div>)
   if (!station) return (<div className="flex flex-col items-center justify-center h-full gap-4"><p className="text-text-secondary">Station not found</p><Link to="/" className="text-accent-cyan hover:underline text-sm">Back to observatory</Link></div>)
 
   const name = isPiezo ? (station.nom_commune || station.code_bss) : (station.libelle_station || station.code_station)
@@ -91,7 +93,7 @@ export default function StationPage() {
           </div>
           <div className="flex items-center gap-2">
             {isPiezo && <Link to={`/pastas/station?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"><Waves className="w-3.5 h-3.5" />Analyze in Pastas</Link>}
-            <Link to={`/ai/data?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"><Brain className="w-3.5 h-3.5" />Train AI model</Link>
+            {isPiezo && <Link to={`/ai/data?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"><Brain className="w-3.5 h-3.5" />Train AI model</Link>}
           </div>
         </div>
 

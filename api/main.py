@@ -134,6 +134,11 @@ async def health(db: AsyncSession = Depends(get_db)):
     }
 
 
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return FastJSONResponse({"detail": str(exc)}, status_code=400)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled error: %s", traceback.format_exc())

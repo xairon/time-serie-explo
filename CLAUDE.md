@@ -122,6 +122,17 @@ dashboard/
 - **Rebuild**: `docker compose up -d --build` (NEVER use `-f` flags manually, `.env` handles it)
 - **CRITICAL**: NEVER run `docker compose` with explicit `-f docker-compose.yml` only — this drops the CUDA overlay and disables GPU access. Always rely on the `COMPOSE_FILE` env var in `.env`.
 
+## Deployment
+
+- **No authentication layer** — endpoints are open to anyone reachable on the network. Accepted risk for closed intranet test deployments; do NOT expose ports to the public internet without adding nginx basic-auth (or similar) in front of `49513` and `49512`.
+- **`.env` must set `DEBUG=false`** for shared deployments (default is now `false`, leaving it unset is safe). With `DEBUG=true`, `/api/docs`, `/api/redoc`, `/api/openapi.json` are exposed — useful in dev, dangerous in shared deploys.
+- **`ALLOWED_ORIGINS`** must list every host users hit (comma-separated). Default is `http://localhost:49513`. For a remote install, set `ALLOWED_ORIGINS=http://server.intranet:49513` in `.env` or browsers will block API calls.
+- **Concurrent training** is gated to one job at a time (`POST /training/start` returns 409 if a job is RUNNING/PENDING). Prevents GPU OOM from double-clicks.
+- **MLflow `run_id`** path params validated against `^[a-f0-9]{32}$` (prevents path traversal in `/tmp/pastas_models/`).
+- **Scenario `name`** path param sanitized via `_safe_scenario_name()` in `scenario_presets.py` — rejects `..`, `/`, `\`, leading `.`, non-printable. Raises 400 via global `ValueError` handler.
+- **CSV upload limit**: 100 MB hard-cap streamed in `datasets.py` + `client_max_body_size 100m` in nginx. Larger files get 413.
+- **Hub'Eau QmnJ sentinel filter** (`_QMNJ_MIN_VALID=-1e4`, `_QMNJ_MAX_VALID=1e8`): applied both in Python (`_qmnj_to_m3_s`) and in the percentile SQL query so p10/p90 aren't skewed by `-4e6` / `1e9` placeholders.
+
 ## Database Connections
 
 - **Junon internal DB**: host=postgres, port=5432, user=junon (inside Docker network)

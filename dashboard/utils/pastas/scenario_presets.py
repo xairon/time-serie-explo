@@ -3,11 +3,32 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
+
+
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_\- ]{1,80}$")
+
+
+def _safe_scenario_name(name: str) -> str:
+    """Sanitize a scenario name for use as an MLflow artifact filename.
+
+    Rejects path traversal (`..`, leading `.`, separators) and limits to
+    alphanumerics, space, underscore, hyphen. Returns the slug with spaces
+    converted to `_`. Raises ValueError on invalid input.
+    """
+    if not isinstance(name, str):
+        raise ValueError("scenario name must be a string")
+    stripped = name.strip()
+    if not stripped or stripped.startswith(".") or ".." in stripped:
+        raise ValueError(f"Invalid scenario name: {name!r}")
+    if not _SAFE_NAME_RE.match(stripped):
+        raise ValueError(f"Invalid scenario name: {name!r}")
+    return stripped.replace(" ", "_")
 
 logger = logging.getLogger(__name__)
 
@@ -537,7 +558,7 @@ def save_scenario(
     import mlflow
     client = mlflow.tracking.MlflowClient()
     with tempfile.TemporaryDirectory() as tmpdir:
-        safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+        safe_name = _safe_scenario_name(name)
         path = Path(tmpdir) / f"{safe_name}.json"
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str))
         client.log_artifact(run_id, str(path), SCENARIOS_ARTIFACT_PATH)
@@ -569,7 +590,7 @@ def load_scenario(run_id: str, name: str) -> dict:
     """Load a specific saved scenario by name."""
     import mlflow
     client = mlflow.tracking.MlflowClient()
-    safe_name = name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+    safe_name = _safe_scenario_name(name)
     artifact_path = f"{SCENARIOS_ARTIFACT_PATH}/{safe_name}.json"
     local = client.download_artifacts(run_id, artifact_path)
     return json.loads(Path(local).read_text())

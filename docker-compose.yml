@@ -5,12 +5,20 @@
 ##    BACKEND=cuda docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build  # NVIDIA
 ## ──────────────────────────────────────────────
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   # ── PostgreSQL ────────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: junon-postgres
     hostname: junon-postgres
+    restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-junon}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
@@ -27,6 +35,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: junon-redis
+    restart: unless-stopped
+    logging: *default-logging
     command: redis-server --maxmemory 900mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -42,8 +52,10 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.8.1
     container_name: junon-mlflow
+    restart: unless-stopped
+    logging: *default-logging
     ports:
-      - "${MLFLOW_PORT:-49511}:5000"
+      - "${MLFLOW_PORT:-49512}:5000"
     working_dir: /app
     command: >
       mlflow server
@@ -72,6 +84,8 @@ services:
       args:
         BACKEND: ${BACKEND:-cpu}
     container_name: junon-backend
+    restart: unless-stopped
+    logging: *default-logging
     environment:
       - DB_HOST=junon-postgres
       - DB_PORT=5432
@@ -85,7 +99,8 @@ services:
       - BRGM_DB_NAME=postgres
       - REDIS_URL=redis://redis:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - DEBUG=${DEBUG:-true}
+      - DEBUG=${DEBUG:-false}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:49513}
       - DATA_DIR=/app/data
       - CHECKPOINTS_DIR=/app/checkpoints
       - RESULTS_DIR=/app/results
@@ -117,6 +132,8 @@ services:
       context: .
       dockerfile: docker/frontend/Dockerfile
     container_name: junon-frontend
+    restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
       interval: 15s
@@ -127,11 +144,18 @@ services:
   nginx:
     image: nginx:alpine
     container_name: junon-nginx
+    restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${APP_PORT:-49509}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/observatory-bridge.js:/usr/share/nginx/html/observatory-bridge.js:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     depends_on:
       backend:
         condition: service_healthy

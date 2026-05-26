@@ -25,7 +25,9 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
   const isYearly = resolution === 'yearly'
   const [period, setPeriod] = useState<number>(defaultPeriod)
 
-  const dateAccessor = (d: any): string => d.mois ?? d.date ?? d.date_mesure ?? d.date_obs_elab ?? String(d.annee)
+  // Yearly rows expose `annee` as a number; turn it into a date string so Plotly
+  // treats the axis as time-based (not categorical) and spacing reflects gaps.
+  const dateAccessor = (d: any): string => d.mois ?? d.date ?? d.date_mesure ?? d.date_obs_elab ?? (d.annee != null ? `${d.annee}-01-01` : '')
 
   const filteredData = useMemo(() => {
     if (isYearly || period === Infinity) return data
@@ -67,7 +69,9 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     }
   }
 
-  const useWebGL = dates.length > 2000
+  // Plotly silently falls back to SVG when scattergl is mixed with bar traces,
+  // so only switch to WebGL when there's no precipitation overlay.
+  const useWebGL = dates.length > 2000 && !hasPrecip
 
   // Main line
   traces.push({
@@ -97,6 +101,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     margin: { t: 10, r: hasPrecip ? 50 : 20, b: 40, l: 55 },
     height: 340,
     xaxis: {
+      type: 'date' as const,
       gridcolor: 'rgba(255,255,255,0.04)',
       rangeslider: useWebGL ? { visible: false } : { visible: true, thickness: 0.06 },
     },
