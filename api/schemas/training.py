@@ -10,7 +10,10 @@ from pydantic import BaseModel, Field
 class TrainingRequest(BaseModel):
     """Request to start a training run."""
 
-    model_name: str
+    # When `preset_id` is set, model_name/hyperparams/n_epochs default to the
+    # preset values; explicit fields below still override.
+    preset_id: Optional[str] = None
+    model_name: Optional[str] = None
     dataset_id: str
     station_name: Optional[str] = "default"
     hyperparams: dict[str, Any] = Field(default_factory=dict)
@@ -22,6 +25,18 @@ class TrainingRequest(BaseModel):
     val_ratio: float = 0.15
     test_ratio: float = 0.15
     loss_function: str = "MAE"
+
+
+class PresetInfo(BaseModel):
+    """A training preset exposed to the frontend selector."""
+
+    id: str
+    label: str
+    description: str
+    target_domain: str
+    model_name: str
+    horizon_days: int
+    n_epochs: int
 
 
 class TrainingStatus(BaseModel):

@@ -91,6 +91,17 @@ export interface TrainingConfig {
   station_name?: string
   use_covariates: boolean
   loss_function: string
+  preset_id?: string
+}
+
+export interface TrainingPreset {
+  id: string
+  label: string
+  description: string
+  target_domain: 'piezo' | 'hydro'
+  model_name: string
+  horizon_days: number
+  n_epochs: number
 }
 
 export interface TrainingMetrics {

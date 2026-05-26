@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useAvailableModels } from '@/hooks/useModels'
+import { useAvailableModels, useTrainingPresets } from '@/hooks/useModels'
 import { useDatasets } from '@/hooks/useDatasets'
 import type { TrainingConfig, AvailableModel } from '@/lib/types'
+
+const PRESET_NONE = ''
 
 const LOSS_FUNCTIONS = [
   { value: 'MAE', label: 'MAE (Mean Absolute Error)' },
@@ -19,7 +21,9 @@ interface ModelConfigFormProps {
 export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const { data: availableModels, isLoading: modelsLoading } = useAvailableModels()
   const { data: datasets, isLoading: datasetsLoading } = useDatasets()
+  const { data: presets } = useTrainingPresets()
 
+  const [presetId, setPresetId] = useState<string>(PRESET_NONE)
   const [modelType, setModelType] = useState('')
   const [datasetId, setDatasetId] = useState('')
   const [station, setStation] = useState('')
@@ -33,6 +37,26 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   const [inputChunk, setInputChunk] = useState(30)
   const [outputChunk, setOutputChunk] = useState(7)
   const [useCovariates, setUseCovariates] = useState(true)
+
+  const selectedPreset = useMemo(
+    () => presets?.find((p) => p.id === presetId) ?? null,
+    [presets, presetId],
+  )
+
+  // Applying a preset fills the form fields below. The user can still tweak
+  // anything after — preset is a starting point, not a lock.
+  const applyPreset = (id: string) => {
+    setPresetId(id)
+    if (!id) return
+    const preset = presets?.find((p) => p.id === id)
+    if (!preset) return
+    // The backend exposes a subset of the full preset; full hyperparams live
+    // there. Frontend mirrors the visible top-level fields and submits
+    // preset_id so the backend fills in the rest server-side.
+    setModelType(preset.model_name)
+    setMaxEpochs(preset.n_epochs)
+    setEarlyStopping(true)
+  }
 
   // Group models by category
   const modelsByCategory = useMemo(() => {
@@ -106,6 +130,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       station_name: station || undefined,
       use_covariates: useCovariates,
       loss_function: lossFunction,
+      preset_id: presetId || undefined,
     })
   }
 
@@ -122,6 +147,36 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h3 className="text-sm font-semibold text-text-primary">Configuration du modèle</h3>
+
+      {/* Preset selector — opinionated configs for non-experts */}
+      <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg p-3 space-y-2" data-tour="preset-selector">
+        <label className="block text-xs font-semibold text-accent-cyan">
+          Préréglage métier <span className="text-text-secondary font-normal">(recommandé)</span>
+        </label>
+        <select
+          value={presetId}
+          onChange={(e) => applyPreset(e.target.value)}
+          className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value={PRESET_NONE}>— Configuration manuelle —</option>
+          {presets?.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        {selectedPreset && (
+          <p className="text-[11px] text-text-secondary leading-snug">
+            {selectedPreset.description}
+          </p>
+        )}
+        {!selectedPreset && (
+          <p className="text-[11px] text-text-secondary leading-snug">
+            Choisissez un préréglage pour entraîner avec des paramètres adaptés à votre cas d'usage,
+            ou laissez sur « Configuration manuelle » pour tout définir vous-même.
+          </p>
+        )}
+      </div>
 
       {/* Model type - grouped by category */}
       <div>

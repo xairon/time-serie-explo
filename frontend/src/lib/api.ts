@@ -9,6 +9,7 @@ import type {
   ModelDetail,
   ModelTestInfo,
   TrainingConfig,
+  TrainingPreset,
   TrainingResult,
   ForecastResult,
   ForecastResultRaw,
@@ -211,6 +212,8 @@ export const api = {
       fetchJson<{ task_id: string; status: string; config: Record<string, unknown>; created_at: number }[]>(
         '/training/history',
       ),
+    presets: () =>
+      fetchJson<TrainingPreset[]>('/training/presets'),
   },
 
   models: {

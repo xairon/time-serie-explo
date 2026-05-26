@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { TopNav } from './TopNav'
+import { OnboardingTour } from '../OnboardingTour'
 
 export function Layout() {
   return (
@@ -16,6 +17,8 @@ export function Layout() {
       <main id="main-content" className="flex-1 overflow-auto">
         <Outlet />
       </main>
+
+      <OnboardingTour />
     </div>
   )
 }

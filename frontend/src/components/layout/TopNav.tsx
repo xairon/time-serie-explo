@@ -4,15 +4,17 @@ import {
   Waves,
   Brain,
   Map,
+  GitCompare,
   Menu,
   X,
 } from 'lucide-react'
 import { useHealth } from '@/hooks/useHealth'
 
 const NAV_ITEMS = [
-  { to: '/', icon: Map, label: 'Observatoire', end: true },
-  { to: '/pastas', icon: Waves, label: 'Pastas Lab', end: false },
-  { to: '/ai', icon: Brain, label: 'Lab IA', end: false },
+  { to: '/', icon: Map, label: 'Observatoire', end: true, tour: 'nav-observatory' },
+  { to: '/compare', icon: GitCompare, label: 'Comparer', end: false, tour: 'nav-compare' },
+  { to: '/pastas', icon: Waves, label: 'Pastas Lab', end: false, tour: 'nav-pastas' },
+  { to: '/ai', icon: Brain, label: 'Lab IA', end: false, tour: 'nav-ai' },
 ] as const
 
 export function TopNav() {
@@ -38,11 +40,12 @@ export function TopNav() {
       </NavLink>
 
       <div className="hidden md:flex items-center gap-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
+        {NAV_ITEMS.map(({ to, icon: Icon, label, end, tour }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
+            data-tour={tour}
             className={({ isActive }) =>
               `flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
                 isActive

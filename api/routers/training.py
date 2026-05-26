@@ -16,7 +16,8 @@ from fastapi import APIRouter, HTTPException
 from api.config import settings
 from api.serializers import clean_nans
 from api.task_manager import TaskStatus, task_manager
-from api.schemas.training import TrainingRequest, TrainingResult, TrainingStatus
+from api.schemas.training import PresetInfo, TrainingRequest, TrainingResult, TrainingStatus
+from dashboard.utils.training_presets import PRESETS, apply_preset_to_request
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,23 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
 # --------------------------------------------------------------------------- #
 
 
+@router.get("/presets", response_model=list[PresetInfo])
+def list_presets():
+    """Return the catalogue of opinionated training presets."""
+    return [
+        PresetInfo(
+            id=p["id"],
+            label=p["label"],
+            description=p["description"],
+            target_domain=p["target_domain"],
+            model_name=p["model_name"],
+            horizon_days=p["horizon_days"],
+            n_epochs=p["n_epochs"],
+        )
+        for p in PRESETS
+    ]
+
+
 @router.post("/start", response_model=TrainingStatus, status_code=202)
 async def start_training(req: TrainingRequest):
     """Start a training job in a background thread. Returns task_id."""
@@ -187,6 +205,20 @@ async def start_training(req: TrainingRequest):
             status_code=409,
             detail=f"Un entraînement est déjà en cours (tâche {active[0].task_id}). "
                    "Attendez sa fin ou annulez-le avant d'en démarrer un autre.",
+        )
+
+    # Apply preset if requested. Fills model_name + hyperparams + n_epochs
+    # unless the user already supplied them on the request.
+    if req.preset_id:
+        try:
+            merged = apply_preset_to_request(req.model_dump(), req.preset_id)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        req = TrainingRequest(**merged)
+
+    if not req.model_name:
+        raise HTTPException(
+            400, "model_name est requis (fournir directement ou via preset_id)"
         )
 
     task = task_manager.create(task_type="training", config=req.model_dump())

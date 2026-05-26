@@ -10,6 +10,7 @@ function RedirectWithParams({ to }: { to: string }) {
 
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
+const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 
 const PastasLayout = lazy(() => import('./pages/pastas/PastasLayout'))
@@ -36,6 +37,11 @@ export const router = createBrowserRouter([
       { path: '/', element: <SW><ObservatoryPage /></SW> },
       { path: '/observatory', element: <Navigate to="/" replace /> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
+
+      // Cross-station comparison
+      { path: '/compare', element: <Navigate to="/compare/piezo" replace /> },
+      { path: '/compare/piezo', element: <SW><ComparePage stationType="piezo" /></SW> },
+      { path: '/compare/hydro', element: <SW><ComparePage stationType="hydro" /></SW> },
 
       // Pastas Lab
       {

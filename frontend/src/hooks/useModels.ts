@@ -23,6 +23,14 @@ export function useAvailableModels() {
   })
 }
 
+export function useTrainingPresets() {
+  return useQuery({
+    queryKey: ['training-presets'],
+    queryFn: api.training.presets,
+    staleTime: 60 * 60 * 1000, // 1h — presets are static
+  })
+}
+
 export function useModelTestInfo(modelId: string | null) {
   return useQuery({
     queryKey: ['model-test-info', modelId],
