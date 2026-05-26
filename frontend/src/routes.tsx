@@ -67,9 +67,9 @@ export const router = createBrowserRouter([
       },
 
       // Backward compat redirects
-      { path: '/data', element: <Navigate to="/ai/data" replace /> },
-      { path: '/training', element: <Navigate to="/ai/training" replace /> },
-      { path: '/forecasting', element: <Navigate to="/ai/forecasting" replace /> },
+      { path: '/data', element: <RedirectWithParams to="/ai/data" /> },
+      { path: '/training', element: <RedirectWithParams to="/ai/training" /> },
+      { path: '/forecasting', element: <RedirectWithParams to="/ai/forecasting" /> },
       { path: '/dashboard', element: <SW><DashboardPage /></SW> },
 
       // 404

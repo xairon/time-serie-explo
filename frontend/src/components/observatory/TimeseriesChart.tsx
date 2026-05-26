@@ -10,6 +10,7 @@ interface Props {
   precipKey?: string
   percentiles?: StationPercentiles | null
   resolution?: 'daily' | 'monthly' | 'yearly'
+  defaultPeriod?: number
   onPeriodChange?: (months: number) => void
 }
 
@@ -20,9 +21,9 @@ const PERIODS = [
   { label: 'Max', months: Infinity },
 ] as const
 
-export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 'precipitation_totale', percentiles, resolution = 'monthly', onPeriodChange }: Props) {
+export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 'precipitation_totale', percentiles, resolution = 'monthly', defaultPeriod = Infinity, onPeriodChange }: Props) {
   const isYearly = resolution === 'yearly'
-  const [period, setPeriod] = useState<number>(Infinity)
+  const [period, setPeriod] = useState<number>(defaultPeriod)
 
   const dateAccessor = (d: any): string => d.mois ?? d.date ?? d.date_mesure ?? d.date_obs_elab ?? String(d.annee)
 
@@ -66,10 +67,12 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     }
   }
 
+  const useWebGL = dates.length > 2000
+
   // Main line
   traces.push({
     x: dates, y: values,
-    type: 'scatter', mode: 'lines',
+    type: useWebGL ? 'scattergl' : 'scatter', mode: 'lines',
     name: valueLabel,
     line: { color: '#06b6d4', width: 1.5 },
     yaxis: 'y',
@@ -95,7 +98,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     height: 340,
     xaxis: {
       gridcolor: 'rgba(255,255,255,0.04)',
-      rangeslider: { visible: true, thickness: 0.06 },
+      rangeslider: useWebGL ? { visible: false } : { visible: true, thickness: 0.06 },
     },
     yaxis: {
       title: { text: unit },

@@ -34,6 +34,46 @@ TRENDS_TTL = 43200
 SSFI_TTL = 86400
 SIBLINGS_TTL = 3600
 
+# BRGM gold tier stores raw Hub'Eau QmnJ values in L/s with sentinels for missing data
+# (e.g. -4e6, -1.5e5, 1e9). Frontend and downstream consumers expect m³/s. Convert at this
+# boundary so the rest of the platform sees consistent SI units. Heights (H) would pass
+# through unchanged but no H stations exist in the current dataset.
+_QMNJ_MAX_VALID = 1e8
+_QMNJ_MIN_VALID = -1e4
+
+_FLOW_COLS_DIM = (
+    "resultat_moyen_global", "resultat_min_global", "resultat_max_global",
+    "resultat_stddev_global", "resultat_moyen_dern_annee",
+)
+_FLOW_COLS_DAILY = ("resultat_obs_elab",)
+_FLOW_COLS_MONTHLY = (
+    "resultat_moyen", "resultat_min", "resultat_max", "amplitude_mensuelle",
+    "resultat_moy_mobile_3m", "resultat_moy_mobile_12m",
+    "variation_resultat_vs_mois_prec", "variation_resultat_vs_annee_prec",
+)
+_FLOW_COLS_YEARLY = (
+    "resultat_moyen_annuel", "resultat_min_annuel", "resultat_max_annuel", "amplitude_annuelle",
+)
+_FLOW_COLS_PERCENTILES = ("p10", "p25", "p75", "p90")
+_FLOW_COLS_TRENDS = ("variation_annuelle", "projection_variation_5ans")
+
+
+def _qmnj_to_m3_s(value):
+    """Convert Hub'Eau QmnJ (L/s) to m³/s, mapping sentinels to None."""
+    if value is None:
+        return None
+    v = float(value)
+    if v >= _QMNJ_MAX_VALID or v <= _QMNJ_MIN_VALID:
+        return None
+    return v / 1000.0
+
+
+def _convert_qmnj_row(row: dict, columns) -> dict:
+    for col in columns:
+        if col in row:
+            row[col] = _qmnj_to_m3_s(row[col])
+    return row
+
 ClassificationType = Literal[
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
 ]
@@ -133,6 +173,8 @@ def list_stations(
         if classification is not None:
             rows = [r for r in rows if r.get("classification_resultat_dern_annee") in classification]
 
+        for r in rows:
+            _convert_qmnj_row(r, _FLOW_COLS_DIM)
         return rows
 
     return get_cached("obs_hydro_list", params, LIST_TTL, fetch)
@@ -163,7 +205,7 @@ def get_percentiles(code_station: str):
             engine.dispose()
         if not row or row["p10"] is None:
             raise HTTPException(404, f"No data for hydro station {code_station}")
-        return dict(row)
+        return _convert_qmnj_row(dict(row), _FLOW_COLS_PERCENTILES)
 
     return get_cached("obs_hydro_pctl", {"code_station": code_station}, PERCENTILES_TTL, fetch)
 
@@ -212,6 +254,9 @@ def get_daily(
                         raise HTTPException(404, f"Hydro station {code_station} not found")
         finally:
             engine.dispose()
+        for r in rows:
+            if r.get("grandeur_hydro_elab") != "H":
+                _convert_qmnj_row(r, _FLOW_COLS_DAILY)
         return rows
 
     return get_cached("obs_hydro_daily", params, DAILY_TTL, fetch)
@@ -264,6 +309,8 @@ def get_monthly(
                         raise HTTPException(404, f"Hydro station {code_station} not found")
         finally:
             engine.dispose()
+        for r in rows:
+            _convert_qmnj_row(r, _FLOW_COLS_MONTHLY)
         return rows
 
     return get_cached("obs_hydro_monthly", params, MONTHLY_TTL, fetch)
@@ -315,6 +362,8 @@ def get_yearly(
                         raise HTTPException(404, f"Hydro station {code_station} not found")
         finally:
             engine.dispose()
+        for r in rows:
+            _convert_qmnj_row(r, _FLOW_COLS_YEARLY)
         return rows
 
     return get_cached("obs_hydro_yearly", params, YEARLY_TTL, fetch)
@@ -352,7 +401,7 @@ def get_ssfi(code_station: str):
             engine.dispose()
 
         months = [str(r["mois"]) for r in rows]
-        values = [float(r["resultat_moyen"]) if r["resultat_moyen"] is not None else None for r in rows]
+        values = [_qmnj_to_m3_s(r["resultat_moyen"]) for r in rows]
         return compute_ssfi(months, values)
 
     return get_cached("obs_hydro_ssfi", {"code_station": code_station}, SSFI_TTL, fetch)
@@ -477,7 +526,7 @@ def get_station(code_station: str):
             engine.dispose()
         if not row:
             raise HTTPException(404, f"Hydro station {code_station} not found")
-        return dict(row)
+        return _convert_qmnj_row(dict(row), _FLOW_COLS_DIM)
 
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)
 
@@ -540,8 +589,12 @@ def get_trends(
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
-                return [dict(r._mapping) for r in result]
+                rows = [dict(r._mapping) for r in result]
         finally:
             engine.dispose()
+        for r in rows:
+            if r.get("grandeur_hydro_elab") != "H":
+                _convert_qmnj_row(r, _FLOW_COLS_TRENDS)
+        return rows
 
     return get_cached("obs_hydro_trends", params, TRENDS_TTL, fetch)

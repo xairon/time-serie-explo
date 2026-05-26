@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import Plot from 'react-plotly.js'
 import { useDatasets, useDatasetPreview, useDatasetProfile, useDeleteDataset, useUpdateDataset } from '@/hooks/useDatasets'
 import type { DatasetSummary } from '@/lib/types'
@@ -17,6 +17,7 @@ type ExploreSubTab = 'apercu' | 'qualite' | 'series' | 'correlation' | 'config'
 
 export default function DataPage() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const stationFromUrl = searchParams.get('station')
   const [tab, setTab] = useState<Tab>('import')
   const { data: datasets, isLoading } = useDatasets()
@@ -88,7 +89,7 @@ export default function DataPage() {
         onSuccess: () => {
           setConfigDirty(false)
           setSaveSuccess(true)
-          setTimeout(() => setSaveSuccess(false), 3000)
+          setTimeout(() => navigate('/ai/training'), 600)
         },
       },
     )
