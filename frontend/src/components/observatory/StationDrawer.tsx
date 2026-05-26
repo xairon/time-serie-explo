@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { X, ExternalLink, TrendingUp, TrendingDown, Minus, Droplets, Waves } from 'lucide-react'
 import { ClassificationBadge } from './ClassificationBadge'
+import { AddToCompareButton } from './AddToCompareButton'
 import { formatNumber, formatDate } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, useObsPastasSummary } from '@/hooks/useObservatory'
@@ -147,7 +148,10 @@ export function StationDrawer({ code, type, onClose }: Props) {
 
         {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">Alerte : {s.niveau_alerte}</span></div></div>)}
 
-        <Link to={`/station/${type}/${sCode}`} className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">Voir les détails <ExternalLink className="w-4 h-4" /></Link>
+        <div className="flex items-center gap-2">
+          <Link to={`/station/${type}/${sCode}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">Voir les détails <ExternalLink className="w-4 h-4" /></Link>
+          <AddToCompareButton code={sCode} type={type} variant="compact" />
+        </div>
       </div>
     )
   })()

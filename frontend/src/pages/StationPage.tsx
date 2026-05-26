@@ -6,6 +6,7 @@ import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
+import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 
 type Resolution = 'daily' | 'monthly' | 'yearly'
@@ -92,6 +93,7 @@ export default function StationPage() {
             <p className="text-sm text-text-secondary">{station.nom_departement ?? ''} - {code}{!isPiezo && station.nom_cours_eau && ` - ${station.nom_cours_eau}`}</p>
           </div>
           <div className="flex items-center gap-2">
+            <AddToCompareButton code={code} type={type} />
             {isPiezo && <Link to={`/pastas/station?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"><Waves className="w-3.5 h-3.5" />Analyser dans Pastas</Link>}
             {isPiezo && <Link to={`/ai/data?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"><Brain className="w-3.5 h-3.5" />Entraîner un modèle IA</Link>}
           </div>

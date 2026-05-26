@@ -1,15 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Plot from 'react-plotly.js'
-import { ArrowLeft, X, Plus, Search } from 'lucide-react'
+import { ArrowLeft, X, Plus, Search, Trash2 } from 'lucide-react'
 import { useStationsGeoJSON, usePiezoStationDetail, useHydroStationDetail, usePiezoMonthly, useHydroMonthly, usePiezoSPLI, useHydroSSFI } from '@/hooks/useObservatory'
 import { formatNumber, formatDate } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
+import { useCompareSelection, MAX_STATIONS } from '@/contexts/CompareSelection'
 
 type StationType = 'piezo' | 'hydro'
-
-// Cap to keep the overlay chart readable.
-const MAX_STATIONS = 5
 
 // Colorblind-friendly palette (Okabe-Ito) so each station keeps the same color
 // across all charts and the comparative table.
@@ -151,23 +149,44 @@ function useCompareSeries(codes: string[], type: StationType) {
 
 export default function ComparePage({ stationType }: Props) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const codesParam = searchParams.get('codes') ?? ''
-  const [codes, setCodes] = useState<string[]>(codesParam ? codesParam.split(',').filter(Boolean).slice(0, MAX_STATIONS) : [])
+  const selection = useCompareSelection()
 
-  // Sync URL so a comparison is shareable / bookmarkable.
+  // Codes for this page are the subset of the selection that matches this
+  // type. The URL `?codes=…` query lets users share a comparison via link —
+  // on mount we hydrate the context with any URL codes that aren't already
+  // there.
+  const codes = useMemo(
+    () => selection.items.filter((i) => i.type === stationType).map((i) => i.code),
+    [selection.items, stationType],
+  )
+
+  // One-shot URL → context hydration (only when context is empty for this type).
   useEffect(() => {
-    const newCodes = codes.join(',')
-    const current = searchParams.get('codes') ?? ''
-    if (newCodes !== current) {
-      const next = new URLSearchParams(searchParams)
-      if (newCodes) next.set('codes', newCodes)
-      else next.delete('codes')
-      setSearchParams(next, { replace: true })
+    const urlCodes = (searchParams.get('codes') ?? '').split(',').filter(Boolean)
+    if (urlCodes.length === 0) return
+    if (codes.length > 0) return
+    // If the context holds the other type, ignore the URL; the user explicitly
+    // navigated to a fresh type.
+    if (selection.type && selection.type !== stationType) return
+    for (const c of urlCodes.slice(0, MAX_STATIONS)) {
+      selection.add({ code: c, type: stationType })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Keep URL in sync as the user edits the selection.
+  useEffect(() => {
+    const desired = codes.join(',')
+    const current = searchParams.get('codes') ?? ''
+    if (desired === current) return
+    const next = new URLSearchParams(searchParams)
+    if (desired) next.set('codes', desired)
+    else next.delete('codes')
+    setSearchParams(next, { replace: true })
   }, [codes, searchParams, setSearchParams])
 
-  const add = (c: string) => setCodes((prev) => prev.includes(c) || prev.length >= MAX_STATIONS ? prev : [...prev, c])
-  const remove = (c: string) => setCodes((prev) => prev.filter((x) => x !== c))
+  const add = (c: string) => selection.add({ code: c, type: stationType })
+  const remove = (c: string) => selection.remove(c)
 
   const series = useCompareSeries(codes, stationType)
 
@@ -225,12 +244,24 @@ export default function ComparePage({ stationType }: Props) {
         <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-300">Stations sélectionnées ({codes.length}/{MAX_STATIONS})</h2>
-            <Link
-              to={stationType === 'piezo' ? '/compare/hydro' : '/compare/piezo'}
-              className="text-xs text-accent-cyan hover:underline"
-            >
-              Basculer vers {stationType === 'piezo' ? 'hydro' : 'piézo'}
-            </Link>
+            <div className="flex items-center gap-3">
+              {codes.length > 0 && (
+                <button
+                  onClick={() => selection.clear()}
+                  className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-red-400 transition-colors"
+                  title="Vider la sélection"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Vider
+                </button>
+              )}
+              <Link
+                to={stationType === 'piezo' ? '/compare/hydro' : '/compare/piezo'}
+                className="text-xs text-accent-cyan hover:underline"
+              >
+                Basculer vers {stationType === 'piezo' ? 'hydro' : 'piézo'}
+              </Link>
+            </div>
           </div>
           {codes.length === 0 ? (
             <p className="text-xs text-text-secondary italic">Aucune station sélectionnée.</p>

@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react'
 import { useHealth } from '@/hooks/useHealth'
+import { useCompareSelection } from '@/contexts/CompareSelection'
 
 const NAV_ITEMS = [
   { to: '/', icon: Map, label: 'Observatoire', end: true, tour: 'nav-observatory' },
@@ -21,12 +22,14 @@ export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const { data: health } = useHealth()
+  const { count: compareCount, type: compareType } = useCompareSelection()
 
   useEffect(() => {
     setMobileOpen(false)
   }, [location.pathname])
 
   const isHealthy = health?.status === 'ok'
+  const compareTo = compareType ? `/compare/${compareType}` : '/compare'
 
   return (
     <nav className="h-12 bg-bg-card border-b border-white/5 flex items-center px-4 shrink-0 z-30 relative">
@@ -40,24 +43,35 @@ export function TopNav() {
       </NavLink>
 
       <div className="hidden md:flex items-center gap-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, end, tour }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            data-tour={tour}
-            className={({ isActive }) =>
-              `flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-accent-cyan/10 text-accent-cyan'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
-              }`
-            }
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </NavLink>
-        ))}
+        {NAV_ITEMS.map(({ to, icon: Icon, label, end, tour }) => {
+          // The Comparer link points to the type currently selected so a single
+          // click always lands on a populated page when the basket is non-empty.
+          const effectiveTo = to === '/compare' ? compareTo : to
+          const showBadge = to === '/compare' && compareCount > 0
+          return (
+            <NavLink
+              key={to}
+              to={effectiveTo}
+              end={end}
+              data-tour={tour}
+              className={({ isActive }) =>
+                `flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? 'bg-accent-cyan/10 text-accent-cyan'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+                }`
+              }
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              {showBadge && (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent-cyan text-bg-primary text-[10px] font-bold leading-none">
+                  {compareCount}
+                </span>
+              )}
+            </NavLink>
+          )
+        })}
       </div>
 
       <div className="ml-auto flex items-center gap-3">
@@ -88,24 +102,33 @@ export function TopNav() {
 
       {mobileOpen && (
         <div className="md:hidden absolute top-12 left-0 right-0 bg-bg-card border-b border-white/10 shadow-xl z-40">
-          {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              onClick={() => setMobileOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                  isActive
-                    ? 'bg-accent-cyan/10 text-accent-cyan'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
-                }`
-              }
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => {
+            const effectiveTo = to === '/compare' ? compareTo : to
+            const showBadge = to === '/compare' && compareCount > 0
+            return (
+              <NavLink
+                key={to}
+                to={effectiveTo}
+                end={end}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                    isActive
+                      ? 'bg-accent-cyan/10 text-accent-cyan'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+                {showBadge && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-accent-cyan text-bg-primary text-[11px] font-bold">
+                    {compareCount}
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
         </div>
       )}
     </nav>
