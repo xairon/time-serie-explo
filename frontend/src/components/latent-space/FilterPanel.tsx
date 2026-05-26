@@ -22,33 +22,33 @@ interface FilterPanelProps {
 }
 
 const PIEZO_PRIMARY = [
-  { key: 'libelle_eh', label: 'Aquifer' },
-  { key: 'departement', label: 'Department' },
+  { key: 'libelle_eh', label: 'Aquifère' },
+  { key: 'departement', label: 'Département' },
 ]
 
 const PIEZO_ADVANCED = [
-  { key: 'milieu_eh', label: 'Medium' },
-  { key: 'theme_eh', label: 'Theme' },
-  { key: 'etat_eh', label: 'State' },
+  { key: 'milieu_eh', label: 'Milieu' },
+  { key: 'theme_eh', label: 'Thème' },
+  { key: 'etat_eh', label: 'État' },
   { key: 'nature_eh', label: 'Nature' },
 ]
 
 const HYDRO_PRIMARY = [
-  { key: 'nom_cours_eau', label: 'Waterway' },
-  { key: 'departement', label: 'Department' },
+  { key: 'nom_cours_eau', label: "Cours d'eau" },
+  { key: 'departement', label: 'Département' },
 ]
 
 const COLOR_OPTIONS_PIEZO = [
   { key: 'cluster_id', label: 'Cluster' },
-  { key: 'libelle_eh', label: 'Aquifer' },
-  { key: 'departement', label: 'Department' },
+  { key: 'libelle_eh', label: 'Aquifère' },
+  { key: 'departement', label: 'Département' },
   { key: 'altitude', label: 'Altitude' },
 ]
 
 const COLOR_OPTIONS_HYDRO = [
   { key: 'cluster_id', label: 'Cluster' },
-  { key: 'nom_cours_eau', label: 'Waterway' },
-  { key: 'departement', label: 'Department' },
+  { key: 'nom_cours_eau', label: "Cours d'eau" },
+  { key: 'departement', label: 'Département' },
   { key: 'altitude', label: 'Altitude' },
 ]
 
@@ -92,9 +92,9 @@ export function FilterPanel({
   return (
     <div className="flex flex-col gap-3 w-48">
       <div className="flex items-center justify-between">
-        <span className="text-text-primary text-xs font-medium">Filters</span>
+        <span className="text-text-primary text-xs font-medium">Filtres</span>
         <button onClick={() => { onFiltersChange({}); setSearchQuery('') }}
-          className="text-text-muted text-[10px] hover:text-text-secondary transition-colors">Reset</button>
+          className="text-text-muted text-[10px] hover:text-text-secondary transition-colors">Réinitialiser</button>
       </div>
 
       {/* Station search */}

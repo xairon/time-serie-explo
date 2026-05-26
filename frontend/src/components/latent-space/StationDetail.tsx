@@ -109,7 +109,7 @@ export function StationDetail({ domain, space, stationId, stationMeta, clusterLa
             ))}
           </div>
         ) : !neighbors || neighbors.length === 0 ? (
-          <p className="text-text-muted text-xs">No similar stations found.</p>
+          <p className="text-text-muted text-xs">Aucune station similaire trouvée.</p>
         ) : (
           <div className="flex flex-col divide-y divide-white/5">
             {neighbors.map((neighbor, idx) => (

@@ -29,11 +29,11 @@ export function ClusterProfiling({ domain, space, hideUnclassified }: ClusterPro
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4 overflow-y-auto pr-2">
-        <SkeletonBlock label="Loading metadata distributions..." />
-        <SkeletonBlock label="Loading concordance metrics..." />
-        <SkeletonBlock label="Loading temporal prototypes..." />
-        <SkeletonBlock label="Loading feature fingerprints..." />
-        <SkeletonBlock label="Loading SHAP analysis..." />
+        <SkeletonBlock label="Chargement des distributions de métadonnées…" />
+        <SkeletonBlock label="Chargement des métriques de concordance…" />
+        <SkeletonBlock label="Chargement des prototypes temporels…" />
+        <SkeletonBlock label="Chargement des empreintes de variables…" />
+        <SkeletonBlock label="Chargement de l'analyse SHAP…" />
       </div>
     )
   }
@@ -43,7 +43,7 @@ export function ClusterProfiling({ domain, space, hideUnclassified }: ClusterPro
       <div className="flex items-center justify-center h-full">
         <div className="bg-bg-card rounded-xl border border-white/5 p-8 flex flex-col items-center gap-4 max-w-md">
           <AlertTriangle className="w-10 h-10 text-accent-red" />
-          <p className="text-text-primary text-center">Failed to load profiling data</p>
+          <p className="text-text-primary text-center">Échec du chargement des données de profilage</p>
         </div>
       </div>
     )

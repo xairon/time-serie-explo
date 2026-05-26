@@ -54,7 +54,7 @@ export function ForecastPlot({
     y: predictions as number[],
     type: 'scatter',
     mode: 'lines+markers',
-    name: 'Prediction',
+    name: 'Prédiction',
     line: { color: '#E91E63', width: 3 },
     marker: { size: 5 },
   })
@@ -66,7 +66,7 @@ export function ForecastPlot({
       y: result.predictions_onestep as number[],
       type: 'scatter',
       mode: 'lines',
-      name: 'One-step',
+      name: 'Pas à pas',
       line: { color: '#a78bfa', width: 2, dash: 'dot' },
     })
   }

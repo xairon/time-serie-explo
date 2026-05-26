@@ -105,7 +105,7 @@ export function QualityMetrics({ metrics }: QualityMetricsProps) {
           {clust.noise_ratio != null && (
             <MetricRow
               label="Noise"
-              tooltip="Points classified as noise"
+              tooltip="Points classés comme du bruit"
               value={
                 <QualityBadge
                   value={Number((clust.noise_ratio * 100).toFixed(1))}
@@ -131,7 +131,7 @@ export function QualityMetrics({ metrics }: QualityMetricsProps) {
           {clust.davies_bouldin != null && (
             <MetricRow
               label="Davies-Bouldin"
-              tooltip="Cluster separation (lower=better)"
+              tooltip="Séparation des clusters (plus bas = mieux)"
               value={
                 <QualityBadge
                   value={clust.davies_bouldin}

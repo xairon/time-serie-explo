@@ -82,7 +82,7 @@ export function EmbeddingScatter({
     if (mode === '3d') {
       traces.push({
         type: 'scatter3d',
-        name: 'Others',
+        name: 'Autres',
         x: others.map((p) => (p.coords as [number, number, number])[0]),
         y: others.map((p) => (p.coords as [number, number, number])[1]),
         z: others.map((p) => (p.coords as [number, number, number])[2]),
@@ -95,7 +95,7 @@ export function EmbeddingScatter({
     } else {
       traces.push({
         type: 'scattergl',
-        name: 'Others',
+        name: 'Autres',
         x: others.map((p) => p.coords[0]),
         y: others.map((p) => p.coords[1]),
         mode: 'markers',

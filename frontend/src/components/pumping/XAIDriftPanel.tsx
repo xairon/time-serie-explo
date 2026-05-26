@@ -51,7 +51,7 @@ export function XAIDriftPanel({ data, isPending }: XAIDriftPanelProps) {
         [0.5, 'rgba(124,58,237,0.7)'],
         [1, 'rgba(34,211,238,1)'],
       ],
-      hovertemplate: 'Window: %{x}<br>Feature: %{y}<br>Attribution: %{z:.4f}<extra></extra>',
+      hovertemplate: 'Fenêtre : %{x}<br>Variable : %{y}<br>Attribution : %{z:.4f}<extra></extra>',
     },
   ]
 

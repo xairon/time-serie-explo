@@ -147,24 +147,24 @@ export default function ScenariosPage() {
       <div className="w-96 shrink-0 space-y-4">
         <OnboardingBanner
           id="scenarios"
-          title="Simulate what-if scenarios"
-          description="Start from a calibrated model and modify conditions: add pumping, a climate trend, or change precipitation. Compare the result to the baseline scenario."
+          title="Simuler des scénarios prospectifs"
+          description="Partez d'un modèle calibré et modifiez les conditions : ajoutez un pompage, une tendance climatique ou modifiez les précipitations. Comparez le résultat au scénario de référence."
           steps={[
-            'Select a calibrated model',
-            'Choose a preset or create your own modifications',
-            'Run the simulation — baseline vs scenario are displayed with contributions',
+            'Sélectionnez un modèle calibré',
+            'Choisissez un préréglage ou créez vos propres modifications',
+            'Lancez la simulation — référence vs scénario sont affichés avec les contributions',
           ]}
         />
 
         {/* Model picker */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">Calibrated model</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">Modèle calibré</h2>
           <select
             value={runId}
             onChange={(e) => { setRunId(e.target.value); setSimResult(null) }}
             className={inputClass}
           >
-            <option value="">-- Select a model --</option>
+            <option value="">— Sélectionner un modèle —</option>
             {models.map((m) => (
               <option key={m.run_id} value={m.run_id}>
                 {m.name || m.run_id.slice(0, 8)} — {m.code_bss}
@@ -268,7 +268,7 @@ export default function ScenariosPage() {
             <button
               onClick={() => setSaveDialogOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-white/5 text-text-secondary text-sm border border-white/10 hover:border-white/20 transition-colors"
-              title="Save scenario"
+              title="Enregistrer le scénario"
             >
               <Save className="w-4 h-4" />
             </button>
@@ -278,12 +278,12 @@ export default function ScenariosPage() {
         {/* Save dialog */}
         {saveDialogOpen && (
           <div className="bg-bg-card border border-white/10 rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-text-primary">Save scenario</h3>
+            <h3 className="text-xs font-semibold text-text-primary">Enregistrer le scénario</h3>
             <input
               type="text"
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
-              placeholder="Scenario name..."
+              placeholder="Nom du scénario…"
               className={inputClass}
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -317,7 +317,7 @@ export default function ScenariosPage() {
         {/* Saved scenarios */}
         {runId && savedScenarios.length > 0 && (
           <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-text-primary mb-3">Saved Scenarios</h2>
+            <h2 className="text-sm font-semibold text-text-primary mb-3">Scénarios enregistrés</h2>
             <div className="space-y-1.5">
               {savedScenarios.map((s) => (
                 <div
@@ -359,8 +359,8 @@ export default function ScenariosPage() {
             <div className="text-center space-y-3">
               <Info className="w-8 h-8 mx-auto text-text-muted/50" />
               <div>
-                <p className="text-text-secondary">No simulation</p>
-                <p className="mt-1">Select a model, configure modifications, then run the simulation.</p>
+                <p className="text-text-secondary">Aucune simulation</p>
+                <p className="mt-1">Sélectionnez un modèle, configurez les modifications, puis lancez la simulation.</p>
               </div>
             </div>
           </div>

@@ -94,7 +94,7 @@ function ScoreGauge({ score }: { score: number }) {
           / 100
         </text>
       </svg>
-      <span className="text-xs text-text-secondary">Global suspicion score</span>
+      <span className="text-xs text-text-secondary">Score de suspicion global</span>
     </div>
   )
 }
@@ -108,7 +108,7 @@ export function VerdictPanel({
   if (globalScore == null && !suspectWindows.length) {
     return (
       <div className="flex items-center justify-center h-32 text-text-secondary text-sm">
-        Waiting for fusion verdict...
+        En attente du verdict de fusion…
       </div>
     )
   }
@@ -128,7 +128,7 @@ export function VerdictPanel({
       {/* Suspect windows */}
       {suspectWindows.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-text-primary">Suspect windows ({suspectWindows.length})</h3>
+          <h3 className="text-sm font-semibold text-text-primary">Fenêtres suspectes ({suspectWindows.length})</h3>
           <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
             {suspectWindows.map((w, i) => (
               <div
@@ -141,7 +141,7 @@ export function VerdictPanel({
                   </p>
                   {w.layers && (
                     <p className="text-xs text-text-secondary mt-0.5">
-                      Layers: {w.layers.join(', ')}
+                      Couches : {w.layers.join(', ')}
                     </p>
                   )}
                 </div>
@@ -155,7 +155,7 @@ export function VerdictPanel({
       {/* Layer concordance */}
       {layerConcordance.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-text-primary">Layer concordance</h3>
+          <h3 className="text-sm font-semibold text-text-primary">Concordance des couches</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {layerConcordance.map((l, i) => (
               <div

@@ -26,7 +26,7 @@ export function ElbowChart({ elbow, selectedK, onSelectK }: ElbowChartProps) {
           y: inertias,
           type: 'scatter',
           mode: 'lines+markers',
-          name: 'Inertia',
+          name: 'Inertie',
           yaxis: 'y',
           line: { color: '#22d3ee', width: 1.5 },
           marker: { color: '#22d3ee', size: inertiaMarkerSizes },

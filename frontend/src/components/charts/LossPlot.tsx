@@ -26,7 +26,7 @@ export function LossPlot({ trainLoss, valLoss, className = '' }: LossPlotProps) 
             y: trainLoss,
             type: 'scatter',
             mode: 'lines',
-            name: 'Train',
+            name: 'Entraînement',
             line: { color: '#06b6d4', width: 2 },
           },
           {

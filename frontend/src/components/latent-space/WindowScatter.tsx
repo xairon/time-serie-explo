@@ -24,7 +24,7 @@ export function WindowScatter({ domain, stationId, space }: WindowScatterProps) 
     | undefined
 
   if (!windows || windows.length === 0) {
-    return <p className="text-text-muted text-xs py-2">No windows available</p>
+    return <p className="text-text-muted text-xs py-2">Aucune fenêtre disponible</p>
   }
 
   const years = windows.map((w) => parseInt(w.window_start.slice(0, 4)))

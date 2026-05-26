@@ -371,7 +371,7 @@ export default function LatentSpacePage() {
             ? 'bg-accent-cyan/20 text-accent-cyan'
             : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
         }`}
-      >Univariate</button>
+      >Univarié</button>
       <button
         onClick={() => handleSpaceChange('multi')}
         className={`px-4 py-2 text-sm transition-colors ${
@@ -379,7 +379,7 @@ export default function LatentSpacePage() {
             ? 'bg-accent-cyan/20 text-accent-cyan'
             : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
         }`}
-      >Multivariate</button>
+      >Multivarié</button>
     </div>
   )
 
@@ -424,7 +424,7 @@ export default function LatentSpacePage() {
           <div className="flex items-center justify-center flex-1">
             <div className="flex flex-col items-center gap-3">
               <div className="w-10 h-10 border-2 border-accent-cyan border-t-transparent rounded-full animate-spin" />
-              <span className="text-text-secondary text-sm">Loading embeddings...</span>
+              <span className="text-text-secondary text-sm">Chargement des embeddings…</span>
             </div>
           </div>
         )}
@@ -570,7 +570,7 @@ export default function LatentSpacePage() {
               ) : highlightedCount === 0 && hasActiveFilters ? (
                 <div className="flex-1 flex items-center justify-center">
                   <p className="text-text-muted text-sm">
-                    No stations match the selected filters.
+                    Aucune station ne correspond aux filtres sélectionnés.
                   </p>
                 </div>
               ) : (

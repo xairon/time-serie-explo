@@ -84,7 +84,7 @@ export function MetadataDistributions({ distributions, domain }: MetadataDistrib
           ))}
         </select>
       </div>
-      <p className="text-text-muted text-xs mb-3">Composition of each cluster by metadata category. Similar distributions suggest clusters don't separate on this variable.</p>
+      <p className="text-text-muted text-xs mb-3">Composition de chaque cluster par catégorie de métadonnée. Des distributions similaires indiquent que les clusters ne se séparent pas sur cette variable.</p>
       <Plot
         data={traces}
         layout={{

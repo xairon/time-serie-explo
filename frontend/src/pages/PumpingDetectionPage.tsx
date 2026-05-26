@@ -29,7 +29,7 @@ function ConfigPanel({ config, onChange }: ConfigPanelProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-text-secondary">Window (days)</span>
+        <span className="text-xs text-text-secondary">Fenêtre (jours)</span>
         <input
           type="number"
           min={7}
@@ -51,7 +51,7 @@ function ConfigPanel({ config, onChange }: ConfigPanelProps) {
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-text-secondary">Workers</span>
+        <span className="text-xs text-text-secondary">Processus parallèles</span>
         <input
           type="number"
           min={1}
@@ -189,7 +189,7 @@ export default function PumpingDetectionPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold text-text-primary">Pumping Detection</h1>
+            <h1 className="text-xl font-bold text-text-primary">Détection de pompage</h1>
             <p className="text-sm text-text-secondary mt-0.5">
               Analyse multi-couches des artefacts de pompage sur chronique piézométrique
             </p>

@@ -201,14 +201,14 @@ export function UMAPControls({
       {level === 'windows' && onYearRangeChange && yearRange && (
         <>
           <div className="w-px h-6 bg-white/10 shrink-0" />
-          <Section title="Windows" defaultOpen>
-            <Param label="From">
+          <Section title="Fenêtres" defaultOpen>
+            <Param label="De">
               <input type="number" className={inputClass}
                 value={yearRange[0]}
                 onChange={(e) => onYearRangeChange([Number(e.target.value), yearRange[1]])}
               />
             </Param>
-            <Param label="To">
+            <Param label="À">
               <input type="number" className={inputClass}
                 value={yearRange[1]}
                 onChange={(e) => onYearRangeChange([yearRange[0], Number(e.target.value)])}
@@ -267,7 +267,7 @@ export function UMAPControls({
         )}
         <button onClick={onReset}
           className="px-2.5 py-1.5 text-xs text-text-secondary hover:text-text-primary border border-white/10 rounded hover:bg-bg-hover transition-colors"
-        >Reset</button>
+        >Réinitialiser</button>
         <button onClick={onRecalculate} disabled={isComputing}
           className="flex items-center gap-1.5 bg-accent-cyan text-white px-3 py-1.5 rounded text-xs font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-accent-cyan/90 transition-colors"
         >

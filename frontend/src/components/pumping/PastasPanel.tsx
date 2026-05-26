@@ -71,7 +71,7 @@ export function PastasPanel({ metrics, residuals, acf, pacf, changepointDates }:
           y: residuals!.map(r => r.value),
           type: 'scatter',
           mode: 'lines',
-          name: 'Residuals',
+          name: 'Résidus',
           line: { color: '#a78bfa', width: 1 },
           hovertemplate: '%{x}<br>%{y:.4f}<extra></extra>',
         },

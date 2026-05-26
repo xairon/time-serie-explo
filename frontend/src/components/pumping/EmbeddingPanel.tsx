@@ -22,10 +22,10 @@ export function EmbeddingPanel() {
       </div>
 
       <div className="space-y-1">
-        <p className="text-text-primary font-medium text-sm">Embedding analysis not available</p>
+        <p className="text-text-primary font-medium text-sm">Analyse d'embedding indisponible</p>
         <p className="text-text-secondary text-xs max-w-xs">
-          The SoftCLT / TS2Vec encoder has not yet been trained on this dataset.
-          UMAP visualization will be available after a contrastive pre-training phase.
+          L'encodeur SoftCLT / TS2Vec n'a pas encore été entraîné sur ce jeu de données.
+          La visualisation UMAP sera disponible après une phase de pré-entraînement contrastif.
         </p>
       </div>
 
