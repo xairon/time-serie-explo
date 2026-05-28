@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Download } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { API_BASE } from '@/lib/constants'
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export function ExportMenu({ runId }: Props) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -28,16 +30,16 @@ export function ExportMenu({ runId }: Props) {
         <div className="absolute right-0 mt-1 bg-bg-card border border-white/10 rounded-lg shadow-xl z-10 py-1 w-44">
           <a href={`${API_BASE}/pastas/models/${runId}/export/pas`}
             className="block px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Télécharger .pas
+            {t('pastas.exportMenu.downloadPas')}
           </a>
           <a href={`${API_BASE}/pastas/models/${runId}/export/csv`}
             className="block px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Télécharger métriques CSV
+            {t('pastas.exportMenu.downloadCsv')}
           </a>
           <button
             onClick={() => { navigator.clipboard.writeText(runId); setOpen(false) }}
             className="block w-full text-left px-3 py-1.5 text-xs text-text-secondary hover:bg-bg-hover transition-colors">
-            Copier l'identifiant d'exécution
+            {t('pastas.exportMenu.copyRunId')}
           </button>
         </div>
       )}

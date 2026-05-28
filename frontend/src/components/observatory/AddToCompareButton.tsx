@@ -1,4 +1,5 @@
 import { GitCompare, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useCompareSelection, type StationType } from '@/contexts/CompareSelection'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function AddToCompareButton({ code, type, variant = 'full' }: Props) {
+  const { t } = useTranslation()
   const { has, add, remove, canAdd, blockReason } = useCompareSelection()
   const inSelection = has(code)
   const reason = inSelection ? null : blockReason(type)
@@ -19,7 +21,7 @@ export function AddToCompareButton({ code, type, variant = 'full' }: Props) {
     else if (canAdd(type)) add({ code, type })
   }
 
-  const label = inSelection ? 'Dans la comparaison' : 'Comparer'
+  const label = inSelection ? t('observatory.compare.addedLabel') : t('observatory.compare.addLabel')
   const Icon = inSelection ? Check : GitCompare
 
   if (variant === 'compact') {

@@ -1,5 +1,6 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasStationInfo, usePastasPreview } from '@/hooks/usePastas'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { StationDetailPanel } from '@/components/pastas/StationDetailPanel'
@@ -8,6 +9,7 @@ import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 const DEMO_STATION = '01584X0023/LV3'
 
 export default function StationStep() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
@@ -41,18 +43,18 @@ export default function StationStep() {
       <div className="w-80 shrink-0 space-y-4">
         <OnboardingBanner
           id="station-step"
-          title="Sélectionner une station"
-          description="Choisissez une station piézométrique à analyser, puis passez à l'étape de calibration."
+          title={t('pastas.station.title')}
+          description={t('pastas.station.description')}
           steps={[
-            'Rechercher par code BSS, commune ou département',
-            'Vérifier les métadonnées de la station et l\'aperçu de la série',
-            'Cliquer sur « Suivant : Calibrer » pour passer à la calibration',
+            t('pastas.stationStep.steps1'),
+            t('pastas.stationStep.steps2'),
+            t('pastas.stationStep.steps3'),
           ]}
-          exampleAction={{ label: 'Charger une station exemple (craie de Champagne)', onClick: loadDemo }}
+          exampleAction={{ label: t('pastas.station.loadExample'), onClick: loadDemo }}
         />
 
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-4">Station</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-4">{t('pastas.ui.stationSection')}</h2>
           <StationPicker codeBss={codeBss} onChange={setCodeBss} />
         </div>
 
@@ -62,7 +64,7 @@ export default function StationStep() {
           disabled={!codeBss}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Suivant : Calibrer
+          {t('pastas.station.nextCalibrate')}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -72,7 +74,7 @@ export default function StationStep() {
         {codeBss && (
           <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
             <a href={`/station/piezo/${encodeURIComponent(codeBss)}`} className="text-accent-cyan hover:underline">
-              &larr; Voir le détail de la station
+              &larr; {t('pastas.station.viewDetail')}
             </a>
           </div>
         )}
@@ -90,8 +92,8 @@ export default function StationStep() {
         {!codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
-              <p className="text-text-secondary">Aucune station sélectionnée</p>
-              <p>Recherchez et sélectionnez une station piézométrique pour prévisualiser ses données.</p>
+              <p className="text-text-secondary">{t('pastas.station.noSelection')}</p>
+              <p>{t('pastas.station.selectPrompt')}</p>
             </div>
           </div>
         )}

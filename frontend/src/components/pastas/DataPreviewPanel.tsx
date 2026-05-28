@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import type { PastasStationPreview } from '@/lib/types'
 
 const BDLISA_LABELS: Record<string, string> = {
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function DataPreviewPanel({ preview, onRangeChange }: Props) {
+  const { t } = useTranslation()
   const { piezo, precip, evap, stats, metadata } = preview
 
   return (
@@ -51,13 +53,13 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
         {[
           { label: 'Observations', value: stats.n_obs_piezo },
           {
-            label: 'Période',
+            label: t('observatory.range'),
             value: Array.isArray(stats.date_range)
               ? `${(stats.date_range[0] as string)?.slice(0, 4)}–${(stats.date_range[1] as string)?.slice(0, 4)}`
               : '—',
           },
           {
-            label: 'Niveau moyen',
+            label: t('pastas.stationDetail.meanLevel'),
             value: typeof stats.piezo_mean === 'number' ? `${(stats.piezo_mean as number).toFixed(2)} m` : '—',
           },
           {
@@ -88,7 +90,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: piezo.index,
               y: piezo.values,
-              name: 'Piézo (m)',
+              name: t('pastas.stationDetail.piezo'),
               type: 'scatter',
               mode: 'lines',
               line: { color: '#60a5fa', width: 1 },
@@ -98,7 +100,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: precip.index,
               y: precip.values,
-              name: 'Précip. (mm/j)',
+              name: t('pastas.stationDetail.precip'),
               type: 'bar',
               marker: { color: 'rgba(59,130,246,0.3)' },
               xaxis: 'x',
@@ -107,7 +109,7 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
             {
               x: evap.index,
               y: evap.values,
-              name: 'ETP (mm/j)',
+              name: t('pastas.stationDetail.etp'),
               type: 'scatter',
               mode: 'lines',
               line: { color: '#f97316', width: 1 },
@@ -133,17 +135,17 @@ export function DataPreviewPanel({ preview, onRangeChange }: Props) {
               rangeslider: { visible: true, thickness: 0.06 },
             },
             yaxis: {
-              title: { text: 'Piézo (m)' },
+              title: { text: t('pastas.stationDetail.piezo') },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.7, 1],
             },
             yaxis2: {
-              title: { text: 'P (mm/j)' },
+              title: { text: t('pastas.stationDetail.precipShort') },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.38, 0.65],
             },
             yaxis3: {
-              title: { text: 'ETP (mm/j)' },
+              title: { text: t('pastas.stationDetail.etp') },
               gridcolor: 'rgba(255,255,255,0.05)',
               domain: [0.0, 0.3],
             },

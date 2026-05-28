@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Search, MapPin } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 
 interface StationResult {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function StationPicker({ codeBss, onChange }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<StationResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -50,7 +52,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
 
   return (
     <div className="space-y-2">
-      <label className="block text-xs text-text-muted">Station (code BSS)</label>
+      <label className="block text-xs text-text-muted">{t('pastas.ui.stationBssLabel')}</label>
       <div className="relative">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
@@ -59,7 +61,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
             value={query}
             onChange={e => { setQuery(e.target.value); if (!e.target.value) onChange('') }}
             onFocus={() => results.length > 0 && setShowResults(true)}
-            placeholder="Rechercher par code BSS, commune ou département..."
+            placeholder={t('pastas.station.search')}
             className="w-full bg-bg-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
           />
         </div>
@@ -77,7 +79,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
                   <span className="text-sm font-mono text-text-primary">{s.code_bss}</span>
                 </div>
                 <div className="text-xs text-text-muted ml-5.5 mt-0.5">
-                  {s.nom_commune} ({s.code_departement}) — {s.nb_mesures_total} mesures
+                  {s.nom_commune} ({s.code_departement}) — {s.nb_mesures_total} {t('observatory.measures')}
                   {s.premiere_mesure && s.derniere_mesure && (
                     <span> · {s.premiere_mesure?.slice(0, 4)}–{s.derniere_mesure?.slice(0, 4)}</span>
                   )}
@@ -97,7 +99,7 @@ export function StationPicker({ codeBss, onChange }: Props) {
       {codeBss && (
         <div className="flex items-center gap-2 text-xs text-accent-cyan">
           <MapPin className="w-3 h-3" />
-          <span>Sélectionnée : {codeBss}</span>
+          <span>{t('pastas.ui.selectedStation', { code: codeBss })}</span>
         </div>
       )}
     </div>

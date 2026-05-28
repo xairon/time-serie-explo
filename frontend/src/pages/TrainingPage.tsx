@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { API_BASE } from '@/lib/constants'
 import { api } from '@/lib/api'
 import { useSSE } from '@/hooks/useSSE'
@@ -13,6 +14,7 @@ import { METRIC_LABELS } from '@/lib/constants'
 type TrainingPhase = 'idle' | 'preparing' | 'training' | 'completed' | 'error'
 
 export default function TrainingPage() {
+  const { t } = useTranslation()
   const [taskId, setTaskId] = useState<string | null>(null)
   const [sseUrl, setSseUrl] = useState<string | null>(null)
   const [trainLossHistory, setTrainLossHistory] = useState<number[]>([])
@@ -52,12 +54,12 @@ export default function TrainingPage() {
     if (status) {
       msg += status
     } else if (current_epoch > 0) {
-      msg += `Époque ${current_epoch}/${total_epochs}`
+      msg += `${t('mainPages.training.epoch')} ${current_epoch}/${total_epochs}`
       if (train_loss !== null) msg += ` | train_loss: ${train_loss.toFixed(5)}`
       if (val_loss !== null) msg += ` | val_loss: ${val_loss.toFixed(5)}`
       if (best_val_loss !== null) msg += ` | best: ${best_val_loss.toFixed(5)}`
     } else {
-      msg += 'Préparation des données...'
+      msg += t('mainPages.training.dataPrep')
     }
     setLogs((prev) => [...prev, msg])
   }, [sse.data?.current_epoch, sse.data?.status])
@@ -66,11 +68,11 @@ export default function TrainingPage() {
   useEffect(() => {
     const timestamp = new Date().toLocaleTimeString('en-GB')
     if (sse.status === 'connected') {
-      setLogs((prev) => [...prev, `[${timestamp}] Connexion SSE établie`])
+      setLogs((prev) => [...prev, `[${timestamp}] ${t('mainPages.training.sseConnected')}`])
     } else if (sse.status === 'done') {
-      setLogs((prev) => [...prev, `[${timestamp}] Entraînement terminé`])
+      setLogs((prev) => [...prev, `[${timestamp}] ${t('mainPages.training.trainingFinished')}`])
     } else if (sse.status === 'error') {
-      setLogs((prev) => [...prev, `[${timestamp}] Erreur : ${sse.error ?? 'connexion perdue'}`])
+      setLogs((prev) => [...prev, `[${timestamp}] ${t('mainPages.training.logError')} ${sse.error ?? t('mainPages.training.connectionLost')}`])
     }
   }, [sse.status])
 
@@ -126,7 +128,7 @@ export default function TrainingPage() {
 
   const handleDeleteModel = useCallback(
     (modelId: string) => {
-      if (window.confirm('Supprimer ce modèle ?')) {
+      if (window.confirm(t('mainPages.training.deleteModelConfirm'))) {
         deleteMutation.mutate(modelId)
       }
     },
@@ -139,9 +141,9 @@ export default function TrainingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Entraînement</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">{t('mainPages.training.title')}</h1>
         <p className="text-sm text-text-secondary">
-          Configurez et lancez l'entraînement des modèles de prévision
+          {t('mainPages.training.subtitle')}
         </p>
       </div>
 
@@ -154,7 +156,7 @@ export default function TrainingPage() {
           />
           {startMutation.isError && (
             <p className="mt-3 text-xs text-accent-red">
-              Erreur : {(startMutation.error as Error).message}
+              {t('mainPages.training.errorPrefix')} {(startMutation.error as Error).message}
             </p>
           )}
         </div>
@@ -172,7 +174,7 @@ export default function TrainingPage() {
             />
           ) : (
             <div className="flex items-center justify-center h-full min-h-[300px]">
-              <p className="text-sm text-text-muted">Aucun entraînement en cours</p>
+              <p className="text-sm text-text-muted">{t('mainPages.training.noTrainingInProgress')}</p>
             </div>
           )}
         </div>
@@ -183,9 +185,9 @@ export default function TrainingPage() {
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
           {/* Phase steps */}
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-text-primary mr-4">Phase :</h3>
+            <h3 className="text-sm font-semibold text-text-primary mr-4">{t('mainPages.training.phaseLabel')}</h3>
             {(['preparing', 'training', 'completed'] as const).map((p, i) => {
-              const labels = { preparing: 'Préparation', training: 'Entraînement', completed: 'Terminé' }
+              const labels = { preparing: t('mainPages.training.phasePreparing'), training: t('mainPages.training.phaseTraining'), completed: t('mainPages.training.phaseCompleted') }
               const isActive = phase === p
               const isPast = (phase === 'training' && p === 'preparing') ||
                 (phase === 'completed' && (p === 'preparing' || p === 'training'))
@@ -214,17 +216,17 @@ export default function TrainingPage() {
             {phase === 'error' && (
               <div className="flex items-center gap-1.5 ml-4">
                 <div className="w-3 h-3 rounded-full border-2 border-accent-red bg-accent-red/30" />
-                <span className="text-xs text-accent-red font-medium">Erreur</span>
+                <span className="text-xs text-accent-red font-medium">{t('mainPages.training.phaseError')}</span>
               </div>
             )}
           </div>
 
           {/* Scrollable logs */}
           <div>
-            <h4 className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Journaux</h4>
+            <h4 className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">{t('mainPages.training.logs')}</h4>
             <div className="bg-bg-primary rounded-lg border border-white/5 p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-text-secondary space-y-0.5">
               {logs.length === 0 ? (
-                <p className="text-text-secondary/50">En attente des journaux...</p>
+                <p className="text-text-secondary/50">{t('mainPages.training.waitingLogs')}</p>
               ) : (
                 logs.map((log, i) => (
                   <div key={i} className={`${log.includes('Erreur') || log.includes('Error') || log.includes('error') ? 'text-accent-red' : log.includes('terminé') || log.includes('complete') || log.includes('Complete') ? 'text-accent-green' : ''}`}>
@@ -252,26 +254,26 @@ export default function TrainingPage() {
       {models && models.length > 0 && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-3">
-            Historique des entraînements
+            {t('mainPages.training.trainingHistory')}
           </h3>
           <div className="overflow-x-auto rounded-lg border border-white/5">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-hover">
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Nom
+                    {t('mainPages.training.colName')}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Architecture
+                    {t('mainPages.training.colArchitecture')}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Jeu de données
+                    {t('mainPages.training.colDataset')}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Station
+                    {t('mainPages.training.colStation')}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Date
+                    {t('mainPages.training.colDate')}
                   </th>
                   {historyMetricKeys.map((key) => (
                     <th
@@ -282,7 +284,7 @@ export default function TrainingPage() {
                     </th>
                   ))}
                   <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase tracking-wide whitespace-nowrap">
-                    Actions
+                    {t('mainPages.training.colActions')}
                   </th>
                 </tr>
               </thead>
@@ -319,7 +321,7 @@ export default function TrainingPage() {
                           className="text-xs text-accent-cyan hover:underline"
                           download
                         >
-                          Télécharger
+                          {t('mainPages.training.download')}
                         </a>
                         <button
                           type="button"
@@ -327,7 +329,7 @@ export default function TrainingPage() {
                           disabled={deleteMutation.isPending}
                           className="text-xs text-accent-red/70 hover:text-accent-red transition-colors disabled:opacity-50"
                         >
-                          Supprimer
+                          {t('mainPages.training.delete')}
                         </button>
                       </div>
                     </td>

@@ -1,4 +1,5 @@
 import { Database, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { DatasetSummary } from '@/lib/types'
 
 interface DatasetCardProps {
@@ -8,7 +9,11 @@ interface DatasetCardProps {
 }
 
 export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps) {
+  const { t } = useTranslation()
   const [dateStart, dateEnd] = dataset.date_range
+  const stationsLabel = dataset.stations.length > 1
+    ? t('sharedComponents.cards.stationsPlural')
+    : t('sharedComponents.cards.stations')
 
   return (
     <div className="bg-bg-card rounded-xl p-4 border border-white/5 hover:border-accent-cyan/20 transition-colors">
@@ -19,8 +24,8 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-text-primary truncate">{dataset.name}</h3>
           <p className="text-xs text-text-secondary mt-0.5">
-            {dataset.stations.length} station{dataset.stations.length > 1 ? 's' : ''} &middot;{' '}
-            {dataset.n_rows.toLocaleString('en-US')} lignes
+            {dataset.stations.length} {stationsLabel} &middot;{' '}
+            {dataset.n_rows.toLocaleString('en-US')} {t('sharedComponents.cards.rows')}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -36,7 +41,7 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
               }}
               disabled={isDeleting}
               className="p-1 rounded hover:bg-accent-red/10 text-text-secondary hover:text-accent-red transition-colors disabled:opacity-50"
-              title="Supprimer"
+              title={t('sharedComponents.cards.deleteTitle')}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -44,7 +49,7 @@ export function DatasetCard({ dataset, onDelete, isDeleting }: DatasetCardProps)
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-text-secondary">
-        <span>Cible : {dataset.target_variable}</span>
+        <span>{t('sharedComponents.cards.target')} : {dataset.target_variable}</span>
         <span>
           {dateStart?.slice(0, 10)} — {dateEnd?.slice(0, 10)}
         </span>

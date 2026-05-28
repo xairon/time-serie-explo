@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { classifyZ } from '@/lib/ips'
 import type { MonthConcordance } from '@/lib/ips'
+import type { TFunction } from 'i18next'
 
 interface IPSMonthlyGridProps {
   predDates: string[]
@@ -30,6 +32,7 @@ function groupByMonth(
   predValues: number[],
   gtValues: number[],
   refStats: Record<string, [number, number]>,
+  t: TFunction,
 ): MonthData[] {
   const monthMap = new Map<
     string,
@@ -50,8 +53,19 @@ function groupByMonth(
   }
 
   const MONTH_NAMES = [
-    '', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
-    'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc',
+    '',
+    t('sharedComponents.ipsGrid.monthJan'),
+    t('sharedComponents.ipsGrid.monthFeb'),
+    t('sharedComponents.ipsGrid.monthMar'),
+    t('sharedComponents.ipsGrid.monthApr'),
+    t('sharedComponents.ipsGrid.monthMay'),
+    t('sharedComponents.ipsGrid.monthJun'),
+    t('sharedComponents.ipsGrid.monthJul'),
+    t('sharedComponents.ipsGrid.monthAug'),
+    t('sharedComponents.ipsGrid.monthSep'),
+    t('sharedComponents.ipsGrid.monthOct'),
+    t('sharedComponents.ipsGrid.monthNov'),
+    t('sharedComponents.ipsGrid.monthDec'),
   ]
 
   const result: MonthData[] = []
@@ -126,9 +140,10 @@ export default function IPSMonthlyGrid({
   label,
   concordance,
 }: IPSMonthlyGridProps) {
+  const { t } = useTranslation()
   const months = useMemo(
-    () => groupByMonth(predDates, predValues, gtValues, refStats),
-    [predDates, predValues, gtValues, refStats],
+    () => groupByMonth(predDates, predValues, gtValues, refStats, t),
+    [predDates, predValues, gtValues, refStats, t],
   )
 
   const concordanceMap = useMemo(() => {
@@ -155,7 +170,7 @@ export default function IPSMonthlyGrid({
               {/* GT column */}
               {m.gtClass && (
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] font-medium text-text-secondary">Observé</span>
+                  <span className="text-[10px] font-medium text-text-secondary">{t('sharedComponents.ipsGrid.observed')}</span>
                   <IPSBadge cls={m.gtClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
                   {m.gtZ !== null && (
                     <span className="text-[10px] text-text-secondary">
@@ -168,7 +183,7 @@ export default function IPSMonthlyGrid({
               {/* Pred column */}
               {m.predClass && (
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[10px] font-medium text-text-secondary">Modèle</span>
+                  <span className="text-[10px] font-medium text-text-secondary">{t('sharedComponents.ipsGrid.model')}</span>
                   <IPSBadge cls={m.predClass} ipsLabels={ipsLabels} ipsColors={ipsColors} />
                   {m.predZ !== null && (
                     <span className="text-[10px] text-text-secondary">

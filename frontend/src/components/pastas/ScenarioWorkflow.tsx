@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Loader2, Play, Plus, FlaskConical, AlertTriangle, ChevronDown, Save, FolderOpen, Trash2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { usePastasSimulate } from '@/hooks/usePastas'
 import { useScenarioPresets } from '@/hooks/useScenarioPresets'
 import { useAdaptiveBounds } from '@/hooks/useAdaptiveBounds'
@@ -46,6 +47,7 @@ function detectAquiferFamily(metadata: Record<string, unknown>): AquiferFamily {
 }
 
 export function ScenarioWorkflow({ model, codeBss }: Props) {
+  const { t } = useTranslation()
   const simulateMut = usePastasSimulate()
 
   const [modifications, setModifications] = useState<ModificationData[]>([])
@@ -152,12 +154,12 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
     <div className="space-y-4">
       <OnboardingBanner
         id="scenarios"
-        title="Scénarios prospectifs"
-        description="Testez l'effet de changements externes sur le niveau de la nappe. Les paramètres calibrés du modèle restent figés — seuls les stress d'entrée sont modifiés."
+        title={t('pastas.scenarios.title')}
+        description={t('pastas.scenarios.description')}
         steps={[
-          'Ajoutez une ou plusieurs modifications de stress (pompage, changement climatique, tendance…)',
-          'Ajustez la fenêtre de simulation si nécessaire',
-          'Cliquez sur « Lancer la simulation » pour calculer l\'impact',
+          t('pastas.scenarioWorkflow.steps1'),
+          t('pastas.scenarioWorkflow.steps2'),
+          t('pastas.scenarioWorkflow.steps3'),
         ]}
       />
 
@@ -171,17 +173,17 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
             <FlaskConical className="w-4 h-4 text-accent-cyan" />
             <div className="text-left">
               <div className="text-sm font-medium text-text-primary">
-                Configuration du scénario
+                {t('pastas.scenarios.config')}
                 {modifications.length > 0 && (
                   <span className="ml-2 text-[10px] font-normal text-text-muted">
-                    {modifications.length} modification{modifications.length > 1 ? 's' : ''}
+                    {modifications.length} {modifications.length > 1 ? t('pastas.ui.modificationsPlural') : t('pastas.ui.modificationSingular')}
                   </span>
                 )}
               </div>
               <div className="text-[10px] text-text-muted">
-                Modèle de base : <span className="font-mono text-accent-cyan">{codeBss}</span>
+                {t('pastas.scenarios.baseModel')} : <span className="font-mono text-accent-cyan">{codeBss}</span>
                 {model.metrics?.nse != null && <span className="ml-2">NSE {model.metrics.nse.toFixed(3)}</span>}
-                {' · '}Fenêtre : {effectiveTmin} → {effectiveTmax}
+                {' · '}{t('pastas.scenarios.window')} : {effectiveTmin} → {effectiveTmax}
               </div>
             </div>
           </div>
@@ -192,27 +194,27 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
           <div className="px-4 pb-4 space-y-4 border-t border-white/5">
             {/* Simulation window */}
             <div className="pt-3">
-              <div className="text-xs font-semibold text-text-secondary mb-2">Fenêtre de simulation</div>
+              <div className="text-xs font-semibold text-text-secondary mb-2">{t('pastas.scenarios.simulationWindow')}</div>
               <div className="grid grid-cols-2 gap-3 max-w-md">
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Début</label>
-                  <input type="date" value={tmin} onChange={e => setTmin(e.target.value)} placeholder={obsTmin} title={`Laisser vide pour utiliser la période complète (${obsTmin} → ${obsTmax})`} className={inputClass} />
+                  <label className="block text-[10px] text-text-muted mb-1">{t('pastas.scenariosPage.start')}</label>
+                  <input type="date" value={tmin} onChange={e => setTmin(e.target.value)} placeholder={obsTmin} title={t('pastas.scenarios.leaveEmptyTooltip', { tmin: obsTmin, tmax: obsTmax })} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-text-muted mb-1">Fin</label>
-                  <input type="date" value={tmax} onChange={e => setTmax(e.target.value)} placeholder={obsTmax} title={`Laisser vide pour utiliser la période complète (${obsTmin} → ${obsTmax})`} className={inputClass} />
+                  <label className="block text-[10px] text-text-muted mb-1">{t('pastas.scenariosPage.end')}</label>
+                  <input type="date" value={tmax} onChange={e => setTmax(e.target.value)} placeholder={obsTmax} title={t('pastas.scenarios.leaveEmptyTooltip', { tmin: obsTmin, tmax: obsTmax })} className={inputClass} />
                 </div>
               </div>
             </div>
 
             {/* Contextual presets */}
             {previewLoading && (
-              <div className="text-xs text-text-muted py-2">Chargement du profil d'aquifère...</div>
+              <div className="text-xs text-text-muted py-2">{t('pastas.scenarios.loadingAquifer')}</div>
             )}
             {presetsData && (
               <div>
                 <div className="text-xs font-semibold text-text-secondary mb-2">
-                  Scénarios rapides
+                  {t('pastas.scenarios.quickScenarios')}
                   {presetsData.aquifer_families[aquiferFamily] && (
                     <span className="ml-2 font-normal text-text-muted">({presetsData.aquifer_families[aquiferFamily]})</span>
                   )}
@@ -234,7 +236,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
 
             {/* Modifications */}
             <div>
-              <div className="text-xs font-semibold text-text-secondary mb-2">Modifications de stress</div>
+              <div className="text-xs font-semibold text-text-secondary mb-2">{t('pastas.scenarios.stressModifications')}</div>
               <ScenarioComposer
                 modifications={modifications}
                 onChange={m => { setModifications(m); setSimResult(null) }}
@@ -255,20 +257,20 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {simulateMut.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Simulation en cours…</>
-                  : <><Play className="w-4 h-4" /> Lancer la simulation</>}
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('pastas.scenarios.simulating')}</>
+                  : <><Play className="w-4 h-4" /> {t('pastas.scenarios.runSimulation')}</>}
               </button>
               {modifications.length > 0 && (
                 <button
                   onClick={() => setSaveDialogOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-white/5 text-text-secondary text-sm border border-white/10 hover:border-white/20 transition-colors"
                 >
-                  <Save className="w-4 h-4" /> Enregistrer
+                  <Save className="w-4 h-4" /> {t('pastas.scenarios.saveScenario')}
                 </button>
               )}
               {modifications.length === 0 && (
                 <span className="text-xs text-text-muted flex items-center gap-1">
-                  <Plus className="w-3 h-3" /> Ajoutez au moins une modification pour simuler
+                  <Plus className="w-3 h-3" /> {t('pastas.scenarios.addModification')}
                 </span>
               )}
             </div>
@@ -280,7 +282,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                   type="text"
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
-                  placeholder="Nom du scénario..."
+                  placeholder={t('pastas.ui.scenarioNameSimplePlaceholder')}
                   className={inputClass}
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -291,10 +293,10 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                     disabled={!saveName.trim() || saveScenarioMut.isPending}
                     className="flex-1 px-3 py-1.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-xs font-medium border border-accent-cyan/30 disabled:opacity-40"
                   >
-                    {saveScenarioMut.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                    {saveScenarioMut.isPending ? t('pastas.scenarios.savingScenario') : t('pastas.scenarios.saveScenario')}
                   </button>
                   <button onClick={() => setSaveDialogOpen(false)} className="px-3 py-1.5 rounded-lg text-text-muted text-xs border border-white/10">
-                    Annuler
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -303,7 +305,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
             {/* Saved scenarios */}
             {savedScenarios.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-text-secondary mb-2">Scénarios enregistrés</div>
+                <div className="text-xs font-semibold text-text-secondary mb-2">{t('pastas.scenarios.savedScenarios')}</div>
                 <div className="space-y-1">
                   {savedScenarios.map((s) => (
                     <div key={s.name} className="flex items-center justify-between px-3 py-2 rounded-lg border border-white/5 hover:border-white/10 group">
@@ -312,7 +314,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
                           <FolderOpen className="w-3 h-3" /> {s.name}
                         </div>
                         <div className="text-[10px] text-text-muted">
-                          {s.modifications.length} modification{s.modifications.length > 1 ? 's' : ''}
+                          {s.modifications.length} {s.modifications.length > 1 ? t('pastas.ui.modificationsPlural') : t('pastas.ui.modificationSingular')}
                           {s.created_at && ` — ${s.created_at.slice(0, 10)}`}
                         </div>
                       </button>
@@ -332,7 +334,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-400">
-                  {simulateMut.error instanceof Error ? simulateMut.error.message : 'Échec de la simulation. Consultez les logs du backend.'}
+                  {simulateMut.error instanceof Error ? simulateMut.error.message : t('pastas.scenariosPage.simulationFailed')}
                 </p>
               </div>
             )}
@@ -349,7 +351,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
         <div className="flex items-center justify-center py-16 text-text-muted">
           <div className="text-center space-y-2">
             <FlaskConical className="w-10 h-10 mx-auto text-text-muted/20" />
-            <p className="text-sm text-text-secondary">Aucun résultat de simulation pour le moment</p>
+            <p className="text-sm text-text-secondary">{t('pastas.scenarios.noResult')}</p>
           </div>
         </div>
       )}
@@ -358,7 +360,7 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
         <div className="flex items-center justify-center py-16 text-text-muted">
           <div className="text-center space-y-3">
             <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-            <p className="text-sm text-text-secondary">Simulation en cours...</p>
+            <p className="text-sm text-text-secondary">{t('pastas.scenarios.simulating')}</p>
           </div>
         </div>
       )}

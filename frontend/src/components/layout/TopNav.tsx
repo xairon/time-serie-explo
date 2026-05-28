@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Waves,
   Brain,
@@ -10,19 +11,21 @@ import {
 } from 'lucide-react'
 import { useHealth } from '@/hooks/useHealth'
 import { useCompareSelection } from '@/contexts/CompareSelection'
-
-const NAV_ITEMS = [
-  { to: '/', icon: Map, label: 'Observatoire', end: true, tour: 'nav-observatory' },
-  { to: '/compare', icon: GitCompare, label: 'Comparer', end: false, tour: 'nav-compare' },
-  { to: '/pastas', icon: Waves, label: 'Pastas Lab', end: false, tour: 'nav-pastas' },
-  { to: '/ai', icon: Brain, label: 'Lab IA', end: false, tour: 'nav-ai' },
-] as const
+import { LanguageSwitcher } from '../LanguageSwitcher'
 
 export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
+  const { t } = useTranslation()
   const { data: health } = useHealth()
   const { count: compareCount, type: compareType } = useCompareSelection()
+
+  const navItems = [
+    { to: '/', icon: Map, label: t('nav.observatory'), end: true, tour: 'nav-observatory' },
+    { to: '/compare', icon: GitCompare, label: t('nav.compare'), end: false, tour: 'nav-compare' },
+    { to: '/pastas', icon: Waves, label: t('nav.pastasLab'), end: false, tour: 'nav-pastas' },
+    { to: '/ai', icon: Brain, label: t('nav.aiLab'), end: false, tour: 'nav-ai' },
+  ] as const
 
   useEffect(() => {
     setMobileOpen(false)
@@ -43,7 +46,7 @@ export function TopNav() {
       </NavLink>
 
       <div className="hidden md:flex items-center gap-1">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, end, tour }) => {
+        {navItems.map(({ to, icon: Icon, label, end, tour }) => {
           // The Comparer link points to the type currently selected so a single
           // click always lands on a populated page when the basket is non-empty.
           const effectiveTo = to === '/compare' ? compareTo : to
@@ -80,21 +83,23 @@ export function TopNav() {
             GPU
           </span>
         )}
-        <div className="flex items-center gap-1.5" title={isHealthy ? 'API connectée' : 'API indisponible'}>
+        <div className="flex items-center gap-1.5" title={isHealthy ? 'API connected' : 'API unavailable'}>
           <div
             className={`w-2 h-2 rounded-full ${
               isHealthy ? 'bg-accent-green' : 'bg-accent-red'
             }`}
           />
           <span className="text-xs text-text-secondary hidden sm:block">
-            {isHealthy ? 'OK' : 'Hors ligne'}
+            {isHealthy ? 'OK' : t('common.error')}
           </span>
         </div>
+
+        <LanguageSwitcher />
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="md:hidden p-2 hover:bg-bg-hover rounded-lg"
-          aria-label={mobileOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+          aria-label={mobileOpen ? t('common.close') : t('common.search')}
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -102,7 +107,7 @@ export function TopNav() {
 
       {mobileOpen && (
         <div className="md:hidden absolute top-12 left-0 right-0 bg-bg-card border-b border-white/10 shadow-xl z-40">
-          {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => {
+          {navItems.map(({ to, icon: Icon, label, end }) => {
             const effectiveTo = to === '/compare' ? compareTo : to
             const showBadge = to === '/compare' && compareCount > 0
             return (

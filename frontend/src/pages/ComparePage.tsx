@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Plot from 'react-plotly.js'
 import { ArrowLeft, X, Plus, Search, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useStationsGeoJSON, usePiezoStationDetail, useHydroStationDetail, usePiezoMonthly, useHydroMonthly, usePiezoSPLI, useHydroSSFI } from '@/hooks/useObservatory'
 import { formatNumber, formatDate } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
@@ -20,6 +21,7 @@ interface Props { stationType: StationType }
 // stations; inactive slots receive an empty code which short-circuits each
 // hook's `enabled` flag.
 function StationSlot({ code, type, color, onRemove }: { code: string | null; type: StationType; color: string; onRemove: () => void }) {
+  const { t } = useTranslation()
   const effective = code ?? ''
   const piezo = usePiezoStationDetail(type === 'piezo' ? effective : '')
   const hydro = useHydroStationDetail(type === 'hydro' ? effective : '')
@@ -33,7 +35,7 @@ function StationSlot({ code, type, color, onRemove }: { code: string | null; typ
         <p className="text-xs text-text-primary truncate">{name}</p>
         <p className="text-[10px] text-text-secondary font-mono truncate">{code}</p>
       </div>
-      <button onClick={onRemove} aria-label="Retirer" className="p-1 hover:bg-bg-hover rounded">
+      <button onClick={onRemove} aria-label={t('mainPages.compare.remove')} className="p-1 hover:bg-bg-hover rounded">
         <X className="w-3.5 h-3.5 text-text-secondary" />
       </button>
     </div>
@@ -41,6 +43,7 @@ function StationSlot({ code, type, color, onRemove }: { code: string | null; typ
 }
 
 function StationPicker({ stationType, exclude, onPick }: { stationType: StationType; exclude: string[]; onPick: (code: string) => void }) {
+  const { t } = useTranslation()
   const { data: geo } = useStationsGeoJSON()
   const [query, setQuery] = useState('')
   const candidates = useMemo(() => {
@@ -65,7 +68,7 @@ function StationPicker({ stationType, exclude, onPick }: { stationType: StationT
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={`Rechercher une station ${stationType === 'piezo' ? 'piézométrique' : 'hydrométrique'}…`}
+          placeholder={stationType === 'piezo' ? t('mainPages.compare.searchPiezo') : t('mainPages.compare.searchHydro')}
           className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
         />
       </div>
@@ -148,6 +151,7 @@ function useCompareSeries(codes: string[], type: StationType) {
 }
 
 export default function ComparePage({ stationType }: Props) {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const selection = useCompareSelection()
 
@@ -191,9 +195,9 @@ export default function ComparePage({ stationType }: Props) {
   const series = useCompareSeries(codes, stationType)
 
   const valueKey = stationType === 'piezo' ? 'niveau_moyen' : 'resultat_moyen'
-  const valueLabel = stationType === 'piezo' ? 'Niveau piézométrique (m NGF)' : 'Débit moyen (m³/s)'
+  const valueLabel = stationType === 'piezo' ? t('mainPages.compare.piezoLevel') : t('mainPages.compare.meanFlow')
   const droughtKey = stationType === 'piezo' ? 'spli' : 'ssfi'
-  const droughtLabel = stationType === 'piezo' ? 'Indice piézométrique standardisé (SPLI/IPS)' : 'Indice standardisé de débit (SSFI)'
+  const droughtLabel = stationType === 'piezo' ? t('mainPages.compare.spliIndex') : t('mainPages.compare.ssfiIndex')
 
   const traces = series.map((s, i) => ({
     x: s.monthly.map((m: any) => m.mois),
@@ -229,41 +233,41 @@ export default function ComparePage({ stationType }: Props) {
     <div className="h-full overflow-y-auto">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
         <div className="flex items-center gap-4">
-          <Link to="/" className="p-2 hover:bg-bg-hover rounded-lg" aria-label="Retour à l'observatoire">
+          <Link to="/" className="p-2 hover:bg-bg-hover rounded-lg" aria-label={t('mainPages.compare.backToObservatory')}>
             <ArrowLeft className="w-5 h-5 text-text-secondary" />
           </Link>
           <div>
-            <p className="text-xs text-accent-cyan font-medium uppercase tracking-wide">Comparaison</p>
+            <p className="text-xs text-accent-cyan font-medium uppercase tracking-wide">{t('mainPages.compare.title')}</p>
             <h1 className="text-xl font-bold text-text-primary">
-              {stationType === 'piezo' ? 'Stations piézométriques' : 'Stations hydrométriques'}
+              {stationType === 'piezo' ? t('mainPages.compare.piezoStations') : t('mainPages.compare.hydroStations')}
             </h1>
           </div>
         </div>
 
         <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-300">Stations sélectionnées ({codes.length}/{MAX_STATIONS})</h2>
+            <h2 className="text-sm font-semibold text-gray-300">{t('mainPages.compare.selectedStations')} ({codes.length}/{MAX_STATIONS})</h2>
             <div className="flex items-center gap-3">
               {codes.length > 0 && (
                 <button
                   onClick={() => selection.clear()}
                   className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-red-400 transition-colors"
-                  title="Vider la sélection"
+                  title={t('mainPages.compare.clearSelection')}
                 >
                   <Trash2 className="w-3 h-3" />
-                  Vider
+                  {t('mainPages.compare.clear')}
                 </button>
               )}
               <Link
                 to={stationType === 'piezo' ? '/compare/hydro' : '/compare/piezo'}
                 className="text-xs text-accent-cyan hover:underline"
               >
-                Basculer vers {stationType === 'piezo' ? 'hydro' : 'piézo'}
+                {stationType === 'piezo' ? t('mainPages.compare.switchToHydro') : t('mainPages.compare.switchToPiezo')}
               </Link>
             </div>
           </div>
           {codes.length === 0 ? (
-            <p className="text-xs text-text-secondary italic">Aucune station sélectionnée.</p>
+            <p className="text-xs text-text-secondary italic">{t('mainPages.compare.noStationSelected')}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {codes.map((c, i) => (
@@ -284,7 +288,7 @@ export default function ComparePage({ stationType }: Props) {
 
         {codes.length < 2 ? (
           <div className="bg-bg-card border border-white/5 rounded-xl p-8 text-center text-text-secondary text-sm">
-            Ajoutez au moins 2 stations pour démarrer la comparaison.
+            {t('mainPages.compare.addAtLeastTwo')}
           </div>
         ) : (
           <>
@@ -311,17 +315,17 @@ export default function ComparePage({ stationType }: Props) {
             </section>
 
             <section className="bg-bg-card border border-white/5 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-text-primary mb-3">Statistiques comparatives</h2>
+              <h2 className="text-sm font-semibold text-text-primary mb-3">{t('mainPages.compare.comparativeStats')}</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/5">
-                      <th className="px-3 py-2 text-left text-text-secondary font-medium">Station</th>
-                      <th className="px-3 py-2 text-right text-text-secondary font-medium">Moyenne</th>
-                      <th className="px-3 py-2 text-right text-text-secondary font-medium">Min</th>
-                      <th className="px-3 py-2 text-right text-text-secondary font-medium">Max</th>
-                      <th className="px-3 py-2 text-left text-text-secondary font-medium">Dernière mesure</th>
-                      <th className="px-3 py-2 text-left text-text-secondary font-medium">Classification</th>
+                      <th className="px-3 py-2 text-left text-text-secondary font-medium">{t('mainPages.compare.stationCol')}</th>
+                      <th className="px-3 py-2 text-right text-text-secondary font-medium">{t('mainPages.compare.meanCol')}</th>
+                      <th className="px-3 py-2 text-right text-text-secondary font-medium">{t('mainPages.compare.minCol')}</th>
+                      <th className="px-3 py-2 text-right text-text-secondary font-medium">{t('mainPages.compare.maxCol')}</th>
+                      <th className="px-3 py-2 text-left text-text-secondary font-medium">{t('mainPages.compare.lastMeasureCol')}</th>
+                      <th className="px-3 py-2 text-left text-text-secondary font-medium">{t('mainPages.compare.classificationCol')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -330,7 +334,7 @@ export default function ComparePage({ stationType }: Props) {
                       if (!d) {
                         return (
                           <tr key={s.code} className="border-b border-white/5">
-                            <td colSpan={6} className="px-3 py-2 text-text-secondary text-xs italic">Chargement de {s.code}…</td>
+                            <td colSpan={6} className="px-3 py-2 text-text-secondary text-xs italic">{t('mainPages.compare.loadingStation')} {s.code}…</td>
                           </tr>
                         )
                       }

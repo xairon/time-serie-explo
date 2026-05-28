@@ -1,10 +1,13 @@
 import { Activity, ExternalLink, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasModels } from '@/hooks/usePastas'
 import { Link } from 'react-router-dom'
 
 interface Props { codeBss: string }
 
 export function PastasSection({ codeBss }: Props) {
+  const { t, i18n } = useTranslation()
+  const localeTag = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
   const { data: models, isLoading } = usePastasModels(codeBss)
 
   if (isLoading) {
@@ -22,16 +25,16 @@ export function PastasSection({ codeBss }: Props) {
     return (
       <section className="bg-gray-900/50 rounded-xl border border-white/5 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-          <Activity className="w-4 h-4" />Modélisation PASTAS
+          <Activity className="w-4 h-4" />{t('observatory.pastas.title')}
         </h2>
         <div className="flex flex-col items-center justify-center py-6 text-center">
-          <p className="text-sm text-gray-400 mb-4">Aucun modèle Pastas calibré pour cette station.</p>
+          <p className="text-sm text-gray-400 mb-4">{t('observatory.pastas.noModel')}</p>
           <Link
             to={`/pastas/station?station=${encodeURIComponent(codeBss)}`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Calibrer un modèle Pastas
+            {t('observatory.pastas.calibrate')}
           </Link>
         </div>
       </section>
@@ -51,7 +54,7 @@ export function PastasSection({ codeBss }: Props) {
   return (
     <section className="bg-gray-900/50 rounded-xl border border-white/5 p-5 space-y-4">
       <h2 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-        <Activity className="w-4 h-4" />Modélisation PASTAS
+        <Activity className="w-4 h-4" />{t('observatory.pastas.title')}
       </h2>
 
       <div className="bg-bg-card border border-white/5 rounded-xl p-4 space-y-3">
@@ -59,12 +62,12 @@ export function PastasSection({ codeBss }: Props) {
           <div>
             <p className="text-sm font-medium text-gray-200">{bestModel.name}</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Réponse {bestModel.response_type} &middot; recharge {bestModel.recharge_type}
-              {bestModel.include_temp && ' &middot; +température'}
+              {t('observatory.pastas.responseRecharge', { response: bestModel.response_type, recharge: bestModel.recharge_type })}
+              {bestModel.include_temp && ` · ${t('observatory.pastas.withTemperature')}`}
             </p>
           </div>
           <span className="text-[10px] text-gray-500 font-mono">
-            {new Date(bestModel.created_at).toLocaleDateString('fr-FR')}
+            {new Date(bestModel.created_at).toLocaleDateString(localeTag)}
           </span>
         </div>
 
@@ -85,21 +88,21 @@ export function PastasSection({ codeBss }: Props) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
           >
             <ExternalLink className="w-3 h-3" />
-            Voir dans Pastas Lab
+            {t('observatory.pastas.viewInLab')}
           </Link>
           <Link
             to={`/pastas/station?station=${encodeURIComponent(codeBss)}`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-colors"
           >
             <Plus className="w-3 h-3" />
-            Calibrer un autre
+            {t('observatory.pastas.calibrateAnother')}
           </Link>
         </div>
       </div>
 
       {models && models.length > 1 && (
         <p className="text-[11px] text-gray-500 text-center">
-          {models.length} modèles disponibles &middot; meilleur affiché par NSE
+          {t('observatory.pastas.modelsAvailable', { count: models.length })}
         </p>
       )}
     </section>

@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Layout, Shape } from 'plotly.js-dist-min'
 import type { IPSBoundsRow } from '@/lib/types'
@@ -44,6 +45,7 @@ export function IPSBandsChart({
   cfCounterfactual,
   className = '',
 }: IPSBandsChartProps) {
+  const { t } = useTranslation()
   // Build IPS band shapes
   const bandShapes: Partial<Shape>[] = ipsBounds.flatMap((row) =>
     IPS_CLASSES.map((cls) => {
@@ -112,7 +114,7 @@ export function IPSBandsChart({
     y: testValues,
     type: 'scatter' as const,
     mode: 'lines' as const,
-    name: 'Mesures',
+    name: t('sharedComponents.counterfactual.measures'),
     line: { color: '#60a5fa', width: 2 },
     connectgaps: false,
   }
@@ -126,7 +128,7 @@ export function IPSBandsChart({
             y: cfOriginal,
             type: 'scatter' as const,
             mode: 'lines' as const,
-            name: 'Original',
+            name: t('sharedComponents.counterfactual.original'),
             line: { color: '#9ca3af', width: 2 },
           },
           {
@@ -134,7 +136,7 @@ export function IPSBandsChart({
             y: cfCounterfactual,
             type: 'scatter' as const,
             mode: 'lines' as const,
-            name: 'Contrefactuel',
+            name: t('sharedComponents.counterfactual.counterfactual'),
             line: { color: '#06b6d4', width: 2, dash: 'dash' as const },
           },
         ]
@@ -144,11 +146,11 @@ export function IPSBandsChart({
     ...darkLayout,
     xaxis: {
       ...darkLayout.xaxis,
-      title: { text: 'Date' },
+      title: { text: t('sharedComponents.charts.date') },
     },
     yaxis: {
       ...darkLayout.yaxis,
-      title: { text: 'Niveau piézométrique (m NGF)' },
+      title: { text: t('sharedComponents.counterfactual.levelMNgf') },
     },
     legend: {
       ...darkLayout.legend,

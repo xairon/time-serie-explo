@@ -1,4 +1,5 @@
 import { X, AlertTriangle, CloudRain, Globe, CalendarClock, BarChart3, HelpCircle, Database } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface OutlierDiagnostic {
   date: string
@@ -34,37 +35,15 @@ interface Props {
   onClose: () => void
 }
 
-const CATEGORY_META: Record<string, { color: string; icon: any; verdict: string }> = {
-  DATA_GAP: {
-    color: 'red',
-    icon: Database,
-    verdict: 'Probablement un problème de données — des mesures manquantes proches de cette période rendent le modèle peu fiable ici.',
-  },
-  CLIMATE_EXTREME: {
-    color: 'orange',
-    icon: CloudRain,
-    verdict: 'Conditions climatiques inhabituelles ce mois-ci — le modèle peine face aux événements extrêmes hors de sa distribution de calibration.',
-  },
-  REGIONAL_SIGNAL: {
-    color: 'blue',
-    icon: Globe,
-    verdict: 'Phénomène régional — les stations voisines confirment des niveaux anormaux. Le modèle ne peut pas capturer les anomalies à grande échelle.',
-  },
-  SEASONAL_BIAS: {
-    color: 'yellow',
-    icon: CalendarClock,
-    verdict: 'Erreur saisonnière systématique — le modèle sur/sous-estime de manière récurrente durant cette saison. Envisager une autre fonction de recharge ou de réponse.',
-  },
-  DOMINANT_CONTRIBUTION: {
-    color: 'purple',
-    icon: BarChart3,
-    verdict: 'Un stress domine la prédiction ici — le modèle peut nécessiter des stress supplémentaires ou une fonction de réponse plus flexible.',
-  },
-  UNKNOWN: {
-    color: 'gray',
-    icon: HelpCircle,
-    verdict: "Aucun schéma clair identifié — il peut s'agir d'un événement local (pompage, problème de capteur) non capturé par les entrées du modèle.",
-  },
+function getCategoryMeta(t: (k: string) => string): Record<string, { color: string; icon: any; verdict: string }> {
+  return {
+    DATA_GAP: { color: 'red', icon: Database, verdict: t('pastas.outlier.verdictDataGap') },
+    CLIMATE_EXTREME: { color: 'orange', icon: CloudRain, verdict: t('pastas.outlier.verdictClimateExtreme') },
+    REGIONAL_SIGNAL: { color: 'blue', icon: Globe, verdict: t('pastas.outlier.verdictRegional') },
+    SEASONAL_BIAS: { color: 'yellow', icon: CalendarClock, verdict: t('pastas.outlier.verdictSeasonal') },
+    DOMINANT_CONTRIBUTION: { color: 'purple', icon: BarChart3, verdict: t('pastas.outlier.verdictDominant') },
+    UNKNOWN: { color: 'gray', icon: HelpCircle, verdict: t('pastas.outlier.verdictUnknown') },
+  }
 }
 
 const CATEGORY_CLASSES: Record<string, { bg: string; text: string; border: string; bgLight: string }> = {
@@ -99,11 +78,13 @@ function StatRow({ label, value, alert }: { label: string; value: string; alert?
 }
 
 export function OutlierDetailPanel({ outlier, onClose }: Props) {
+  const { t } = useTranslation()
+  const CATEGORY_META = getCategoryMeta(t)
   const { climate, contributions, data_quality, neighbors } = outlier
   const meta = CATEGORY_META[outlier.category] ?? CATEGORY_META.UNKNOWN
   const cls = CATEGORY_CLASSES[outlier.category] ?? CATEGORY_CLASSES.UNKNOWN
   const Icon = meta.icon
-  const direction = outlier.residual > 0 ? 'surestime' : 'sous-estime'
+  const direction = outlier.residual > 0 ? t('pastas.outlier.modelOver') : t('pastas.outlier.modelUnder')
   const error = Math.abs(outlier.observed - outlier.simulated)
 
   return (
@@ -129,7 +110,7 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
           </div>
           <p className="text-[11px] text-text-secondary mt-0.5">
             Le modèle {direction} de <span className="font-semibold text-text-primary">{error.toFixed(2)} m</span>
-            {' '}(observé {outlier.observed.toFixed(2)} m vs simulé {outlier.simulated.toFixed(2)} m)
+            {' '}({t('pastas.signatures.observed').toLowerCase()} {outlier.observed.toFixed(2)} m vs {t('pastas.signatures.simulated').toLowerCase()} {outlier.simulated.toFixed(2)} m)
           </p>
         </div>
         <button onClick={onClose} className="p-1.5 hover:bg-bg-hover rounded-lg transition-colors shrink-0">
@@ -148,7 +129,7 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
       {/* Severity */}
       <div className="px-4 py-2 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-text-muted w-14">Sévérité</span>
+          <span className="text-[10px] text-text-muted w-14">{t('pastas.outlier.severity')}</span>
           <div className="flex-1"><SeverityBar severity={outlier.severity} /></div>
           <span className="text-[10px] font-mono text-text-secondary">{outlier.residual_zscore.toFixed(1)}σ</span>
         </div>
@@ -158,36 +139,36 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
       <div className="grid grid-cols-3 divide-x divide-white/5">
         {/* What happened (climate) */}
         <div className="p-3">
-          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">Ce qui s'est passé</div>
+          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">{t('pastas.outlier.whatHappened')}</div>
           {climate.precip_mm != null && (
-            <StatRow label="Précipitations" value={`${climate.precip_mm.toFixed(0)} mm (${climate.precip_zscore != null ? (climate.precip_zscore > 0 ? '+' : '') + climate.precip_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.precip_zscore != null && Math.abs(climate.precip_zscore) > 1.5} />
+            <StatRow label={t('pastas.outlier.precipitation')} value={`${climate.precip_mm.toFixed(0)} mm (${climate.precip_zscore != null ? (climate.precip_zscore > 0 ? '+' : '') + climate.precip_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.precip_zscore != null && Math.abs(climate.precip_zscore) > 1.5} />
           )}
           {climate.temp_c != null && (
-            <StatRow label="Température" value={`${climate.temp_c.toFixed(1)} °C (${climate.temp_zscore != null ? (climate.temp_zscore > 0 ? '+' : '') + climate.temp_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.temp_zscore != null && Math.abs(climate.temp_zscore) > 1.5} />
+            <StatRow label={t('pastas.outlier.temperature')} value={`${climate.temp_c.toFixed(1)} °C (${climate.temp_zscore != null ? (climate.temp_zscore > 0 ? '+' : '') + climate.temp_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.temp_zscore != null && Math.abs(climate.temp_zscore) > 1.5} />
           )}
           {climate.etp_mm != null && (
-            <StatRow label="Évapotranspiration" value={`${climate.etp_mm.toFixed(1)} mm (${climate.etp_zscore != null ? (climate.etp_zscore > 0 ? '+' : '') + climate.etp_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.etp_zscore != null && Math.abs(climate.etp_zscore) > 1.5} />
+            <StatRow label={t('pastas.outlier.evapotranspiration')} value={`${climate.etp_mm.toFixed(1)} mm (${climate.etp_zscore != null ? (climate.etp_zscore > 0 ? '+' : '') + climate.etp_zscore.toFixed(1) + 'σ' : '—'})`} alert={climate.etp_zscore != null && Math.abs(climate.etp_zscore) > 1.5} />
           )}
-          {climate.spli != null && <StatRow label="Indice de sécheresse (SPLI)" value={`${climate.spli.toFixed(1)} — ${climate.spli_class?.replace(/_/g, ' ').toLowerCase()}`} alert={Math.abs(climate.spli) > 1.5} />}
-          {climate.spi != null && <StatRow label="Indice précip. (SPI)" value={`${climate.spi.toFixed(1)} — ${climate.spi_class?.replace(/_/g, ' ').toLowerCase()}`} alert={Math.abs(climate.spi) > 1.5} />}
+          {climate.spli != null && <StatRow label={t('pastas.outlier.drySpli')} value={`${climate.spli.toFixed(1)} — ${climate.spli_class?.replace(/_/g, ' ').toLowerCase()}`} alert={Math.abs(climate.spli) > 1.5} />}
+          {climate.spi != null && <StatRow label={t('pastas.outlier.rainSpi')} value={`${climate.spi.toFixed(1)} — ${climate.spi_class?.replace(/_/g, ' ').toLowerCase()}`} alert={Math.abs(climate.spi) > 1.5} />}
         </div>
 
         {/* What the model did (contributions) */}
         <div className="p-3">
-          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">Réponse du modèle</div>
+          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">{t('pastas.outlier.modelResponse')}</div>
           {Object.entries(contributions).map(([name, value]) => (
             <StatRow key={name} label={name} value={`${value > 0 ? '+' : ''}${value.toFixed(3)} m`} />
           ))}
-          {Object.keys(contributions).length === 0 && <span className="text-[10px] text-text-muted">Aucune donnée de contribution</span>}
+          {Object.keys(contributions).length === 0 && <span className="text-[10px] text-text-muted">{t('pastas.outlier.noContribData')}</span>}
         </div>
 
         {/* Data reliability */}
         <div className="p-3">
-          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">Fiabilité des données</div>
-          <StatRow label="Couverture (±30 j)" value={`${data_quality.coverage_pct.toFixed(0)}%`} alert={data_quality.coverage_pct < 90} />
-          <StatRow label="Jours manquants" value={String(data_quality.gap_days)} alert={data_quality.gap_days > 0} />
+          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-2">{t('pastas.outlier.dataReliability')}</div>
+          <StatRow label={t('pastas.outlier.coverage30d')} value={`${data_quality.coverage_pct.toFixed(0)}%`} alert={data_quality.coverage_pct < 90} />
+          <StatRow label={t('pastas.outlier.missingDays')} value={String(data_quality.gap_days)} alert={data_quality.gap_days > 0} />
           {data_quality.nearest_gap_distance_days != null && (
-            <StatRow label="Lacune la plus proche" value={`à ${data_quality.nearest_gap_distance_days} jours`} alert={data_quality.nearest_gap_distance_days < 15} />
+            <StatRow label={t('pastas.outlier.nearestGap')} value={t('pastas.outlier.nearestGapAt', { days: data_quality.nearest_gap_distance_days })} alert={data_quality.nearest_gap_distance_days < 15} />
           )}
         </div>
       </div>
@@ -198,7 +179,7 @@ export function OutlierDetailPanel({ outlier, onClose }: Props) {
           <div className="flex items-center gap-2 mb-1.5">
             <Globe className="w-3 h-3 text-text-muted" />
             <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wide">
-              Stations voisines ({neighbors.anomalous}/{neighbors.total} également anormales)
+              {t('pastas.outlier.neighborStations', { anomalous: neighbors.anomalous, total: neighbors.total })}
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">

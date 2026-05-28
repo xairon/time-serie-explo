@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { PumpingRange } from '@/lib/types'
 
 interface LinearTrendData {
@@ -24,6 +25,7 @@ const QUICK_SLOPES = [
 ]
 
 export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorProps) {
+  const { t } = useTranslation()
   function update(patch: Partial<LinearTrendData>) {
     onChange({ ...data, ...patch })
   }
@@ -37,17 +39,17 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1">Début</label>
+          <label className="block text-xs text-text-muted mb-1">{t('pastas.scenariosPage.start')}</label>
           <input type="date" value={data.start} onChange={(e) => update({ start: e.target.value })} className={inputClass} />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Fin</label>
+          <label className="block text-xs text-text-muted mb-1">{t('pastas.scenariosPage.end')}</label>
           <input type="date" value={data.end} onChange={(e) => update({ end: e.target.value })} className={inputClass} />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs text-text-muted mb-1" title="Vitesse de variation du niveau d'eau par an. Négatif = tendance baissière, positif = tendance haussière.">Pente (m/an)</label>
+        <label className="block text-xs text-text-muted mb-1" title={t('pastas.linearTrend.slopeTooltip')}>{t('pastas.linearTrend.slope')}</label>
         <div className="flex gap-1 mb-2">
           {QUICK_SLOPES.map(s => (
             <button
@@ -75,20 +77,19 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
         />
         {years > 0 && (
           <p className="text-[10px] mt-1">
-            Sur {years.toFixed(1)} ans : variation totale de{' '}
             <span className={totalChange < 0 ? 'text-red-400' : 'text-green-400'}>
-              {totalChange > 0 ? '+' : ''}{(totalChange * 100).toFixed(1)} cm
+              {t('pastas.linearTrend.totalChange', { years: years.toFixed(1), change: `${totalChange > 0 ? '+' : ''}${(totalChange * 100).toFixed(1)}` })}
             </span>
           </p>
         )}
         {limits && (
           <p className="text-[10px] mt-0.5 text-text-muted">
-            Plage typique : <span className="text-text-secondary">{limits.typical_min} à {limits.typical_max} m/an</span>
+            {t('pastas.linearTrend.typicalRange', { min: limits.typical_min, max: limits.typical_max })}
           </p>
         )}
         {limits && (data.slope_m_per_year < limits.typical_min || data.slope_m_per_year > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            Attention : pente hors plage typique
+            {t('pastas.linearTrend.outOfRange')}
           </p>
         )}
       </div>

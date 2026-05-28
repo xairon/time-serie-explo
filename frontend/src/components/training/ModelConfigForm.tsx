@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAvailableModels, useTrainingPresets } from '@/hooks/useModels'
 import { useDatasets } from '@/hooks/useDatasets'
 import type { TrainingConfig, AvailableModel } from '@/lib/types'
@@ -19,6 +20,7 @@ interface ModelConfigFormProps {
 }
 
 export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
+  const { t } = useTranslation()
   const { data: availableModels, isLoading: modelsLoading } = useAvailableModels()
   const { data: datasets, isLoading: datasetsLoading } = useDatasets()
   const { data: presets } = useTrainingPresets()
@@ -63,7 +65,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
     if (!availableModels) return new Map<string, AvailableModel[]>()
     const groups = new Map<string, AvailableModel[]>()
     for (const m of availableModels) {
-      const cat = m.category || 'Autre'
+      const cat = m.category || 'Other'
       if (!groups.has(cat)) groups.set(cat, [])
       groups.get(cat)!.push(m)
     }
@@ -146,19 +148,19 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h3 className="text-sm font-semibold text-text-primary">Configuration du modèle</h3>
+      <h3 className="text-sm font-semibold text-text-primary">{t('sharedComponents.training.modelConfig')}</h3>
 
       {/* Preset selector — opinionated configs for non-experts */}
       <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg p-3 space-y-2" data-tour="preset-selector">
         <label className="block text-xs font-semibold text-accent-cyan">
-          Préréglage métier <span className="text-text-secondary font-normal">(recommandé)</span>
+          {t('sharedComponents.training.preset')} <span className="text-text-secondary font-normal">{t('sharedComponents.training.presetRecommended')}</span>
         </label>
         <select
           value={presetId}
           onChange={(e) => applyPreset(e.target.value)}
           className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
         >
-          <option value={PRESET_NONE}>— Configuration manuelle —</option>
+          <option value={PRESET_NONE}>{t('sharedComponents.training.manualConfig')}</option>
           {presets?.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
@@ -172,15 +174,14 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         )}
         {!selectedPreset && (
           <p className="text-[11px] text-text-secondary leading-snug">
-            Choisissez un préréglage pour entraîner avec des paramètres adaptés à votre cas d'usage,
-            ou laissez sur « Configuration manuelle » pour tout définir vous-même.
+            {t('sharedComponents.training.presetHint')}
           </p>
         )}
       </div>
 
       {/* Model type - grouped by category */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Architecture</label>
+        <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.architecture')}</label>
         {modelsLoading ? (
           <div className="h-9 bg-bg-hover rounded-lg animate-pulse" />
         ) : (
@@ -209,7 +210,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
       {/* Dataset */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Jeu de données</label>
+        <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.dataset')}</label>
         {datasetsLoading ? (
           <div className="h-9 bg-bg-hover rounded-lg animate-pulse" />
         ) : (
@@ -223,7 +224,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
           >
             {datasets?.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({d.n_rows} lignes)
+                {d.name} ({d.n_rows} {t('sharedComponents.training.rowsUnit')})
               </option>
             ))}
           </select>
@@ -234,24 +235,24 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {selectedDataset && (
         <div className="bg-bg-hover rounded-lg p-3 space-y-1.5 border border-white/5">
           <h4 className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-1">
-            Informations du jeu de données
+            {t('sharedComponents.training.datasetInfo')}
           </h4>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div>
-              <span className="text-text-secondary">Cible : </span>
+              <span className="text-text-secondary">{t('sharedComponents.training.target')} : </span>
               <span className="text-accent-cyan font-medium">{selectedDataset.target_variable}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Lignes : </span>
+              <span className="text-text-secondary">{t('sharedComponents.training.rows')} : </span>
               <span className="text-text-primary">{selectedDataset.n_rows.toLocaleString('en-US')}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Covariables : </span>
+              <span className="text-text-secondary">{t('sharedComponents.training.covariates')} : </span>
               <span className="text-text-primary">{selectedDataset.covariates.length}</span>
             </div>
             {selectedDataset.date_range.length >= 2 && (
               <div>
-                <span className="text-text-secondary">Période : </span>
+                <span className="text-text-secondary">{t('sharedComponents.training.period')} : </span>
                 <span className="text-text-primary">
                   {selectedDataset.date_range[0]?.slice(0, 10)} → {selectedDataset.date_range[1]?.slice(0, 10)}
                 </span>
@@ -259,8 +260,8 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             )}
             {selectedDataset.stations.length > 0 && (
               <div className="col-span-2">
-                <span className="text-text-secondary">Stations : </span>
-                <span className="text-text-primary">{selectedDataset.stations.length} station(s)</span>
+                <span className="text-text-secondary">{t('sharedComponents.training.stations')} : </span>
+                <span className="text-text-primary">{t('sharedComponents.training.stationsCount', { count: selectedDataset.stations.length })}</span>
               </div>
             )}
           </div>
@@ -277,13 +278,13 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {/* Station */}
       {selectedDataset && selectedDataset.stations.length > 0 && (
         <div>
-          <label className="block text-xs text-text-secondary mb-1">Station</label>
+          <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.station')}</label>
           <select
             value={station}
             onChange={(e) => setStation(e.target.value)}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
-            <option value="">Toutes les stations</option>
+            <option value="">{t('sharedComponents.training.allStations')}</option>
             {selectedDataset.stations.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -304,7 +305,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
               className="w-4 h-4 rounded border-white/10 bg-bg-input text-accent-cyan focus:ring-accent-cyan/50"
             />
             <span className="text-xs text-text-secondary">
-              Utiliser les covariables ({selectedDataset.covariates.length} variables)
+              {t('sharedComponents.training.useCovariates', { count: selectedDataset.covariates.length })}
             </span>
           </label>
         </div>
@@ -312,7 +313,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
       {/* Loss function */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Fonction de perte</label>
+        <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.lossFunction')}</label>
         <select
           value={lossFunction}
           onChange={(e) => setLossFunction(e.target.value)}
@@ -330,7 +331,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-text-secondary mb-1">
-            Entrée (jours de contexte)
+            {t('sharedComponents.training.inputDays')}
           </label>
           <input
             type="number"
@@ -343,7 +344,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         </div>
         <div>
           <label className="block text-xs text-text-secondary mb-1">
-            Sortie (horizon de prévision)
+            {t('sharedComponents.training.outputDays')}
           </label>
           <input
             type="number"
@@ -359,7 +360,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {/* Splits */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-secondary mb-1">Part entraînement</label>
+          <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.trainSplit')}</label>
           <input
             type="number"
             min={0.5}
@@ -371,7 +372,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
           />
         </div>
         <div>
-          <label className="block text-xs text-text-secondary mb-1">Part validation</label>
+          <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.valSplit')}</label>
           <input
             type="number"
             min={0.05}
@@ -386,7 +387,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
 
       {/* Epochs */}
       <div>
-        <label className="block text-xs text-text-secondary mb-1">Époques maximum</label>
+        <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.maxEpochs')}</label>
         <input
           type="number"
           min={1}
@@ -406,11 +407,11 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
             onChange={(e) => setEarlyStopping(e.target.checked)}
             className="w-4 h-4 rounded border-white/10 bg-bg-input text-accent-cyan focus:ring-accent-cyan/50"
           />
-          <span className="text-xs text-text-secondary">Arrêt anticipé</span>
+          <span className="text-xs text-text-secondary">{t('sharedComponents.training.earlyStopping')}</span>
         </label>
         {earlyStopping && (
           <div>
-            <label className="block text-xs text-text-secondary mb-1">Patience (époques)</label>
+            <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.training.patience')}</label>
             <input
               type="number"
               min={3}
@@ -426,7 +427,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
       {/* Dynamic hyperparams with proper number inputs */}
       {Object.keys(hyperparams).length > 0 && (
         <div>
-          <label className="block text-xs text-text-secondary mb-2">Hyperparamètres</label>
+          <label className="block text-xs text-text-secondary mb-2">{t('sharedComponents.training.hyperparams')}</label>
           <div className="space-y-2">
             {Object.entries(hyperparams).map(([key, val]) => {
               const isNum = isNumericParam(val)
@@ -470,7 +471,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         disabled={isPending || !modelType || !datasetId}
         className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
       >
-        {isPending ? 'Démarrage...' : "Démarrer l'entraînement"}
+        {isPending ? t('sharedComponents.training.starting') : t('sharedComponents.training.startTraining')}
       </button>
     </form>
   )

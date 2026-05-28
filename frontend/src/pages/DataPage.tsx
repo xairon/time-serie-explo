@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { useDatasets, useDatasetPreview, useDatasetProfile, useDeleteDataset, useUpdateDataset } from '@/hooks/useDatasets'
 import type { DatasetSummary } from '@/lib/types'
 import { ImportDBForm } from '@/components/data/ImportDBForm'
@@ -16,6 +17,7 @@ type Tab = 'import' | 'explore'
 type ExploreSubTab = 'apercu' | 'qualite' | 'series' | 'correlation' | 'config'
 
 export default function DataPage() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const stationFromUrl = searchParams.get('station')
@@ -42,8 +44,8 @@ export default function DataPage() {
 
   const dsCount = datasets?.length ?? 0
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'import', label: 'Importer' },
-    { key: 'explore', label: dsCount > 0 ? `Explorer (${dsCount})` : 'Explorer' },
+    { key: 'import', label: t('mainPages.data.import') },
+    { key: 'explore', label: dsCount > 0 ? t('mainPages.data.exploreCount', { count: dsCount }) : t('mainPages.data.explore') },
   ]
 
   const selectedDataset = datasets?.find((d) => d.id === selectedDatasetId)
@@ -97,7 +99,7 @@ export default function DataPage() {
 
   const handleDeleteDataset = (id: string) => {
     const ds = datasets?.find((d) => d.id === id)
-    if (!confirm(`Supprimer le jeu de données "${ds?.name ?? id}" ?`)) return
+    if (!confirm(t('mainPages.data.deleteConfirm', { name: ds?.name ?? id }))) return
     deleteMutation.mutate(id, {
       onSuccess: () => {
         if (selectedDatasetId === id) setSelectedDatasetId('')
@@ -188,19 +190,19 @@ export default function DataPage() {
   const dateRange = selectedDataset?.date_range
 
   const exploreSubTabs: { key: ExploreSubTab; label: string }[] = [
-    { key: 'apercu', label: 'Aperçu' },
-    { key: 'qualite', label: 'Qualité' },
-    { key: 'series', label: 'Séries temporelles' },
-    { key: 'correlation', label: 'Corrélation' },
-    { key: 'config', label: 'Configuration' },
+    { key: 'apercu', label: t('mainPages.data.tabApercu') },
+    { key: 'qualite', label: t('mainPages.data.tabQualite') },
+    { key: 'series', label: t('mainPages.data.tabSeries') },
+    { key: 'correlation', label: t('mainPages.data.tabCorrelation') },
+    { key: 'config', label: t('mainPages.data.tabConfig') },
   ]
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Données</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-1">{t('mainPages.data.title')}</h1>
         <p className="text-sm text-text-secondary">
-          Import, exploration et configuration des données
+          {t('mainPages.data.subtitle')}
         </p>
       </div>
 
@@ -271,7 +273,7 @@ export default function DataPage() {
             </div>
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
-              <p className="text-sm text-text-muted">Aucun jeu de données</p>
+              <p className="text-sm text-text-muted">{t('mainPages.data.noDatasets')}</p>
             </div>
           )}
 
@@ -300,7 +302,7 @@ export default function DataPage() {
                 <>
                   <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                     <h3 className="text-sm font-semibold text-text-primary mb-3">
-                      Aperçu des données
+                      {t('mainPages.data.dataPreview')}
                     </h3>
                     <DataTable columns={previewColumns} rows={previewRows} />
                   </div>
@@ -316,21 +318,21 @@ export default function DataPage() {
                   {/* Summary cards */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
-                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Lignes</p>
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.rows')}</p>
                       <p className="text-2xl font-bold text-text-primary">{qualityStats.totalRows.toLocaleString()}</p>
                     </div>
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
-                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Colonnes</p>
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.columns')}</p>
                       <p className="text-2xl font-bold text-text-primary">{qualityStats.totalColumns}</p>
                     </div>
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
-                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Complétude globale</p>
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.overallCompleteness')}</p>
                       <p className={`text-2xl font-bold ${qualityStats.overallCompleteness >= 95 ? 'text-accent-green' : qualityStats.overallCompleteness >= 80 ? 'text-yellow-400' : 'text-accent-red'}`}>
                         {qualityStats.overallCompleteness.toFixed(1)}%
                       </p>
                     </div>
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
-                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">Plage de dates</p>
+                      <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.dateRange')}</p>
                       <p className="text-sm font-medium text-text-primary mt-1">
                         {dateRange && dateRange.length >= 2
                           ? `${new Date(dateRange[0]).toLocaleDateString('en-GB')} — ${new Date(dateRange[1]).toLocaleDateString('en-GB')}`
@@ -341,7 +343,7 @@ export default function DataPage() {
 
                   {/* Missing values bar chart */}
                   <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">Valeurs manquantes par colonne</h3>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">{t('mainPages.data.missingPerColumn')}</h3>
                     <div className="h-[300px]">
                       <Plot
                         data={[
@@ -360,8 +362,8 @@ export default function DataPage() {
                         ]}
                         layout={{
                           ...darkLayout,
-                          xaxis: { ...darkLayout.xaxis, title: { text: 'Colonne' }, tickangle: -45 },
-                          yaxis: { ...darkLayout.yaxis, title: { text: 'Valeurs manquantes' } },
+                          xaxis: { ...darkLayout.xaxis, title: { text: t('mainPages.data.axisColumn') }, tickangle: -45 },
+                          yaxis: { ...darkLayout.yaxis, title: { text: t('mainPages.data.missingValuesAxis') } },
                           margin: { t: 20, r: 20, b: 80, l: 60 },
                         }}
                         config={plotlyConfig}
@@ -373,15 +375,15 @@ export default function DataPage() {
 
                   {/* Completeness per column table */}
                   <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">Complétude par colonne</h3>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">{t('mainPages.data.completenessPerColumn')}</h3>
                     <div className="overflow-x-auto rounded-lg border border-white/5">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-bg-hover">
-                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Colonne</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">Type</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Manquant</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">Complétude</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">{t('mainPages.data.column')}</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase">{t('mainPages.data.type')}</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">{t('mainPages.data.missing')}</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary uppercase">{t('mainPages.data.completeness')}</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary uppercase w-48"></th>
                           </tr>
                         </thead>
@@ -414,7 +416,7 @@ export default function DataPage() {
               {/* Serie temporelle sub-tab */}
               {exploreSubTab === 'series' && (
                 <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-text-primary mb-3">Séries temporelles</h3>
+                  <h3 className="text-sm font-semibold text-text-primary mb-3">{t('mainPages.data.timeSeries')}</h3>
                   <TimeseriesPlot
                     dates={timeseriesData.dates}
                     values={timeseriesData.values}
@@ -428,7 +430,7 @@ export default function DataPage() {
               {exploreSubTab === 'correlation' && (
                 <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                   <h3 className="text-sm font-semibold text-text-primary mb-3">
-                    Matrice de corrélation
+                    {t('mainPages.data.correlationMatrix')}
                   </h3>
                   <CorrelationMatrix
                     labels={correlationData.labels}
@@ -444,7 +446,7 @@ export default function DataPage() {
                   {datasetVariables.length > 0 ? (
                     <>
                       <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
-                        <h3 className="text-sm font-semibold text-text-primary">Variable cible</h3>
+                        <h3 className="text-sm font-semibold text-text-primary">{t('mainPages.data.targetVariable')}</h3>
                         <select
                           value={targetVariable}
                           onChange={(e) => { setTargetVariable(e.target.value); setConfigDirty(true) }}
@@ -459,7 +461,7 @@ export default function DataPage() {
                       </div>
 
                       <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
-                        <h3 className="text-sm font-semibold text-text-primary">Covariables</h3>
+                        <h3 className="text-sm font-semibold text-text-primary">{t('mainPages.data.covariates')}</h3>
                         <div className="flex flex-wrap gap-2">
                           {datasetVariables
                             .filter((v) => v !== targetVariable)
@@ -480,20 +482,20 @@ export default function DataPage() {
                       </div>
 
                       <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-4">
-                        <h3 className="text-sm font-semibold text-text-primary">Prétraitement</h3>
+                        <h3 className="text-sm font-semibold text-text-primary">{t('mainPages.data.preprocessing')}</h3>
                         <div>
                           <label className="block text-xs text-text-secondary mb-1">
-                            Méthode d'imputation des valeurs manquantes
+                            {t('mainPages.data.fillMethodLabel')}
                           </label>
                           <select
                             value={fillMethod}
                             onChange={(e) => { setFillMethod(e.target.value); setConfigDirty(true) }}
                             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
                           >
-                            <option value="interpolate">Interpolation linéaire</option>
-                            <option value="ffill">Report avant</option>
-                            <option value="bfill">Report arrière</option>
-                            <option value="drop">Suppression</option>
+                            <option value="interpolate">{t('mainPages.data.fillInterpolate')}</option>
+                            <option value="ffill">{t('mainPages.data.fillFfill')}</option>
+                            <option value="bfill">{t('mainPages.data.fillBfill')}</option>
+                            <option value="drop">{t('mainPages.data.fillDrop')}</option>
                           </select>
                         </div>
                         <div className="flex items-center gap-3">
@@ -507,7 +509,7 @@ export default function DataPage() {
                             <div className="w-9 h-5 bg-bg-hover rounded-full peer peer-checked:bg-accent-cyan/30 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full peer-checked:after:bg-accent-cyan" />
                           </label>
                           <span className="text-xs text-text-secondary">
-                            Normalisation (StandardScaler)
+                            {t('mainPages.data.normalization')}
                           </span>
                         </div>
                       </div>
@@ -523,14 +525,14 @@ export default function DataPage() {
                               : 'bg-bg-hover text-text-secondary cursor-not-allowed'
                           }`}
                         >
-                          {updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                          {updateMutation.isPending ? t('mainPages.data.savingConfig') : t('mainPages.data.saveConfig')}
                         </button>
                         {saveSuccess && (
-                          <span className="text-xs text-accent-green">Configuration enregistrée</span>
+                          <span className="text-xs text-accent-green">{t('mainPages.data.configSaved')}</span>
                         )}
                         {updateMutation.isError && (
                           <span className="text-xs text-accent-red">
-                            Erreur : {updateMutation.error instanceof Error ? updateMutation.error.message : 'Échec'}
+                            {t('mainPages.data.errorPrefix')} {updateMutation.error instanceof Error ? updateMutation.error.message : t('mainPages.data.failed')}
                           </span>
                         )}
                       </div>
@@ -538,7 +540,7 @@ export default function DataPage() {
                   ) : (
                     <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
                       <p className="text-sm text-text-secondary">
-                        Aucune variable disponible pour ce jeu de données.
+                        {t('mainPages.data.noVariables')}
                       </p>
                     </div>
                   )}

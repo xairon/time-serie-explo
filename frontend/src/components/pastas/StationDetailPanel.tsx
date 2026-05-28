@@ -1,5 +1,6 @@
 import { Loader2, MapPin, Droplets, Thermometer, Mountain } from 'lucide-react'
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import type { PastasStationPreview } from '@/lib/types'
 import { InfoTip } from './InfoTip'
 
@@ -59,10 +60,11 @@ interface Props {
 }
 
 export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, previewLoading, onRangeChange }: Props) {
+  const { t } = useTranslation()
   if (stationInfoLoading) {
     return (
       <div className="flex items-center justify-center h-32 text-text-muted text-sm gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Chargement des informations de la station…
+        <Loader2 className="w-4 h-4 animate-spin" /> {t('pastas.ui.loadingStationInfo')}
       </div>
     )
   }
@@ -94,7 +96,7 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
             )}
             {alertLevel && (
               <span className={`w-2.5 h-2.5 rounded-full ${ALERT_COLORS[alertLevel] ?? 'bg-gray-400'}`}
-                title={`Alerte : ${alertLevel}`} />
+                title={t('pastas.stationDetail.alertPrefix', { level: alertLevel })} />
             )}
           </div>
           <div className="flex items-center gap-2 mt-1 text-xs text-text-muted">
@@ -116,8 +118,8 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
           {pctile != null && (
             <div className="flex-1 flex items-center gap-2">
               <span className="text-[10px] text-text-muted shrink-0 flex items-center gap-1">
-                Percentile dernière année
-                <InfoTip text="Positionnement du niveau moyen de la dernière année parmi toutes les années historiques. 0% = l'année la plus basse jamais enregistrée, 100% = la plus haute. Détermine la classification (très bas < 10%, bas 10-25%, modérément bas 25-40%, autour de la moyenne 40-60%, modérément haut 60-75%, haut 75-90%, très haut > 90%)." iconSize={10} />
+                {t('pastas.stationDetail.lastYearPercentile')}
+                <InfoTip text={t('pastas.stationDetail.percentileTip')} iconSize={10} />
               </span>
               <div className="flex-1 h-2 bg-bg-primary rounded-full overflow-hidden border border-white/5">
                 <div className="h-full rounded-full transition-all"
@@ -134,27 +136,27 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
 
       {/* KPI cards */}
       <div className="grid grid-cols-4 gap-2">
-        <KpiCard label="Niveau moyen" value={s.niveau_moyen_global != null ? (s.niveau_moyen_global as number).toFixed(2) : null} unit="m"
+        <KpiCard label={t('pastas.stationDetail.meanLevel')} value={s.niveau_moyen_global != null ? (s.niveau_moyen_global as number).toFixed(2) : null} unit="m"
           icon={Droplets}
-          tip="Niveau d'eau moyen historique (m NGF) sur l'ensemble des mesures. Min/Max indiquent les extrêmes absolus jamais enregistrés."
-          sub={s.niveau_min_absolu != null ? `Min ${(s.niveau_min_absolu as number).toFixed(1)} — Max ${(s.niveau_max_absolu as number).toFixed(1)} m` : undefined} />
-        <KpiCard label="Amplitude" value={s.amplitude_totale != null ? (s.amplitude_totale as number).toFixed(2) : null} unit="m"
+          tip={t('pastas.stationDetail.meanLevelTip')}
+          sub={s.niveau_min_absolu != null ? t('pastas.stationDetail.minMax', { min: (s.niveau_min_absolu as number).toFixed(1), max: (s.niveau_max_absolu as number).toFixed(1) }) : undefined} />
+        <KpiCard label={t('pastas.stationDetail.amplitude')} value={s.amplitude_totale != null ? (s.amplitude_totale as number).toFixed(2) : null} unit="m"
           icon={Mountain}
-          tip="Plage totale (max − min) du niveau d'eau. σ est l'écart-type — une mesure de la variation typique. Une grande amplitude avec un σ faible suggère des événements extrêmes rares."
-          sub={s.niveau_stddev_global != null ? `σ = ${(s.niveau_stddev_global as number).toFixed(2)} m` : undefined} />
-        <KpiCard label="Chronique" value={s.nb_mesures_total != null ? String(s.nb_mesures_total) : null} unit="obs"
-          tip="Nombre total de mesures et étendue temporelle. Des chroniques longues (15+ ans) fournissent une calibration plus fiable en capturant les cycles secs et humides."
+          tip={t('pastas.stationDetail.amplitudeTip')}
+          sub={s.niveau_stddev_global != null ? t('pastas.stationDetail.sigma', { value: (s.niveau_stddev_global as number).toFixed(2) }) : undefined} />
+        <KpiCard label={t('pastas.stationDetail.chronicle')} value={s.nb_mesures_total != null ? String(s.nb_mesures_total) : null} unit={t('pastas.stationDetail.chronicleUnit')}
+          tip={t('pastas.stationDetail.chronicleTip')}
           sub={s.premiere_mesure && s.derniere_mesure ? `${(s.premiere_mesure as string).slice(0, 4)}–${(s.derniere_mesure as string).slice(0, 4)}` : undefined} />
-        <KpiCard label="Climat" value={s.temperature_moyenne_globale != null ? (s.temperature_moyenne_globale as number).toFixed(1) : null} unit="°C"
+        <KpiCard label={t('pastas.stationDetail.climate')} value={s.temperature_moyenne_globale != null ? (s.temperature_moyenne_globale as number).toFixed(1) : null} unit="°C"
           icon={Thermometer}
-          tip="Température moyenne et précipitations mensuelles issues de la réanalyse ERA5 au point de grille le plus proche. Elles alimentent le stress de recharge dans le modèle Pastas."
-          sub={s.precipitation_moyenne_mensuelle != null ? `${(s.precipitation_moyenne_mensuelle as number).toFixed(0)} mm/mois moy.` : undefined} />
+          tip={t('pastas.stationDetail.climateTip')}
+          sub={s.precipitation_moyenne_mensuelle != null ? t('pastas.stationDetail.mmPerMonthAvg', { value: (s.precipitation_moyenne_mensuelle as number).toFixed(0) }) : undefined} />
       </div>
 
       {/* Time series chart (loaded async) */}
       {previewLoading && (
         <div className="flex items-center justify-center h-24 text-text-muted text-sm gap-2 bg-bg-card rounded-lg border border-white/5">
-          <Loader2 className="w-4 h-4 animate-spin" /> Chargement de la série temporelle…
+          <Loader2 className="w-4 h-4 animate-spin" /> {t('pastas.ui.loadingTimeSeries')}
         </div>
       )}
 
@@ -164,17 +166,17 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
             data={[
               {
                 x: preview.piezo.index, y: preview.piezo.values,
-                name: 'Piézo (m)', type: 'scatter', mode: 'lines',
+                name: t('pastas.stationDetail.piezo'), type: 'scatter', mode: 'lines',
                 line: { color: '#60a5fa', width: 1 }, xaxis: 'x', yaxis: 'y',
               },
               {
                 x: preview.precip.index, y: preview.precip.values,
-                name: 'Précip. (mm/j)', type: 'bar',
+                name: t('pastas.stationDetail.precip'), type: 'bar',
                 marker: { color: 'rgba(59,130,246,0.3)' }, xaxis: 'x', yaxis: 'y2',
               },
               {
                 x: preview.evap.index, y: preview.evap.values,
-                name: 'ETP (mm/j)', type: 'scatter', mode: 'lines',
+                name: t('pastas.stationDetail.etp'), type: 'scatter', mode: 'lines',
                 line: { color: '#f97316', width: 1 }, xaxis: 'x', yaxis: 'y3',
               },
             ]}
@@ -185,9 +187,9 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
               height: 320, showlegend: false,
               grid: { rows: 3, columns: 1, subplots: ['xy', 'xy2', 'xy3'], roworder: 'top to bottom' as const },
               xaxis: { gridcolor: 'rgba(255,255,255,0.03)', rangeslider: { visible: true, thickness: 0.06 } },
-              yaxis: { title: { text: 'Piézo (m)' }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.7, 1] },
-              yaxis2: { title: { text: 'P (mm/j)' }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.38, 0.65] },
-              yaxis3: { title: { text: 'ETP (mm/j)' }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.0, 0.3] },
+              yaxis: { title: { text: t('pastas.stationDetail.piezo') }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.7, 1] },
+              yaxis2: { title: { text: t('pastas.stationDetail.precipShort') }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.38, 0.65] },
+              yaxis3: { title: { text: t('pastas.stationDetail.etp') }, gridcolor: 'rgba(255,255,255,0.05)', domain: [0.0, 0.3] },
             }}
             useResizeHandler className="w-full"
             onRelayout={(e: Record<string, unknown>) => {

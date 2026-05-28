@@ -1,19 +1,13 @@
 import { useState } from 'react'
 import Plot from 'react-plotly.js'
 import { ChevronDown, TrendingDown, TrendingUp, Minus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { PastasScenarioResponse } from '@/lib/types'
 import type { Layout } from 'plotly.js-dist-min'
 import type { ModificationData } from './ModificationCard'
 import { ExportCsvButton } from './ExportCsvButton'
 import type { CsvColumn } from '@/lib/csv-export'
-
-const MOD_LABELS: Record<string, string> = {
-  pumping_synthetic: 'Pompage synthétique',
-  pumping_upload: 'Pompage (CSV)',
-  linear_trend: 'Tendance linéaire',
-  scale_stress: 'Ajustement de stress',
-}
 
 function Section({ title, defaultOpen = true, extra, children }: {
   title: string; defaultOpen?: boolean; extra?: React.ReactNode; children: React.ReactNode
@@ -66,12 +60,12 @@ function argExtreme(values: number[], dates: string[]): { date: string; value: n
   return { date: dates[idx], value: values[idx] }
 }
 
-function severityColor(meanDelta: number): { bg: string; border: string; text: string; label: string } {
+function severityColor(meanDelta: number, t: (k: string) => string): { bg: string; border: string; text: string; label: string } {
   const abs = Math.abs(meanDelta)
-  if (abs < 0.05) return { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', label: 'Négligeable' }
-  if (abs < 0.2) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-400', label: 'Modéré' }
-  if (abs < 0.5) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: 'Significatif' }
-  return { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', label: 'Sévère' }
+  if (abs < 0.05) return { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', label: t('pastas.scenarioResults.negligible') }
+  if (abs < 0.2) return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', text: 'text-yellow-400', label: t('pastas.scenarioResults.moderate') }
+  if (abs < 0.5) return { bg: 'bg-orange-500/10', border: 'border-orange-500/20', text: 'text-orange-400', label: t('pastas.scenarioResults.significant') }
+  return { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', label: t('pastas.scenarioResults.severe') }
 }
 
 const CONTRIB_COLORS = ['#60a5fa', '#34d399', '#f97316', '#a78bfa', '#f43f5e', '#eab308', '#06b6d4']
@@ -83,6 +77,13 @@ interface Props {
 }
 
 export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) {
+  const { t } = useTranslation()
+  const MOD_LABELS: Record<string, string> = {
+    pumping_synthetic: t('pastas.scenarioResults.modLabelPumpingSynthetic'),
+    pumping_upload: t('pastas.scenarioResults.modLabelPumpingUpload'),
+    linear_trend: t('pastas.scenarioResults.modLabelLinearTrend'),
+    scale_stress: t('pastas.scenarioResults.modLabelScaleStress'),
+  }
   const { baseline, scenario, delta, contributions_baseline, contributions_scenario, warnings } = result
 
   const deltaStats = computeStats(delta.values)
@@ -94,7 +95,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
   const allContribNames = [...new Set([...contribBaselineNames, ...contribScenarioNames])]
   const newContribs = contribScenarioNames.filter(n => !contribBaselineNames.includes(n))
 
-  const severity = deltaStats ? severityColor(deltaStats.mean) : null
+  const severity = deltaStats ? severityColor(deltaStats.mean, t) : null
   const TrendIcon = deltaStats ? (deltaStats.mean < -0.01 ? TrendingDown : deltaStats.mean > 0.01 ? TrendingUp : Minus) : Minus
   const peakDelta = argExtreme(delta.values, delta.index)
   const peakDeltaIso = peakDelta?.date?.slice(0, 10) ?? null
@@ -104,7 +105,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">{t('pastas.scenarioResults.warnings')}</p>
           {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
@@ -124,17 +125,17 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
                 </span>
               </div>
               <p className="text-xs text-text-secondary mt-0.5">
-                Variation moyenne du niveau sur la période de simulation
-                {' · '}Plage : {deltaStats.min.toFixed(3)} m à {deltaStats.max > 0 ? '+' : ''}{deltaStats.max.toFixed(3)} m
+                {t('pastas.scenarioResults.meanChange')}
+                {' · '}{t('pastas.scenarios.deltaRange')} : {deltaStats.min.toFixed(3)} m {t('common.to')} {deltaStats.max > 0 ? '+' : ''}{deltaStats.max.toFixed(3)} m
               </p>
             </div>
             <div className="flex gap-4 shrink-0">
               <div className="text-center">
-                <div className="text-[10px] text-text-muted">Référence</div>
+                <div className="text-[10px] text-text-muted">{t('pastas.scenarioResults.reference')}</div>
                 <div className="text-sm font-mono text-text-primary">{baselineStats?.mean.toFixed(2)} m</div>
               </div>
               <div className="text-center">
-                <div className="text-[10px] text-text-muted">Scénario</div>
+                <div className="text-[10px] text-text-muted">{t('pastas.scenarioResults.scenario')}</div>
                 <div className={`text-sm font-mono ${severity.text}`}>{scenarioStats?.mean.toFixed(2)} m</div>
               </div>
             </div>
@@ -159,11 +160,11 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
       {/* Impact (Δh) — PRIMARY chart, big and prominent */}
       {delta?.index?.length > 0 && (
         <Section
-          title="Impact du scénario sur le niveau (Δh)"
+          title={t('pastas.scenarioResults.impactTitle')}
           extra={
             <ExportCsvButton
               filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
-              title="Exporter référence, scénario et delta en CSV"
+              title={t('pastas.scenarioResults.exportBaseVsScen')}
               label="CSV"
               getColumns={() => [
                 { header: 'date', values: baseline.index },
@@ -191,7 +192,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
               height: 340,
               yaxis: {
                 ...chartLayout.yaxis,
-                title: { text: 'Δh = scénario − référence (m)' },
+                title: { text: t('pastas.scenarioResults.deltaAxis') },
                 gridcolor: 'rgba(255,255,255,0.05)',
                 zeroline: true,
                 zerolinecolor: 'rgba(255,255,255,0.3)',
@@ -204,7 +205,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
               annotations: peakDelta && peakDeltaIso ? [{
                 x: peakDeltaIso,
                 y: peakDelta.value,
-                text: `Pic : ${peakDelta.value >= 0 ? '+' : ''}${peakDelta.value.toFixed(3)} m`,
+                text: t('pastas.scenarioResults.peakAnnotation', { value: `${peakDelta.value >= 0 ? '+' : ''}${peakDelta.value.toFixed(3)}` }),
                 showarrow: true,
                 arrowhead: 2,
                 arrowsize: 0.8,
@@ -223,16 +224,16 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
           {peakDelta && (
             <div className="grid grid-cols-3 gap-2 mt-2">
               <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
-                <div className="text-[10px] text-text-muted">Δ moyen</div>
+                <div className="text-[10px] text-text-muted">{t('pastas.scenarios.deltaMean')}</div>
                 <div className={`text-sm font-mono ${severity?.text ?? ''}`}>{deltaStats!.mean >= 0 ? '+' : ''}{deltaStats!.mean.toFixed(3)} m</div>
               </div>
               <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
-                <div className="text-[10px] text-text-muted">Δ pic</div>
+                <div className="text-[10px] text-text-muted">{t('pastas.scenarios.deltaPeak')}</div>
                 <div className="text-sm font-mono text-text-primary">{peakDelta.value >= 0 ? '+' : ''}{peakDelta.value.toFixed(3)} m</div>
                 <div className="text-[9px] text-text-muted">{peakDeltaIso}</div>
               </div>
               <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
-                <div className="text-[10px] text-text-muted">Plage</div>
+                <div className="text-[10px] text-text-muted">{t('pastas.scenarios.deltaRange')}</div>
                 <div className="text-sm font-mono text-text-primary">{deltaStats!.min.toFixed(3)} → {deltaStats!.max >= 0 ? '+' : ''}{deltaStats!.max.toFixed(3)} m</div>
               </div>
             </div>
@@ -242,25 +243,25 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
 
       {/* Baseline vs Scenario — secondary view, collapsed by default */}
       <Section
-        title="Niveaux absolus (référence vs scénario)"
+        title={t('pastas.scenarios.absoluteLevels')}
         defaultOpen={false}
       >
         <Plot
           data={[
             {
               x: baseline.index, y: baseline.values, type: 'scatter', mode: 'lines',
-              name: 'Référence', line: { color: '#6b7280', width: 1.5 },
+              name: t('pastas.scenarioResults.reference'), line: { color: '#6b7280', width: 1.5 },
             },
             {
               x: scenario.index, y: scenario.values, type: 'scatter', mode: 'lines',
-              name: 'Scénario', line: { color: '#22d3ee', width: 2 },
+              name: t('pastas.scenarioResults.scenario'), line: { color: '#22d3ee', width: 2 },
               fill: 'tonexty' as const, fillcolor: 'rgba(245,158,11,0.25)',
             },
           ]}
           layout={{
             ...chartLayout,
             legend: { orientation: 'h', y: -0.15, font: { size: 10, color: '#9ca3af' } },
-            yaxis: { ...chartLayout.yaxis, title: { text: 'Niveau (m NGF)' } },
+            yaxis: { ...chartLayout.yaxis, title: { text: t('pastas.scenarioResults.levelAxis') } },
           }}
           config={plotlyConfig} style={{ width: '100%' }}
         />
@@ -269,12 +270,12 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
       {/* Per-stress contributions — separate charts */}
       {allContribNames.length > 0 && (
         <Section
-          title="Contributions par stress"
+          title={t('pastas.scenarios.contributions')}
           defaultOpen={false}
           extra={
             <ExportCsvButton
               filename={`${codeBss ?? 'scenario'}_scenario_contributions.csv`}
-              title="Exporter les contributions de référence et de scénario en CSV"
+              title={t('pastas.scenarioResults.exportContributions')}
               label="CSV"
               getColumns={() => {
                 const cols: CsvColumn[] = [{ header: 'date', values: (contributions_baseline[allContribNames[0]] ?? contributions_scenario[allContribNames[0]])?.index ?? [] }]
@@ -299,13 +300,13 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
               if (bl?.index?.length) {
                 traces.push({
                   x: bl.index, y: bl.values, type: 'scatter' as const, mode: 'lines' as const,
-                  name: 'Référence', line: { color: '#6b7280', width: 1, dash: 'dot' as const },
+                  name: t('pastas.scenarioResults.reference'), line: { color: '#6b7280', width: 1, dash: 'dot' as const },
                 })
               }
               if (sc?.index?.length) {
                 traces.push({
                   x: sc.index, y: sc.values, type: 'scatter' as const, mode: 'lines' as const,
-                  name: 'Scénario', line: { color, width: 2 },
+                  name: t('pastas.scenarioResults.scenario'), line: { color, width: 2 },
                   fill: 'tozeroy' as const, fillcolor: color + '15',
                 })
               }
@@ -319,7 +320,7 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[10px] font-semibold" style={{ color }}>{name}</span>
                     {isNew && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">nouveau</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">{t('pastas.scenarioResults.newBadge')}</span>
                     )}
                   </div>
                   <Plot

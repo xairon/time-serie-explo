@@ -1,14 +1,16 @@
+import { useTranslation } from 'react-i18next'
+
 interface Props {
   mode: 'guided' | 'expert'
   onChange: (mode: 'guided' | 'expert') => void
 }
 
-const OPTIONS: { value: 'guided' | 'expert'; label: string }[] = [
-  { value: 'guided', label: 'Guidé' },
-  { value: 'expert', label: 'Expert' },
-]
-
 export function GuidedExpertToggle({ mode, onChange }: Props) {
+  const { t } = useTranslation()
+  const OPTIONS: { value: 'guided' | 'expert'; label: string }[] = [
+    { value: 'guided', label: t('pastas.calibrate.guidedMode') },
+    { value: 'expert', label: t('pastas.calibrate.expertMode') },
+  ]
   return (
     <div className="inline-flex items-center rounded-full border border-white/10 bg-bg-card p-0.5 gap-0.5">
       {OPTIONS.map(({ value, label }) => (

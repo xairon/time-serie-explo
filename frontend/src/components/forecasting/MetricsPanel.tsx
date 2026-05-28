@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { METRIC_LABELS } from '@/lib/constants'
 
 interface MetricsPanelProps {
@@ -27,13 +28,14 @@ function computeIQR(values: (number | null)[]): number | null {
 }
 
 export function MetricsPanel({ metrics, actuals, className = '' }: MetricsPanelProps) {
+  const { t } = useTranslation()
   const iqr = useMemo(() => (actuals ? computeIQR(actuals) : null), [actuals])
 
   const mae = metrics['MAE'] ?? metrics['mae']
 
   return (
     <div className={`space-y-2 ${className}`}>
-      <h4 className="text-sm font-semibold text-text-primary">Métriques</h4>
+      <h4 className="text-sm font-semibold text-text-primary">{t('sharedComponents.forecast.metrics')}</h4>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(metrics).map(([key, val]) => {
           const good = isGood(key, val)
@@ -62,7 +64,7 @@ export function MetricsPanel({ metrics, actuals, className = '' }: MetricsPanelP
       {iqr != null && mae != null && (
         <div className="bg-bg-card rounded-lg border border-white/5 p-3">
           <p className="text-xs text-text-secondary">
-            MAE ≈ <span className="text-text-primary font-medium">{((mae / iqr) * 100).toFixed(1)}%</span> de l'échelle (IQR = {iqr.toFixed(4)})
+            {t('sharedComponents.forecast.maeIqr', { pct: ((mae / iqr) * 100).toFixed(1), iqr: iqr.toFixed(4) })}
           </p>
         </div>
       )}

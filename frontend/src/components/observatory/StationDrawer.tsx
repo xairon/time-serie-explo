@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { X, ExternalLink, Droplets, Waves } from 'lucide-react'
 import { ClassificationBadge } from './ClassificationBadge'
 import { AddToCompareButton } from './AddToCompareButton'
@@ -19,11 +20,12 @@ function isRecent(dateStr: string | null | undefined): boolean {
 }
 
 function DrawerSkeleton({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   return (
     <div className="p-4">
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1 space-y-2"><div className="h-3 w-16 bg-white/10 rounded animate-pulse" /><div className="h-5 w-40 bg-white/10 rounded animate-pulse" /><div className="h-3 w-24 bg-white/10 rounded animate-pulse" /></div>
-        <button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button>
+        <button onClick={onClose} aria-label={t('observatory.drawer.close')} className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button>
       </div>
       <div className="space-y-3"><div className="h-16 w-full bg-white/5 rounded-lg animate-pulse" /><div className="h-16 w-full bg-white/5 rounded-lg animate-pulse" /><div className="h-12 w-full bg-white/5 rounded-lg animate-pulse" /></div>
     </div>
@@ -40,6 +42,7 @@ function InfoRow({ label, value, sub }: { label: string; value: React.ReactNode;
 }
 
 export function StationDrawer({ code, type, onClose }: Props) {
+  const { t } = useTranslation()
   const isPiezo = type === 'piezo'
   const piezoQuery = usePiezoStationDetail(isPiezo ? code : '')
   const hydroQuery = useHydroStationDetail(!isPiezo ? code : '')
@@ -50,7 +53,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
   const { data: pastasSummary } = useObsPastasSummary(isPiezo ? stationCode : '')
 
   const content = (() => {
-    if (isError) return (<div className="p-4"><div className="flex items-start justify-between mb-4"><p className="text-sm text-red-400">Impossible de charger cette station.</p><button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button></div></div>)
+    if (isError) return (<div className="p-4"><div className="flex items-start justify-between mb-4"><p className="text-sm text-red-400">{t('observatory.loadFailed')}</p><button onClick={onClose} aria-label={t('observatory.drawer.close')} className="p-1 hover:bg-bg-hover rounded"><X className="w-4 h-4 text-text-secondary" /></button></div></div>)
     if (isLoading || !station) return <DrawerSkeleton onClose={onClose} />
 
     const s = station as any
@@ -75,42 +78,42 @@ export function StationDrawer({ code, type, onClose }: Props) {
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${isPiezo ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo'}`}>{isPiezo ? 'Piézomètre' : 'Hydrométrie'}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${recent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{recent ? 'Active' : 'Inactive'}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide ${isPiezo ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo'}`}>{isPiezo ? t('observatory.piezo') : t('observatory.hydro')}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${recent ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{recent ? t('observatory.active') : t('observatory.inactive')}</span>
               {pastasSummary && (<span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: (pastasSummary.evp ?? 0) >= 70 ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', color: (pastasSummary.evp ?? 0) >= 70 ? '#10b981' : '#f59e0b' }}>PASTAS {pastasSummary.evp != null ? `${pastasSummary.evp.toFixed(0)}%` : ''}</span>)}
             </div>
             <h3 className="text-base font-semibold text-text-primary mt-1.5 break-words leading-tight">{name}</h3>
             <p className="text-xs text-text-secondary mt-0.5">{dept} - {sCode}</p>
             {!isPiezo && s.nom_cours_eau && (<p className="text-xs text-accent-indigo/80 mt-0.5 flex items-center gap-1"><Waves className="w-3 h-3" />{s.nom_cours_eau}</p>)}
           </div>
-          <button onClick={onClose} aria-label="Fermer" className="p-1 hover:bg-bg-hover rounded ml-2 flex-shrink-0"><X className="w-4 h-4 text-text-secondary" /></button>
+          <button onClick={onClose} aria-label={t('observatory.drawer.close')} className="p-1 hover:bg-bg-hover rounded ml-2 flex-shrink-0"><X className="w-4 h-4 text-text-secondary" /></button>
         </div>
 
         {recent ? (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">État actuel</div>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.currentState')}</div>
             <div className="flex items-center justify-between">
               <ClassificationBadge classification={classification} />
               {currentValue != null && (<span className="text-lg font-semibold font-mono" style={{ color: classColor }}>{formatNumber(currentValue)} <span className="text-xs text-text-secondary font-normal">{unit}</span></span>)}
             </div>
-            {historicMean != null && currentValue != null && (<div className="mt-2 text-[11px] text-text-secondary">Moyenne historique : <span className="text-text-primary font-mono">{formatNumber(historicMean)}</span> {unit}<span className="ml-1.5">({currentValue > historicMean ? '+' : ''}{formatNumber(currentValue - historicMean, 2)} {unit})</span></div>)}
+            {historicMean != null && currentValue != null && (<div className="mt-2 text-[11px] text-text-secondary">{t('observatory.historicalMean')} : <span className="text-text-primary font-mono">{formatNumber(historicMean)}</span> {unit}<span className="ml-1.5">({currentValue > historicMean ? '+' : ''}{formatNumber(currentValue - historicMean, 2)} {unit})</span></div>)}
           </div>
         ) : (
-          <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">Station inactive — dernière mesure le {formatDate(lastMeasure)}</div></div>
+          <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">{t('observatory.inactiveStation', { date: formatDate(lastMeasure) })}</div></div>
         )}
 
         <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-          <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Historique</div>
+          <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.history')}</div>
           <div className="divide-y divide-white/5">
-            {histMin != null && histMax != null && <InfoRow label="Plage" value={<><span className="font-mono">{formatNumber(histMin)}</span> -- <span className="font-mono">{formatNumber(histMax)}</span> {unit}</>} />}
-            <InfoRow label="Dernière mesure" value={formatDate(lastMeasure)} />
-            <InfoRow label="Données" value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? 'mesures' : 'jours'}</>} sub={dataPeriodYears ? `${dataPeriodYears} années d'enregistrement` : undefined} />
+            {histMin != null && histMax != null && <InfoRow label={t('observatory.range')} value={<><span className="font-mono">{formatNumber(histMin)}</span> -- <span className="font-mono">{formatNumber(histMax)}</span> {unit}</>} />}
+            <InfoRow label={t('observatory.lastMeasure')} value={formatDate(lastMeasure)} />
+            <InfoRow label={t('observatory.dataCount')} value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? t('observatory.measures') : t('observatory.days')}</>} sub={dataPeriodYears ? `${dataPeriodYears} ${t('observatory.yearsRecorded')}` : undefined} />
           </div>
         </div>
 
         {!isPiezo && hydroSiblings.data && hydroSiblings.data.siblings.length > 0 && (
           <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Site hydrométrique - {hydroSiblings.data.nb_stations} stations</div>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.hydroSite', { count: hydroSiblings.data.nb_stations })}</div>
             <p className="text-xs text-text-primary mb-2 font-medium">{hydroSiblings.data.libelle_site || hydroSiblings.data.code_site}{hydroSiblings.data.nom_cours_eau ? ` - ${hydroSiblings.data.nom_cours_eau}` : ''}</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {hydroSiblings.data.siblings.slice(0, 5).map(sib => (
@@ -125,10 +128,10 @@ export function StationDrawer({ code, type, onClose }: Props) {
           </div>
         )}
 
-        {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">Alerte : {s.niveau_alerte}</span></div></div>)}
+        {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">{t('observatory.stationDrawer.alert', { level: s.niveau_alerte })}</span></div></div>)}
 
         <div className="flex items-center gap-2">
-          <Link to={`/station/${type}/${sCode}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">Voir les détails <ExternalLink className="w-4 h-4" /></Link>
+          <Link to={`/station/${type}/${sCode}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">{t('observatory.viewDetails')} <ExternalLink className="w-4 h-4" /></Link>
           <AddToCompareButton code={sCode} type={type} variant="compact" />
         </div>
       </div>
@@ -138,7 +141,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
   return (
     <>
       <div className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={onClose} />
-      <div role="dialog" aria-label={`Station ${code}`} className="absolute top-0 left-0 h-full z-40 w-full sm:w-80 bg-bg-card border-r border-white/10 shadow-2xl transition-transform duration-200 ease-out overflow-y-auto translate-x-0">{content}</div>
+      <div role="dialog" aria-label={t('observatory.stationDrawer.ariaLabel', { code })} className="absolute top-0 left-0 h-full z-40 w-full sm:w-80 bg-bg-card border-r border-white/10 shadow-2xl transition-transform duration-200 ease-out overflow-y-auto translate-x-0">{content}</div>
     </>
   )
 }

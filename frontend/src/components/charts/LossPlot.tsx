@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Layout } from 'plotly.js-dist-min'
 
@@ -9,6 +10,7 @@ interface LossPlotProps {
 }
 
 export function LossPlot({ trainLoss, valLoss, className = '' }: LossPlotProps) {
+  const { t } = useTranslation()
   const epochs = trainLoss.map((_, i) => i + 1)
 
   const layout: Partial<Layout> = {
@@ -26,7 +28,7 @@ export function LossPlot({ trainLoss, valLoss, className = '' }: LossPlotProps) 
             y: trainLoss,
             type: 'scatter',
             mode: 'lines',
-            name: 'Entraînement',
+            name: t('sharedComponents.charts.training'),
             line: { color: '#06b6d4', width: 2 },
           },
           {
@@ -34,7 +36,7 @@ export function LossPlot({ trainLoss, valLoss, className = '' }: LossPlotProps) 
             y: valLoss,
             type: 'scatter',
             mode: 'lines',
-            name: 'Validation',
+            name: t('sharedComponents.charts.validation'),
             line: { color: '#f59e0b', width: 2 },
           },
         ]}

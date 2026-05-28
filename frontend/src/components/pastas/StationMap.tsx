@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { useTranslation } from 'react-i18next'
 
 function createPopupContent(title: string, subtitle?: string): HTMLDivElement {
   const div = document.createElement('div')
@@ -27,6 +28,7 @@ interface Props {
 }
 
 export function StationMap({ lat, lon, label, metadata, siblings, onSiblingClick }: Props) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [style, setStyle] = useState<'dark' | 'satellite'>('dark')
@@ -95,7 +97,7 @@ export function StationMap({ lat, lon, label, metadata, siblings, onSiblingClick
         onClick={() => setStyle(s => s === 'dark' ? 'satellite' : 'dark')}
         className="absolute top-2 left-2 bg-bg-card/80 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[10px] text-text-secondary hover:text-text-primary transition-colors z-10"
       >
-        {style === 'dark' ? 'Carte claire' : 'Carte sombre'}
+        {style === 'dark' ? t('pastas.map.lightMap') : t('pastas.map.darkMap')}
       </button>
       {bdlisaCode && (
         <div className="absolute bottom-2 left-2 bg-bg-card/80 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-[10px] text-text-muted z-10">

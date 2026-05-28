@@ -1,4 +1,5 @@
 import { Trash2, Droplets, TrendingUp, ArrowUpDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { PumpingProfileData, PumpingRange, AdaptiveBoundsData } from '@/lib/types'
 import {
   PumpingSyntheticEditor,
@@ -28,18 +29,18 @@ interface ModificationCardProps {
   adaptiveBounds?: AdaptiveBoundsData | null
 }
 
-const TYPE_META: Record<
-  ModificationData['type'],
-  { label: string; icon: React.ElementType; color: string }
-> = {
-  pumping_synthetic: { label: 'Forage', icon: Droplets, color: 'text-blue-400' },
-  pumping_upload: { label: 'Données de pompage', icon: Droplets, color: 'text-blue-400' },
-  linear_trend: { label: 'Tendance', icon: TrendingUp, color: 'text-yellow-400' },
-  scale_stress: { label: 'Ajustement climatique', icon: ArrowUpDown, color: 'text-purple-400' },
+function getTypeMeta(t: (k: string) => string): Record<ModificationData['type'], { label: string; icon: React.ElementType; color: string }> {
+  return {
+    pumping_synthetic: { label: t('pastas.modCard.well'), icon: Droplets, color: 'text-blue-400' },
+    pumping_upload: { label: t('pastas.modCard.pumpingData'), icon: Droplets, color: 'text-blue-400' },
+    linear_trend: { label: t('pastas.modCard.trend'), icon: TrendingUp, color: 'text-yellow-400' },
+    scale_stress: { label: t('pastas.modCard.climateAdjustment'), icon: ArrowUpDown, color: 'text-purple-400' },
+  }
 }
 
 export function ModificationCard({ index, data, onChange, onDelete, pumpingProfiles, scaleStressLimits, linearTrendLimits, adaptiveBounds }: ModificationCardProps) {
-  const meta = TYPE_META[data.type]
+  const { t } = useTranslation()
+  const meta = getTypeMeta(t)[data.type]
   const Icon = meta.icon
 
   return (

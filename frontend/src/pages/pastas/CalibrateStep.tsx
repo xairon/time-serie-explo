@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Loader2, Play, Zap, ArrowLeft, Check, AlertTriangle, RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasFit, usePastasAutoFit, usePastasStationInfo } from '@/hooks/usePastas'
 import { InfoTip } from '@/components/pastas/InfoTip'
 import { usePastasMode } from './PastasLayout'
@@ -9,6 +10,7 @@ import { CalValToggle } from '@/components/pastas/CalValToggle'
 import type { AutoFitResult, AutoFitCandidate } from '@/lib/types'
 
 export default function CalibrateStep() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { mode, setMode, pipeline, setCodeBss, setAutoFitResult: setPipelineAutoFit, selectModel } = usePastasMode()
@@ -122,13 +124,13 @@ export default function CalibrateStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">Aucune station sélectionnée</p>
+          <p className="text-sm text-text-secondary">{t('pastas.station.noSelection')}</p>
           <button
             onClick={() => navigate('/pastas/station')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Retour à l'étape Station
+            {t('pastas.ui.backToStationStep')}
           </button>
         </div>
       </div>
@@ -142,14 +144,14 @@ export default function CalibrateStep() {
         {/* Station indicator */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-3 flex items-center justify-between">
           <div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wide">Station</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">{t('pastas.ui.stationSection')}</div>
             <div className="text-sm font-mono text-accent-cyan">{codeBss}</div>
           </div>
           <button
             onClick={() => navigate(`/pastas/station?station=${encodeURIComponent(codeBss)}`)}
             className="text-xs text-text-muted hover:text-text-secondary"
           >
-            Changer
+            {t('pastas.ui.change')}
           </button>
         </div>
 
@@ -157,9 +159,9 @@ export default function CalibrateStep() {
           /* Guided mode — auto-fit */
           <>
             <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-accent-cyan mb-2">Calibration automatique</h2>
+              <h2 className="text-sm font-semibold text-accent-cyan mb-2">{t('pastas.calibrate.autofitButton')}</h2>
               <p className="text-xs text-text-muted mb-3">
-                Teste automatiquement plusieurs configurations et sélectionne le meilleur modèle selon les critères STOWA.
+                {t('pastas.calibrateExtra.autoFitDescription')}
               </p>
 
               <div className="space-y-3">
@@ -175,15 +177,15 @@ export default function CalibrateStep() {
                     className="accent-accent-cyan w-4 h-4"
                   />
                   <span className="text-xs text-text-secondary flex items-center gap-1">
-                    Inclure la température
-                    <InfoTip text="Ajoute la température 2 m d'ERA5 comme stress séparé. Utile pour les aquifères peu profonds où les effets thermiques influencent les niveaux. Généralement faible — essayer sans dans un premier temps." />
+                    {t('pastas.calibrate.includeTemp')}
+                    <InfoTip text={t('pastas.calibrate.includeTempTooltip')} />
                   </span>
                 </label>
 
                 <div>
                   <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                    Période d'amorçage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
-                    <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
+                    {t('pastas.calibrate.warmupPeriod', { years: warmUpYears, plural: warmUpYears !== 1 ? 's' : '' })}
+                    <InfoTip text={t('pastas.calibrate.warmupTooltip')} />
                   </label>
                   <input
                     type="range"
@@ -206,12 +208,12 @@ export default function CalibrateStep() {
               {autoFitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Calibration automatique en cours...
+                  {t('pastas.calibrateExtra.autoFitInProgress')}
                 </>
               ) : (
                 <>
                   <Zap className="w-4 h-4" />
-                  Calibration automatique
+                  {t('pastas.calibrate.autofitButton')}
                 </>
               )}
             </button>
@@ -223,17 +225,17 @@ export default function CalibrateStep() {
               <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex items-center gap-2">
                 <RotateCcw className="w-4 h-4 text-purple-400 shrink-0" />
                 <span className="text-xs text-purple-300">
-                  Pré-rempli depuis un modèle de la galerie. Modifiez les paramètres et recalibrez.
+                  {t('pastas.calibrateExtra.refitFromGallery')}
                 </span>
               </div>
             )}
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-text-primary mb-2">Configuration du modèle</h2>
+              <h2 className="text-sm font-semibold text-text-primary mb-2">{t('pastas.calibrateExtra.metricConfig')}</h2>
               {stationInfo?.preset != null && (stationInfo.preset as Record<string, string>).label && (
                 <div className="mb-3 flex items-center gap-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded-lg px-3 py-1.5">
                   <span className="text-xs text-accent-cyan font-medium">
-                    Recommandé : {(stationInfo.preset as Record<string, string>).label}
+                    {t('pastas.calibrateExtra.recommended', { label: (stationInfo.preset as Record<string, string>).label })}
                   </span>
                 </div>
               )}
@@ -267,18 +269,18 @@ export default function CalibrateStep() {
                 />
                 <div>
                   <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
-                    Inclure la température
-                    <InfoTip text="Ajoute la température 2 m d'ERA5 comme stress séparé avec sa propre fonction de réponse. Utile pour les aquifères peu profonds où la dilatation thermique ou la viscosité dépendante de la température affecte les niveaux. Généralement faible par rapport à la recharge — essayer sans dans un premier temps." />
+                    {t('pastas.calibrate.includeTemp')}
+                    <InfoTip text={t('pastas.fit.includeTempLongTooltip')} />
                   </span>
-                  <p className="text-xs text-text-muted">Ajoute la température ERA5 comme stress supplémentaire.</p>
+                  <p className="text-xs text-text-muted">{t('pastas.fit.includeTempDesc')}</p>
                 </div>
               </label>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                Période d'amorçage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
-                <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
+                {t('pastas.calibrate.warmupPeriod', { years: warmUpYears, plural: warmUpYears !== 1 ? 's' : '' })}
+                <InfoTip text={t('pastas.calibrate.warmupTooltip')} />
               </label>
               <input
                 type="range"
@@ -301,23 +303,23 @@ export default function CalibrateStep() {
                 />
                 <div>
                   <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
-                    Deux passes (ajout d'une tendance)
-                    <InfoTip text="Calibre d'abord le modèle sans tendance, puis vérifie si les résidus présentent encore une dérive significative (test de Mann-Kendall). Si oui, ajoute un stress LinearTrend et recalibre — capture les évolutions long terme (climat, usage des sols, pompage) que la seule recharge ne peut expliquer." />
+                    {t('pastas.calibrate.twoPass')}
+                    <InfoTip text={t('pastas.calibrate.twoPassTooltip')} />
                   </span>
-                  <p className="text-xs text-text-muted">Première calibration sans tendance, puis ajout d'un stress de tendance linéaire si les résidus en présentent une.</p>
+                  <p className="text-xs text-text-muted">{t('pastas.calibrate.twoPassSub')}</p>
                 </div>
               </label>
             </div>
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <label className="block text-sm font-medium text-text-secondary mb-1">
-                Nom de l'exécution (optionnel)
+                {t('pastas.calibrate.modelName')}
               </label>
               <input
                 type="text"
                 value={modelName}
                 onChange={e => setModelName(e.target.value)}
-                placeholder="ex. station_01_linear"
+                placeholder={t('pastas.calibrate.modelNamePlaceholder')}
                 className="w-full bg-bg-primary border border-white/10 rounded-md px-3 py-2 text-text-primary text-sm placeholder:text-text-muted focus:outline-none focus:border-accent-cyan/50"
               />
             </div>
@@ -330,12 +332,12 @@ export default function CalibrateStep() {
               {fitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Calibration en cours...
+                  {t('pastas.calibrate.modelCalibrating')}
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4" />
-                  Calibrer le modèle
+                  {t('pastas.calibrate.calibrateButton')}
                 </>
               )}
             </button>
@@ -347,7 +349,7 @@ export default function CalibrateStep() {
             <p className="text-xs text-red-400">
               {(fitMutation.error ?? autoFitMutation.error) instanceof Error
                 ? ((fitMutation.error ?? autoFitMutation.error) as Error).message
-                : 'Échec de la calibration. Consultez les logs du backend.'}
+                : t('pastas.fit.calibrationFailed')}
             </p>
           </div>
         )}
@@ -369,7 +371,7 @@ export default function CalibrateStep() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 transition-colors"
                 >
                   <Check className="w-4 h-4" />
-                  Voir les résultats
+                  {t('pastas.calibrate.viewResults')}
                 </button>
               </div>
             )}
@@ -380,7 +382,7 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-2">
               <Zap className="w-10 h-10 mx-auto text-text-muted/30" />
-              <p className="text-sm text-text-secondary">Prêt pour la calibration automatique</p>
+              <p className="text-sm text-text-secondary">{t('pastas.calibrate.readyForAutofit')}</p>
             </div>
           </div>
         )}
@@ -389,7 +391,7 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-3">
               <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-              <p className="text-sm text-text-secondary">Test des configurations...</p>
+              <p className="text-sm text-text-secondary">{t('pastas.calibrate.autofitInProgress')}</p>
             </div>
           </div>
         )}
@@ -398,7 +400,7 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-2">
               <Play className="w-10 h-10 mx-auto text-text-muted/30" />
-              <p className="text-sm text-text-secondary">Configurer et calibrer</p>
+              <p className="text-sm text-text-secondary">{t('pastas.calibrate.configureAndCalibrate')}</p>
             </div>
           </div>
         )}
@@ -407,7 +409,7 @@ export default function CalibrateStep() {
           <div className="flex items-center justify-center h-full text-text-muted">
             <div className="text-center space-y-3">
               <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
-              <p className="text-sm text-text-secondary">Calibration du modèle...</p>
+              <p className="text-sm text-text-secondary">{t('pastas.calibrate.modelCalibrating')}</p>
             </div>
           </div>
         )}
@@ -423,6 +425,7 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
   onSelect: (runId: string, stowa?: AutoFitCandidate['stowa']) => void
   selectedRunId: string | null
 }) {
+  const { t } = useTranslation()
   const sorted = [...result.candidates].sort((a, b) => {
     if (a.error && !b.error) return 1
     if (!a.error && b.error) return -1
@@ -437,17 +440,17 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Résultats de la calibration automatique</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('pastas.calibrate.autofitResults')}</h2>
           <p className="text-xs text-text-muted mt-0.5">
-            {result.candidates.length} configuration{result.candidates.length > 1 ? 's' : ''} testée{result.candidates.length > 1 ? 's' : ''} en {result.total_elapsed_s.toFixed(1)} s
+            {t('pastas.calibrate.configsTested', { count: result.candidates.length, seconds: result.total_elapsed_s.toFixed(1) })}
           </p>
         </div>
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-red-400">Toutes les configurations ont échoué</p>
+            <p className="text-sm font-semibold text-red-400">{t('pastas.calibrate.allFailed')}</p>
             <p className="text-xs text-red-300/80 mt-1">{uniqueErrors[0]}</p>
-            <p className="text-xs text-text-muted mt-2">Vérifiez que la station dispose d'un recouvrement suffisant entre les observations piézométriques et les stress climatiques (précipitations, évapotranspiration). Au moins 1 an de recouvrement est requis.</p>
+            <p className="text-xs text-text-muted mt-2">{t('pastas.calibrate.insufficientOverlap')}</p>
           </div>
         </div>
       </div>
@@ -459,9 +462,9 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
       {/* Summary */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Résultats de la calibration automatique</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('pastas.calibrate.autofitResults')}</h2>
           <p className="text-xs text-text-muted mt-0.5">
-            {result.candidates.length} configurations testées en {result.total_elapsed_s.toFixed(1)} s
+            {t('pastas.calibrate.configsTested', { count: result.candidates.length, seconds: result.total_elapsed_s.toFixed(1) })}
           </p>
         </div>
       </div>
@@ -471,20 +474,20 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
         <table className="w-full text-xs">
           <thead>
             <tr className="text-text-muted border-b border-white/5">
-              <th className="text-left px-3 py-2">Configuration</th>
+              <th className="text-left px-3 py-2">{t('pastas.calibrateExtra.metricConfig')}</th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">NSE <InfoTip text="Nash-Sutcliffe Efficiency — mesure à quel point le modèle reproduit la variabilité observée. 1 = correspondance parfaite, 0 = pas mieux que prédire la moyenne, négatif = pire que la moyenne. Viser > 0,7." /></span>
+                <span className="inline-flex items-center gap-1">NSE <InfoTip text={t('pastas.calibrateExtra.nseTip')} /></span>
               </th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">RMSE <InfoTip text="Erreur quadratique moyenne — erreur moyenne de prédiction en mètres. Plus c'est faible, mieux c'est. Dépend de la variabilité naturelle de l'aquifère — à comparer entre modèles d'une même station, pas entre stations." /></span>
+                <span className="inline-flex items-center gap-1">RMSE <InfoTip text={t('pastas.calibrateExtra.rmseTip')} /></span>
               </th>
               <th className="text-right px-3 py-2">
-                <span className="inline-flex items-center gap-1">KGE <InfoTip text="Kling-Gupta Efficiency — combine corrélation, biais et rapport de variabilité en un score unique. Plus équilibré que NSE (qui surpondère les pics). > 0,7 = bon, > 0,9 = excellent." /></span>
+                <span className="inline-flex items-center gap-1">KGE <InfoTip text={t('pastas.calibrateExtra.kgeTip')} /></span>
               </th>
               <th className="text-center px-3 py-2">
-                <span className="inline-flex items-center gap-1">STOWA <InfoTip text="Norme néerlandaise pour la qualité des modèles piézométriques (STOWA 2012). Vérifie 4 critères : (1) EVP ≥ 70% de variance expliquée, (2) résidus indépendants (test des suites), (3) temps de réponse T95 physiquement plausible, (4) tous les stress contribuent significativement (test du gain). « Pass » = les 4 sont validés." /></span>
+                <span className="inline-flex items-center gap-1">STOWA <InfoTip text={t('pastas.calibrateExtra.stowaTip')} /></span>
               </th>
-              <th className="text-right px-3 py-2">Temps</th>
+              <th className="text-right px-3 py-2">{t('pastas.calibrateExtra.metricTime')}</th>
             </tr>
           </thead>
           <tbody>
@@ -517,6 +520,7 @@ function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
   isSelected: boolean
   onSelect: (runId: string, stowa?: AutoFitCandidate['stowa']) => void
 }) {
+  const { t } = useTranslation()
   const c = candidate
   const configLabel = [
     c.config.recharge,
@@ -552,7 +556,7 @@ function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           {isSelected && <Check className="w-3 h-3 text-accent-cyan shrink-0" />}
-          {!isSelected && isBest && <span className="text-accent-cyan text-[10px] font-semibold shrink-0">MEILLEUR</span>}
+          {!isSelected && isBest && <span className="text-accent-cyan text-[10px] font-semibold shrink-0">{t('pastas.calibrateExtra.best')}</span>}
           <span className="font-mono text-text-primary">{configLabel}</span>
         </div>
       </td>
@@ -566,7 +570,7 @@ function CandidateRow({ candidate, isBest, isSelected, onSelect }: {
               ? 'bg-green-500/10 text-green-400 border border-green-500/20'
               : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
           }`}>
-            {c.stowa.overall_pass ? 'Pass' : 'Partiel'}
+            {c.stowa.overall_pass ? t('pastas.calibrateExtra.stowaPass') : t('pastas.calibrateExtra.stowaPartial')}
           </span>
         ) : '--'}
       </td>

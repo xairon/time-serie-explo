@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const STORAGE_KEY = 'junon.tour.completed.v1'
@@ -18,49 +19,17 @@ const STORAGE_KEY = 'junon.tour.completed.v1'
  */
 interface Step {
   target?: string  // data-tour="…" value; omitted = centered welcome
-  title: string
-  content: React.ReactNode
+  titleKey: string
+  contentKey: 'welcome' | 'observatory' | 'compare' | 'pastas' | 'ai' | 'final'
 }
 
 const STEPS: Step[] = [
-  {
-    title: 'Bienvenue sur Junon',
-    content: (
-      <>
-        <p className="mb-2">Plateforme d'analyse piézométrique et hydrométrique pour les hydrogéologues BRGM.</p>
-        <p className="text-text-secondary text-xs">Tour rapide en ~30 secondes pour découvrir les 4 modules.</p>
-      </>
-    ),
-  },
-  {
-    target: 'nav-observatory',
-    title: 'Observatoire',
-    content: 'Carte interactive des stations piézométriques et hydrométriques. Filtres, classifications, alertes.',
-  },
-  {
-    target: 'nav-compare',
-    title: 'Comparer',
-    content: '2 à 5 stations côte à côte : chroniques alignées, indices de sécheresse (SPLI/SSFI), statistiques comparatives.',
-  },
-  {
-    target: 'nav-pastas',
-    title: 'Pastas Lab',
-    content: 'Calibration de modèles transfer function noise (TFN) sur des piézomètres. Diagnostics, signatures hydrologiques, scénarios prospectifs (pompage, climat).',
-  },
-  {
-    target: 'nav-ai',
-    title: 'Lab IA',
-    content: 'Prévisions par deep learning (Darts / PyTorch Lightning). Préréglages métier en 1 clic — court terme, sécheresse, débit fluvial.',
-  },
-  {
-    title: 'C\'est parti',
-    content: (
-      <>
-        <p className="mb-2">Cliquez sur une station de la carte pour explorer ses données, ou utilisez le menu du haut pour accéder aux autres modules.</p>
-        <p className="text-text-secondary text-xs">Pour relancer ce tour, tapez <code className="bg-bg-input px-1 rounded">junonStartTour()</code> dans la console.</p>
-      </>
-    ),
-  },
+  { titleKey: 'sharedComponents.tour.welcomeTitle', contentKey: 'welcome' },
+  { target: 'nav-observatory', titleKey: 'sharedComponents.tour.observatoryTitle', contentKey: 'observatory' },
+  { target: 'nav-compare', titleKey: 'sharedComponents.tour.compareTitle', contentKey: 'compare' },
+  { target: 'nav-pastas', titleKey: 'sharedComponents.tour.pastasTitle', contentKey: 'pastas' },
+  { target: 'nav-ai', titleKey: 'sharedComponents.tour.aiTitle', contentKey: 'ai' },
+  { titleKey: 'sharedComponents.tour.finalTitle', contentKey: 'final' },
 ]
 
 declare global {
@@ -78,6 +47,7 @@ function getRect(selector: string | undefined): Rect | null {
 }
 
 export function OnboardingTour() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [stepIdx, setStepIdx] = useState(0)
   const [targetRect, setTargetRect] = useState<Rect | null>(null)
@@ -149,6 +119,37 @@ export function OnboardingTour() {
     }
   }
 
+  const renderContent = () => {
+    switch (step.contentKey) {
+      case 'welcome':
+        return (
+          <>
+            <p className="mb-2">{t('sharedComponents.tour.welcomeP1')}</p>
+            <p className="text-text-secondary text-xs">{t('sharedComponents.tour.welcomeP2')}</p>
+          </>
+        )
+      case 'observatory':
+        return t('sharedComponents.tour.observatoryContent')
+      case 'compare':
+        return t('sharedComponents.tour.compareContent')
+      case 'pastas':
+        return t('sharedComponents.tour.pastasContent')
+      case 'ai':
+        return t('sharedComponents.tour.aiContent')
+      case 'final':
+        return (
+          <>
+            <p className="mb-2">{t('sharedComponents.tour.finalP1')}</p>
+            <p className="text-text-secondary text-xs">
+              {t('sharedComponents.tour.finalP2Prefix')}
+              <code className="bg-bg-input px-1 rounded">junonStartTour()</code>
+              {t('sharedComponents.tour.finalP2Suffix')}
+            </p>
+          </>
+        )
+    }
+  }
+
   return createPortal(
     <>
       {/* Dim overlay; cuts a transparent hole over the target via mask. */}
@@ -192,13 +193,13 @@ export function OnboardingTour() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] text-accent-cyan uppercase tracking-wide font-semibold">
-                Étape {stepIdx + 1} / {STEPS.length}
+                {t('sharedComponents.tour.step', { current: stepIdx + 1, total: STEPS.length })}
               </p>
-              <h3 className="text-base font-semibold text-text-primary mt-0.5">{step.title}</h3>
+              <h3 className="text-base font-semibold text-text-primary mt-0.5">{t(step.titleKey)}</h3>
             </div>
             <button
               onClick={finish}
-              aria-label="Fermer le tour"
+              aria-label={t('sharedComponents.tour.close')}
               className="p-1 hover:bg-bg-hover rounded text-text-secondary -mr-1 -mt-1"
             >
               <X className="w-4 h-4" />
@@ -206,7 +207,7 @@ export function OnboardingTour() {
           </div>
 
           <div className="text-sm text-text-secondary leading-relaxed">
-            {step.content}
+            {renderContent()}
           </div>
 
           {/* Progress dots */}
@@ -228,21 +229,21 @@ export function OnboardingTour() {
               className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              Précédent
+              {t('sharedComponents.common.previous')}
             </button>
             {stepIdx === 0 && (
               <button
                 onClick={finish}
                 className="text-xs text-text-secondary hover:text-text-primary transition-colors"
               >
-                Passer
+                {t('sharedComponents.common.skip')}
               </button>
             )}
             <button
               onClick={next}
               className="flex items-center gap-1 px-3 py-1.5 rounded bg-accent-cyan text-bg-primary text-xs font-medium hover:bg-accent-cyan/80 transition-colors"
             >
-              {stepIdx === STEPS.length - 1 ? 'Terminer' : 'Suivant'}
+              {stepIdx === STEPS.length - 1 ? t('sharedComponents.common.finish') : t('sharedComponents.common.next')}
               {stepIdx < STEPS.length - 1 && <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           </div>

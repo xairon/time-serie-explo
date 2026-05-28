@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ChevronDown, Brain, AlertTriangle, Clock } from 'lucide-react'
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import type { PastasFitResponse } from '@/lib/types'
 import { ExportCsvButton } from './ExportCsvButton'
 import type { CsvColumn } from '@/lib/csv-export'
@@ -44,19 +45,22 @@ function ControlledSection({ title, open, onToggle, children }: { title: string;
 
 // --- Metrics ---
 
-const METRIC_DEFS: Record<string, { label: string; tooltip: string; format: (v: number) => string; quality: (v: number) => 'good' | 'ok' | 'poor' }> = {
-  nse: { label: 'NSE', tooltip: 'Nash-Sutcliffe Efficiency — le modèle reproduit-il la variabilité observée ? 1 = reproduction parfaite, 0 = pas mieux que la moyenne, négatif = pire que la moyenne. Viser > 0,7.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  kge: { label: 'KGE', tooltip: 'Kling-Gupta Efficiency — combine corrélation, biais et variabilité en un score unique. Plus équilibré que NSE (qui surpondère les pics). > 0,7 = bon, > 0,9 = excellent.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  evp: { label: 'EVP %', tooltip: 'Variance expliquée (%) — quelle proportion de la variabilité du signal piézométrique le modèle capture-t-il ? > 70% = acceptable, > 90% = excellent.', format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
-  rmse: { label: 'RMSE', tooltip: 'Erreur quadratique moyenne (m) — erreur moyenne de prédiction en mètres. Plus faible = mieux. Dépend de la variabilité naturelle de l\'aquifère — à comparer entre modèles d\'une même station, pas entre stations.', format: v => v.toFixed(4), quality: () => 'ok' },
-  rsq: { label: 'R²', tooltip: 'Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-  mae: { label: 'MAE', tooltip: 'Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE.', format: v => v.toFixed(4), quality: () => 'ok' },
+function getMetricDefs(t: (k: string) => string): Record<string, { label: string; tooltip: string; format: (v: number) => string; quality: (v: number) => 'good' | 'ok' | 'poor' }> {
+  return {
+    nse: { label: 'NSE', tooltip: t('pastas.calibrateExtra.nseTip'), format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+    kge: { label: 'KGE', tooltip: t('pastas.calibrateExtra.kgeTip'), format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+    evp: { label: 'EVP %', tooltip: 'Variance expliquée (%) — quelle proportion de la variabilité du signal piézométrique le modèle capture-t-il ? > 70% = acceptable, > 90% = excellent.', format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
+    rmse: { label: 'RMSE', tooltip: t('pastas.calibrateExtra.rmseTip'), format: v => v.toFixed(4), quality: () => 'ok' },
+    rsq: { label: 'R²', tooltip: 'Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+    mae: { label: 'MAE', tooltip: 'Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE.', format: v => v.toFixed(4), quality: () => 'ok' },
+  }
 }
 const Q_COLORS = { good: 'text-green-400', ok: 'text-accent-cyan', poor: 'text-red-400' }
 const Q_BORDERS = { good: 'border-green-500/20', ok: 'border-white/5', poor: 'border-red-500/20' }
 
 function MetricCard({ metricKey, value }: { metricKey: string; value: number | null | undefined }) {
-  const def = METRIC_DEFS[metricKey]; if (!def) return null
+  const { t } = useTranslation()
+  const def = getMetricDefs(t)[metricKey]; if (!def) return null
   const hasValue = value !== null && value !== undefined && Number.isFinite(value)
   const quality = hasValue ? def.quality(value!) : 'ok'
   return (
@@ -105,6 +109,7 @@ type ViewPeriod = 'cal' | 'val' | 'full'
 interface FitResultsPanelProps { result: PastasFitResponse; codeBss?: string }
 
 export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
+  const { t } = useTranslation()
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [signaturesOpen, setSignaturesOpen] = useState(false)
   const [decompositionOpen, setDecompositionOpen] = useState(false)
@@ -152,7 +157,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   }, [outlierData, viewPeriod])
 
   const periodColor = viewPeriod === 'val' ? '#f97316' : '#22d3ee'
-  const periodLabel = viewPeriod === 'cal' ? 'Calibration' : viewPeriod === 'val' ? 'Validation' : 'Période complète'
+  const periodLabel = viewPeriod === 'cal' ? t('pastas.resultsExtra.calibrationPeriod') : viewPeriod === 'val' ? t('pastas.resultsExtra.validationPeriod') : t('pastas.resultsExtra.fullPeriod')
 
   // --- Aquifer KPIs ---
   const t95Days = useMemo(() => {
@@ -197,7 +202,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {/* Warnings */}
       {warnings.length > 0 && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-          <p className="text-xs font-semibold text-yellow-400 mb-1">Avertissements</p>
+          <p className="text-xs font-semibold text-yellow-400 mb-1">{t('pastas.resultsExtra.warnings')}</p>
           {warnings.map((w, i) => <p key={i} className="text-xs text-yellow-300">{w}</p>)}
         </div>
       )}
@@ -206,17 +211,17 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {aiModel && (
         <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2.5">
           <Brain className="w-4 h-4 text-purple-400 shrink-0" />
-          <span className="text-xs text-purple-300 flex-1">Modèle IA : <span className="font-medium text-purple-200">{aiModel.model_name}</span>{aiModel.metrics?.NSE != null && ` — NSE ${aiModel.metrics.NSE.toFixed(3)}`}</span>
-          <a href="/ai/forecasting" className="text-[10px] text-purple-400 hover:underline shrink-0">Voir →</a>
+          <span className="text-xs text-purple-300 flex-1">{t('pastas.resultsExtra.aiModelLabel')} <span className="font-medium text-purple-200">{aiModel.model_name}</span>{aiModel.metrics?.NSE != null && ` — NSE ${aiModel.metrics.NSE.toFixed(3)}`}</span>
+          <a href="/ai/forecasting" className="text-[10px] text-purple-400 hover:underline shrink-0">{t('pastas.resultsExtra.view')}</a>
         </div>
       )}
 
       {/* ═══════════ 1. METRICS ═══════════ */}
-      <Section title="Performance">
+      <Section title={t('pastas.results.performance')}>
         {validation_metrics ? (
           <div className="grid grid-cols-2 gap-3">
-            <MetricGrid metrics={metrics} title="Calibration" period={cal_period} borderColor="border-accent-cyan/20" />
-            <MetricGrid metrics={validation_metrics} title="Validation (test)" period={val_period} borderColor="border-orange-500/20" />
+            <MetricGrid metrics={metrics} title={t('pastas.resultsExtra.calibrationPeriod')} period={cal_period} borderColor="border-accent-cyan/20" />
+            <MetricGrid metrics={validation_metrics} title={t('pastas.results.validationTest')} period={val_period} borderColor="border-orange-500/20" />
           </div>
         ) : <MetricGrid metrics={metrics} />}
       </Section>
@@ -225,7 +230,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {inputQualityData && inputQualityData.n_flagged > 0 && (
         <div className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2 overflow-x-auto">
           <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-          <span className="text-[10px] text-orange-400 font-medium shrink-0">{inputQualityData.n_flagged} mois suspects :</span>
+          <span className="text-[10px] text-orange-400 font-medium shrink-0">{t('pastas.resultsExtra.suspectMonths', { count: inputQualityData.n_flagged })}</span>
           <div className="flex gap-1 flex-nowrap">
             {inputQualityData.flagged?.map((f: any) => (
               <button
@@ -245,7 +250,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {hasValidation && (
         <div className="flex items-center gap-1 bg-bg-primary rounded-lg border border-white/5 p-1">
           {(['cal', 'val', 'full'] as ViewPeriod[]).map(p => {
-            const labels: Record<ViewPeriod, string> = { cal: 'Calibration', val: 'Validation', full: 'Période complète' }
+            const labels: Record<ViewPeriod, string> = { cal: t('pastas.resultsExtra.calibrationPeriod'), val: t('pastas.resultsExtra.validationPeriod'), full: t('pastas.resultsExtra.fullPeriod') }
             const colors: Record<ViewPeriod, string> = { cal: 'text-accent-cyan', val: 'text-orange-400', full: 'text-text-primary' }
             return (
               <button key={p} onClick={() => { setViewPeriod(p); setSelectedOutlierDate(null) }}
@@ -261,13 +266,13 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
 
       {/* ═══════════ 4. MODEL ANALYSIS (unified chart) ═══════════ */}
       <Section
-        title={`Analyse du modèle — ${periodLabel}`}
+        title={t('pastas.resultsExtra.modelAnalysis', { period: periodLabel })}
         extra={
           <span className="flex items-center gap-1">
             <ExportCsvButton
               filename={`${result.code_bss}_observed_simulated_residuals.csv`}
-              title="Exporter observé, simulé et résidus en CSV"
-              label="Séries temporelles"
+              title={t('pastas.resultsExtra.exportTimeSeriesTitle')}
+              label={t('pastas.resultsExtra.exportTimeSeries')}
               getColumns={() => {
                 const cols: CsvColumn[] = [
                   { header: 'date', values: observed.index },
@@ -288,8 +293,8 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
             />
             <ExportCsvButton
               filename={`${result.code_bss}_contributions.csv`}
-              title="Exporter les contributions de stress en CSV"
-              label="Contributions"
+              title={t('pastas.resultsExtra.exportContributionsTitle')}
+              label={t('pastas.resultsExtra.exportContributions')}
               getColumns={() => {
                 const entries = Object.entries(contributions)
                 if (entries.length === 0) return []
@@ -310,12 +315,12 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       >
         {selectedOutlierDate && (
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] text-orange-400 font-medium">Zoom sur : {new Date(selectedOutlierDate).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short' })}</span>
-            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">Réinitialiser le zoom</button>
+            <span className="text-[10px] text-orange-400 font-medium">{t('pastas.results.zoomOn', { date: new Date(selectedOutlierDate).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short' }) })}</span>
+            <button onClick={() => setSelectedOutlierDate(null)} className="text-[10px] text-accent-cyan hover:underline">{t('pastas.results.resetZoom')}</button>
           </div>
         )}
         {currentOutliers && currentOutliers.n_outliers > 0 && (
-          <p className="text-[10px] text-text-muted mb-1">{currentOutliers.n_outliers} mois atypiques</p>
+          <p className="text-[10px] text-text-muted mb-1">{t('pastas.results.atypicalMonths', { count: currentOutliers.n_outliers })}</p>
         )}
         {monthlyStats && sliceByPeriod.obsX.length > 0 && (
           <>
@@ -362,18 +367,18 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       {/* ═══════════ 5. RESPONSE FUNCTION ═══════════ */}
       {hasStepResponse && (
         <Section
-          title="Fonction de réponse"
+          title={t('pastas.resultsExtra.responseFunctionSection')}
           extra={
             t95Days != null ? (
               <span
                 className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-md bg-bg-card border border-white/5"
-                title="T95 — temps pour que l'aquifère atteigne 95% de sa réponse à une variation de recharge."
+                title={t('pastas.resultsExtra.t95Tooltip')}
               >
                 <Clock className="w-3 h-3 text-accent-cyan" />
                 <span className="text-text-muted">T95</span>
                 <span className="text-accent-cyan font-mono font-semibold">{t95Days} j</span>
                 <span className="text-text-muted">
-                  — {t95Days < 100 ? 'réponse rapide' : t95Days < 500 ? 'réponse modérée' : 'réponse lente'}
+                  — {t95Days < 100 ? t('pastas.results.fastResponse') : t95Days < 500 ? t('pastas.results.moderateResponse') : t('pastas.results.slowResponse')}
                 </span>
               </span>
             ) : null
@@ -384,44 +389,44 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
       )}
 
       {/* ═══════════ 6. SIGNAL STRUCTURE ═══════════ */}
-      <ControlledSection title="Structure du signal" open={decompositionOpen} onToggle={() => setDecompositionOpen(v => !v)}>
+      <ControlledSection title={t('pastas.resultsExtra.signalStructure')} open={decompositionOpen} onToggle={() => setDecompositionOpen(v => !v)}>
         {decompositionData?.index?.length > 0 ? (
           <>
             <div className="flex items-center gap-4 mb-2">
-              <span className="text-[10px] text-text-muted" title="Proportion de la variance du signal expliquée par la tendance. Proche de 1 = tendance dominante (baisse ou hausse long terme). Proche de 0 = pas de tendance marquée.">
-                Force de la tendance : <span className="text-text-primary font-mono font-semibold">{decompositionData.trend_strength}</span>
+              <span className="text-[10px] text-text-muted" title={t('pastas.resultsExtra.trendStrengthTooltip')}>
+                {t('pastas.results.trendStrength')} : <span className="text-text-primary font-mono font-semibold">{decompositionData.trend_strength}</span>
               </span>
-              <span className="text-[10px] text-text-muted" title="Proportion de la variance du signal expliquée par le cycle annuel. Proche de 1 = aquifère très saisonnier (typique alluvial libre). Faible = aquifère à forte inertie ou captif.">
-                Force saisonnière : <span className="text-text-primary font-mono font-semibold">{decompositionData.seasonal_strength}</span>
+              <span className="text-[10px] text-text-muted" title={t('pastas.resultsExtra.seasonalStrengthTooltip')}>
+                {t('pastas.results.seasonalStrength')} : <span className="text-text-primary font-mono font-semibold">{decompositionData.seasonal_strength}</span>
               </span>
-              <span className="text-[9px] text-text-muted ml-auto">0 = composante absente, 1 = composante dominante</span>
+              <span className="text-[9px] text-text-muted ml-auto">{t('pastas.resultsExtra.componentScale')}</span>
             </div>
             <div className="flex gap-3">
-              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.trend }} label="Tendance long terme" color="#22d3ee" />
-              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.seasonal }} label="Cycle saisonnier" color="#a78bfa" />
+              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.trend }} label={t('pastas.resultsExtra.longTermTrend')} color="#22d3ee" />
+              <SignalSparkline data={{ index: decompositionData.index, values: decompositionData.seasonal }} label={t('pastas.resultsExtra.seasonalCycle')} color="#a78bfa" />
             </div>
           </>
-        ) : <p className="text-xs text-text-muted">Chargement...</p>}
+        ) : <p className="text-xs text-text-muted">{t('pastas.ui.loading')}</p>}
       </ControlledSection>
 
       {/* ═══════════ 7. HYDROLOGICAL SIGNATURES ═══════════ */}
-      <ControlledSection title="Signatures hydrologiques" open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
-        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">Chargement...</p>}
+      <ControlledSection title={t('pastas.resultsExtra.hydroSignatures')} open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
+        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">{t('pastas.ui.loading')}</p>}
       </ControlledSection>
 
       {/* ═══════════ 8. STATISTICAL DIAGNOSTICS ═══════════ */}
-      <ControlledSection title="Diagnostics statistiques" open={diagnosticsOpen} onToggle={() => setDiagnosticsOpen(v => !v)}>
-        {currentDiagnostics ? <DiagnosticsPanel diagnostics={currentDiagnostics} /> : <p className="text-xs text-text-muted">Chargement...</p>}
+      <ControlledSection title={t('pastas.resultsExtra.statDiagnostics')} open={diagnosticsOpen} onToggle={() => setDiagnosticsOpen(v => !v)}>
+        {currentDiagnostics ? <DiagnosticsPanel diagnostics={currentDiagnostics} /> : <p className="text-xs text-text-muted">{t('pastas.ui.loading')}</p>}
       </ControlledSection>
 
       {/* ═══════════ 9. MODEL PARAMETERS ═══════════ */}
       {parameters.length > 0 && (
-        <ControlledSection title="Paramètres du modèle" open={paramsOpen} onToggle={() => setParamsOpen(v => !v)}>
+        <ControlledSection title={t('pastas.resultsExtra.modelParameters')} open={paramsOpen} onToggle={() => setParamsOpen(v => !v)}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Nom</th><th className="text-right px-3 py-2">Optimal</th>
-                <th className="text-right px-3 py-2">Erreur-type</th><th className="text-right px-3 py-2">Initial</th>
+                <th className="text-left px-3 py-2">{t('pastas.resultsExtra.name')}</th><th className="text-right px-3 py-2">{t('pastas.resultsExtra.optimal')}</th>
+                <th className="text-right px-3 py-2">{t('pastas.resultsExtra.stdError')}</th><th className="text-right px-3 py-2">{t('pastas.resultsExtra.initial')}</th>
               </tr></thead>
               <tbody>{parameters.map(p => (
                 <tr key={p.name} className="border-b border-white/5 hover:bg-bg-hover">

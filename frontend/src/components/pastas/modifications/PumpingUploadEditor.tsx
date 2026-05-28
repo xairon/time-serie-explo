@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface PumpingRow {
   date: string
@@ -39,6 +40,7 @@ function parseCsv(text: string): PumpingRow[] {
 }
 
 export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps) {
+  const { t } = useTranslation()
   const fileRef = useRef<HTMLInputElement>(null)
 
   function update(patch: Partial<PumpingUploadData>) {
@@ -65,17 +67,17 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
       >
         <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
         {data.rows.length > 0 ? (
-          <p className="text-xs text-accent-cyan">{data.rows.length} lignes chargées</p>
+          <p className="text-xs text-accent-cyan">{t('pastas.pumpingUpload.rowsLoaded', { count: data.rows.length })}</p>
         ) : (
           <p className="text-xs text-text-muted">
-            Cliquer pour charger un CSV — colonnes : <code>date</code> (AAAA-MM-JJ), <code>Q_m3d</code> (débit en m³/j)
+            {t('pastas.pumpingUpload.csvHint')} <code>date</code> {t('pastas.pumpingUpload.colDateFmt')}, <code>Q_m3d</code> {t('pastas.pumpingUpload.colQDesc')}
           </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-text-muted mb-1" title="Distance horizontale du forage au piézomètre d'observation">Distance au piézomètre (m)</label>
+          <label className="block text-xs text-text-muted mb-1" title={t('pastas.pumpingExtra.distanceUploadTooltip')}>{t('pastas.pumping.distance')}</label>
           <input
             type="number"
             value={data.distance_m || ''}
@@ -88,14 +90,14 @@ export function PumpingUploadEditor({ data, onChange }: PumpingUploadEditorProps
           />
         </div>
         <div>
-          <label className="block text-xs text-text-muted mb-1">Fonction de réponse</label>
+          <label className="block text-xs text-text-muted mb-1">{t('pastas.pumping.responseFunction')}</label>
           <select
             value={data.rfunc}
             onChange={(e) => update({ rfunc: e.target.value as 'Exponential' | 'Hantush' })}
             className={inputClass}
           >
             {RFUNCS.map((r) => (
-              <option key={r} value={r}>{r === 'Exponential' ? 'Exponentielle' : 'Hantush'}</option>
+              <option key={r} value={r}>{r === 'Exponential' ? t('pastas.pumpingUpload.exponentialShort') : 'Hantush'}</option>
             ))}
           </select>
         </div>

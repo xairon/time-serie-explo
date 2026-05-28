@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useDeferredValue } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Search, X } from 'lucide-react'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
@@ -51,12 +52,17 @@ const WFS_SEARCH: Record<string, { nameField: string; codeField: string; badge: 
 }
 
 const CATEGORY_ORDER = ['station', 'department', 'region', 'bassin', 'her', 'wfs'] as const
-const CATEGORY_LABELS: Record<string, string> = {
-  station: 'Stations', department: 'Départements', region: 'Régions',
-  bassin: 'Bassins hydrographiques', her: 'Hydroécorégions', wfs: 'Hydrographie',
-}
 
 export function SearchBar({ features, wfsData, onSearchAction }: Props) {
+  const { t } = useTranslation()
+  const CATEGORY_LABELS: Record<string, string> = {
+    station: t('observatory.search.categoryStations'),
+    department: t('observatory.search.categoryDepartments'),
+    region: t('observatory.search.categoryRegions'),
+    bassin: t('observatory.search.categoryBasins'),
+    her: t('observatory.search.categoryHer'),
+    wfs: t('observatory.search.categoryHydrography'),
+  }
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(-1)
@@ -85,7 +91,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
       if (stationCount >= MAX_STATIONS) break
       const code = norm(f.properties.code); const commune = norm(f.properties.commune ?? ''); const dept = norm(f.properties.departement ?? '')
       if (code.includes(q) || commune.includes(q) || dept.includes(q)) {
-        items.push({ kind: 'station', badge: f.properties.type === 'piezo' ? 'PIÉZO' : 'HYDRO', badgeClass: f.properties.type === 'piezo' ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo', label: f.properties.commune || f.properties.code, detail: `${f.properties.departement || ''} - ${f.properties.code}`, action: { kind: 'station', code: f.properties.code, label: f.properties.commune || f.properties.code, stationType: f.properties.type, geometry: f.geometry } })
+        items.push({ kind: 'station', badge: f.properties.type === 'piezo' ? t('observatory.search.badgePiezo') : t('observatory.search.badgeHydro'), badgeClass: f.properties.type === 'piezo' ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-indigo/20 text-accent-indigo', label: f.properties.commune || f.properties.code, detail: `${f.properties.departement || ''} - ${f.properties.code}`, action: { kind: 'station', code: f.properties.code, label: f.properties.commune || f.properties.code, stationType: f.properties.type, geometry: f.geometry } })
         stationCount++
       }
     }
@@ -94,7 +100,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     for (const f of (deptsGeo?.features ?? [])) {
       if (deptCount >= MAX_PER_CAT) break
       if (norm(f.properties.code).includes(q) || norm(f.properties.nom).includes(q)) {
-        items.push({ kind: 'department', badge: `${f.properties.code}`, badgeClass: 'bg-orange-400/20 text-orange-300', label: f.properties.nom, detail: `Département ${f.properties.code}`, action: { kind: 'department', code: f.properties.code, label: f.properties.nom, geometry: f.geometry } })
+        items.push({ kind: 'department', badge: `${f.properties.code}`, badgeClass: 'bg-orange-400/20 text-orange-300', label: f.properties.nom, detail: t('observatory.search.departmentDetail', { code: f.properties.code }), action: { kind: 'department', code: f.properties.code, label: f.properties.nom, geometry: f.geometry } })
         deptCount++
       }
     }
@@ -103,7 +109,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     for (const f of (regionsGeo?.features ?? [])) {
       if (regionCount >= MAX_PER_CAT) break
       if (norm(f.properties.nom).includes(q) || norm(f.properties.code).includes(q)) {
-        items.push({ kind: 'region', badge: 'RÉGION', badgeClass: 'bg-indigo-400/20 text-indigo-300', label: f.properties.nom, detail: `Région ${f.properties.code}`, action: { kind: 'region', code: f.properties.code, label: f.properties.nom, geometry: f.geometry } })
+        items.push({ kind: 'region', badge: t('observatory.search.badgeRegion'), badgeClass: 'bg-indigo-400/20 text-indigo-300', label: f.properties.nom, detail: t('observatory.search.regionDetail', { code: f.properties.code }), action: { kind: 'region', code: f.properties.code, label: f.properties.nom, geometry: f.geometry } })
         regionCount++
       }
     }
@@ -112,7 +118,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     for (const f of (bassinsGeo?.features ?? [])) {
       if (bassinCount >= MAX_PER_CAT) break
       if (norm(f.properties.CdBH).includes(q) || norm(f.properties.LbBH).includes(q)) {
-        items.push({ kind: 'bassin', badge: f.properties.CdBH, badgeClass: 'bg-blue-500/20 text-blue-300', label: f.properties.LbBH, detail: `Bassin ${f.properties.CdBH}`, action: { kind: 'bassin', code: f.properties.CdBH, label: f.properties.LbBH, geometry: f.geometry } })
+        items.push({ kind: 'bassin', badge: f.properties.CdBH, badgeClass: 'bg-blue-500/20 text-blue-300', label: f.properties.LbBH, detail: t('observatory.search.basinDetail', { code: f.properties.CdBH }), action: { kind: 'bassin', code: f.properties.CdBH, label: f.properties.LbBH, geometry: f.geometry } })
         bassinCount++
       }
     }
@@ -121,7 +127,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     for (const f of (herGeo?.features ?? [])) {
       if (herCount >= MAX_PER_CAT) break
       if (norm(f.properties.nom).includes(q) || norm(f.properties.nom_her1 ?? '').includes(q) || String(f.properties.code).includes(q)) {
-        items.push({ kind: 'her', badge: 'HER', badgeClass: 'bg-emerald-400/20 text-emerald-300', label: f.properties.nom, detail: f.properties.nom_her1 ? `HER-1: ${f.properties.nom_her1}` : `Code ${f.properties.code}`, action: { kind: 'her', code: String(f.properties.code), label: f.properties.nom, geometry: f.geometry } })
+        items.push({ kind: 'her', badge: t('observatory.search.badgeHer'), badgeClass: 'bg-emerald-400/20 text-emerald-300', label: f.properties.nom, detail: f.properties.nom_her1 ? t('observatory.search.her1Detail', { name: f.properties.nom_her1 }) : t('observatory.search.herCodeDetail', { code: f.properties.code }), action: { kind: 'her', code: String(f.properties.code), label: f.properties.nom, geometry: f.geometry } })
         herCount++
       }
     }
@@ -143,7 +149,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     }
 
     return items.sort((a, b) => { const ai = CATEGORY_ORDER.indexOf(a.kind as typeof CATEGORY_ORDER[number]); const bi = CATEGORY_ORDER.indexOf(b.kind as typeof CATEGORY_ORDER[number]); return ai - bi })
-  }, [deferredQuery, features, deptsGeo, regionsGeo, bassinsGeo, herGeo, wfsData])
+  }, [deferredQuery, features, deptsGeo, regionsGeo, bassinsGeo, herGeo, wfsData, t])
 
   const selectItem = useCallback((item: SearchItem) => { onSearchAction(item.action); setQuery(''); setOpen(false); setHighlightIndex(-1) }, [onSearchAction])
 
@@ -170,9 +176,9 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
     <div ref={wrapperRef} className="absolute top-4 left-4 z-10 w-72 sm:w-96">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-        <input ref={inputRef} type="text" value={query} onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlightIndex(-1) }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown} placeholder="Station, département, cours d'eau, aquifère..." aria-label="Recherche universelle" aria-expanded={open && results.length > 0} aria-controls="search-results-list" role="combobox" aria-autocomplete="list" className="w-full pl-9 pr-8 py-2.5 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-cyan/50" />
+        <input ref={inputRef} type="text" value={query} onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlightIndex(-1) }} onFocus={() => setOpen(true)} onKeyDown={handleKeyDown} placeholder={t('observatory.search.placeholder')} aria-label={t('observatory.search.ariaLabel')} aria-expanded={open && results.length > 0} aria-controls="search-results-list" role="combobox" aria-autocomplete="list" className="w-full pl-9 pr-8 py-2.5 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent-cyan/50" />
         {query && (
-          <button onClick={() => { setQuery(''); setOpen(false); setHighlightIndex(-1) }} aria-label="Effacer la recherche" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bg-hover rounded">
+          <button onClick={() => { setQuery(''); setOpen(false); setHighlightIndex(-1) }} aria-label={t('observatory.search.clear')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-bg-hover rounded">
             <X className="w-3 h-3 text-text-secondary" />
           </button>
         )}
@@ -199,7 +205,7 @@ export function SearchBar({ features, wfsData, onSearchAction }: Props) {
         </div>
       )}
       {open && query.length >= 2 && results.length === 0 && (
-        <div className="mt-1 bg-bg-card/95 backdrop-blur-md border border-white/10 rounded-lg px-4 py-3 text-sm text-text-secondary">Aucun résultat pour « {query} »</div>
+        <div className="mt-1 bg-bg-card/95 backdrop-blur-md border border-white/10 rounded-lg px-4 py-3 text-sm text-text-secondary">{t('observatory.search.noResult', { query })}</div>
       )}
     </div>
   )

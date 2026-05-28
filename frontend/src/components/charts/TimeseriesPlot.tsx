@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Data, Layout } from 'plotly.js-dist-min'
 
@@ -17,7 +18,7 @@ interface TimeseriesPlotProps {
 export function TimeseriesPlot({
   dates,
   values,
-  label = 'Valeur',
+  label,
   color = '#06b6d4',
   confidenceLow,
   confidenceHigh,
@@ -25,6 +26,8 @@ export function TimeseriesPlot({
   yAxisLabel,
   className = '',
 }: TimeseriesPlotProps) {
+  const { t } = useTranslation()
+  const seriesLabel = label ?? t('sharedComponents.charts.value')
   const traces: Data[] = []
 
   if (confidenceLow && confidenceHigh) {
@@ -45,7 +48,7 @@ export function TimeseriesPlot({
     y: values as number[],
     type: 'scatter',
     mode: 'lines',
-    name: label,
+    name: seriesLabel,
     line: { color, width: 2 },
   })
 

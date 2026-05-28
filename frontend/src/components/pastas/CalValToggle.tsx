@@ -1,9 +1,12 @@
+import { useTranslation } from 'react-i18next'
+
 interface Props {
   valSplit: number | null
   onChange: (v: number | null) => void
 }
 
 export function CalValToggle({ valSplit, onChange }: Props) {
+  const { t } = useTranslation()
   const enabled = valSplit !== null
   const pct = (valSplit ?? 0.3) * 100
 
@@ -11,8 +14,8 @@ export function CalValToggle({ valSplit, onChange }: Props) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <label className="text-sm font-medium text-text-secondary">Validation</label>
-          <span className="ml-1 text-text-muted cursor-help" title="Réserver une partie des données pour tester le modèle sur une période qu'il n'a pas servi à calibrer. Vérifie que le modèle généralise bien.">ⓘ</span>
+          <label className="text-sm font-medium text-text-secondary">{t('pastas.validation.label')}</label>
+          <span className="ml-1 text-text-muted cursor-help" title={t('pastas.validation.tooltip')}>ⓘ</span>
         </div>
         <button
           onClick={() => onChange(enabled ? null : 0.3)}
@@ -22,12 +25,12 @@ export function CalValToggle({ valSplit, onChange }: Props) {
               : 'border-white/10 text-text-muted'
           }`}
         >
-          {enabled ? 'Activée' : 'Désactivée'}
+          {enabled ? t('common.active') : t('common.inactive')}
         </button>
       </div>
       {!enabled && (
         <p className="text-xs text-text-muted">
-          Le modèle sera calibré sur la période complète. Activez pour réserver une portion pour les tests.
+          {t('pastas.validation.disabledHint')}
         </p>
       )}
       {enabled && (
@@ -42,11 +45,11 @@ export function CalValToggle({ valSplit, onChange }: Props) {
             className="w-full accent-accent-cyan"
           />
           <div className="flex justify-between text-xs text-text-muted">
-            <span>Calibration : {(100 - pct).toFixed(0)}% (premières années)</span>
-            <span>Test : {pct.toFixed(0)}% (dernières années)</span>
+            <span>{t('pastas.validation.calibrationPct', { pct: (100 - pct).toFixed(0) })}</span>
+            <span>{t('pastas.validation.testPct', { pct: pct.toFixed(0) })}</span>
           </div>
           <p className="text-xs text-text-muted mt-1">
-            Les métriques de test montrent la qualité du modèle sur une période réservée, non utilisée pour la calibration.
+            {t('pastas.validation.description')}
           </p>
         </div>
       )}

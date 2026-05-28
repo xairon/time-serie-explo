@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { StationInfo, DatasetSummary } from '@/lib/types'
@@ -10,6 +11,7 @@ interface ImportDBFormProps {
 }
 
 export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormProps) {
+  const { t } = useTranslation()
   const qc = useQueryClient()
 
   // Search state
@@ -178,11 +180,11 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
   const classifLabel = (c: string | null) => {
     if (!c) return null
     const map: Record<string, string> = {
-      TRES_HAUT: 'Très haut',
-      HAUT: 'Haut',
-      NORMAL: 'Normal',
-      BAS: 'Bas',
-      TRES_BAS: 'Très bas',
+      TRES_HAUT: t('sharedComponents.import.classifVeryHigh'),
+      HAUT: t('sharedComponents.import.classifHigh'),
+      NORMAL: t('sharedComponents.import.classifNormal'),
+      BAS: t('sharedComponents.import.classifLow'),
+      TRES_BAS: t('sharedComponents.import.classifVeryLow'),
     }
     return map[c] || c
   }
@@ -190,10 +192,10 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-text-primary">
-        Import piézométrique
+        {t('sharedComponents.import.piezoTitle')}
       </h3>
       <p className="text-xs text-text-secondary">
-        Recherchez et sélectionnez des stations depuis la base BRGM (hubeau_daily_chroniques)
+        {t('sharedComponents.import.piezoDescription')}
       </p>
 
       {/* Search bar */}
@@ -204,7 +206,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
-          placeholder="Code BSS, commune, département..."
+          placeholder={t('sharedComponents.import.searchPlaceholder')}
         />
       </div>
 
@@ -216,7 +218,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary"
         >
           {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          Filtres
+          {t('sharedComponents.import.filters')}
         </button>
         <button
           type="button"
@@ -224,7 +226,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           className="flex items-center gap-1 text-xs text-accent-cyan hover:text-accent-cyan/80"
         >
           <Plus className="h-3 w-3" />
-          Coller des codes
+          {t('sharedComponents.import.pasteCodes')}
         </button>
       </div>
 
@@ -236,7 +238,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setDeptFilter(e.target.value)}
             className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
           >
-            <option value="">Département</option>
+            <option value="">{t('sharedComponents.import.department')}</option>
             {filters.departements.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
@@ -246,7 +248,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setAlerteFilter(e.target.value)}
             className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
           >
-            <option value="">Alerte</option>
+            <option value="">{t('sharedComponents.import.alert')}</option>
             {filters.alertes.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
@@ -262,7 +264,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             onChange={(e) => setPastedCodes(e.target.value)}
             rows={3}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-xs resize-none"
-            placeholder="Collez des codes BSS (un par ligne ou séparés par virgule)..."
+            placeholder={t('sharedComponents.import.pasteCodesPlaceholder')}
           />
           <button
             type="button"
@@ -270,7 +272,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             disabled={!pastedCodes.trim()}
             className="text-xs bg-accent-cyan/10 text-accent-cyan px-3 py-1 rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50"
           >
-            Ajouter
+            {t('sharedComponents.import.add')}
           </button>
         </div>
       )}
@@ -300,7 +302,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
                       </span>
                     )}
                     {station.codes_bdlisa && (
-                      <span className="text-accent-indigo" title="Code BDLISA (entité hydrogéologique)">
+                      <span className="text-accent-indigo" title={t('sharedComponents.import.bdlisaTitle')}>
                         {station.codes_bdlisa}
                       </span>
                     )}
@@ -313,7 +315,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
                       </span>
                     )}
                     {station.nb_mesures_total != null && (
-                      <span>{Math.round(Number(station.nb_mesures_total)).toLocaleString()} mes.</span>
+                      <span>{Math.round(Number(station.nb_mesures_total)).toLocaleString()} {t('sharedComponents.import.measures')}</span>
                     )}
                     {station.amplitude_totale != null && (
                       <span className="flex items-center gap-0.5">
@@ -342,12 +344,12 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
       )}
 
       {searching && (
-        <div className="text-xs text-text-secondary text-center py-4">Recherche...</div>
+        <div className="text-xs text-text-secondary text-center py-4">{t('sharedComponents.import.searching')}</div>
       )}
 
       {searchTerm.length >= 2 && !searching && searchResults?.stations?.length === 0 && (
         <div className="text-xs text-text-secondary text-center py-4">
-          Aucune station trouvée pour &quot;{searchTerm}&quot;
+          {t('sharedComponents.import.noStationFound', { q: searchTerm })}
         </div>
       )}
 
@@ -355,7 +357,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
       {selectedStations.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs text-text-secondary">
-            {selectedStations.length} station(s) sélectionnée(s)
+            {t('sharedComponents.import.stationsSelected', { count: selectedStations.length })}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {selectedStations.map((s) => (
@@ -378,7 +380,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
           {/* Date range */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Date de début</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.import.startDate')}</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -387,7 +389,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
               />
             </div>
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Date de fin</label>
+              <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.import.endDate')}</label>
               <input
                 type="date"
                 value={dateTo}
@@ -399,7 +401,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
 
           {/* Dataset name */}
           <div>
-            <label className="block text-xs text-text-secondary mb-1">Nom du jeu de données</label>
+            <label className="block text-xs text-text-secondary mb-1">{t('sharedComponents.import.datasetName')}</label>
             <input
               type="text"
               value={datasetName}
@@ -417,17 +419,17 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             className="w-full bg-accent-cyan text-white px-4 py-2 rounded-lg hover:bg-accent-cyan/80 disabled:opacity-50 transition-colors text-sm font-medium"
           >
             {importMutation.isPending
-              ? 'Import en cours...'
-              : `Importer ${selectedStations.length} station(s)`}
+              ? t('sharedComponents.import.importing')
+              : t('sharedComponents.import.importNStations', { count: selectedStations.length })}
           </button>
 
           {importMutation.isError && (
             <p className="text-xs text-accent-red">
-              Erreur : {(importMutation.error as Error).message}
+              {t('sharedComponents.import.errorPrefix')} : {(importMutation.error as Error).message}
             </p>
           )}
           {importMutation.isSuccess && (
-            <p className="text-xs text-accent-green">Jeu de données importé avec succès.</p>
+            <p className="text-xs text-accent-green">{t('sharedComponents.import.importSuccessDb')}</p>
           )}
         </div>
       )}

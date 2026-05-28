@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
@@ -206,6 +207,7 @@ export function ObservatoryMap({
   selectedStationCode = null, showTerrain = false,
   flyToBbox = null, onFlyToComplete,
 }: Props) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const mapLoadedRef = useRef(false)
@@ -515,19 +517,27 @@ export function ObservatoryMap({
     mapRef.current.fitBounds(flyToBbox as maplibregl.LngLatBoundsLike, { padding: 80, duration: 600 }); onFlyToCompleteRef.current?.()
   }, [flyToBbox])
 
+  const legendEntries: [string, string][] = [
+    ['#991b1b', t('observatory.map.stateExtremelyLow')],
+    ['#ef4444', t('observatory.map.stateVeryLow')],
+    ['#f97316', t('observatory.map.stateLow')],
+    ['#10b981', t('observatory.map.stateNormal')],
+    ['#3b82f6', t('observatory.map.stateHigh')],
+    ['#1d4ed8', t('observatory.map.stateVeryHigh')],
+    ['#312e81', t('observatory.map.stateExtremelyHigh')],
+    ['#6b7280', t('observatory.map.stateUnclassified')],
+  ]
+
   return (
     <div className="relative w-full h-full">
-      <div ref={containerRef} className="w-full h-full" role="application" aria-label="Carte interactive des stations hydrologiques françaises" />
+      <div ref={containerRef} className="w-full h-full" role="application" aria-label={t('observatory.map.ariaLabel')} />
       {tooltip && (
         <div className="absolute z-20 bg-gray-900/95 border border-white/10 rounded px-2 py-1 text-xs text-white pointer-events-none" style={{ left: tooltip.x + 12, top: tooltip.y - 8 }}>{tooltip.name}</div>
       )}
       <div className="absolute bottom-3 left-3 z-10 bg-gray-900/90 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-2 text-[10px] space-y-1.5">
-        <div className="text-gray-400 font-medium uppercase tracking-wider mb-1">État</div>
+        <div className="text-gray-400 font-medium uppercase tracking-wider mb-1">{t('observatory.map.stateLegend')}</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-          {[
-            ['#991b1b', 'Extr. bas'], ['#ef4444', 'Très bas'], ['#f97316', 'Bas'], ['#10b981', 'Normal'],
-            ['#3b82f6', 'Haut'], ['#1d4ed8', 'Très haut'], ['#312e81', 'Extr. haut'], ['#6b7280', 'Non classé'],
-          ].map(([color, label]) => (
+          {legendEntries.map(([color, label]) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
               <span className="text-gray-300">{label}</span>
@@ -535,10 +545,10 @@ export function ObservatoryMap({
           ))}
         </div>
         <div className="border-t border-white/10 pt-1 mt-1 flex gap-3">
-          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981' }} /><span className="text-gray-300">Piézo</span></div>
+          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981' }} /><span className="text-gray-300">{t('observatory.map.piezo')}</span></div>
           <div className="flex items-center gap-1.5">
             <svg width="12" height="14" viewBox="0 0 12 14" className="shrink-0"><path d="M6,1 Q6,1 10,8 A4.5,4.5 0 1,1 2,8 Q6,1 6,1Z" fill="#10b981" /></svg>
-            <span className="text-gray-300">Hydro</span>
+            <span className="text-gray-300">{t('observatory.map.hydro')}</span>
           </div>
         </div>
       </div>

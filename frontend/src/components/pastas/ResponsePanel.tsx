@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import type { TimeSeriesData, FitParameter } from '@/lib/types'
 import type Plotly from 'plotly.js-dist-min'
 
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ResponsePanel({ stepResponse, blockResponse, parameters, responseType }: Props) {
+  const { t } = useTranslation()
   const hasStep = stepResponse?.values?.length > 0
   const hasBlock = blockResponse?.values?.length > 0
 
@@ -40,7 +42,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
     showlegend: false,
   }
 
-  const title = responseType ? `Fonction de réponse — ${responseType}` : 'Fonction de réponse'
+  const title = responseType ? t('pastas.response.titleWith', { type: responseType }) : t('pastas.response.title')
 
   return (
     <div className="space-y-3">
@@ -52,10 +54,10 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
         {responseParams.map((p) => {
           const paramName = p.name.replace('recharge_', '')
           const paramTooltips: Record<string, string> = {
-            A: 'Gain - amplitude de réponse en régime permanent. Plus A est grand, plus l\'aquifère est sensible à l\'entrée (recharge).',
-            n: 'Forme - contrôle la montée du signal. n > 1 : réponse retardée (inertie). n proche de 1 : réponse rapide.',
-            a: 'Échelle de temps - contrôle la durée de la réponse. Plus a est grand, plus l\'aquifère met de temps à réagir.',
-            f: 'Fraction (FlexModel) - répartition entre recharge rapide et lente.',
+            A: t('pastas.response.paramATip'),
+            n: t('pastas.response.paramNTip'),
+            a: t('pastas.response.paramATime'),
+            f: t('pastas.response.paramFTip'),
           }
           return (
             <div
@@ -72,13 +74,13 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
           )
         })}
         {t50 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Temps de demi-réponse — délai pour atteindre 50% de l'effet final. Indique la réactivité initiale de l'aquifère.">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title={t('pastas.response.t50Tip')}>
             <span className="text-text-muted">t₅₀</span>
             <span className="ml-1 font-mono text-accent-cyan">{t50} j</span>
           </div>
         )}
         {t95 != null && (
-          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title="Temps de réponse à 95% — délai pour atteindre 95% de l'effet final. Représente la mémoire effective de l'aquifère. Court (< 100 j) = alluvial. Long (> 500 j) = sédimentaire profond ou captif.">
+          <div className="bg-bg-primary rounded px-2 py-1 text-xs border border-accent-cyan/20" title={t('pastas.response.t95Tip')}>
             <span className="text-text-muted">t₉₅</span>
             <span className="ml-1 font-mono text-accent-cyan">{t95} j</span>
           </div>
@@ -87,7 +89,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
 
       <div className="grid grid-cols-2 gap-3">
         {hasStep && (
-          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title="Réponse à un échelon de recharge constant (1 mm/j). La courbe se stabilise à la valeur du gain A.">
+          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title={t('pastas.response.stepTitle')}>
             <Plot
               data={[
                 {
@@ -100,8 +102,8 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Réponse indicielle', font: { size: 11 } },
-                xaxis: { title: { text: 'Jours' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                title: { text: t('pastas.response.stepResponse'), font: { size: 11 } },
+                xaxis: { title: { text: t('pastas.response.days') }, gridcolor: 'rgba(255,255,255,0.05)' },
                 yaxis: { title: { text: 'm' }, gridcolor: 'rgba(255,255,255,0.05)' },
                 shapes: (() => {
                   const shapes: Partial<Plotly.Shape>[] = []
@@ -135,7 +137,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
           </div>
         )}
         {hasBlock && (
-          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title="Réponse à une impulsion de recharge sur 1 jour. Le pic montre la réactivité maximale ; la décroissance montre la vitesse de drainage.">
+          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title={t('pastas.response.blockTitle')}>
             <Plot
               data={[
                 {
@@ -148,8 +150,8 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Réponse bloc', font: { size: 11 } },
-                xaxis: { title: { text: 'Jours' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                title: { text: t('pastas.response.blockResponse'), font: { size: 11 } },
+                xaxis: { title: { text: t('pastas.response.days') }, gridcolor: 'rgba(255,255,255,0.05)' },
                 yaxis: { title: { text: 'm/(mm/j)' }, gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler

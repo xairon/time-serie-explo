@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { ObservatoryMap } from '@/components/observatory/ObservatoryMap'
 import { StationDrawer } from '@/components/observatory/StationDrawer'
 import { KPIBar } from '@/components/observatory/KPIBar'
@@ -61,6 +62,7 @@ function pointInGeometry(lon: number, lat: number, geometry: GeoJSONGeometry): b
 function stationsInGeometry(features: StationGeoJSONFeature[], geometry: GeoJSONGeometry): string[] { return features.filter(f => { const [lon, lat] = f.geometry.coordinates; return lon != null && lat != null && pointInGeometry(lon, lat, geometry) }).map(f => f.properties.code) }
 
 export default function ObservatoryPage() {
+  const { t } = useTranslation()
   const { filters, setFilter } = useObsFilters()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: geojsonData, isError: geojsonError } = useStationsGeoJSON()
@@ -173,7 +175,7 @@ export default function ObservatoryPage() {
 
   return (
     <div className="relative h-full">
-      {geojsonError && (<div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-900/90 text-red-200 px-4 py-2 rounded-lg text-sm">Erreur de chargement des stations. <button onClick={() => window.location.reload()} className="underline ml-2">Réessayer</button></div>)}
+      {geojsonError && (<div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-900/90 text-red-200 px-4 py-2 rounded-lg text-sm">{t('mainPages.observatory.loadError')} <button onClick={() => window.location.reload()} className="underline ml-2">{t('mainPages.observatory.retry')}</button></div>)}
       <ObservatoryMap features={displayFeatures} excludedFeatures={showExcluded ? excludedFeatures : []} allFeatures={geojsonData?.features} showPiezo={showPiezo} showHydro={showHydro} onStationClick={handleStationClick} onEmptyClick={handleEmptyClick} onDeptClick={handleDeptClick} activeCodeDepartement={filters.codeDepartement} showRegions={showRegions} showDepts={showDepts} showHER={showHER} showSandre={showSandre} onBassinClick={handleBassinClick} activeCodeBassin={filters.codeBassin} onSpatialFilter={handleSpatialFilter} onBboxChange={handleBboxChange} activeWfsLayers={activeWfsLayers} wfsData={wfsData} selectedStationCode={selectedStation?.code ?? null} showTerrain={showTerrain} flyToBbox={flyToBbox} onFlyToComplete={() => setFlyToBbox(null)} />
       <SearchBar features={geojsonData?.features} wfsData={wfsDataAll} onSearchAction={handleSearchAction} />
       <RightDrawer showPiezo={showPiezo} setShowPiezo={setShowPiezo} showHydro={showHydro} setShowHydro={setShowHydro} showExcluded={showExcluded} setShowExcluded={setShowExcluded} showTerrain={showTerrain} setShowTerrain={setShowTerrain} filters={filters} setFilter={setFilter} filteredPiezo={stationCounts.filteredPiezo} totalPiezo={stationCounts.totalPiezo} filteredHydro={stationCounts.filteredHydro} totalHydro={stationCounts.totalHydro} activeZoneLayer={activeZoneLayer} onZoneLayerChange={setActiveZoneLayer} overlayLayers={overlayLayers} onOverlayToggle={handleOverlayToggle} onResetSpatial={() => { setSpatialStationCodes(null); setActiveBbox(null) }} hasSpatialFilter={spatialStationCodes != null && spatialStationCodes.length > 0} />

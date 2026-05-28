@@ -1,28 +1,31 @@
+import { useTranslation } from 'react-i18next'
 import { usePastasOptions } from '@/hooks/usePastas'
 
-const DESCRIPTIONS: Record<string, Record<string, string>> = {
-  recharge: {
-    Linear: 'P − f·E : excès de précipitations linéaire (von Asmuth 2002)',
-    FlexModel: 'Bilan hydrique complet : zone racinaire, interception, neige optionnelle',
-    Berendrecht: 'Non linéaire : relation exponentielle stockage-ruissellement (Berendrecht 2006)',
-    Peterson: 'Non linéaire : loi de puissance, transformations logarithmiques (Peterson 2014)',
-  },
-  response: {
-    Gamma: '3 paramètres (A, a, n) — réponse retardée, la plus courante',
-    Exponential: '2 paramètres (A, a) — décroissance simple, réponse rapide',
-    Hantush: '3 paramètres — aquifère captif, inclut un facteur de drainance',
-    DoubleExponential: '4 paramètres — deux temps de réponse (karst : conduits + matrice)',
-    FourParam: '4 paramètres (A, a, b, n) — très flexible, comportement complexe',
-  },
-  noise: {
-    ArNoiseModel: 'AR(1) — corrige l\'autocorrélation des résidus',
-    ArmaNoiseModel: 'ARMA(1,1) — meilleure modélisation du bruit (recommandé pour les karsts)',
-    none: 'Pas de modèle de bruit — résidus bruts',
-  },
-  solver: {
-    LeastSquares: 'Moindres carrés (scipy) — rapide, déterministe, par défaut',
-    Lmfit: 'Levenberg-Marquardt (lmfit) — meilleure gestion des bornes',
-  },
+function getDescriptions(t: (k: string) => string): Record<string, Record<string, string>> {
+  return {
+    recharge: {
+      Linear: t('pastas.configForm.rechargeLinear'),
+      FlexModel: t('pastas.configForm.rechargeFlex'),
+      Berendrecht: t('pastas.configForm.rechargeBerendrecht'),
+      Peterson: t('pastas.configForm.rechargePeterson'),
+    },
+    response: {
+      Gamma: t('pastas.configForm.respGamma'),
+      Exponential: t('pastas.configForm.respExp'),
+      Hantush: t('pastas.configForm.respHantush'),
+      DoubleExponential: t('pastas.configForm.respDoubleExp'),
+      FourParam: t('pastas.configForm.respFourParam'),
+    },
+    noise: {
+      ArNoiseModel: t('pastas.configForm.noiseAr'),
+      ArmaNoiseModel: t('pastas.configForm.noiseArma'),
+      none: t('pastas.configForm.noiseNone'),
+    },
+    solver: {
+      LeastSquares: t('pastas.configForm.solverLs'),
+      Lmfit: t('pastas.configForm.solverLmfit'),
+    },
+  }
 }
 
 interface PastasConfigFormProps {
@@ -48,6 +51,8 @@ export function PastasConfigForm({
   tmin, onTminChange,
   tmax, onTmaxChange,
 }: PastasConfigFormProps) {
+  const { t } = useTranslation()
+  const DESCRIPTIONS = getDescriptions(t)
   const { data: options, isLoading } = usePastasOptions()
 
   const selectClass =
@@ -56,8 +61,8 @@ export function PastasConfigForm({
   return (
     <div className="space-y-4">
       <ConfigSelect
-        label="Modèle de recharge"
-        tooltip="Mode de calcul de la recharge (P − E) appliquée au modèle"
+        label={t('pastas.fit.rechargeModel')}
+        tooltip={t('pastas.fit.rechargeTooltip')}
         value={recharge}
         onChange={onRechargeChange}
         options={options?.recharge ?? ['Linear']}
@@ -67,8 +72,8 @@ export function PastasConfigForm({
       />
 
       <ConfigSelect
-        label="Fonction de réponse"
-        tooltip="Forme de la réponse impulsionnelle de l'aquifère au stress"
+        label={t('pastas.fit.responseFunction')}
+        tooltip={t('pastas.fit.responseFunctionTooltip')}
         value={response}
         onChange={onResponseChange}
         options={options?.response ?? ['Gamma']}
@@ -79,8 +84,8 @@ export function PastasConfigForm({
 
       <div className="grid grid-cols-2 gap-4">
         <ConfigSelect
-          label="Modèle de bruit"
-          tooltip="Modèle stochastique sur les résidus"
+          label={t('pastas.fit.noiseModel')}
+          tooltip={t('pastas.fit.noiseTooltip')}
           value={noise}
           onChange={onNoiseChange}
           options={options?.noise ?? ['ArNoiseModel', 'none']}
@@ -90,8 +95,8 @@ export function PastasConfigForm({
         />
 
         <ConfigSelect
-          label="Solveur"
-          tooltip="Algorithme d'optimisation des paramètres"
+          label={t('pastas.fit.solver')}
+          tooltip={t('pastas.fit.solverTooltip')}
           value={solver}
           onChange={onSolverChange}
           options={options?.solver ?? ['LeastSquares']}
@@ -104,7 +109,7 @@ export function PastasConfigForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Début de calibration
+            {t('pastas.fit.calibStart')}
           </label>
           <input
             type="date"
@@ -112,11 +117,11 @@ export function PastasConfigForm({
             onChange={(e) => onTminChange(e.target.value)}
             className={selectClass}
           />
-          <p className="text-xs text-text-muted mt-1">Vide = début des données</p>
+          <p className="text-xs text-text-muted mt-1">{t('pastas.fit.emptyStart')}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Fin de calibration
+            {t('pastas.fit.calibEnd')}
           </label>
           <input
             type="date"
@@ -124,7 +129,7 @@ export function PastasConfigForm({
             onChange={(e) => onTmaxChange(e.target.value)}
             className={selectClass}
           />
-          <p className="text-xs text-text-muted mt-1">Vide = fin des données</p>
+          <p className="text-xs text-text-muted mt-1">{t('pastas.fit.emptyEnd')}</p>
         </div>
       </div>
     </div>

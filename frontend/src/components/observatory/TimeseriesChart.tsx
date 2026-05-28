@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Plot from 'react-plotly.js'
 import type { StationPercentiles } from '@/lib/observatory-types'
 
@@ -14,14 +15,14 @@ interface Props {
   onPeriodChange?: (months: number) => void
 }
 
-const PERIODS = [
-  { label: '1 an', months: 12 },
-  { label: '5 ans', months: 60 },
-  { label: '10 ans', months: 120 },
-  { label: 'Max', months: Infinity },
-] as const
-
 export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 'precipitation_totale', percentiles, resolution = 'monthly', defaultPeriod = Infinity, onPeriodChange }: Props) {
+  const { t } = useTranslation()
+  const PERIODS = [
+    { label: t('observatory.timeseries.period1y'), months: 12 },
+    { label: t('observatory.timeseries.period5y'), months: 60 },
+    { label: t('observatory.timeseries.period10y'), months: 120 },
+    { label: t('observatory.timeseries.periodMax'), months: Infinity },
+  ] as const
   const isYearly = resolution === 'yearly'
   const [period, setPeriod] = useState<number>(defaultPeriod)
 
@@ -41,7 +42,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
   }, [data, period, isYearly])
 
   if (!filteredData.length) {
-    return <div className="flex items-center justify-center h-64 text-text-secondary text-sm">Aucune donnée</div>
+    return <div className="flex items-center justify-center h-64 text-text-secondary text-sm">{t('observatory.timeseries.noData')}</div>
   }
 
   const dates = filteredData.map(dateAccessor)
@@ -88,7 +89,7 @@ export function TimeseriesChart({ data, valueKey, valueLabel, unit, precipKey = 
     traces.push({
       x: dates, y: precipValues,
       type: 'bar',
-      name: 'Précipitations (mm)',
+      name: t('observatory.timeseries.precipitations'),
       marker: { color: 'rgba(56,189,248,0.25)' },
       yaxis: 'y2',
     })

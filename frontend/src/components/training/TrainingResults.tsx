@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MetricsRadar } from '@/components/charts/MetricsRadar'
 import { METRIC_LABELS } from '@/lib/constants'
 
@@ -22,6 +23,7 @@ function filterDisplayMetrics(metrics: Record<string, number>): Record<string, n
 }
 
 export function TrainingResults({ metrics, metricsSliding, mlflowRunId, className = '' }: TrainingResultsProps) {
+  const { t } = useTranslation()
   const [showSliding, setShowSliding] = useState(false)
 
   const displayMetrics = useMemo(() => filterDisplayMetrics(metrics), [metrics])
@@ -35,7 +37,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-primary">Résultats</h3>
+        <h3 className="text-sm font-semibold text-text-primary">{t('sharedComponents.training.results')}</h3>
         {displaySlidingMetrics && Object.keys(displaySlidingMetrics).length > 0 && (
           <div className="flex items-center gap-1 bg-bg-hover rounded-lg p-0.5">
             <button
@@ -47,7 +49,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Fenêtre unique
+              {t('sharedComponents.training.singleWindow')}
             </button>
             <button
               type="button"
@@ -58,7 +60,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Fenêtre glissante
+              {t('sharedComponents.training.slidingWindow')}
             </button>
           </div>
         )}
@@ -84,7 +86,7 @@ export function TrainingResults({ metrics, metricsSliding, mlflowRunId, classNam
           rel="noopener noreferrer"
           className="inline-block text-xs text-accent-cyan hover:underline"
         >
-          Voir dans MLflow
+          {t('sharedComponents.training.viewInMlflow')}
         </a>
       )}
     </div>

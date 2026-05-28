@@ -1,11 +1,13 @@
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { ArrowLeft, FlaskConical } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasModel } from '@/hooks/usePastas'
 import { usePastasMode } from './PastasLayout'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
 
 export default function ResultsStep() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { pipeline, setCodeBss, selectModel } = usePastasMode()
@@ -26,13 +28,13 @@ export default function ResultsStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">Aucun modèle sélectionné</p>
+          <p className="text-sm text-text-secondary">{t('pastas.ui.noModelSelected')}</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Retour à la calibration
+            {t('pastas.ui.backToCalibration')}
           </button>
         </div>
       </div>
@@ -44,7 +46,7 @@ export default function ResultsStep() {
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Chargement des résultats du modèle...</p>
+          <p className="text-sm">{t('pastas.ui.loadingResults')}</p>
         </div>
       </div>
     )
@@ -54,13 +56,13 @@ export default function ResultsStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-red-400">Échec du chargement du modèle</p>
+          <p className="text-sm text-red-400">{t('pastas.ui.modelLoadFailed')}</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Retour à la calibration
+            {t('pastas.ui.backToCalibration')}
           </button>
         </div>
       </div>
@@ -88,7 +90,7 @@ export default function ResultsStep() {
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/15 text-purple-400 text-sm font-medium border border-purple-500/25 hover:bg-purple-500/25 transition-colors"
         >
           <FlaskConical className="w-4 h-4" />
-          Lancer des scénarios
+          {t('pastas.resultsExtra.runScenarios')}
         </Link>
       </div>
 

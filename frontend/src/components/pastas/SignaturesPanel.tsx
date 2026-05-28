@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { ChevronDown, Settings2 } from 'lucide-react'
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   signatures: {
@@ -44,16 +45,18 @@ const SIGNATURE_TOOLTIPS: Record<string, string> = {
   autocorr_time: 'Nombre de jours avant que l\'autocorrélation passe sous le seuil — mémoire/inertie de l\'aquifère.',
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  variability: 'Variabilité',
-  seasonality: 'Saisonnalité et calendrier',
-  dynamics: 'Dynamique de montée/descente',
-  pulses: 'Événements d\'impulsion',
-  reversals: 'Retournements',
-  predictability: 'Prévisibilité',
-  recession: 'Tarissement et récupération',
-  duration_curve: 'Courbe de durée',
-  structure: 'Propriétés structurelles',
+function getCategoryLabels(t: (k: string) => string): Record<string, string> {
+  return {
+    variability: t('pastas.signatures.catVariability'),
+    seasonality: t('pastas.signatures.catSeasonality'),
+    dynamics: t('pastas.signatures.catDynamics'),
+    pulses: t('pastas.signatures.catPulses'),
+    reversals: t('pastas.signatures.catReversals'),
+    predictability: t('pastas.signatures.catPredictability'),
+    recession: t('pastas.signatures.catRecession'),
+    duration_curve: t('pastas.signatures.catDurationCurve'),
+    structure: t('pastas.signatures.catStructure'),
+  }
 }
 
 const RADAR_PRESETS: Record<string, { label: string; keys: string[] }> = {
@@ -110,6 +113,8 @@ function formatLabel(key: string): string {
 }
 
 export function SignaturesPanel({ signatures }: Props) {
+  const { t } = useTranslation()
+  const CATEGORY_LABELS = getCategoryLabels(t)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [radarConfig, setRadarConfig] = useState<RadarConfig>(loadRadarConfig)
   const [showConfig, setShowConfig] = useState(false)
@@ -169,9 +174,11 @@ export function SignaturesPanel({ signatures }: Props) {
     <div className="space-y-3">
       {/* Radar preset bar */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-text-muted uppercase tracking-wide shrink-0">Radar :</span>
+        <span className="text-[10px] text-text-muted uppercase tracking-wide shrink-0">{t('pastas.signatures.radar')}</span>
         <div className="flex flex-wrap gap-1">
-          {Object.entries(RADAR_PRESETS).map(([key, { label }]) => (
+          {Object.entries(RADAR_PRESETS).map(([key, { label }]) => {
+            const localizedLabel = key === 'core' ? t('pastas.signatures.presetCore') : key === 'seasonal' ? t('pastas.signatures.presetSeasonal') : key === 'dynamics' ? t('pastas.signatures.presetDynamics') : label
+            return (
             <button
               key={key}
               onClick={() => selectPreset(key)}
@@ -181,9 +188,10 @@ export function SignaturesPanel({ signatures }: Props) {
                   : 'border-white/10 text-text-muted hover:text-text-secondary'
               }`}
             >
-              {label}
+              {localizedLabel}
             </button>
-          ))}
+            )
+          })}
           <button
             onClick={() => selectPreset('all')}
             className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${
@@ -192,18 +200,18 @@ export function SignaturesPanel({ signatures }: Props) {
                 : 'border-white/10 text-text-muted hover:text-text-secondary'
             }`}
           >
-            Tout ({allKeys.length})
+            {t('pastas.signatures.all', { count: allKeys.length })}
           </button>
           {!radarConfig.preset && (
             <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border bg-purple-500/15 border-purple-500/25 text-purple-400">
-              Personnalisé ({radarKeys.length})
+              {t('pastas.signatures.custom', { count: radarKeys.length })}
             </span>
           )}
         </div>
         <button
           onClick={() => setShowConfig(!showConfig)}
           className={`p-1 rounded transition-colors ${showConfig ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-muted hover:text-text-secondary'}`}
-          title="Configurer les signatures du radar"
+          title={t('pastas.signatures.configureRadar')}
         >
           <Settings2 className="w-3.5 h-3.5" />
         </button>
@@ -251,7 +259,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 type: 'scatterpolar',
                 r: [...obsNorm, obsNorm[0]],
                 theta: [...labels, labels[0]],
-                name: 'Observé',
+                name: t('pastas.signatures.observed'),
                 fill: 'toself',
                 fillcolor: 'rgba(96,165,250,0.1)',
                 line: { color: '#60a5fa' },
@@ -260,7 +268,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 type: 'scatterpolar',
                 r: [...simNorm, simNorm[0]],
                 theta: [...labels, labels[0]],
-                name: 'Simulé',
+                name: t('pastas.signatures.simulated'),
                 fill: 'toself',
                 fillcolor: 'rgba(249,115,22,0.1)',
                 line: { color: '#f97316' },
@@ -298,7 +306,7 @@ export function SignaturesPanel({ signatures }: Props) {
                 : 'border-white/10 text-text-muted hover:text-text-secondary'
             }`}
           >
-            Tout
+            {t('pastas.signatures.allTab')}
           </button>
           {categoryEntries.map(([cat]) => (
             <button
@@ -318,11 +326,11 @@ export function SignaturesPanel({ signatures }: Props) {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Signature</th>
-                <th className="text-right px-3 py-2">Observé</th>
-                <th className="text-right px-3 py-2">Simulé</th>
-                <th className="text-right px-3 py-2" title="Ratio simulé / observé. Proche de 1,0 = bonne reproduction. Vert = écart < 10%.">
-                  Ratio <span className="opacity-50 cursor-help">ⓘ</span>
+                <th className="text-left px-3 py-2">{t('pastas.signatures.signature')}</th>
+                <th className="text-right px-3 py-2">{t('pastas.signatures.observed')}</th>
+                <th className="text-right px-3 py-2">{t('pastas.signatures.simulated')}</th>
+                <th className="text-right px-3 py-2" title={t('pastas.signatures.ratioTooltip')}>
+                  {t('pastas.signatures.ratio')} <span className="opacity-50 cursor-help">ⓘ</span>
                 </th>
               </tr>
             </thead>
@@ -358,6 +366,8 @@ function CategoryGroup({ category, sigKeys, observed, simulated, radarKeys }: {
   simulated: Record<string, number>
   radarKeys: string[]
 }) {
+  const { t } = useTranslation()
+  const shownInRadar = t('pastas.signatures.shownInRadar')
   const [collapsed, setCollapsed] = useState(false)
   return (
     <>
@@ -379,7 +389,7 @@ function CategoryGroup({ category, sigKeys, observed, simulated, radarKeys }: {
           <tr key={k} className="border-b border-white/5 hover:bg-bg-hover" title={SIGNATURE_TOOLTIPS[k] ?? ''}>
             <td className="px-3 py-1.5 text-text-secondary cursor-help">
               <span className="flex items-center gap-1.5">
-                {inRadar && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan shrink-0" title="Affiché dans le radar" />}
+                {inRadar && <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan shrink-0" title={shownInRadar} />}
                 {formatLabel(k)}
                 {SIGNATURE_TOOLTIPS[k] && <span className="opacity-30">ⓘ</span>}
               </span>

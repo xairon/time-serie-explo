@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Lightbulb, Rocket } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   id: string
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function OnboardingBanner({ id, title, description, steps, exampleAction }: Props) {
+  const { t } = useTranslation()
   const storageKey = `pastas_onboarding_${id}`
   const [dismissed, setDismissed] = useState(true)
 
@@ -34,7 +36,7 @@ export function OnboardingBanner({ id, title, description, steps, exampleAction 
         className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent-cyan transition-colors mb-3"
       >
         <Lightbulb className="w-3.5 h-3.5" />
-        Afficher le guide
+        {t('pastas.ui.showGuide')}
       </button>
     )
   }

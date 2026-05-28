@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import type { PastasCompareModel } from '@/lib/types'
 
 const COLORS = ['#60a5fa', '#f97316', '#34d399', '#a78bfa', '#f43f5e']
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ComparisonView({ models }: Props) {
+  const { t } = useTranslation()
   if (models.length === 0) return null
 
   return (
@@ -17,13 +19,13 @@ export function ComparisonView({ models }: Props) {
       {/* Metrics table */}
       <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
         <div className="px-3 py-2 border-b border-white/5">
-          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Comparaison des métriques</span>
+          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{t('pastas.comparison.metricsCompare')}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Métrique</th>
+                <th className="text-left px-3 py-2">{t('pastas.comparison.metric')}</th>
                 {models.map((m, i) => (
                   <th key={m.run_id} className="text-right px-3 py-2">
                     <span style={{ color: COLORS[i] }}>{m.name}</span>
@@ -60,13 +62,13 @@ export function ComparisonView({ models }: Props) {
       {/* Config comparison */}
       <div className="bg-bg-card rounded-lg border border-white/5 overflow-hidden">
         <div className="px-3 py-2 border-b border-white/5">
-          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Configuration</span>
+          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{t('pastas.comparison.configuration')}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-text-muted border-b border-white/5">
-                <th className="text-left px-3 py-2">Paramètre</th>
+                <th className="text-left px-3 py-2">{t('pastas.comparison.param')}</th>
                 {models.map((m, i) => (
                   <th key={m.run_id} className="text-right px-3 py-2" style={{ color: COLORS[i] }}>{m.name}</th>
                 ))}
@@ -88,7 +90,7 @@ export function ComparisonView({ models }: Props) {
 
       {/* Overlay plot */}
       <div className="bg-bg-card rounded-lg border border-white/5 p-3">
-        <div className="text-xs font-semibold text-text-secondary mb-1 uppercase tracking-wide">Superposition des simulations</div>
+        <div className="text-xs font-semibold text-text-secondary mb-1 uppercase tracking-wide">{t('pastas.comparison.overlay')}</div>
         <Plot
           data={[
             // Observed from first model (they should all share the same obs)
@@ -97,7 +99,7 @@ export function ComparisonView({ models }: Props) {
               y: models[0].observed.values,
               type: 'scatter',
               mode: 'lines',
-              name: 'Observé',
+              name: t('pastas.comparison.observed'),
               line: { color: '#6b7280', width: 1 },
             },
             // Each model's simulation
@@ -117,7 +119,7 @@ export function ComparisonView({ models }: Props) {
             margin: { t: 10, r: 20, b: 30, l: 50 },
             height: 300,
             xaxis: { gridcolor: 'rgba(255,255,255,0.03)' },
-            yaxis: { title: { text: 'Niveau (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+            yaxis: { title: { text: t('pastas.comparison.levelM') }, gridcolor: 'rgba(255,255,255,0.05)' },
             legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
           }}
           useResizeHandler

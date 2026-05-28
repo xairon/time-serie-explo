@@ -1,4 +1,5 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 import type { Data, Layout, Shape, Annotations } from 'plotly.js-dist-min'
 import type { ForecastResult } from '@/lib/types'
@@ -17,6 +18,7 @@ export function ForecastPlot({
   inputChunkLength,
   className = '',
 }: ForecastPlotProps) {
+  const { t } = useTranslation()
   const { dates, actuals, predictions } = result
 
   const traces: Data[] = []
@@ -44,7 +46,7 @@ export function ForecastPlot({
     y: actuals as number[],
     type: 'scatter',
     mode: 'lines',
-    name: 'Observations',
+    name: t('sharedComponents.charts.observations'),
     line: { color: '#2E86AB', width: 2 },
   })
 
@@ -54,7 +56,7 @@ export function ForecastPlot({
     y: predictions as number[],
     type: 'scatter',
     mode: 'lines+markers',
-    name: 'Prédiction',
+    name: t('sharedComponents.charts.prediction'),
     line: { color: '#E91E63', width: 3 },
     marker: { size: 5 },
   })
@@ -66,7 +68,7 @@ export function ForecastPlot({
       y: result.predictions_onestep as number[],
       type: 'scatter',
       mode: 'lines',
-      name: 'Pas à pas',
+      name: t('sharedComponents.charts.stepwise'),
       line: { color: '#a78bfa', width: 2, dash: 'dot' },
     })
   }

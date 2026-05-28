@@ -1,23 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { ForecastView } from '@/components/forecasting/ForecastView'
 import { TestSetOverview } from '@/components/charts/TestSetOverview'
 import { ExplainabilityPanel } from '@/components/forecasting/ExplainabilityPanel'
 import { useForecastSingle } from '@/hooks/useForecasting'
 import { useModelDetail, useModelTestInfo } from '@/hooks/useModels'
-
-/** Tooltip descriptions for each metric (matches Streamlit) */
-const METRIC_TOOLTIPS: Record<string, string> = {
-  MAE: 'Mean Absolute Error — erreur moyenne en unités de la variable',
-  RMSE: 'Root Mean Squared Error — pénalise davantage les grandes erreurs',
-  sMAPE: 'Symmetric Mean Absolute Percentage Error (%)',
-  WAPE: 'Weighted Absolute Percentage Error (%) — plus stable que MAPE',
-  NRMSE: 'RMSE normalisée — % de l\'étendue (max-min)',
-  NSE: 'Nash-Sutcliffe Efficiency — 1=parfait, <0 pire que la moyenne',
-  KGE: 'Kling-Gupta Efficiency — combine corrélation, biais et variabilité',
-  Dir_Acc: 'Directional Accuracy — % de directions correctes',
-}
 
 /** Display order for metrics (matches Streamlit) */
 const METRIC_ORDER = ['MAE', 'RMSE', 'NRMSE', 'sMAPE', 'WAPE', 'NSE', 'KGE', 'Dir_Acc']
@@ -38,6 +27,17 @@ function formatMetric(key: string, value: number): string {
 }
 
 export default function ForecastingPage() {
+  const { t } = useTranslation()
+  const METRIC_TOOLTIPS: Record<string, string> = {
+    MAE: t('mainPages.forecasting.metricTooltipMAE'),
+    RMSE: t('mainPages.forecasting.metricTooltipRMSE'),
+    sMAPE: t('mainPages.forecasting.metricTooltipSMAPE'),
+    WAPE: t('mainPages.forecasting.metricTooltipWAPE'),
+    NRMSE: t('mainPages.forecasting.metricTooltipNRMSE'),
+    NSE: t('mainPages.forecasting.metricTooltipNSE'),
+    KGE: t('mainPages.forecasting.metricTooltipKGE'),
+    Dir_Acc: t('mainPages.forecasting.metricTooltipDirAcc'),
+  }
   const [modelId, setModelId] = useState('')
   const [sliderIdx, setSliderIdx] = useState<number | null>(null)
   const [hyperparamsOpen, setHyperparamsOpen] = useState(false)
@@ -181,7 +181,7 @@ export default function ForecastingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Prévision</h1>
+        <h1 className="text-2xl font-bold text-text-primary">{t('mainPages.forecasting.title')}</h1>
       </div>
 
       {/* Model selection + info panel */}
@@ -196,26 +196,26 @@ export default function ForecastingPage() {
           {modelDetail && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Jeu de données
+                {t('mainPages.forecasting.dataset')}
               </h4>
               {datasetSplits && (
                 <div className="space-y-1">
                   {datasetSplits.train != null && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Entraînement</span>
-                      <span className="text-text-primary">{datasetSplits.train} pts</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.trainingSplit')}</span>
+                      <span className="text-text-primary">{datasetSplits.train} {t('mainPages.forecasting.pointsUnit')}</span>
                     </div>
                   )}
                   {datasetSplits.val != null && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Validation</span>
-                      <span className="text-text-primary">{datasetSplits.val} pts</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.validation')}</span>
+                      <span className="text-text-primary">{datasetSplits.val} {t('mainPages.forecasting.pointsUnit')}</span>
                     </div>
                   )}
                   {datasetSplits.test != null && (
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Test</span>
-                      <span className="text-text-primary">{datasetSplits.test} pts</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.test')}</span>
+                      <span className="text-text-primary">{datasetSplits.test} {t('mainPages.forecasting.pointsUnit')}</span>
                     </div>
                   )}
                 </div>
@@ -223,7 +223,7 @@ export default function ForecastingPage() {
               {testInfo && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Plage de test</span>
+                    <span className="text-text-secondary">{t('mainPages.forecasting.testRange')}</span>
                     <span className="text-text-primary text-[10px]">
                       {new Date(testInfo.test_dates[0]).toLocaleDateString('en-GB')} — {new Date(testInfo.test_dates[testInfo.test_length - 1]).toLocaleDateString('en-GB')}
                     </span>
@@ -237,28 +237,28 @@ export default function ForecastingPage() {
           {modelDetail && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                Modèle
+                {t('mainPages.forecasting.model')}
               </h4>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-text-secondary">Type</span>
+                  <span className="text-text-secondary">{t('mainPages.forecasting.type')}</span>
                   <span className="text-text-primary">{modelDetail.model_type}</span>
                 </div>
                 {inputChunkLength != null && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Entrée</span>
-                    <span className="text-text-primary">{inputChunkLength} jours</span>
+                    <span className="text-text-secondary">{t('mainPages.forecasting.input')}</span>
+                    <span className="text-text-primary">{inputChunkLength} {t('mainPages.forecasting.daysUnit')}</span>
                   </div>
                 )}
                 {outputChunkLength != null && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Horizon</span>
-                    <span className="text-text-primary">{outputChunkLength} jours</span>
+                    <span className="text-text-secondary">{t('mainPages.forecasting.horizon')}</span>
+                    <span className="text-text-primary">{outputChunkLength} {t('mainPages.forecasting.daysUnit')}</span>
                   </div>
                 )}
                 {modelDetail.preprocessing_config?.normalization != null && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">Scaler</span>
+                    <span className="text-text-secondary">{t('mainPages.forecasting.scaler')}</span>
                     <span className="text-text-primary">{String(modelDetail.preprocessing_config.normalization as string)}</span>
                   </div>
                 )}
@@ -279,7 +279,7 @@ export default function ForecastingPage() {
               ) : (
                 <ChevronRight className="w-3.5 h-3.5" />
               )}
-              Hyperparamètres ({displayHyperparams.length})
+              {t('mainPages.forecasting.hyperparameters')} ({displayHyperparams.length})
             </button>
             {hyperparamsOpen && (
               <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 bg-white/[0.02] rounded-lg p-3">
@@ -306,7 +306,7 @@ export default function ForecastingPage() {
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">
-              Fenêtre glissante sur le jeu de test (prévision à {testInfo.output_chunk_length}j)
+              {t('mainPages.forecasting.slidingWindowTitle', { horizon: testInfo.output_chunk_length })}
             </h3>
             {windowInfo && (
               <p className="text-xs text-text-secondary">
@@ -333,7 +333,7 @@ export default function ForecastingPage() {
           </div>
 
           <p className="text-[10px] text-text-secondary">
-            Entrée : {testInfo.input_chunk_length} jours de contexte | Prévision : {testInfo.output_chunk_length} jours
+            {t('mainPages.forecasting.windowContext', { input: testInfo.input_chunk_length, output: testInfo.output_chunk_length })}
           </p>
         </div>
       )}
@@ -342,7 +342,7 @@ export default function ForecastingPage() {
       {testInfo && testInfo.test_values && sliderIdx !== null && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5">
           <h3 className="text-sm font-semibold text-text-primary mb-2">
-            Vue d'ensemble du jeu de test
+            {t('mainPages.forecasting.testSetOverview')}
           </h3>
           <TestSetOverview
             testDates={testInfo.test_dates}
@@ -359,7 +359,7 @@ export default function ForecastingPage() {
       {isError && (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded-xl p-4">
           <p className="text-sm text-accent-red">
-            Erreur : {(error as Error).message}
+            {t('mainPages.forecasting.errorPrefix')} {(error as Error).message}
           </p>
         </div>
       )}
@@ -382,7 +382,7 @@ export default function ForecastingPage() {
             <>
               {/* Metrics grid - ordered like Streamlit */}
               <div className="bg-bg-card rounded-xl border border-white/5 p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-text-primary">Métriques de la fenêtre</h4>
+                <h4 className="text-sm font-semibold text-text-primary">{t('mainPages.forecasting.windowMetrics')}</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {METRIC_ORDER.filter((key) => displayResult.metrics[key] != null).map((key) => {
                     const val = displayResult.metrics[key]
@@ -407,9 +407,9 @@ export default function ForecastingPage() {
                     <p className="text-[10px] text-text-secondary">
                       MAE ≈ <span className="text-text-primary font-medium">{relativeInfo.relMAE.toFixed(1)}%</span>
                       {relativeInfo.relRMSE != null && (
-                        <> et RMSE ≈ <span className="text-text-primary font-medium">{relativeInfo.relRMSE.toFixed(1)}%</span></>
+                        <> {t('mainPages.forecasting.relativeScaleInfix')} RMSE ≈ <span className="text-text-primary font-medium">{relativeInfo.relRMSE.toFixed(1)}%</span></>
                       )}
-                      {' '}de l'échelle ({relativeInfo.scaleLabel} = {relativeInfo.scaleValue.toFixed(4)})
+                      {' '}{t('mainPages.forecasting.relativeScaleSuffix')} ({relativeInfo.scaleLabel} = {relativeInfo.scaleValue.toFixed(4)})
                     </p>
                   </div>
                 )}
@@ -419,19 +419,19 @@ export default function ForecastingPage() {
               {windowInfo && (
                 <div className="bg-bg-card rounded-xl border border-white/5 p-4">
                   <h4 className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wide">
-                    Fenêtre de prévision
+                    {t('mainPages.forecasting.forecastWindow')}
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Début</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.start')}</span>
                       <span className="text-text-primary">{new Date(windowInfo.startDate).toLocaleDateString('en-GB')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Fin</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.end')}</span>
                       <span className="text-text-primary">{new Date(windowInfo.endDate).toLocaleDateString('en-GB')}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-text-secondary">Points</span>
+                      <span className="text-text-secondary">{t('mainPages.forecasting.points')}</span>
                       <span className="text-text-primary">{displayResult.dates.length}</span>
                     </div>
                   </div>
@@ -444,15 +444,15 @@ export default function ForecastingPage() {
                 className="w-full flex items-center justify-center gap-1.5 text-xs text-accent-cyan hover:text-accent-cyan/80 transition-colors px-3 py-2 rounded-lg border border-accent-cyan/20 hover:border-accent-cyan/40"
               >
                 <Download className="w-3.5 h-3.5" />
-                Export CSV
+                {t('mainPages.forecasting.exportCsv')}
               </button>
             </>
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center min-h-[200px]">
               <p className="text-xs text-text-secondary text-center">
                 {modelId
-                  ? 'Déplacez le curseur pour générer une prévision.'
-                  : 'Sélectionnez un modèle pour commencer.'}
+                  ? t('mainPages.forecasting.moveSlider')
+                  : t('mainPages.forecasting.selectModelToStart')}
               </p>
             </div>
           )}

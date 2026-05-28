@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Play, Info, Save, Trash2, FolderOpen } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasModels, usePastasSimulate, usePastasModel } from '@/hooks/usePastas'
 import { useScenarioPresets } from '@/hooks/useScenarioPresets'
 import { useSavedScenarios, useSaveScenario, useDeleteScenario } from '@/hooks/useSavedScenarios'
@@ -34,6 +35,7 @@ function detectAquiferFamily(metadata: Record<string, unknown>): AquiferFamily {
 }
 
 export default function ScenariosPage() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const { data: models = [] } = usePastasModels()
   const simulateMutation = usePastasSimulate()
@@ -147,24 +149,24 @@ export default function ScenariosPage() {
       <div className="w-96 shrink-0 space-y-4">
         <OnboardingBanner
           id="scenarios"
-          title="Simuler des scénarios prospectifs"
-          description="Partez d'un modèle calibré et modifiez les conditions : ajoutez un pompage, une tendance climatique ou modifiez les précipitations. Comparez le résultat au scénario de référence."
+          title={t('pastas.scenariosPage.title')}
+          description={t('pastas.scenariosPage.description')}
           steps={[
-            'Sélectionnez un modèle calibré',
-            'Choisissez un préréglage ou créez vos propres modifications',
-            'Lancez la simulation — référence vs scénario sont affichés avec les contributions',
+            t('pastas.scenariosPage.steps1'),
+            t('pastas.scenariosPage.steps2'),
+            t('pastas.scenariosPage.steps3'),
           ]}
         />
 
         {/* Model picker */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">Modèle calibré</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">{t('pastas.scenariosPage.calibratedModel')}</h2>
           <select
             value={runId}
             onChange={(e) => { setRunId(e.target.value); setSimResult(null) }}
             className={inputClass}
           >
-            <option value="">— Sélectionner un modèle —</option>
+            <option value="">{t('pastas.scenariosPage.pickModel')}</option>
             {models.map((m) => (
               <option key={m.run_id} value={m.run_id}>
                 {m.name || m.run_id.slice(0, 8)} — {m.code_bss}
@@ -205,14 +207,14 @@ export default function ScenariosPage() {
 
         {/* Simulation window */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">Simulation window</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">{t('pastas.scenarios.simulationWindow')}</h2>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-text-muted mb-1">Start</label>
+              <label className="block text-xs text-text-muted mb-1">{t('pastas.scenariosPage.start')}</label>
               <input type="date" value={tmin} onChange={(e) => setTmin(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">End</label>
+              <label className="block text-xs text-text-muted mb-1">{t('pastas.scenariosPage.end')}</label>
               <input type="date" value={tmax} onChange={(e) => setTmax(e.target.value)} className={inputClass} />
             </div>
           </div>
@@ -221,7 +223,7 @@ export default function ScenariosPage() {
         {/* Contextual presets */}
         {runId && presetsData && (
           <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-text-primary mb-3">Preset Scenarios</h2>
+            <h2 className="text-sm font-semibold text-text-primary mb-3">{t('pastas.scenariosPage.presetScenarios')}</h2>
             <div className="grid grid-cols-2 gap-1.5">
               {presetsData.presets.map((p) => (
                 <button
@@ -239,7 +241,7 @@ export default function ScenariosPage() {
 
         {/* Modifications */}
         <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-text-primary mb-3">Modifications</h2>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">{t('pastas.scenariosPage.modifications')}</h2>
           <ScenarioComposer
             modifications={modifications}
             onChange={setModifications}
@@ -259,16 +261,16 @@ export default function ScenariosPage() {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-sm font-medium border border-accent-cyan/30 hover:bg-accent-cyan/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {simulateMutation.isPending ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Simulating…</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> {t('pastas.scenariosPage.simulating')}</>
             ) : (
-              <><Play className="w-4 h-4" /> Simulate</>
+              <><Play className="w-4 h-4" /> {t('pastas.scenariosPage.simulate')}</>
             )}
           </button>
           {modifications.length > 0 && runId && (
             <button
               onClick={() => setSaveDialogOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-white/5 text-text-secondary text-sm border border-white/10 hover:border-white/20 transition-colors"
-              title="Enregistrer le scénario"
+              title={t('pastas.ui.saveScenarioTitle')}
             >
               <Save className="w-4 h-4" />
             </button>
@@ -278,12 +280,12 @@ export default function ScenariosPage() {
         {/* Save dialog */}
         {saveDialogOpen && (
           <div className="bg-bg-card border border-white/10 rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-text-primary">Enregistrer le scénario</h3>
+            <h3 className="text-xs font-semibold text-text-primary">{t('pastas.ui.saveScenarioTitle')}</h3>
             <input
               type="text"
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
-              placeholder="Nom du scénario…"
+              placeholder={t('pastas.ui.scenarioNamePlaceholder')}
               className={inputClass}
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
@@ -294,13 +296,13 @@ export default function ScenariosPage() {
                 disabled={!saveName.trim() || saveScenarioMutation.isPending}
                 className="flex-1 px-3 py-1.5 rounded-lg bg-accent-cyan/20 text-accent-cyan text-xs font-medium border border-accent-cyan/30 disabled:opacity-40"
               >
-                {saveScenarioMutation.isPending ? 'Saving…' : 'Save'}
+                {saveScenarioMutation.isPending ? t('pastas.ui.saving') : t('pastas.scenarios.saveScenario')}
               </button>
               <button
                 onClick={() => setSaveDialogOpen(false)}
                 className="px-3 py-1.5 rounded-lg text-text-muted text-xs border border-white/10"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -309,7 +311,7 @@ export default function ScenariosPage() {
         {simulateMutation.isError && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
             <p className="text-xs text-red-400">
-              {simulateMutation.error instanceof Error ? simulateMutation.error.message : 'Simulation failed.'}
+              {simulateMutation.error instanceof Error ? simulateMutation.error.message : t('pastas.scenariosPage.simulationFailed')}
             </p>
           </div>
         )}
@@ -317,7 +319,7 @@ export default function ScenariosPage() {
         {/* Saved scenarios */}
         {runId && savedScenarios.length > 0 && (
           <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <h2 className="text-sm font-semibold text-text-primary mb-3">Scénarios enregistrés</h2>
+            <h2 className="text-sm font-semibold text-text-primary mb-3">{t('pastas.scenariosPage.savedScenarios')}</h2>
             <div className="space-y-1.5">
               {savedScenarios.map((s) => (
                 <div
@@ -333,7 +335,7 @@ export default function ScenariosPage() {
                       {s.name}
                     </div>
                     <div className="text-[10px] text-text-muted">
-                      {s.modifications.length} modification{s.modifications.length > 1 ? 's' : ''}
+                      {s.modifications.length} {s.modifications.length > 1 ? t('pastas.ui.modificationsPlural') : t('pastas.ui.modificationSingular')}
                       {s.created_at && ` — ${s.created_at.slice(0, 10)}`}
                     </div>
                   </button>
@@ -358,7 +360,7 @@ export default function ScenariosPage() {
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-3">
               <Info className="w-8 h-8 mx-auto text-text-muted/50" />
-              <p className="text-text-secondary">Aucune simulation</p>
+              <p className="text-text-secondary">{t('pastas.scenariosPage.noSimulation')}</p>
             </div>
           </div>
         )}

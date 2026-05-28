@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ForecastPlot } from '@/components/charts/ForecastPlot'
 import type { ForecastResult } from '@/lib/types'
 
@@ -9,6 +10,7 @@ interface ForecastViewProps {
 }
 
 export function ForecastView({ result, isLoading, inputChunkLength, className = '' }: ForecastViewProps) {
+  const { t } = useTranslation()
   if (isLoading) {
     return (
       <div className={`bg-bg-card rounded-xl border border-white/5 p-6 ${className}`}>
@@ -26,7 +28,7 @@ export function ForecastView({ result, isLoading, inputChunkLength, className = 
         className={`bg-bg-card rounded-xl border border-white/5 p-6 flex items-center justify-center ${className}`}
       >
         <p className="text-text-secondary text-sm">
-          Sélectionnez un modèle et lancez une prévision pour afficher les résultats.
+          {t('sharedComponents.forecast.noResult')}
         </p>
       </div>
     )

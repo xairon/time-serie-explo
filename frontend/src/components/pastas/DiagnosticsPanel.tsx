@@ -1,55 +1,24 @@
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   diagnostics: Record<string, unknown>
 }
 
-const TESTS = [
-  {
-    key: 'durbin_watson',
-    label: 'Durbin-Watson',
-    format: (v: number) => v.toFixed(2),
-    good: (v: number) => v > 1.5 && v < 2.5,
-    tooltip: 'Autocorrélation des résidus. L\'idéal est autour de 2,0 (pas de corrélation entre erreurs successives). Proche de 0 = le modèle manque une structure régulière du signal. Proche de 4 = sur-correction. Sans modèle de bruit (ArNoiseModel), DW < 1,5 est attendu et n\'indique pas un mauvais modèle.',
-  },
-  {
-    key: 'jarque_bera_pvalue',
-    label: 'Jarque-Bera p',
-    format: (v: number) => v.toFixed(3),
-    good: (v: number) => v > 0.05,
-    tooltip: 'Test de normalité des résidus. p > 0,05 = erreurs gaussiennes (bon signe, bruit aléatoire). p proche de 0 = distribution non normale, fréquent sur des chroniques longues même avec un bon modèle.',
-  },
-  {
-    key: 'shapiro_wilk_pvalue',
-    label: 'Shapiro-Wilk p',
-    format: (v: number) => v.toFixed(3),
-    good: (v: number) => v > 0.05,
-    tooltip: 'Autre test de normalité, plus puissant. p > 0,05 = résidus gaussiens. Échoue souvent sur des chroniques longues même si le modèle est correct — interpréter avec le QQ-plot.',
-  },
-  {
-    key: 'ljung_box_p_lag10',
-    label: 'Ljung-Box p (lag 10)',
-    format: (v: number) => v.toFixed(3),
-    good: (v: number) => v > 0.05,
-    tooltip: 'Les résidus sont-ils indépendants ? p > 0,05 = bruit blanc (le modèle a tout capturé). p proche de 0 = il reste une structure non modélisée (saisonnalité résiduelle, tendance, etc.).',
-  },
-  {
-    key: 'skewness',
-    label: 'Asymétrie',
-    format: (v: number) => v.toFixed(3),
-    good: (v: number) => Math.abs(v) < 1.0,
-    tooltip: 'Asymétrie de la distribution des erreurs. Proche de 0 = erreurs symétriques (le modèle ne sur- ou sous-estime pas systématiquement). > 0 = queue à droite (sous-estime les pics). < 0 = queue à gauche.',
-  },
-  {
-    key: 'kurtosis',
-    label: 'Aplatissement',
-    format: (v: number) => v.toFixed(3),
-    good: (v: number) => Math.abs(v) < 3,
-    tooltip: 'Aplatissement de la distribution. Proche de 0 = forme gaussienne. Élevé = queues lourdes (erreurs extrêmes plus fréquentes qu\'attendu — événements mal modélisés).',
-  },
-]
+function getTests(t: (k: string) => string) {
+  return [
+    { key: 'durbin_watson', label: t('pastas.diagnostics.durbinWatson'), format: (v: number) => v.toFixed(2), good: (v: number) => v > 1.5 && v < 2.5, tooltip: t('pastas.diagnostics.dwTip') },
+    { key: 'jarque_bera_pvalue', label: t('pastas.diagnostics.jbP'), format: (v: number) => v.toFixed(3), good: (v: number) => v > 0.05, tooltip: t('pastas.diagnostics.jbTip') },
+    { key: 'shapiro_wilk_pvalue', label: t('pastas.diagnostics.swP'), format: (v: number) => v.toFixed(3), good: (v: number) => v > 0.05, tooltip: t('pastas.diagnostics.swTip') },
+    { key: 'ljung_box_p_lag10', label: t('pastas.diagnostics.ljungP'), format: (v: number) => v.toFixed(3), good: (v: number) => v > 0.05, tooltip: t('pastas.diagnostics.ljungTip') },
+    { key: 'skewness', label: t('pastas.diagnostics.skewness'), format: (v: number) => v.toFixed(3), good: (v: number) => Math.abs(v) < 1.0, tooltip: t('pastas.diagnostics.skewTip') },
+    { key: 'kurtosis', label: t('pastas.diagnostics.kurtosis'), format: (v: number) => v.toFixed(3), good: (v: number) => Math.abs(v) < 3, tooltip: t('pastas.diagnostics.kurtTip') },
+  ]
+}
 
 export function DiagnosticsPanel({ diagnostics }: Props) {
+  const { t } = useTranslation()
+  const TESTS = getTests(t)
   const qqTheoretical = diagnostics.qq_theoretical as number[] | undefined
   const qqSample = diagnostics.qq_sample as number[] | undefined
   const pacfValues = diagnostics.pacf_values as number[] | undefined
@@ -68,7 +37,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
   return (
     <div className="space-y-3">
       <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-        Diagnostics des résidus
+        {t('pastas.diagnostics.title')}
       </div>
       <div className="flex flex-wrap gap-2">
         {TESTS.map(t => {
@@ -105,7 +74,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
           return (
             <div className="bg-bg-card rounded-lg border border-white/5 p-2">
               <p className="text-[9px] text-text-muted px-1 mb-0.5">
-                Chaque point = un quantile des résidus vs la distribution gaussienne théorique. Si les points suivent la diagonale rouge, les erreurs sont gaussiennes. Les écarts aux extrêmes = événements extrêmes mal modélisés.
+                {t('pastas.diagnostics.qqDesc')}
               </p>
               <Plot
                 data={[
@@ -118,10 +87,10 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
                 ]}
                 layout={{
                   ...chartBase,
-                  title: { text: 'QQ-plot', font: { size: 11 } },
+                  title: { text: t('pastas.diagnostics.qqTitle'), font: { size: 11 } },
                   margin: { t: 25, r: 10, b: 30, l: 40 },
-                  xaxis: { title: { text: 'Théorique' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                  yaxis: { title: { text: 'Observé' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                  xaxis: { title: { text: t('pastas.diagnostics.qqTheoretical') }, gridcolor: 'rgba(255,255,255,0.05)' },
+                  yaxis: { title: { text: t('pastas.diagnostics.qqObserved') }, gridcolor: 'rgba(255,255,255,0.05)' },
                 }}
                 useResizeHandler className="w-full"
                 config={{ displayModeBar: false }}
@@ -132,10 +101,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
 
         {pacfValues && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">
-              Corrélation partielle des résidus à chaque décalage. Les barres dépassant les lignes rouges (seuil de significativité) indiquent une structure résiduelle à ce décalage.
-              Idéal : toutes les barres dans la zone de confiance (bruit blanc).
-            </p>
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">{t('pastas.diagnostics.pacfDesc')}</p>
             <Plot
               data={[
                 { y: pacfValues, type: 'bar', marker: { color: '#60a5fa' } },
@@ -148,9 +114,9 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
               ]}
               layout={{
                 ...chartBase,
-                title: { text: 'Autocorrélation partielle (PACF)', font: { size: 11 } },
+                title: { text: t('pastas.diagnostics.pacfTitle'), font: { size: 11 } },
                 margin: { t: 25, r: 10, b: 30, l: 40 },
-                xaxis: { title: { text: 'Décalage (jours)' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                xaxis: { title: { text: t('pastas.diagnostics.lagDays') }, gridcolor: 'rgba(255,255,255,0.05)' },
                 yaxis: { gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler className="w-full"
@@ -161,9 +127,7 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
 
         {histCounts && histBins && (
           <div className="bg-bg-card rounded-lg border border-white/5 p-2 col-span-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">
-              Distribution des erreurs (observé moins simulé). Centrée sur 0 = pas de biais systématique. Forme en cloche = erreurs gaussiennes. Asymétrique = le modèle sur- ou sous-estime de manière récurrente.
-            </p>
+            <p className="text-[9px] text-text-muted px-1 mb-0.5">{t('pastas.diagnostics.histDesc')}</p>
             <Plot
               data={[{
                 x: histBins.slice(0, -1).map((b, i) => (b + histBins[i + 1]) / 2),
@@ -173,11 +137,11 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
               }]}
               layout={{
                 ...chartBase,
-                title: { text: 'Distribution des résidus', font: { size: 11 } },
+                title: { text: t('pastas.diagnostics.histTitle'), font: { size: 11 } },
                 margin: { t: 25, r: 10, b: 30, l: 40 },
                 height: 180,
-                xaxis: { title: { text: 'Résidu (m)' }, gridcolor: 'rgba(255,255,255,0.05)' },
-                yaxis: { title: { text: 'Nombre' }, gridcolor: 'rgba(255,255,255,0.05)' },
+                xaxis: { title: { text: t('pastas.diagnostics.residual') }, gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { title: { text: t('pastas.diagnostics.count') }, gridcolor: 'rgba(255,255,255,0.05)' },
               }}
               useResizeHandler className="w-full"
               config={{ displayModeBar: false }}

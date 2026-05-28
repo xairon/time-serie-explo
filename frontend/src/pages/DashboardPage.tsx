@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Cpu, Database, GraduationCap, Server } from 'lucide-react'
 import { useHealth } from '@/hooks/useHealth'
 import { useDatasets } from '@/hooks/useDatasets'
@@ -8,6 +9,7 @@ import { DatasetCard } from '@/components/cards/DatasetCard'
 import { ModelCard } from '@/components/cards/ModelCard'
 
 export default function DashboardPage() {
+  const { t } = useTranslation()
   const { data: health, isLoading: healthLoading } = useHealth()
   const { data: datasets, isLoading: datasetsLoading } = useDatasets()
   const { data: models, isLoading: modelsLoading } = useModels()
@@ -15,7 +17,7 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Tableau de bord</h1>
+        <h1 className="text-2xl font-bold text-text-primary">{t('dashboard.title')}</h1>
       </div>
 
       {/* Status cards */}
@@ -28,26 +30,26 @@ export default function DashboardPage() {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatusCard
-            label="GPU"
-            value={health?.gpu?.available ? health.gpu.device ?? 'Disponible' : 'Indisponible'}
+            label={t('dashboard.gpu')}
+            value={health?.gpu?.available ? health.gpu.device ?? t('dashboard.gpuAvailable') : t('dashboard.gpuUnavailable')}
             icon={Cpu}
             status={health?.gpu?.available ? 'ok' : 'error'}
           />
           <StatusCard
-            label="Jeux de données"
+            label={t('dashboard.datasetsCount')}
             value={datasets?.length ?? 0}
             icon={Database}
             status="neutral"
           />
           <StatusCard
-            label="Modèles"
+            label={t('dashboard.modelsCount')}
             value={models?.length ?? 0}
             icon={GraduationCap}
             status="neutral"
           />
           <StatusCard
-            label="Redis"
-            value={health?.redis === 'ok' ? 'Connecté' : 'Hors ligne'}
+            label={t('dashboard.redis')}
+            value={health?.redis === 'ok' ? t('dashboard.redisConnected') : t('dashboard.redisOffline')}
             icon={Server}
             status={health?.redis === 'ok' ? 'ok' : 'error'}
           />
@@ -57,22 +59,16 @@ export default function DashboardPage() {
       {/* Datasets section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Jeux de données</h2>
-          <Link
-            to="/data"
-            className="text-xs text-accent-cyan hover:underline"
-          >
-            Gérer les données
+          <h2 className="text-lg font-semibold text-text-primary">{t('dashboard.datasetsSection')}</h2>
+          <Link to="/data" className="text-xs text-accent-cyan hover:underline">
+            {t('dashboard.manageData')}
           </Link>
         </div>
 
         {datasetsLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-28 bg-bg-card rounded-xl animate-pulse border border-white/5"
-              />
+              <div key={i} className="h-28 bg-bg-card rounded-xl animate-pulse border border-white/5" />
             ))}
           </div>
         ) : datasets && datasets.length > 0 ? (
@@ -84,12 +80,9 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <Database className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">Aucun jeu de données importé</p>
-            <Link
-              to="/data"
-              className="text-sm text-accent-cyan hover:underline"
-            >
-              Importer des données
+            <p className="text-sm text-text-secondary mb-3">{t('dashboard.noDatasets')}</p>
+            <Link to="/data" className="text-sm text-accent-cyan hover:underline">
+              {t('dashboard.importData')}
             </Link>
           </div>
         )}
@@ -98,22 +91,16 @@ export default function DashboardPage() {
       {/* Models section */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Modèles entraînés</h2>
-          <Link
-            to="/training"
-            className="text-xs text-accent-cyan hover:underline"
-          >
-            Entraîner un modèle
+          <h2 className="text-lg font-semibold text-text-primary">{t('dashboard.modelsSection')}</h2>
+          <Link to="/training" className="text-xs text-accent-cyan hover:underline">
+            {t('dashboard.trainModel')}
           </Link>
         </div>
 
         {modelsLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-28 bg-bg-card rounded-xl animate-pulse border border-white/5"
-              />
+              <div key={i} className="h-28 bg-bg-card rounded-xl animate-pulse border border-white/5" />
             ))}
           </div>
         ) : models && models.length > 0 ? (
@@ -125,12 +112,9 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-bg-card rounded-xl border border-white/5 p-8 text-center">
             <GraduationCap className="w-8 h-8 text-text-secondary mx-auto mb-2" />
-            <p className="text-sm text-text-secondary mb-3">Aucun modèle entraîné</p>
-            <Link
-              to="/training"
-              className="text-sm text-accent-cyan hover:underline"
-            >
-              Démarrer l'entraînement
+            <p className="text-sm text-text-secondary mb-3">{t('dashboard.noModels')}</p>
+            <Link to="/training" className="text-sm text-accent-cyan hover:underline">
+              {t('dashboard.startTraining')}
             </Link>
           </div>
         )}

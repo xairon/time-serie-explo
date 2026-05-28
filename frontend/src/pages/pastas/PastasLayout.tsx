@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { MapPin, SlidersHorizontal, BarChart3, FlaskConical, LayoutGrid } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { GuidedExpertToggle } from '@/components/pastas/GuidedExpertToggle'
 import { useState, createContext, useContext, useEffect, useCallback } from 'react'
 import type { AutoFitResult, StowaResult } from '@/lib/types'
@@ -45,11 +46,11 @@ export function usePastasMode() {
 const STORAGE_KEY = 'pastas_mode'
 
 const TABS = [
-  { to: '/pastas/station', icon: MapPin, label: 'Station' },
-  { to: '/pastas/calibrate', icon: SlidersHorizontal, label: 'Calibrer' },
-  { to: '/pastas/results', icon: BarChart3, label: 'Résultats' },
-  { to: '/pastas/scenarios', icon: FlaskConical, label: 'Scénarios' },
-  { to: '/pastas/gallery', icon: LayoutGrid, label: 'Galerie' },
+  { to: '/pastas/station', icon: MapPin, labelKey: 'pastas.tabs.station' },
+  { to: '/pastas/calibrate', icon: SlidersHorizontal, labelKey: 'pastas.tabs.calibrate' },
+  { to: '/pastas/results', icon: BarChart3, labelKey: 'pastas.tabs.results' },
+  { to: '/pastas/scenarios', icon: FlaskConical, labelKey: 'pastas.tabs.scenarios' },
+  { to: '/pastas/gallery', icon: LayoutGrid, labelKey: 'pastas.tabs.gallery' },
 ] as const
 
 function readStoredMode(): 'guided' | 'expert' {
@@ -61,6 +62,7 @@ function readStoredMode(): 'guided' | 'expert' {
 }
 
 export default function PastasLayout() {
+  const { t } = useTranslation()
   const [mode, setModeState] = useState<'guided' | 'expert'>(readStoredMode)
   const [pipeline, setPipeline] = useState<PipelineState>(EMPTY_PIPELINE)
 
@@ -111,7 +113,7 @@ export default function PastasLayout() {
         <div className="bg-bg-card border-b border-white/5 shrink-0">
           <div className="flex items-center justify-between px-4">
             <div className="flex items-center gap-1">
-              {TABS.map(({ to, icon: Icon, label }) => (
+              {TABS.map(({ to, icon: Icon, labelKey }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -124,7 +126,7 @@ export default function PastasLayout() {
                   }
                 >
                   <Icon className="w-4 h-4" />
-                  {label}
+                  {t(labelKey)}
                 </NavLink>
               ))}
             </div>
