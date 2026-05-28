@@ -1,96 +1,111 @@
 # Junon — Piezometric Forecasting Platform
 
-Full-stack platform for groundwater level forecasting and analysis. React frontend + FastAPI backend + Darts (deep learning) + Pastas (transfer function-noise models).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
+[![React](https://img.shields.io/badge/react-19-61dafb.svg)](https://react.dev/)
+
+Full-stack platform for groundwater level forecasting and scenario analysis, integrating physically-based transfer function-noise models ([Pastas](https://pastas.readthedocs.io/)) and deep learning forecasters ([Darts](https://unit8co.github.io/darts/)) under a unified MLflow registry. Built for the [BRGM](https://www.brgm.fr/) (French Geological Survey) data warehouse, exposed through a React frontend and a FastAPI backend.
 
 ## Features
 
-### AI Lab (Darts)
-- **12+ deep learning models**: TFT, Transformer, N-BEATS, N-HiTS, LSTM, GRU, TCN, TiDE, TSMixer, DLinear, NLinear
-- **Hyperparameter optimization** with Optuna
-- **Real-time training** via SSE streaming
-- **Explainability**: SHAP, TimeSHAP, Captum gradients, attention weights
-- **Counterfactual analysis**: PhysCF, CoMTE with dual validation
-- **Latent space exploration**: SoftCLT/TS2Vec embeddings, UMAP, clustering
+### Pastas Lab — Transfer Function-Noise models
+- TFN calibration on piezometric series with precipitation and evapotranspiration as forcings
+- **Auto-fit** with STOWA quality criteria and configuration grid search
+- **Calibration/validation split** with full diagnostics (NSE, KGE, RMSE, residual autocorrelation, normality)
+- **Prospective scenarios** — synthetic pumping (AEP, irrigation, industrial), climate trends, stress scaling
+- **Adaptive bounds** — drawdown estimation derived from the calibrated step response, with physically-bounded recommendations
+- **BDLISA-aware presets** — aquifer-family-specific response function defaults (alluvial, sedimentary, karst, fractured, volcanic)
 
-### Pastas Lab (TFN)
-- **Transfer Function-Noise models** for piezometric time series
-- **Auto-fit**: grid search across configurations with STOWA quality criteria, early data validation
-- **Calibration/validation** with train/test split
-- **Results dashboard**: performance metrics, response functions, diagnostics, hydrological signatures
-- **CSV export**: time series (obs/sim/residuals with train/test period), stress contributions
-- **What-if scenarios**: synthetic pumping, climate change, trend modifications
-  - Physics-based: aquifer-family-specific response function defaults (alluvial, sedimentary, karst, fractured, volcanic)
-  - Superposition principle: new stresses added to calibrated model without re-solving
-  - Pumping persistence: realistic time constants (200-500 days) distinct from recharge timescale
-- **Preset scenarios**: drinking water well, seasonal irrigation, industrial pumping, summer/prolonged drought, climate trend
-- **Realistic referential**: pumping profiles per usage (AEP, irrigation, industrial) × aquifer family
-- **Adaptive bounds**: drawdown estimation from calibrated step response with visual feedback (Realistic/High/Unrealistic)
+### AI Lab — Deep learning forecasters
+- 12+ Darts models: TFT, Transformer, N-BEATS, N-HiTS, LSTM, GRU, TCN, TiDE, TSMixer, DLinear, NLinear
+- Hyperparameter optimization with Optuna
+- Real-time training monitoring via Server-Sent Events
+- Explainability: SHAP, TimeSHAP, Captum gradients, attention weights
+- Counterfactual analysis: PhysCF, CoMTE with dual validation
 
 ### Observatory
-- **Station map** with BDLISA aquifer overlays
-- **Drought indices** (SPI, SPLI)
-- **Multi-station comparison** and regional analysis
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, React Router 7, TanStack Query 5, Plotly.js, Tailwind CSS 4, Vite |
-| Backend | FastAPI, SSE (Server-Sent Events) |
-| ML | Darts (PyTorch Lightning), Pastas, Optuna, SHAP/Captum |
-| Tracking | MLflow |
-| Database | PostgreSQL (BRGM data warehouse), SQLAlchemy |
-| Deployment | Docker Compose (rootless), NVIDIA CUDA |
+- Spatial exploration of piezometric and hydrometric stations
+- BDLISA aquifer overlays, drought indices (SPI, SPLI, SSFI)
+- Cross-station comparison with persistent selection
 
 ## Quick Start
 
-### Docker (recommended)
+### Requirements
+
+- Docker Engine + Docker Compose v2
+- NVIDIA GPU + CUDA 12.x drivers (optional, for accelerated DL training)
+- ~8 GB disk space for images
+- Access to the BRGM gold data warehouse (PostgreSQL, networked or local replica)
+
+### Install and run
 
 ```bash
-git clone <repo-url>
-cd junon-time-series
-
-# Configure .env (see .env.example)
-# COMPOSE_FILE=docker-compose.yml:docker-compose.cuda.yml for GPU
+git clone https://scm.univ-tours.fr/ringuet/time-serie-explo.git
+cd time-serie-explo
+cp .env.example .env
+# Edit .env: set BRGM_DB credentials, ALLOWED_ORIGINS, COMPOSE_FILE
 
 docker compose up -d --build
 ```
 
-Access: `http://localhost:49513`
+For GPU acceleration, set `COMPOSE_FILE=docker-compose.yml:docker-compose.cuda.yml` in `.env`.
 
-MLflow UI: `http://localhost:49512`
+Open `http://localhost:49513` for the application and `http://localhost:49512` for the MLflow UI.
 
-### Port Mapping
+### Verify installation
 
-| Service | Port |
-|---------|------|
-| App (Nginx) | 49513 |
-| MLflow | 49512 |
-| PostgreSQL | internal only |
+```bash
+# API health
+curl http://localhost:49513/api/v1/health
+
+# Run the test suite
+docker compose exec backend pytest tests/
+```
 
 ## Architecture
 
 ```
-frontend/                     # React SPA
-  src/
-    pages/                    # Route pages
-    components/               # UI components (charts, cards, forms, pastas/*)
-    hooks/                    # TanStack Query hooks
-    lib/                      # API client, types
+frontend/                     React SPA (Vite, Tailwind, TanStack Query, Plotly)
+  src/pages/                  Route pages
+  src/components/             UI components
+  src/hooks/                  Data-fetching hooks
+  src/lib/                    API client, shared types
 
-api/                          # FastAPI REST/SSE
-  routers/                    # Endpoint modules
-  schemas/                    # Pydantic models
+api/                          FastAPI REST + SSE
+  routers/                    Endpoint modules
+  schemas/                    Pydantic models
 
-dashboard/
-  utils/                      # Pure Python (NO framework dependency)
-    pastas/                   # Pastas pipeline (builder, fit, scenarios, diagnostics)
-    explainability/           # SHAP, attention, gradients
-    counterfactual/           # PhysCF, CoMTE
-    training.py               # Darts training pipeline
-    model_factory.py          # Model creation
-    preprocessing.py          # Data prep
+dashboard/utils/              Framework-free Python core
+  pastas/                     TFN builder, fit service, scenarios, diagnostics
+  explainability/             SHAP, attention, gradients, feature importance
+  counterfactual/             PhysCF, CoMTE, dual validation, IPS
+  training.py                 Darts training pipeline
+  model_factory.py            Darts model instantiation
+  preprocessing.py            Data preparation
+
+tests/                        Pytest suite
+docker/                       Per-service Dockerfiles
 ```
+
+## Tech Stack
+
+| Layer | Stack |
+|---|---|
+| Frontend | React 19, React Router 7, TanStack Query 5, Plotly.js, Tailwind CSS 4, Vite |
+| Backend | FastAPI, Server-Sent Events, SQLAlchemy |
+| Forecasting | Darts (PyTorch Lightning), Pastas |
+| Tuning & XAI | Optuna, SHAP, TimeSHAP, Captum |
+| Tracking | MLflow |
+| Database | PostgreSQL (BRGM gold layer) |
+| Deployment | Docker Compose (rootless), NVIDIA CUDA |
+
+## Ports
+
+| Service | Port | Notes |
+|---|---|---|
+| Application (Nginx) | 49513 | UI + `/api/v1/*` |
+| MLflow | 49512 | Experiment tracking |
+| PostgreSQL | — | Internal only |
 
 ## Development
 
@@ -98,30 +113,36 @@ dashboard/
 # Rebuild after code changes
 docker compose up -d --build
 
-# Rebuild specific service
+# Rebuild only one service
 docker compose up -d --build frontend
 docker compose up -d --build backend
 
-# Run tests
-docker compose exec backend pytest tests/
-cd frontend && npx tsc --noEmit  # TypeScript check (no Node.js on host)
-
-# View logs
+# View backend logs
 docker compose logs -f backend
+
+# TypeScript type-check (runs inside the container, no Node on host)
+docker compose run --rm frontend npx tsc --noEmit
 ```
 
-**Important**: No Node.js on the host. Frontend builds and runs inside Docker only.
+The Python core under `dashboard/utils/` has no framework dependency: it is callable from notebooks, scripts, or the API layer without modification.
 
-## Requirements
+## Citation
 
-- Docker with Compose v2
-- NVIDIA GPU + CUDA drivers (for GPU acceleration)
-- ~8 GB disk for images
+If you use Junon in published work, please cite:
+
+```bibtex
+@software{ringuet_junon_2026,
+  author       = {Ringuet, Nicolas},
+  title        = {Junon: A piezometric forecasting platform combining Pastas TFN and deep learning},
+  year         = {2026},
+  url          = {https://scm.univ-tours.fr/ringuet/time-serie-explo}
+}
+```
 
 ## License
 
-MIT License
+MIT — see [LICENSE](LICENSE).
 
-## Author
+## Acknowledgments
 
-Nicolas Ringuet
+Built around [Pastas](https://github.com/pastas/pastas) (Collenteur et al.), [Darts](https://github.com/unit8co/darts) (Unit8), and the BRGM Hub'Eau / BDLISA / ADES open data services.
