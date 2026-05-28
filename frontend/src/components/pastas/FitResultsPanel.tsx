@@ -49,10 +49,10 @@ function getMetricDefs(t: (k: string) => string): Record<string, { label: string
   return {
     nse: { label: 'NSE', tooltip: t('pastas.calibrateExtra.nseTip'), format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
     kge: { label: 'KGE', tooltip: t('pastas.calibrateExtra.kgeTip'), format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-    evp: { label: 'EVP %', tooltip: 'Variance expliquée (%) — quelle proportion de la variabilité du signal piézométrique le modèle capture-t-il ? > 70% = acceptable, > 90% = excellent.', format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
+    evp: { label: 'EVP %', tooltip: t('cleanup.fitResults.evpTooltip'), format: v => v.toFixed(1), quality: v => v > 70 ? 'good' : v > 40 ? 'ok' : 'poor' },
     rmse: { label: 'RMSE', tooltip: t('pastas.calibrateExtra.rmseTip'), format: v => v.toFixed(4), quality: () => 'ok' },
-    rsq: { label: 'R²', tooltip: 'Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.', format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
-    mae: { label: 'MAE', tooltip: 'Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE.', format: v => v.toFixed(4), quality: () => 'ok' },
+    rsq: { label: 'R²', tooltip: t('cleanup.fitResults.rsqTooltip'), format: v => v.toFixed(3), quality: v => v > 0.7 ? 'good' : v > 0.4 ? 'ok' : 'poor' },
+    mae: { label: 'MAE', tooltip: t('cleanup.fitResults.maeTooltip'), format: v => v.toFixed(4), quality: () => 'ok' },
   }
 }
 const Q_COLORS = { good: 'text-green-400', ok: 'text-accent-cyan', poor: 'text-red-400' }

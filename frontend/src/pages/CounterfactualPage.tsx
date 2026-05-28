@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Download } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { ModelSelector } from '@/components/forecasting/ModelSelector'
 import { CFTargetSelector } from '@/components/counterfactual/CFTargetSelector'
 import type { CFTargetData } from '@/components/counterfactual/CFTargetSelector'
@@ -22,6 +24,7 @@ function startCFStream(
   setStreaming: React.Dispatch<React.SetStateAction<Record<string, boolean>>>,
   generation: number,
   generationRef: React.MutableRefObject<number>,
+  t: TFunction,
 ): EventSource {
   setStreaming((prev) => ({ ...prev, [method]: true }))
   setResults((prev) => ({
@@ -61,12 +64,12 @@ function startCFStream(
       const data = JSON.parse((event as MessageEvent).data) as { error?: string }
       setResults((prev) => ({
         ...prev,
-        [method]: { task_id: taskId, status: 'error', result: null, error: data.error ?? 'Erreur inconnue' },
+        [method]: { task_id: taskId, status: 'error', result: null, error: data.error ?? t('cleanup.counterfactual.unknownError') },
       }))
     } catch {
       setResults((prev) => ({
         ...prev,
-        [method]: { task_id: taskId, status: 'error', result: null, error: 'Connexion au serveur perdue' },
+        [method]: { task_id: taskId, status: 'error', result: null, error: t('cleanup.counterfactual.connectionLost') },
       }))
     }
     setStreaming((prev) => ({ ...prev, [method]: false }))
@@ -83,6 +86,7 @@ function startCFStream(
 }
 
 export default function CounterfactualPage() {
+  const { t } = useTranslation()
   const [modelId, setModelId] = useState<string>('')
   const [startIdx, setStartIdx] = useState(0)
   const [sliderDraft, setSliderDraft] = useState(0)
@@ -216,7 +220,7 @@ export default function CounterfactualPage() {
             if (resp.status === 'done' && resp.result) {
               setResults((prev) => ({ ...prev, [method]: resp }))
             } else {
-              const es = startCFStream(resp.task_id, method, setResults, setStreaming, thisGeneration, generationRef)
+              const es = startCFStream(resp.task_id, method, setResults, setStreaming, thisGeneration, generationRef, t)
               eventSourcesRef.current.push(es)
             }
           }
@@ -229,6 +233,7 @@ export default function CounterfactualPage() {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
 
@@ -251,9 +256,9 @@ export default function CounterfactualPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary mb-1">Analyse contrefactuelle</h1>
+          <h1 className="text-2xl font-bold text-text-primary mb-1">{t('cleanup.counterfactual.title')}</h1>
           <p className="text-sm text-text-secondary">
-            Simulez des scénarios alternatifs pour comprendre l'impact des covariables
+            {t('cleanup.counterfactual.subtitle')}
           </p>
         </div>
         {hasAnyResult && (
@@ -262,7 +267,7 @@ export default function CounterfactualPage() {
             className="flex items-center gap-2 bg-bg-hover text-text-primary px-4 py-2 rounded-lg border border-white/10 hover:bg-bg-hover/80 transition-colors text-sm"
           >
             <Download className="w-4 h-4" />
-            Exporter JSON
+            {t('cleanup.counterfactual.exportJson')}
           </button>
         )}
       </div>
@@ -276,12 +281,12 @@ export default function CounterfactualPage() {
       {modelId && testInfo && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">Jeu de test — sélection de la fenêtre</h3>
+            <h3 className="text-sm font-semibold text-text-primary">{t('cleanup.counterfactual.testSetWindowSelection')}</h3>
             {windowInfo && (
               <p className="text-xs text-text-secondary">
-                Contexte : {windowInfo.contextStart} → {windowInfo.contextEnd} ({windowInfo.L}j)
+                {t('cleanup.counterfactual.contextInfo', { start: windowInfo.contextStart, end: windowInfo.contextEnd, days: windowInfo.L })}
                 {' | '}
-                Prévision : {windowInfo.predStart} → {windowInfo.predEnd} ({windowInfo.H}j)
+                {t('cleanup.counterfactual.forecastInfo', { start: windowInfo.predStart, end: windowInfo.predEnd, days: windowInfo.H })}
               </p>
             )}
           </div>
@@ -297,7 +302,7 @@ export default function CounterfactualPage() {
           />
 
           <div className="flex items-center gap-4">
-            <span className="text-xs text-text-secondary shrink-0">Position</span>
+            <span className="text-xs text-text-secondary shrink-0">{t('cleanup.counterfactual.position')}</span>
             <input
               type="range"
               min={testInfo.valid_start_idx}
@@ -321,9 +326,9 @@ export default function CounterfactualPage() {
                   ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
                   : 'bg-red-500/10 border border-red-500/20 text-red-400'
             }`}>
-              {verdict === 'qualified' && 'Le modèle reproduit fidèlement les observations sur cette fenêtre'}
-              {verdict === 'partial' && 'Accord partiel — certains mois divergent'}
-              {verdict === 'not_qualified' && 'Le modèle ne reproduit pas les observations — contrefactuel non fiable'}
+              {verdict === 'qualified' && t('cleanup.counterfactual.verdictQualified')}
+              {verdict === 'partial' && t('cleanup.counterfactual.verdictPartial')}
+              {verdict === 'not_qualified' && t('cleanup.counterfactual.verdictNotQualified')}
             </div>
           )}
         </div>
@@ -335,7 +340,7 @@ export default function CounterfactualPage() {
           {/* Left: Config */}
           <div className="lg:col-span-3">
             <div className="bg-bg-card rounded-xl border border-white/5 p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-4">Configuration</h3>
+              <h3 className="text-sm font-semibold text-text-primary mb-4">{t('cleanup.counterfactual.configuration')}</h3>
               <CFTargetSelector
                 modelId={modelId}
                 startIdx={startIdx}
@@ -365,7 +370,7 @@ export default function CounterfactualPage() {
       {!modelId && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
           <p className="text-text-secondary text-sm">
-            Sélectionnez un modèle entraîné pour démarrer l'analyse contrefactuelle.
+            {t('cleanup.counterfactual.selectModelPrompt')}
           </p>
         </div>
       )}

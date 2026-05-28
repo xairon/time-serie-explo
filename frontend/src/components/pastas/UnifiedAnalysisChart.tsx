@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import Plot from 'react-plotly.js'
+import { useTranslation } from 'react-i18next'
 import { plotlyConfig } from '@/lib/plotly-theme'
 import type { TimeSeriesData } from '@/lib/types'
 
@@ -11,11 +12,11 @@ const CONTRIB_COLORS: Record<string, string> = {
 }
 const FALLBACK_COLORS = ['#f97316', '#f43f5e', '#fbbf24', '#14b8a6']
 
-const CONTRIB_LABELS: Record<string, string> = {
-  recharge: 'Recharge (P − f·E)',
-  temperature: 'Température',
-  constant_d: 'Niveau de base',
-  Constant_d: 'Niveau de base',
+const CONTRIB_LABEL_KEYS: Record<string, string> = {
+  recharge: 'cleanup.unifiedChart.rechargePfe',
+  temperature: 'cleanup.unifiedChart.temperature',
+  constant_d: 'cleanup.unifiedChart.baseLevel',
+  Constant_d: 'cleanup.unifiedChart.baseLevel',
 }
 
 interface Props {
@@ -42,6 +43,7 @@ export function UnifiedAnalysisChart({
   outlierMonths, selectedOutlierDate, onOutlierClick,
   periodColor, splitDate, viewPeriod, selectedOutlierHighlight,
 }: Props) {
+  const { t: tr } = useTranslation()
 
   const selectedYM = selectedOutlierDate?.slice(0, 7)
 
@@ -55,18 +57,18 @@ export function UnifiedAnalysisChart({
     t.push({
       x: obsX, y: obsY,
       type: 'scatter', mode: 'lines',
-      name: 'Observé',
+      name: tr('cleanup.unifiedChart.observed'),
       line: { color: '#9ca3af', width: 1 },
       yaxis: 'y',
-      hovertemplate: '<b>Observé</b> : %{y:.2f} m<extra></extra>',
+      hovertemplate: tr('cleanup.unifiedChart.hoverObserved'),
     })
     t.push({
       x: simX, y: simY,
       type: 'scatter', mode: 'lines',
-      name: 'Simulé',
+      name: tr('cleanup.unifiedChart.simulated'),
       line: { color: periodColor, width: 2 },
       yaxis: 'y',
-      hovertemplate: '<b>Simulé</b> : %{y:.2f} m<extra></extra>',
+      hovertemplate: tr('cleanup.unifiedChart.hoverSimulated'),
     })
 
     // ═══ PANEL 2: Contributions ═══
@@ -74,7 +76,7 @@ export function UnifiedAnalysisChart({
     let colorIdx = 0
     for (const [name, ts] of contribEntries) {
       const color = CONTRIB_COLORS[name] ?? FALLBACK_COLORS[colorIdx++ % FALLBACK_COLORS.length]
-      const label = CONTRIB_LABELS[name] ?? name
+      const label = CONTRIB_LABEL_KEYS[name] ? tr(CONTRIB_LABEL_KEYS[name]) : name
 
       // Slice contributions to match observation period
       const startD = obsX[0]
@@ -123,10 +125,10 @@ export function UnifiedAnalysisChart({
       t.push({
         x: monthlyDates, y: monthlyResiduals,
         type: 'bar',
-        name: 'Résidu',
+        name: tr('cleanup.unifiedChart.residual'),
         marker: { color: barColors },
         yaxis: 'y3',
-        hovertemplate: '<b>Résidu</b> : %{y:+.3f} m<extra></extra>',
+        hovertemplate: tr('cleanup.unifiedChart.hoverResidual'),
       })
 
       // ±2σ threshold lines
@@ -139,7 +141,7 @@ export function UnifiedAnalysisChart({
     // ═══ SHARED: Train/Test split marker ═══
     if (viewPeriod === 'full' && splitDate) {
       s.push({ type: 'line', x0: splitDate, x1: splitDate, y0: 0, y1: 1, yref: 'paper', line: { color: 'rgba(251,191,36,0.35)', dash: 'dash', width: 1.5 } })
-      a.push({ x: splitDate, y: 1.01, yref: 'paper', text: 'Cal → Val', showarrow: false, font: { size: 9, color: '#fbbf24' } })
+      a.push({ x: splitDate, y: 1.01, yref: 'paper', text: tr('cleanup.unifiedChart.calToVal'), showarrow: false, font: { size: 9, color: '#fbbf24' } })
     }
 
     // ═══ SHARED: Outlier highlight band ═══
@@ -148,7 +150,7 @@ export function UnifiedAnalysisChart({
     }
 
     return { traces: t, shapes: s, annotations: a }
-  }, [obsX, obsY, simX, simY, contributions, monthlyDates, monthlyResiduals, threshold, outlierMonths, selectedYM, periodColor, splitDate, viewPeriod, selectedOutlierHighlight])
+  }, [obsX, obsY, simX, simY, contributions, monthlyDates, monthlyResiduals, threshold, outlierMonths, selectedYM, periodColor, splitDate, viewPeriod, selectedOutlierHighlight, tr])
 
   // --- Layout ---
   const layout: any = useMemo(() => {
@@ -184,7 +186,7 @@ export function UnifiedAnalysisChart({
       // Panel 1: Water Level (top 58%)
       yaxis: {
         domain: [0.38, 1.0],
-        title: { text: 'm NGF', font: { size: 9 }, standoff: 8 },
+        title: { text: tr('cleanup.unifiedChart.levelNgf'), font: { size: 9 }, standoff: 8 },
         gridcolor: 'rgba(255,255,255,0.04)',
         zeroline: false,
       },
@@ -192,7 +194,7 @@ export function UnifiedAnalysisChart({
       // Panel 2: Contributions (middle 22%)
       yaxis2: {
         domain: [0.14, 0.35],
-        title: { text: 'Contribution (m)', font: { size: 9 }, standoff: 8 },
+        title: { text: tr('cleanup.unifiedChart.contributionM'), font: { size: 9 }, standoff: 8 },
         gridcolor: 'rgba(255,255,255,0.04)',
         zeroline: false,
       },
@@ -200,7 +202,7 @@ export function UnifiedAnalysisChart({
       // Panel 3: Residuals (bottom 11%)
       yaxis3: {
         domain: [0.0, 0.11],
-        title: { text: 'Erreur (m)', font: { size: 9 }, standoff: 8 },
+        title: { text: tr('cleanup.unifiedChart.errorM'), font: { size: 9 }, standoff: 8 },
         gridcolor: 'rgba(255,255,255,0.04)',
         zeroline: false,
       },
@@ -209,13 +211,13 @@ export function UnifiedAnalysisChart({
       annotations: [
         ...annotations,
         // Panel labels (left side)
-        { x: -0.01, y: 0.69, xref: 'paper', yref: 'paper', text: 'Niveau', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
-        { x: -0.01, y: 0.245, xref: 'paper', yref: 'paper', text: 'Contributions', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
-        { x: -0.01, y: 0.055, xref: 'paper', yref: 'paper', text: 'Erreur', showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.69, xref: 'paper', yref: 'paper', text: tr('cleanup.unifiedChart.level'), showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.245, xref: 'paper', yref: 'paper', text: tr('cleanup.unifiedChart.contributionsLabel'), showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
+        { x: -0.01, y: 0.055, xref: 'paper', yref: 'paper', text: tr('cleanup.unifiedChart.errorLabel'), showarrow: false, font: { size: 8, color: 'rgba(255,255,255,0.2)' }, textangle: -90 },
       ],
     }
     return base
-  }, [shapes, annotations, selectedOutlierHighlight])
+  }, [shapes, annotations, selectedOutlierHighlight, tr])
 
   return (
     <Plot

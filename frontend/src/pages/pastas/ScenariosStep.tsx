@@ -1,10 +1,12 @@
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasModel } from '@/hooks/usePastas'
 import { usePastasMode } from './PastasLayout'
 import { ScenarioWorkflow } from '@/components/pastas/ScenarioWorkflow'
 
 export default function ScenariosStep() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { pipeline } = usePastasMode()
@@ -18,16 +20,16 @@ export default function ScenariosStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">Aucun modèle sélectionné</p>
+          <p className="text-sm text-text-secondary">{t('cleanup.scenarios.noModelSelected')}</p>
           <p className="text-xs">
-            Calibrez d'abord un modèle, puis revenez pour lancer des scénarios prospectifs.
+            {t('cleanup.scenarios.calibrateFirst')}
           </p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Aller à la calibration
+            {t('cleanup.scenarios.goToCalibration')}
           </button>
         </div>
       </div>
@@ -39,7 +41,7 @@ export default function ScenariosStep() {
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-2 border-accent-cyan/30 border-t-accent-cyan rounded-full animate-spin mx-auto" />
-          <p className="text-sm">Chargement du modèle...</p>
+          <p className="text-sm">{t('cleanup.scenarios.loadingModel')}</p>
         </div>
       </div>
     )
@@ -49,13 +51,13 @@ export default function ScenariosStep() {
     return (
       <div className="flex items-center justify-center h-full text-text-muted">
         <div className="text-center space-y-3">
-          <p className="text-sm text-red-400">Échec du chargement du modèle</p>
+          <p className="text-sm text-red-400">{t('cleanup.scenarios.modelLoadFailed')}</p>
           <button
             onClick={() => navigate(codeBss ? `/pastas/calibrate?station=${codeBss}` : '/pastas/calibrate')}
             className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
           >
             <ArrowLeft className="w-4 h-4" />
-            Retour à la calibration
+            {t('cleanup.scenarios.backToCalibration')}
           </button>
         </div>
       </div>
@@ -79,10 +81,10 @@ export default function ScenariosStep() {
           to={`/pastas/results?model=${runId}&station=${effectiveCodeBss}`}
           className="text-accent-cyan hover:underline"
         >
-          Résultats
+          {t('cleanup.scenarios.results')}
         </Link>
         <span>/</span>
-        <span className="text-text-secondary">Scénarios</span>
+        <span className="text-text-secondary">{t('cleanup.scenarios.scenarios')}</span>
       </div>
 
       {/* Scenario workflow */}

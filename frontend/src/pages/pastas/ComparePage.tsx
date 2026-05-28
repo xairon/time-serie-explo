@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Loader2, GitCompareArrows } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { usePastasModels, usePastasCompare } from '@/hooks/usePastas'
 import { ComparisonView } from '@/components/pastas/ComparisonView'
 import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
 
 export default function ComparePage() {
+  const { t } = useTranslation()
   const { data: models } = usePastasModels()
   const compareMut = usePastasCompare()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -26,20 +28,20 @@ export default function ComparePage() {
     <div className="p-6 space-y-6">
       <OnboardingBanner
         id="compare"
-        title="Comparer des modèles"
-        description="Sélectionnez 2 à 5 modèles pour les comparer côte à côte : métriques, paramètres et simulations superposées. Utile pour choisir la meilleure configuration (Gamma vs Exponentielle, avec ou sans modèle de bruit, etc.)."
+        title={t('cleanup.pastasCompare.title')}
+        description={t('cleanup.pastasCompare.description')}
         steps={[
-          'Cochez les modèles à comparer (même station ou stations différentes)',
-          'Cliquez sur "Comparer" pour afficher les résultats',
-          'Le tableau met en évidence la meilleure valeur par métrique en vert',
-          'Le graphique superpose toutes les simulations avec les données observées',
+          t('cleanup.pastasCompare.step1'),
+          t('cleanup.pastasCompare.step2'),
+          t('cleanup.pastasCompare.step3'),
+          t('cleanup.pastasCompare.step4'),
         ]}
       />
 
       {/* Model selection */}
       <div className="bg-bg-card rounded-lg border border-white/5 p-4">
         <h2 className="text-sm font-semibold text-text-secondary mb-3">
-          Sélectionnez 2 à 5 modèles
+          {t('cleanup.pastasCompare.selectModelsPrompt')}
         </h2>
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {(models ?? []).map(m => (
@@ -60,7 +62,7 @@ export default function ComparePage() {
             </label>
           ))}
           {(!models || models.length === 0) && (
-            <p className="text-sm text-text-muted py-4 text-center">Aucun modèle calibré pour le moment.</p>
+            <p className="text-sm text-text-muted py-4 text-center">{t('cleanup.pastasCompare.noCalibrated')}</p>
           )}
         </div>
 
@@ -74,7 +76,7 @@ export default function ComparePage() {
           ) : (
             <GitCompareArrows className="w-4 h-4" />
           )}
-          Comparer ({selectedIds.size})
+          {t('cleanup.pastasCompare.compareWithCount', { count: selectedIds.size })}
         </button>
 
         {compareMut.isError && (

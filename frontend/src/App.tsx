@@ -1,6 +1,7 @@
 import { useState, Component, type ReactNode, type ErrorInfo } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
+import i18n from './i18n/config'
 import { router } from './routes'
 
 // Simple class-based ErrorBoundary
@@ -25,9 +26,9 @@ class ErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div role="alert" style={{ padding: 32, textAlign: 'center', color: '#f87171' }}>
-          <h1 style={{ fontSize: 24, marginBottom: 8 }}>Une erreur est survenue</h1>
+          <h1 style={{ fontSize: 24, marginBottom: 8 }}>{i18n.t('common.errorOccurred')}</h1>
           <p style={{ color: '#9ca3af', marginBottom: 16 }}>
-            {this.state.error?.message ?? 'Erreur inconnue'}
+            {this.state.error?.message ?? i18n.t('common.unknownError')}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
@@ -40,7 +41,7 @@ class ErrorBoundary extends Component<
               cursor: 'pointer',
             }}
           >
-            Réessayer
+            {i18n.t('common.retry')}
           </button>
         </div>
       )
