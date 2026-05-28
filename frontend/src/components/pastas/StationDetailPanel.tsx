@@ -1,4 +1,4 @@
-import { Loader2, TrendingDown, TrendingUp, Minus, MapPin, Droplets, Thermometer, Mountain } from 'lucide-react'
+import { Loader2, MapPin, Droplets, Thermometer, Mountain } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import type { PastasStationPreview } from '@/lib/types'
 import { InfoTip } from './InfoTip'
@@ -14,12 +14,6 @@ const MILIEU_LABELS: Record<string, string> = {
 const BDLISA_COLORS: Record<string, string> = {
   '0': '#78716c', '3': '#22d3ee', '4': '#f97316', '5': '#60a5fa',
   '6': '#ef4444', '7': '#a78bfa',
-}
-
-const TREND_CONFIG: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
-  hausse: { label: 'En hausse', color: 'text-green-400', Icon: TrendingUp },
-  baisse: { label: 'En baisse', color: 'text-red-400', Icon: TrendingDown },
-  stable: { label: 'Stable', color: 'text-text-secondary', Icon: Minus },
 }
 
 const ALERT_COLORS: Record<string, string> = {
@@ -76,8 +70,6 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
   if (!stationInfo) return null
 
   const s = stationInfo
-  const trendKey = (s.tendance_classification as string)?.toLowerCase() ?? ''
-  const trendCfg = TREND_CONFIG[trendKey]
   const alertLevel = s.niveau_alerte as string | null
   const classif = s.classification_derniere_annee as string | null
   const natureEh = s.nature_eh as string | undefined
@@ -85,7 +77,6 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
   const bdlisaLabel = natureEh ? (BDLISA_LABELS[natureEh] ?? `Type ${natureEh}`) : null
   const milieuLabel = milieuEh ? MILIEU_LABELS[milieuEh] : null
   const bdlisaColor = natureEh ? (BDLISA_COLORS[natureEh] ?? '#6b7280') : '#6b7280'
-  const slope = s.slope_niveau as number | null
   const pctile = s.percentile_derniere_annee as number | null
 
   return (
@@ -112,14 +103,6 @@ export function StationDetailPanel({ stationInfo, stationInfoLoading, preview, p
             {s.altitude != null && <span>· {(s.altitude as number).toFixed(0)} m NGF</span>}
           </div>
         </div>
-        {trendCfg && (
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 ${trendCfg.color}`}>
-            <trendCfg.Icon className="w-4 h-4" />
-            <span className="text-xs font-medium">{trendCfg.label}</span>
-            {slope != null && <span className="text-[10px] text-text-muted">({slope > 0 ? '+' : ''}{(slope * 100).toFixed(1)} cm/an)</span>}
-            <InfoTip text="Tendance long terme issue d'une régression linéaire sur l'ensemble de la chronique. Positive = nappe en hausse, négative = en baisse. La pente (cm/an) quantifie le rythme. Une baisse peut indiquer une augmentation des prélèvements ou une diminution de la recharge." iconSize={10} />
-          </div>
-        )}
       </div>
 
       {/* Classification + percentile bar */}

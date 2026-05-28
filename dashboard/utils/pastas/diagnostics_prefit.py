@@ -337,7 +337,7 @@ def run_prefit_diagnostics(series: pd.Series) -> PreFitDiagnostic:
             recommendations.append(
                 {
                     "type": "gap",
-                    "message": f"Major gap {gp['start']} – {gp['end']} ({gp['days']} days)",
+                    "message": f"Lacune importante du {gp['start']} au {gp['end']} ({gp['days']} j)",
                     "action": "set_tmin",
                     "params": {"tmin": gp["end"]},
                 }
@@ -348,7 +348,7 @@ def run_prefit_diagnostics(series: pd.Series) -> PreFitDiagnostic:
         recommendations.append(
             {
                 "type": "trend",
-                "message": f"Trend detected (slope {trend_slope:.3f} m/yr)",
+                "message": f"Tendance détectée (pente {trend_slope:.3f} m/an)",
                 "action": "add_linear_trend",
                 "params": {"slope_m_per_year": trend_slope},
             }
@@ -359,7 +359,7 @@ def run_prefit_diagnostics(series: pd.Series) -> PreFitDiagnostic:
         recommendations.append(
             {
                 "type": "breakpoint",
-                "message": f"Breakpoint at {breakpoint_date}",
+                "message": f"Rupture détectée en {breakpoint_date}",
                 "action": "add_step_model",
                 "params": {"date": f"{breakpoint_date}-01"},
             }
@@ -370,7 +370,7 @@ def run_prefit_diagnostics(series: pd.Series) -> PreFitDiagnostic:
         recommendations.append(
             {
                 "type": "period",
-                "message": f"Recommended: {recommended_tmin[:4]} to {recommended_tmax[:4]}",
+                "message": f"Période recommandée : {recommended_tmin[:4]} à {recommended_tmax[:4]}",
                 "action": "set_period",
                 "params": {"tmin": recommended_tmin, "tmax": recommended_tmax},
             }

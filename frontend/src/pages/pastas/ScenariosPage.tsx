@@ -358,10 +358,7 @@ export default function ScenariosPage() {
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-3">
               <Info className="w-8 h-8 mx-auto text-text-muted/50" />
-              <div>
-                <p className="text-text-secondary">Aucune simulation</p>
-                <p className="mt-1">Sélectionnez un modèle, configurez les modifications, puis lancez la simulation.</p>
-              </div>
+              <p className="text-text-secondary">Aucune simulation</p>
             </div>
           </div>
         )}

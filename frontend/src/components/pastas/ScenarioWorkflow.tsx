@@ -196,14 +196,13 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
               <div className="grid grid-cols-2 gap-3 max-w-md">
                 <div>
                   <label className="block text-[10px] text-text-muted mb-1">Début</label>
-                  <input type="date" value={tmin} onChange={e => setTmin(e.target.value)} placeholder={obsTmin} className={inputClass} />
+                  <input type="date" value={tmin} onChange={e => setTmin(e.target.value)} placeholder={obsTmin} title={`Laisser vide pour utiliser la période complète (${obsTmin} → ${obsTmax})`} className={inputClass} />
                 </div>
                 <div>
                   <label className="block text-[10px] text-text-muted mb-1">Fin</label>
-                  <input type="date" value={tmax} onChange={e => setTmax(e.target.value)} placeholder={obsTmax} className={inputClass} />
+                  <input type="date" value={tmax} onChange={e => setTmax(e.target.value)} placeholder={obsTmax} title={`Laisser vide pour utiliser la période complète (${obsTmin} → ${obsTmax})`} className={inputClass} />
                 </div>
               </div>
-              <p className="text-[10px] text-text-muted mt-1">Laisser vide pour utiliser la période d'observation complète ({obsTmin} → {obsTmax})</p>
             </div>
 
             {/* Contextual presets */}
@@ -351,9 +350,6 @@ export function ScenarioWorkflow({ model, codeBss }: Props) {
           <div className="text-center space-y-2">
             <FlaskConical className="w-10 h-10 mx-auto text-text-muted/20" />
             <p className="text-sm text-text-secondary">Aucun résultat de simulation pour le moment</p>
-            <p className="text-xs max-w-sm">
-              Configurez vos modifications de stress ci-dessus et cliquez sur « Lancer la simulation » pour voir l'effet sur le niveau de la nappe.
-            </p>
           </div>
         </div>
       )}

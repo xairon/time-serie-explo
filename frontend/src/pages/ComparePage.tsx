@@ -237,7 +237,6 @@ export default function ComparePage({ stationType }: Props) {
             <h1 className="text-xl font-bold text-text-primary">
               {stationType === 'piezo' ? 'Stations piézométriques' : 'Stations hydrométriques'}
             </h1>
-            <p className="text-sm text-text-secondary">Sélectionnez 2 à {MAX_STATIONS} stations pour comparer leurs chroniques et indices de sécheresse.</p>
           </div>
         </div>
 

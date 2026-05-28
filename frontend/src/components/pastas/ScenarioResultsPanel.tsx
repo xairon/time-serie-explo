@@ -51,6 +51,21 @@ function computeStats(values: number[]) {
   return { mean, min, max }
 }
 
+function argExtreme(values: number[], dates: string[]): { date: string; value: number } | null {
+  let idx = -1
+  let bestAbs = -Infinity
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (!Number.isFinite(v)) continue
+    if (Math.abs(v) > bestAbs) {
+      bestAbs = Math.abs(v)
+      idx = i
+    }
+  }
+  if (idx < 0) return null
+  return { date: dates[idx], value: values[idx] }
+}
+
 function severityColor(meanDelta: number): { bg: string; border: string; text: string; label: string } {
   const abs = Math.abs(meanDelta)
   if (abs < 0.05) return { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', label: 'Négligeable' }
@@ -81,6 +96,8 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
 
   const severity = deltaStats ? severityColor(deltaStats.mean) : null
   const TrendIcon = deltaStats ? (deltaStats.mean < -0.01 ? TrendingDown : deltaStats.mean > 0.01 ? TrendingUp : Minus) : Minus
+  const peakDelta = argExtreme(delta.values, delta.index)
+  const peakDeltaIso = peakDelta?.date?.slice(0, 10) ?? null
 
   return (
     <div className="space-y-4">
@@ -139,22 +156,94 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
         </div>
       )}
 
-      {/* Baseline vs Scenario — side by side */}
-      <Section
-        title="Référence vs Scénario"
-        extra={
-          <ExportCsvButton
-            filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
-            title="Exporter référence, scénario et delta en CSV"
-            label="CSV"
-            getColumns={() => [
-              { header: 'date', values: baseline.index },
-              { header: 'baseline', values: baseline.values },
-              { header: 'scenario', values: scenario.values },
-              { header: 'delta', values: delta.values },
-            ]}
+      {/* Impact (Δh) — PRIMARY chart, big and prominent */}
+      {delta?.index?.length > 0 && (
+        <Section
+          title="Impact du scénario sur le niveau (Δh)"
+          extra={
+            <ExportCsvButton
+              filename={`${codeBss ?? 'scenario'}_baseline_vs_scenario.csv`}
+              title="Exporter référence, scénario et delta en CSV"
+              label="CSV"
+              getColumns={() => [
+                { header: 'date', values: baseline.index },
+                { header: 'baseline', values: baseline.values },
+                { header: 'scenario', values: scenario.values },
+                { header: 'delta', values: delta.values },
+              ]}
+            />
+          }
+        >
+          <Plot
+            data={[{
+              x: delta.index,
+              y: delta.values,
+              type: 'scatter',
+              mode: 'lines',
+              fill: 'tozeroy',
+              name: 'Δh',
+              line: { color: '#f59e0b', width: 2 },
+              fillcolor: 'rgba(245,158,11,0.25)',
+              hovertemplate: '%{x|%d %b %Y}<br>Δh = %{y:.3f} m<extra></extra>',
+            }]}
+            layout={{
+              ...chartLayout,
+              height: 340,
+              yaxis: {
+                ...chartLayout.yaxis,
+                title: { text: 'Δh = scénario − référence (m)' },
+                gridcolor: 'rgba(255,255,255,0.05)',
+                zeroline: true,
+                zerolinecolor: 'rgba(255,255,255,0.3)',
+                zerolinewidth: 1.5,
+              },
+              shapes: [{
+                type: 'line', x0: delta.index[0], x1: delta.index[delta.index.length - 1],
+                y0: 0, y1: 0, line: { color: 'rgba(255,255,255,0.3)', width: 1.5 },
+              }],
+              annotations: peakDelta && peakDeltaIso ? [{
+                x: peakDeltaIso,
+                y: peakDelta.value,
+                text: `Pic : ${peakDelta.value >= 0 ? '+' : ''}${peakDelta.value.toFixed(3)} m`,
+                showarrow: true,
+                arrowhead: 2,
+                arrowsize: 0.8,
+                arrowcolor: 'rgba(245,158,11,0.8)',
+                ax: 0,
+                ay: peakDelta.value < 0 ? -30 : 30,
+                font: { size: 10, color: '#f59e0b' },
+                bgcolor: 'rgba(0,0,0,0.4)',
+                bordercolor: 'rgba(245,158,11,0.5)',
+                borderwidth: 1,
+                borderpad: 3,
+              }] : [],
+            }}
+            config={plotlyConfig} style={{ width: '100%' }}
           />
-        }
+          {peakDelta && (
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
+                <div className="text-[10px] text-text-muted">Δ moyen</div>
+                <div className={`text-sm font-mono ${severity?.text ?? ''}`}>{deltaStats!.mean >= 0 ? '+' : ''}{deltaStats!.mean.toFixed(3)} m</div>
+              </div>
+              <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
+                <div className="text-[10px] text-text-muted">Δ pic</div>
+                <div className="text-sm font-mono text-text-primary">{peakDelta.value >= 0 ? '+' : ''}{peakDelta.value.toFixed(3)} m</div>
+                <div className="text-[9px] text-text-muted">{peakDeltaIso}</div>
+              </div>
+              <div className="bg-bg-card rounded-md border border-white/5 px-3 py-2">
+                <div className="text-[10px] text-text-muted">Plage</div>
+                <div className="text-sm font-mono text-text-primary">{deltaStats!.min.toFixed(3)} → {deltaStats!.max >= 0 ? '+' : ''}{deltaStats!.max.toFixed(3)} m</div>
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Baseline vs Scenario — secondary view, collapsed by default */}
+      <Section
+        title="Niveaux absolus (référence vs scénario)"
+        defaultOpen={false}
       >
         <Plot
           data={[
@@ -165,42 +254,17 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
             {
               x: scenario.index, y: scenario.values, type: 'scatter', mode: 'lines',
               name: 'Scénario', line: { color: '#22d3ee', width: 2 },
+              fill: 'tonexty' as const, fillcolor: 'rgba(245,158,11,0.25)',
             },
           ]}
           layout={{
             ...chartLayout,
             legend: { orientation: 'h', y: -0.15, font: { size: 10, color: '#9ca3af' } },
+            yaxis: { ...chartLayout.yaxis, title: { text: 'Niveau (m NGF)' } },
           }}
           config={plotlyConfig} style={{ width: '100%' }}
         />
       </Section>
-
-      {/* Delta / Impact */}
-      {delta?.index?.length > 0 && (
-        <Section title="Impact (Δh = scénario − référence)">
-          <Plot
-            data={[{
-              x: delta.index,
-              y: delta.values,
-              type: 'scatter',
-              mode: 'lines',
-              fill: 'tozeroy',
-              name: 'Delta',
-              line: { color: '#f59e0b', width: 1.5 },
-              fillcolor: 'rgba(245,158,11,0.12)',
-            }]}
-            layout={{
-              ...chartLayout, height: 200,
-              yaxis: { ...chartLayout.yaxis, title: { text: 'Δh (m)' }, gridcolor: 'rgba(255,255,255,0.05)', zeroline: true, zerolinecolor: 'rgba(255,255,255,0.2)' },
-              shapes: [{
-                type: 'line', x0: delta.index[0], x1: delta.index[delta.index.length - 1],
-                y0: 0, y1: 0, line: { color: 'rgba(255,255,255,0.15)', width: 1 },
-              }],
-            }}
-            config={plotlyConfig} style={{ width: '100%' }}
-          />
-        </Section>
-      )}
 
       {/* Per-stress contributions — separate charts */}
       {allContribNames.length > 0 && (
@@ -225,10 +289,6 @@ export function ScenarioResultsPanel({ result, modifications, codeBss }: Props) 
             />
           }
         >
-          <p className="text-xs text-text-muted mb-3">
-            Chaque contribution de stress affichée indépendamment. Pointillés gris = référence, couleur pleine = scénario.
-            {newContribs.length > 0 && <span className="text-accent-cyan"> Nouveau : {newContribs.join(', ')}</span>}
-          </p>
           <div className="space-y-2">
             {allContribNames.map((name, i) => {
               const color = CONTRIB_COLORS[i % CONTRIB_COLORS.length]

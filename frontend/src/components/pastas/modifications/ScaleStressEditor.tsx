@@ -99,9 +99,15 @@ export function ScaleStressEditor({ data, onChange, limits }: ScaleStressEditorP
               </span>
           }
         </p>
+        {limits && (
+          <p className="text-[10px] mt-0.5 text-text-muted">
+            Plage typique : <span className="text-text-secondary">{limits.typical_min} à {limits.typical_max}</span>
+            <span className="text-text-muted/70"> (autorisé : {limits.hard_min} à {limits.hard_max})</span>
+          </p>
+        )}
         {limits && data.factor !== 1 && (data.factor < limits.typical_min || data.factor > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            Attention : facteur inhabituel — plage typique : {limits.typical_min}–{limits.typical_max}
+            Attention : facteur hors plage typique
           </p>
         )}
       </div>

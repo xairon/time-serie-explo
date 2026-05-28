@@ -144,15 +144,6 @@ export function usePastasSiblings(codeBss: string | null) {
   })
 }
 
-export function usePastasDiagnose(codeBss: string | null) {
-  return useQuery({
-    queryKey: ['pastas', 'diagnose', codeBss],
-    queryFn: () => api.pastas.diagnose(codeBss!),
-    enabled: !!codeBss,
-    staleTime: 10 * 60 * 1000,
-  })
-}
-
 export function usePastasAutoFit() {
   const qc = useQueryClient()
   return useMutation({

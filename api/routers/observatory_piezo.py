@@ -105,8 +105,7 @@ def list_stations(
                    niveau_stddev_global, amplitude_totale, profondeur_moyenne_globale,
                    temperature_moyenne_globale, precipitation_moyenne_mensuelle,
                    derniere_annee, niveau_derniere_annee, classification_derniere_annee,
-                   percentile_derniere_annee, slope_niveau, r2_niveau, slope_precipitation,
-                   nb_mois_tendance, tendance_classification, niveau_alerte, qualite_tendance
+                   percentile_derniere_annee, slope_precipitation, niveau_alerte
             FROM gold.dim_piezo_stations
             WHERE {where}
             ORDER BY code_bss
@@ -378,8 +377,7 @@ def get_station(code_bss: str):
                    niveau_stddev_global, amplitude_totale, profondeur_moyenne_globale,
                    temperature_moyenne_globale, precipitation_moyenne_mensuelle,
                    derniere_annee, niveau_derniere_annee, classification_derniere_annee,
-                   percentile_derniere_annee, slope_niveau, r2_niveau, slope_precipitation,
-                   nb_mois_tendance, tendance_classification, niveau_alerte, qualite_tendance
+                   percentile_derniere_annee, slope_precipitation, niveau_alerte
             FROM gold.dim_piezo_stations WHERE code_bss = :code
         """
         engine = create_engine(_brgm_url())

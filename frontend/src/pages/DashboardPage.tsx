@@ -15,8 +15,7 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Tableau de bord</h1>
-        <p className="text-sm text-text-secondary">Vue d'ensemble de la plateforme Junon</p>
+        <h1 className="text-2xl font-bold text-text-primary">Tableau de bord</h1>
       </div>
 
       {/* Status cards */}

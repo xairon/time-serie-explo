@@ -136,7 +136,7 @@ function ExpertPanel({ bounds, staticRange }: { bounds: AdaptiveBoundsData; stat
         <div className="mt-1.5 bg-bg-primary border border-white/5 rounded-lg p-2.5 space-y-1">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
             <span className="text-text-muted">Gain A</span>
-            <span className="text-text-secondary font-mono">{bounds.gain_A.toExponential(3)} m/(m³/j)</span>
+            <span className="text-text-secondary font-mono">{bounds.gain_A.toExponential(3)} {isWell ? 'm/(m³/j)' : 'm/(mm/j)'}</span>
             <span className="text-text-muted">t95</span>
             <span className="text-text-secondary font-mono">{Math.round(bounds.t95_days)} j</span>
             <span className="text-text-muted">Réponse indicielle (à t)</span>
@@ -386,7 +386,15 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
           min={rateRange?.hard_min ?? 0}
           max={effectiveHardMax}
         />
-        {adaptiveBounds ? <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} /> : <RangeWarning value={data.rate_m3d} range={rateRange} label="débit" />}
+        {rateRange && (
+          <p className="text-[10px] mt-1 text-text-muted">
+            Plage typique pour cet aquifère : <span className="text-text-secondary">{rateRange.typical_min}–{rateRange.typical_max} m³/j</span>
+            <span className="text-text-muted/70"> (max {rateRange.hard_max} m³/j)</span>
+          </p>
+        )}
+        {adaptiveBounds && adaptiveBounds.source === 'calibrated_well'
+          ? <DrawdownIndicator rate={data.rate_m3d} bounds={adaptiveBounds} />
+          : <RangeWarning value={data.rate_m3d} range={rateRange} label="débit" />}
       </div>
 
       {data.rfunc === 'Hantush' && (
@@ -403,6 +411,11 @@ export function PumpingSyntheticEditor({ data, onChange, profiles, adaptiveBound
             min={distRange?.hard_min ?? 1}
             max={distRange?.hard_max}
           />
+          {distRange && (
+            <p className="text-[10px] mt-1 text-text-muted">
+              Plage typique : <span className="text-text-secondary">{distRange.typical_min}–{distRange.typical_max} m</span>
+            </p>
+          )}
           <RangeWarning value={data.distance_m} range={distRange} label="distance" />
         </div>
       )}

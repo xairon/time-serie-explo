@@ -9,7 +9,6 @@ export function StationKPICards({ station, type }: Props) {
   const cards = type === 'piezo'
     ? [
         { title: 'État actuel', value: formatNumber(station.niveau_derniere_annee ?? station.niveau_moyen_global), unit: 'm NGF', sub: (<><ClassificationBadge classification={station.classification_derniere_annee} />{station.niveau_moyen_global != null && <p className="text-xs text-text-secondary mt-1">Moyenne historique : {formatNumber(station.niveau_moyen_global)} m NGF</p>}</>) },
-        { title: 'Tendance', value: station.slope_niveau != null ? `${station.slope_niveau > 0 ? '+' : ''}${formatNumber(station.slope_niveau, 3)}` : 'N/A', unit: 'm/an', sub: (<>{station.r2_niveau != null && <span className="text-xs text-text-secondary">R2 = {formatNumber(station.r2_niveau, 2)}</span>}{station.nb_mois_tendance != null && <p className="text-xs text-text-secondary mt-0.5">sur {station.nb_mois_tendance} mois</p>}</>) },
         { title: 'Précipitation moy.', value: formatNumber(station.precipitation_moyenne_mensuelle), unit: 'mm/mois', sub: null },
         { title: 'Température moy.', value: formatNumber(station.temperature_moyenne_globale), unit: '°C', sub: null },
       ]

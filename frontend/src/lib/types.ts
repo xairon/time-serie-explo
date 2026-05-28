@@ -53,10 +53,8 @@ export interface StationInfo {
   nb_mesures_total: number | null
   niveau_moyen_global: number | null
   amplitude_totale: number | null
-  tendance_classification: string | null
   niveau_alerte: string | null
   classification_derniere_annee: string | null
-  qualite_tendance: string | null
 }
 
 // Models - matches backend ModelSummary schema
@@ -429,7 +427,6 @@ export interface PastasStationPreview {
   evap: TimeSeriesData
   stats: Record<string, number | string | string[]>
   preset: Record<string, string>
-  diagnostics: DiagnoseResult | null
 }
 
 // Pastas comparison
@@ -445,32 +442,6 @@ export interface PastasCompareModel {
 
 export interface PastasCompareResponse {
   models: PastasCompareModel[]
-}
-
-// Pre-fit Diagnostics
-export interface DiagnosticIndicator {
-  value: number | boolean | null
-  status: 'green' | 'orange' | 'red'
-  detail: string | null
-}
-
-export interface DiagnosticRecommendation {
-  type: string
-  message: string
-  action: string
-  params: Record<string, unknown>
-}
-
-export interface DiagnoseResult {
-  coverage: DiagnosticIndicator
-  gaps: DiagnosticIndicator
-  trend: DiagnosticIndicator
-  breakpoints: DiagnosticIndicator
-  seasonality: DiagnosticIndicator
-  record_length: DiagnosticIndicator
-  recommended_tmin: string | null
-  recommended_tmax: string | null
-  recommendations: DiagnosticRecommendation[]
 }
 
 // STOWA Assessment

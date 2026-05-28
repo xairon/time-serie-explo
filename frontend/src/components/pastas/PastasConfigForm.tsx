@@ -57,7 +57,7 @@ export function PastasConfigForm({
     <div className="space-y-4">
       <ConfigSelect
         label="Modèle de recharge"
-        tooltip="Mode de calcul de la recharge (P − E) avant convolution"
+        tooltip="Mode de calcul de la recharge (P − E) appliquée au modèle"
         value={recharge}
         onChange={onRechargeChange}
         options={options?.recharge ?? ['Linear']}

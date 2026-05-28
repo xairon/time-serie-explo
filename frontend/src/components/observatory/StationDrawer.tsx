@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { X, ExternalLink, TrendingUp, TrendingDown, Minus, Droplets, Waves } from 'lucide-react'
+import { X, ExternalLink, Droplets, Waves } from 'lucide-react'
 import { ClassificationBadge } from './ClassificationBadge'
 import { AddToCompareButton } from './AddToCompareButton'
 import { formatNumber, formatDate } from '@/lib/observatory-utils'
@@ -10,14 +10,6 @@ interface Props {
   code: string
   type: 'piezo' | 'hydro'
   onClose: () => void
-}
-
-const TREND_CONFIG: Record<string, { label: string; icon: typeof TrendingUp; color: string }> = {
-  HAUSSE_FORTE:         { label: 'Hausse forte',          icon: TrendingUp,   color: '#3b82f6' },
-  HAUSSE_SIGNIFICATIVE: { label: 'Hausse significative',  icon: TrendingUp,   color: '#60a5fa' },
-  STABLE:               { label: 'Stable',                icon: Minus,        color: '#10b981' },
-  BAISSE_SIGNIFICATIVE: { label: 'Baisse significative',  icon: TrendingDown, color: '#f97316' },
-  BAISSE_FORTE:         { label: 'Baisse forte',          icon: TrendingDown, color: '#ef4444' },
 }
 
 function isRecent(dateStr: string | null | undefined): boolean {
@@ -71,9 +63,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
     const historicMean = isPiezo ? s.niveau_moyen_global : s.resultat_moyen_global
     const isHauteur = s.grandeur_hydro_principale === 'H'
     const unit = isPiezo ? 'm NGF' : (isHauteur ? 'm' : 'm\u00b3/s')
-    const trendKey = s.tendance_classification
-    const trendConf = trendKey ? TREND_CONFIG[trendKey] : null
-    const slope = isPiezo ? s.slope_niveau : null
     const histMin = isPiezo ? s.niveau_min_absolu : s.resultat_min_global
     const histMax = isPiezo ? s.niveau_max_absolu : s.resultat_max_global
     const lastMeasure = s.derniere_mesure
@@ -108,16 +97,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
           </div>
         ) : (
           <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">Station inactive — dernière mesure le {formatDate(lastMeasure)}</div></div>
-        )}
-
-        {recent && trendConf && (
-          <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">Tendance</div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><trendConf.icon className="w-4 h-4" style={{ color: trendConf.color }} /><span className="text-sm font-medium" style={{ color: trendConf.color }}>{trendConf.label}</span></div>
-              {slope != null && (<span className="text-xs font-mono text-text-primary">{slope > 0 ? '+' : ''}{formatNumber(slope, 3)} m/an</span>)}
-            </div>
-          </div>
         )}
 
         <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">

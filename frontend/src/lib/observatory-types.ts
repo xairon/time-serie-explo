@@ -13,7 +13,6 @@ export interface PiezoStation {
   derniere_mesure: string | null
   classification_derniere_annee: string | null
   niveau_derniere_annee: number | null
-  tendance_classification: string | null
   codes_bdlisa: string | null
 }
 

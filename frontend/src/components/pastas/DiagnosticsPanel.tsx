@@ -70,13 +70,6 @@ export function DiagnosticsPanel({ diagnostics }: Props) {
       <div className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
         Diagnostics des résidus
       </div>
-      <p className="text-xs text-text-muted leading-relaxed">
-        Ces tests vérifient si les erreurs du modèle (observé moins simulé) se comportent comme un bruit aléatoire.
-        Si oui, le modèle a capturé toute la structure du signal.
-        Sinon, il reste de l'information inexploitée (saisonnalité résiduelle, tendance, etc.).
-        <span className="text-green-400">Vert</span> = OK, <span className="text-red-400">rouge</span> = marge d'amélioration (fréquent avec un modèle simple).
-      </p>
-
       <div className="flex flex-wrap gap-2">
         {TESTS.map(t => {
           const value = diagnostics[t.key] as number | undefined

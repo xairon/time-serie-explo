@@ -4,34 +4,6 @@ import { ArrowLeft, FlaskConical } from 'lucide-react'
 import { usePastasModel } from '@/hooks/usePastas'
 import { usePastasMode } from './PastasLayout'
 import { FitResultsPanel } from '@/components/pastas/FitResultsPanel'
-import { StowaVerdictBanner } from '@/components/pastas/StowaVerdictBanner'
-import type { StowaResult } from '@/lib/types'
-
-/**
- * Approximate STOWA verdict from client-side metrics.
- * The real STOWA comes from the backend auto-fit endpoint; this is a fallback
- * for models fitted via the manual path that don't have a full STOWA response.
- */
-function approximateStowa(metrics: Record<string, number>): StowaResult | null {
-  const evp = metrics.evp
-  if (evp == null) return null
-
-  return {
-    evp_pass: evp >= 70,
-    evp_value: evp,
-    autocorrelation_pass: null,
-    runs_test_pvalue: null,
-    t95_pass: null,
-    t95_days: null,
-    t95_threshold: null,
-    gain_pass: null,
-    gain_significance: null,
-    overall_pass: null,
-    suggestions: evp < 70
-      ? ['EVP inférieur à 70%. Essayez d\'autres configurations ou ajoutez des stress.']
-      : ['Résultat partiel — lancez la calibration automatique pour l\'évaluation STOWA complète.'],
-  }
-}
 
 export default function ResultsStep() {
   const [searchParams] = useSearchParams()
@@ -95,8 +67,6 @@ export default function ResultsStep() {
     )
   }
 
-  // Use real STOWA from auto-fit pipeline if available, otherwise approximate
-  const stowa = pipeline.selectedStowa ?? approximateStowa(model.metrics)
   const effectiveCodeBss = codeBss || model.code_bss
 
   return (
@@ -121,16 +91,6 @@ export default function ResultsStep() {
           Lancer des scénarios
         </Link>
       </div>
-
-      {/* STOWA verdict */}
-      {stowa && (
-        <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">
-            Évaluation STOWA
-          </h3>
-          <StowaVerdictBanner stowa={stowa} />
-        </div>
-      )}
 
       <FitResultsPanel
         result={model}

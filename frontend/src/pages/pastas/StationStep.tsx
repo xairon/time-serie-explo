@@ -1,20 +1,15 @@
-import { useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { usePastasStationInfo, usePastasPreview } from '@/hooks/usePastas'
-import { usePastasMode } from './PastasLayout'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { StationDetailPanel } from '@/components/pastas/StationDetailPanel'
-import { PreFitDiagnosticPanel } from '@/components/pastas/PreFitDiagnosticPanel'
 import { OnboardingBanner } from '@/components/pastas/OnboardingBanner'
-import type { DiagnosticRecommendation } from '@/lib/types'
 
 const DEMO_STATION = '01584X0023/LV3'
 
 export default function StationStep() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { mode } = usePastasMode()
 
   const codeBss = searchParams.get('station') ?? ''
 
@@ -30,30 +25,10 @@ export default function StationStep() {
 
   const { data: stationInfo, isLoading: stationInfoLoading } = usePastasStationInfo(codeBss || null)
   const { data: preview, isLoading: previewLoading } = usePastasPreview(codeBss || null)
-  const diagnosis = preview?.diagnostics ?? undefined
-  const diagnoseLoading = previewLoading
-
-  // In guided mode, auto-apply recommendations
-  useEffect(() => {
-    if (mode === 'guided' && diagnosis?.recommendations?.length) {
-      // Recommendations are displayed as auto-applied in guided mode
-      // The actual params will be forwarded to the calibrate step
-    }
-  }, [mode, diagnosis])
-
-  function handleApplyRecommendation(rec: DiagnosticRecommendation) {
-    // In expert mode, recommendations need explicit application
-    // For now, we log the action — the calibrate step reads diagnosis directly
-    console.log('Apply recommendation:', rec)
-  }
 
   function handleNext() {
     if (!codeBss) return
-    const params = new URLSearchParams({ station: codeBss })
-    // Forward recommended tmin/tmax from diagnosis if available
-    if (diagnosis?.recommended_tmin) params.set('tmin', diagnosis.recommended_tmin)
-    if (diagnosis?.recommended_tmax) params.set('tmax', diagnosis.recommended_tmax)
-    navigate(`/pastas/calibrate?${params.toString()}`)
+    navigate(`/pastas/calibrate?${new URLSearchParams({ station: codeBss }).toString()}`)
   }
 
   const loadDemo = () => {
@@ -67,11 +42,10 @@ export default function StationStep() {
         <OnboardingBanner
           id="station-step"
           title="Sélectionner une station"
-          description="Choisissez une station piézométrique à analyser. Le panneau de diagnostics vérifiera la qualité des données et suggérera les réglages de calibration optimaux."
+          description="Choisissez une station piézométrique à analyser, puis passez à l'étape de calibration."
           steps={[
             'Rechercher par code BSS, commune ou département',
             'Vérifier les métadonnées de la station et l\'aperçu de la série',
-            'Examiner les diagnostics pré-calibration pour les problèmes de qualité',
             'Cliquer sur « Suivant : Calibrer » pour passer à la calibration',
           ]}
           exampleAction={{ label: 'Charger une station exemple (craie de Champagne)', onClick: loadDemo }}
@@ -93,7 +67,7 @@ export default function StationStep() {
         </button>
       </div>
 
-      {/* Right column — station detail + diagnostics */}
+      {/* Right column — station detail */}
       <div className="flex-1 min-w-0 space-y-4">
         {codeBss && (
           <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
@@ -113,46 +87,11 @@ export default function StationStep() {
           />
         )}
 
-        {/* Pre-fit diagnostics */}
-        {codeBss && (diagnosis || diagnoseLoading) && (
-          <div className="bg-bg-card border border-white/5 rounded-xl p-4">
-            <PreFitDiagnosticPanel
-              diagnosis={diagnosis}
-              isLoading={diagnoseLoading}
-              onApplyRecommendation={handleApplyRecommendation}
-              mode={mode}
-            />
-          </div>
-        )}
-
-        {/* Guided mode summary */}
-        {mode === 'guided' && diagnosis && !diagnoseLoading && (
-          <div className="bg-accent-cyan/5 border border-accent-cyan/20 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-accent-cyan mb-2">Résumé</h3>
-            <div className="space-y-1">
-              {diagnosis.recommended_tmin && diagnosis.recommended_tmax && (
-                <p className="text-xs text-text-secondary">
-                  Période recommandée : du {diagnosis.recommended_tmin} au {diagnosis.recommended_tmax}
-                </p>
-              )}
-              {diagnosis.recommendations.length > 0 ? (
-                <p className="text-xs text-text-secondary">
-                  {diagnosis.recommendations.length} recommandation(s) seront appliquées automatiquement durant la calibration.
-                </p>
-              ) : (
-                <p className="text-xs text-text-secondary">
-                  La qualité des données est satisfaisante. Prêt à calibrer.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
         {!codeBss && (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             <div className="text-center space-y-2">
               <p className="text-text-secondary">Aucune station sélectionnée</p>
-              <p>Recherchez et sélectionnez une station piézométrique pour prévisualiser ses données et diagnostics.</p>
+              <p>Recherchez et sélectionnez une station piézométrique pour prévisualiser ses données.</p>
             </div>
           </div>
         )}

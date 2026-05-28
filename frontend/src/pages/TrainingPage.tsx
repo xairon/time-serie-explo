@@ -172,9 +172,7 @@ export default function TrainingPage() {
             />
           ) : (
             <div className="flex items-center justify-center h-full min-h-[300px]">
-              <p className="text-sm text-text-secondary">
-                Configurez le modèle et démarrez l'entraînement pour voir le moniteur en temps réel.
-              </p>
+              <p className="text-sm text-text-muted">Aucun entraînement en cours</p>
             </div>
           )}
         </div>

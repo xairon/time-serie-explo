@@ -197,10 +197,9 @@ def station_info(code_bss: str):
 
 @router.get("/preview")
 def preview_station(code_bss: str):
-    """Return raw series + statistics + pre-fit diagnostics for a station."""
+    """Return raw series + statistics for a station."""
     from typing import Any
     from dashboard.utils.pastas.station_loader import load_station_series
-    from dashboard.utils.pastas.diagnostics_prefit import run_prefit_diagnostics
 
     try:
         station = load_station_series(code_bss, _brgm_url())
@@ -228,19 +227,6 @@ def preview_station(code_bss: str):
         station.metadata.get("milieu_eh"),
     )
 
-    diag = run_prefit_diagnostics(piezo)
-    diagnostics = {
-        "coverage": {"value": diag.coverage_pct, "status": diag.coverage_status, "detail": f"{diag.coverage_pct:.1f}% daily coverage"},
-        "gaps": {"value": diag.max_gap_days, "status": diag.gaps_status, "detail": f"Largest gap: {diag.max_gap_days} days"},
-        "trend": {"value": diag.trend_detected, "status": diag.trend_status, "detail": f"Slope: {diag.trend_slope:+.4f} m/yr" if diag.trend_slope else None},
-        "breakpoints": {"value": diag.breakpoint_detected, "status": diag.breakpoint_status, "detail": f"At {diag.breakpoint_date}" if diag.breakpoint_date else None},
-        "seasonality": {"value": diag.seasonality_strength, "status": diag.seasonality_status, "detail": f"ACF(12) = {diag.seasonality_strength:.3f}"},
-        "record_length": {"value": diag.record_years, "status": diag.record_status, "detail": f"{diag.record_years:.1f} years"},
-        "recommended_tmin": diag.recommended_tmin,
-        "recommended_tmax": diag.recommended_tmax,
-        "recommendations": diag.recommendations,
-    }
-
     return StationPreview(
         code_bss=code_bss,
         metadata=station.metadata,
@@ -249,7 +235,6 @@ def preview_station(code_bss: str):
         evap=_series_to_ts(station.evap),
         stats=stats,
         preset=preset,
-        diagnostics=diagnostics,
     )
 
 
@@ -1134,32 +1119,6 @@ def get_adaptive_bounds(run_id: str, t_final_days: Optional[int] = Query(None, g
         Q_hard=result.Q_hard,
         source=result.source,
     )
-
-
-# ---------------------------------------------------------------------------
-# POST /diagnose
-# ---------------------------------------------------------------------------
-
-@router.post("/diagnose")
-def diagnose_station(code_bss: str = Body(..., embed=True)):
-    from dashboard.utils.pastas.station_loader import load_station_series
-    from dashboard.utils.pastas.diagnostics_prefit import run_prefit_diagnostics
-    try:
-        station = load_station_series(code_bss, _brgm_url())
-    except ValueError as exc:
-        raise HTTPException(404, str(exc)) from exc
-    diag = run_prefit_diagnostics(station.piezo)
-    return {
-        "coverage": {"value": diag.coverage_pct, "status": diag.coverage_status, "detail": f"{diag.coverage_pct:.1f}% daily coverage"},
-        "gaps": {"value": diag.max_gap_days, "status": diag.gaps_status, "detail": f"Largest gap: {diag.max_gap_days} days"},
-        "trend": {"value": diag.trend_detected, "status": diag.trend_status, "detail": f"Slope: {diag.trend_slope:+.4f} m/yr" if diag.trend_slope else None},
-        "breakpoints": {"value": diag.breakpoint_detected, "status": diag.breakpoint_status, "detail": f"At {diag.breakpoint_date}" if diag.breakpoint_date else None},
-        "seasonality": {"value": diag.seasonality_strength, "status": diag.seasonality_status, "detail": f"ACF(12) = {diag.seasonality_strength:.3f}"},
-        "record_length": {"value": diag.record_years, "status": diag.record_status, "detail": f"{diag.record_years:.1f} years"},
-        "recommended_tmin": diag.recommended_tmin,
-        "recommended_tmax": diag.recommended_tmax,
-        "recommendations": diag.recommendations,
-    }
 
 
 # ---------------------------------------------------------------------------

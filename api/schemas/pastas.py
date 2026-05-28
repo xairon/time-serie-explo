@@ -251,31 +251,6 @@ class AdaptiveBoundsResponse(BaseModel):
 
 # --- Pre-fit Diagnostics ---
 
-class DiagnoseRequest(BaseModel):
-    code_bss: str
-
-class DiagnosticIndicator(BaseModel):
-    value: Any = None
-    status: str
-    detail: Optional[str] = None
-
-class DiagnosticRecommendation(BaseModel):
-    type: str
-    message: str
-    action: str
-    params: dict[str, Any] = {}
-
-class DiagnoseResponse(BaseModel):
-    coverage: DiagnosticIndicator
-    gaps: DiagnosticIndicator
-    trend: DiagnosticIndicator
-    breakpoints: DiagnosticIndicator
-    seasonality: DiagnosticIndicator
-    record_length: DiagnosticIndicator
-    recommended_tmin: Optional[str] = None
-    recommended_tmax: Optional[str] = None
-    recommendations: list[DiagnosticRecommendation] = []
-
 # --- STOWA ---
 
 class StowaResultSchema(BaseModel):
@@ -317,4 +292,3 @@ class StationPreview(BaseModel):
     evap: TimeSeriesData
     stats: dict[str, Any]
     preset: dict[str, str] = {}
-    diagnostics: dict[str, Any] | None = None

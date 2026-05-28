@@ -111,7 +111,6 @@ async def get_distinct_values(
 async def search_stations(
     q: str = Query("", description="Search term (code BSS, commune, département)"),
     departement: Optional[str] = Query(None),
-    tendance: Optional[str] = Query(None),
     alerte: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
 ) -> dict[str, Any]:
@@ -133,10 +132,6 @@ async def search_stations(
             where_parts.append("code_departement = :dept")
             params["dept"] = departement
 
-        if tendance:
-            where_parts.append("tendance_classification = :tendance")
-            params["tendance"] = tendance
-
         if alerte:
             where_parts.append("niveau_alerte = :alerte")
             params["alerte"] = alerte
@@ -148,9 +143,8 @@ async def search_stations(
                    codes_bdlisa, altitude_station, latitude, longitude,
                    premiere_mesure::text, derniere_mesure::text,
                    nb_mesures_total, niveau_moyen_global,
-                   amplitude_totale, tendance_classification,
-                   niveau_alerte, classification_derniere_annee,
-                   qualite_tendance
+                   amplitude_totale,
+                   niveau_alerte, classification_derniere_annee
             FROM gold.dim_piezo_stations
             {where_sql}
             ORDER BY nb_mesures_total DESC NULLS LAST
@@ -178,7 +172,6 @@ async def station_filters() -> dict[str, list[str]]:
         with engine.connect() as conn:
             for col, key in [
                 ("code_departement", "departements"),
-                ("tendance_classification", "tendances"),
                 ("niveau_alerte", "alertes"),
                 ("classification_derniere_annee", "classifications"),
             ]:

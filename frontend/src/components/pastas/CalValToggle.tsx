@@ -12,7 +12,7 @@ export function CalValToggle({ valSplit, onChange }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <label className="text-sm font-medium text-text-secondary">Validation</label>
-          <span className="ml-1 text-text-muted cursor-help" title="Réserver une partie des données pour tester le modèle sur des données non vues pendant la calibration. Vérifie que le modèle généralise bien.">ⓘ</span>
+          <span className="ml-1 text-text-muted cursor-help" title="Réserver une partie des données pour tester le modèle sur une période qu'il n'a pas servi à calibrer. Vérifie que le modèle généralise bien.">ⓘ</span>
         </div>
         <button
           onClick={() => onChange(enabled ? null : 0.3)}
@@ -46,7 +46,7 @@ export function CalValToggle({ valSplit, onChange }: Props) {
             <span>Test : {pct.toFixed(0)}% (dernières années)</span>
           </div>
           <p className="text-xs text-text-muted mt-1">
-            Les métriques de test montrent la qualité du modèle sur des données non vues.
+            Les métriques de test montrent la qualité du modèle sur une période réservée, non utilisée pour la calibration.
           </p>
         </div>
       )}

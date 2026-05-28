@@ -271,9 +271,7 @@ export default function DataPage() {
             </div>
           ) : (
             <div className="bg-bg-card rounded-xl border border-white/5 p-12 text-center">
-              <p className="text-sm text-text-secondary">
-                Aucun jeu de données. Importez des données depuis l'onglet Importer.
-              </p>
+              <p className="text-sm text-text-muted">Aucun jeu de données</p>
             </div>
           )}
 

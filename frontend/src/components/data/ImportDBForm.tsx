@@ -15,7 +15,6 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
-  const [tendanceFilter, setTendanceFilter] = useState('')
   const [alerteFilter, setAlerteFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
@@ -36,16 +35,15 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
 
   // Search stations
   const { data: searchResults, isLoading: searching } = useQuery({
-    queryKey: ['station-search', searchTerm, deptFilter, tendanceFilter, alerteFilter],
+    queryKey: ['station-search', searchTerm, deptFilter, alerteFilter],
     queryFn: () =>
       api.db.searchStations({
         q: searchTerm || undefined,
         departement: deptFilter || undefined,
-        tendance: tendanceFilter || undefined,
         alerte: alerteFilter || undefined,
         limit: 50,
       }),
-    enabled: searchTerm.length >= 2 || !!deptFilter || !!tendanceFilter || !!alerteFilter,
+    enabled: searchTerm.length >= 2 || !!deptFilter || !!alerteFilter,
     staleTime: 30_000,
   })
 
@@ -159,10 +157,8 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
               nb_mesures_total: null,
               niveau_moyen_global: null,
               amplitude_totale: null,
-              tendance_classification: null,
               niveau_alerte: null,
               classification_derniere_annee: null,
-              qualite_tendance: null,
             },
           ])
         }
@@ -234,7 +230,7 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
 
       {/* Filters */}
       {showFilters && filters && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <select
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
@@ -243,16 +239,6 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
             <option value="">Département</option>
             {filters.departements.map((d) => (
               <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          <select
-            value={tendanceFilter}
-            onChange={(e) => setTendanceFilter(e.target.value)}
-            className="bg-bg-input text-text-primary border border-white/10 rounded-lg px-2 py-1.5 text-xs"
-          >
-            <option value="">Tendance</option>
-            {filters.tendances.map((t) => (
-              <option key={t} value={t}>{t}</option>
             ))}
           </select>
           <select

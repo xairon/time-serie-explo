@@ -87,8 +87,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
 
       <div className="grid grid-cols-2 gap-3">
         {hasStep && (
-          <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">Si la recharge augmente de 1 mm/j et reste constante, comment le niveau monte au cours du temps. La courbe se stabilise à la valeur du gain A.</p>
+          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title="Réponse à un échelon de recharge constant (1 mm/j). La courbe se stabilise à la valeur du gain A.">
             <Plot
               data={[
                 {
@@ -136,8 +135,7 @@ export function ResponsePanel({ stepResponse, blockResponse, parameters, respons
           </div>
         )}
         {hasBlock && (
-          <div className="bg-bg-card rounded-lg border border-white/5 p-2">
-            <p className="text-[9px] text-text-muted px-1 mb-0.5">Effet d'une impulsion de recharge sur une journée. Le pic montre la réactivité maximale, la décroissance montre la vitesse de drainage.</p>
+          <div className="bg-bg-card rounded-lg border border-white/5 p-2" title="Réponse à une impulsion de recharge sur 1 jour. Le pic montre la réactivité maximale ; la décroissance montre la vitesse de drainage.">
             <Plot
               data={[
                 {

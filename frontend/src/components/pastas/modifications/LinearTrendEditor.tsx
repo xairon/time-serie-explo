@@ -81,9 +81,14 @@ export function LinearTrendEditor({ data, onChange, limits }: LinearTrendEditorP
             </span>
           </p>
         )}
+        {limits && (
+          <p className="text-[10px] mt-0.5 text-text-muted">
+            Plage typique : <span className="text-text-secondary">{limits.typical_min} à {limits.typical_max} m/an</span>
+          </p>
+        )}
         {limits && (data.slope_m_per_year < limits.typical_min || data.slope_m_per_year > limits.typical_max) && (
           <p className="text-[10px] mt-1 text-yellow-400">
-            Attention : pente inhabituelle — plage typique : {limits.typical_min} à {limits.typical_max} m/an
+            Attention : pente hors plage typique
           </p>
         )}
       </div>

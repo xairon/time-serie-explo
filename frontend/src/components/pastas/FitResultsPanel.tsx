@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { ChevronDown, Brain, AlertTriangle, Droplets, Clock, Activity } from 'lucide-react'
+import { ChevronDown, Brain, AlertTriangle, Clock } from 'lucide-react'
 import Plot from 'react-plotly.js'
 import type { PastasFitResponse } from '@/lib/types'
 import { ExportCsvButton } from './ExportCsvButton'
 import type { CsvColumn } from '@/lib/csv-export'
-import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasRecession, usePastasBaseflow, usePastasDecomposition, usePastasInputQuality } from '@/hooks/usePastas'
+import { usePastasDiagnostics, usePastasSignatures, usePastasOutlierDiagnostics, usePastasDecomposition, usePastasInputQuality } from '@/hooks/usePastas'
 import { useModels } from '@/hooks/useModels'
 import { DiagnosticsPanel } from './DiagnosticsPanel'
 import { ResponsePanel } from './ResponsePanel'
@@ -80,23 +80,6 @@ function MetricGrid({ metrics, title, period, borderColor }: { metrics: Record<s
   )
 }
 
-// --- Aquifer KPI Card ---
-
-function AquiferKPI({ icon: Icon, label, value, unit, description }: { icon: any; label: string; value: string | null; unit?: string; description: string }) {
-  return (
-    <div className="bg-bg-card rounded-lg border border-white/5 p-3 flex-1 min-w-0" title={description}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <Icon className="w-3.5 h-3.5 text-accent-cyan shrink-0" />
-        <span className="text-[10px] text-text-muted uppercase tracking-wide truncate">{label}</span>
-      </div>
-      <div className="text-lg font-semibold text-text-primary font-mono">
-        {value ?? '—'}{unit && <span className="text-xs text-text-muted ml-0.5">{unit}</span>}
-      </div>
-      <p className="text-[9px] text-text-muted mt-1 leading-relaxed">{description}</p>
-    </div>
-  )
-}
-
 // --- Signal Sparkline ---
 
 function SignalSparkline({ data, label, color }: { data: { index: string[]; values: number[] }; label: string; color: string }) {
@@ -130,8 +113,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
   const { data: diagnosticsData } = usePastasDiagnostics(diagnosticsOpen ? result.run_id : null)
   const { data: signaturesData } = usePastasSignatures(signaturesOpen ? result.run_id : null)
   const { data: outlierData } = usePastasOutlierDiagnostics(result.run_id) as { data: any }
-  const { data: recessionData } = usePastasRecession(result.run_id) as { data: any }
-  const { data: baseflowData } = usePastasBaseflow(result.run_id) as { data: any }
   const { data: decompositionData } = usePastasDecomposition(decompositionOpen ? result.run_id : null) as { data: any }
   const { data: inputQualityData } = usePastasInputQuality(result.run_id) as { data: any }
   const [selectedOutlierDate, setSelectedOutlierDate] = useState<string | null>(null)
@@ -235,7 +216,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         {validation_metrics ? (
           <div className="grid grid-cols-2 gap-3">
             <MetricGrid metrics={metrics} title="Calibration" period={cal_period} borderColor="border-accent-cyan/20" />
-            <MetricGrid metrics={validation_metrics} title="Validation (non vue)" period={val_period} borderColor="border-orange-500/20" />
+            <MetricGrid metrics={validation_metrics} title="Validation (test)" period={val_period} borderColor="border-orange-500/20" />
           </div>
         ) : <MetricGrid metrics={metrics} />}
       </Section>
@@ -334,7 +315,7 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           </div>
         )}
         {currentOutliers && currentOutliers.n_outliers > 0 && (
-          <p className="text-[10px] text-text-muted mb-1">{currentOutliers.n_outliers} mois atypiques — cliquez sur une barre rouge pour investiguer</p>
+          <p className="text-[10px] text-text-muted mb-1">{currentOutliers.n_outliers} mois atypiques</p>
         )}
         {monthlyStats && sliceByPeriod.obsX.length > 0 && (
           <>
@@ -378,34 +359,34 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         })()}
       </Section>
 
-      {/* ═══════════ 5. AQUIFER CHARACTERIZATION ═══════════ */}
-      <Section title="Caractérisation de l'aquifère">
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <AquiferKPI icon={Clock} label="Temps de réponse" value={t95Days != null ? String(t95Days) : null} unit="jours"
-            description={`T95 — temps pour que l'aquifère atteigne 95% de sa réponse à une variation de recharge. ${t95Days != null && t95Days < 100 ? 'Réponse rapide (alluvial libre, aquifère peu profond).' : t95Days != null && t95Days < 500 ? 'Réponse modérée (sédimentaire peu profond).' : t95Days != null ? 'Réponse lente (sédimentaire profond, captif).' : ''}`} />
-          <AquiferKPI icon={Droplets} label="Indice de débit de base" value={baseflowData?.bfi != null ? baseflowData.bfi.toFixed(2) : null}
-            description={`Proportion du signal piézométrique due au débit de base (lent) par rapport à la réponse rapide aux pluies. ${baseflowData?.bfi > 0.7 ? 'Aquifère inertiel, dominé par les écoulements lents.' : baseflowData?.bfi > 0.4 ? 'Réponse mixte (écoulements lents + réponse rapide).' : 'Aquifère très réactif aux précipitations.'}`} />
-          <AquiferKPI icon={Activity} label="Constante de tarissement" value={recessionData?.T_median_days != null ? String(recessionData.T_median_days) : null} unit="jours"
-            description={`Durée médiane de drainage de l'aquifère en période de tarissement. Plus T est grand, plus l'aquifère retient l'eau longtemps. ${recessionData?.n_segments ? `Calculée à partir de ${recessionData.n_segments} épisodes de tarissement.` : ''}`} />
-        </div>
-        {hasStepResponse && (
-          <div className="bg-bg-card rounded-lg border border-white/5 p-3">
-            <p className="text-[10px] text-text-muted mb-1">Fonction de réponse — comment l'aquifère transforme un signal d'entrée (recharge) en variation du niveau piézométrique. Les pointillés marquent 50% (t50) et 95% (t95) de la réponse finale.</p>
-            <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
-          </div>
-        )}
-      </Section>
+      {/* ═══════════ 5. RESPONSE FUNCTION ═══════════ */}
+      {hasStepResponse && (
+        <Section
+          title="Fonction de réponse"
+          extra={
+            t95Days != null ? (
+              <span
+                className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-md bg-bg-card border border-white/5"
+                title="T95 — temps pour que l'aquifère atteigne 95% de sa réponse à une variation de recharge."
+              >
+                <Clock className="w-3 h-3 text-accent-cyan" />
+                <span className="text-text-muted">T95</span>
+                <span className="text-accent-cyan font-mono font-semibold">{t95Days} j</span>
+                <span className="text-text-muted">
+                  — {t95Days < 100 ? 'réponse rapide' : t95Days < 500 ? 'réponse modérée' : 'réponse lente'}
+                </span>
+              </span>
+            ) : null
+          }
+        >
+          <ResponsePanel stepResponse={step_response} blockResponse={block_response} parameters={parameters} responseType="" />
+        </Section>
+      )}
 
       {/* ═══════════ 6. SIGNAL STRUCTURE ═══════════ */}
       <ControlledSection title="Structure du signal" open={decompositionOpen} onToggle={() => setDecompositionOpen(v => !v)}>
         {decompositionData?.index?.length > 0 ? (
           <>
-            <p className="text-[10px] text-text-muted mb-2 leading-relaxed">
-              Décomposition du signal piézométrique en composantes indépendantes (méthode STL).
-              La <span className="text-accent-cyan">tendance</span> représente l'évolution à long terme du niveau (recharge, climat, pompage).
-              La <span className="text-purple-400">saisonnalité</span> représente le cycle annuel (recharge hivernale, étiage estival).
-              Le résidu (non affiché) est ce que le modèle ne peut expliquer avec ces deux composantes.
-            </p>
             <div className="flex items-center gap-4 mb-2">
               <span className="text-[10px] text-text-muted" title="Proportion de la variance du signal expliquée par la tendance. Proche de 1 = tendance dominante (baisse ou hausse long terme). Proche de 0 = pas de tendance marquée.">
                 Force de la tendance : <span className="text-text-primary font-mono font-semibold">{decompositionData.trend_strength}</span>
@@ -423,12 +404,17 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
         ) : <p className="text-xs text-text-muted">Chargement...</p>}
       </ControlledSection>
 
-      {/* ═══════════ 7. STATISTICAL DIAGNOSTICS ═══════════ */}
+      {/* ═══════════ 7. HYDROLOGICAL SIGNATURES ═══════════ */}
+      <ControlledSection title="Signatures hydrologiques" open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
+        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">Chargement...</p>}
+      </ControlledSection>
+
+      {/* ═══════════ 8. STATISTICAL DIAGNOSTICS ═══════════ */}
       <ControlledSection title="Diagnostics statistiques" open={diagnosticsOpen} onToggle={() => setDiagnosticsOpen(v => !v)}>
         {currentDiagnostics ? <DiagnosticsPanel diagnostics={currentDiagnostics} /> : <p className="text-xs text-text-muted">Chargement...</p>}
       </ControlledSection>
 
-      {/* ═══════════ 8. MODEL INFO ═══════════ */}
+      {/* ═══════════ 9. MODEL PARAMETERS ═══════════ */}
       {parameters.length > 0 && (
         <ControlledSection title="Paramètres du modèle" open={paramsOpen} onToggle={() => setParamsOpen(v => !v)}>
           <div className="overflow-x-auto">
@@ -449,10 +435,6 @@ export function FitResultsPanel({ result, codeBss }: FitResultsPanelProps) {
           </div>
         </ControlledSection>
       )}
-
-      <ControlledSection title="Signatures hydrologiques" open={signaturesOpen} onToggle={() => setSignaturesOpen(v => !v)}>
-        {signaturesData ? <SignaturesPanel signatures={signaturesData} /> : <p className="text-xs text-text-muted">Chargement...</p>}
-      </ControlledSection>
     </div>
   )
 }

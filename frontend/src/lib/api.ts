@@ -31,7 +31,6 @@ import type {
   ScenarioPresetsData,
   SavedScenario,
   PastasCompareResponse,
-  DiagnoseResult,
   AutoFitResult,
   CompareAIResult,
 } from './types'
@@ -150,14 +149,12 @@ export const api = {
     searchStations: (params: {
       q?: string
       departement?: string
-      tendance?: string
       alerte?: string
       limit?: number
     }) => {
       const sp = new URLSearchParams()
       if (params.q) sp.set('q', params.q)
       if (params.departement) sp.set('departement', params.departement)
-      if (params.tendance) sp.set('tendance', params.tendance)
       if (params.alerte) sp.set('alerte', params.alerte)
       if (params.limit) sp.set('limit', String(params.limit))
       return fetchJson<{ stations: StationInfo[]; total: number }>(
@@ -167,7 +164,6 @@ export const api = {
     stationFilters: () =>
       fetchJson<{
         departements: string[]
-        tendances: string[]
         alertes: string[]
         classifications: string[]
       }>('/db/stations/filters'),
@@ -335,8 +331,6 @@ export const api = {
     signatures: (runId: string) => fetchJson<{ observed: Record<string, number>; simulated: Record<string, number>; categories?: Record<string, string[]> }>(`/pastas/models/${runId}/signatures`),
     compare: (runIds: string[]) =>
       postJson<PastasCompareResponse>('/pastas/compare', { run_ids: runIds }, 60_000),
-    diagnose: (codeBss: string) =>
-      postJson<DiagnoseResult>('/pastas/diagnose', { code_bss: codeBss }),
     autoFit: (body: {
       code_bss: string
       warm_up_years?: number

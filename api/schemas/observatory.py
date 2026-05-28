@@ -41,13 +41,8 @@ class PiezoStation(BaseModel):
     niveau_derniere_annee: float | None = None
     classification_derniere_annee: str | None = None
     percentile_derniere_annee: float | None = None
-    slope_niveau: float | None = None
-    r2_niveau: float | None = None
     slope_precipitation: float | None = None
-    nb_mois_tendance: int | None = None
-    tendance_classification: str | None = None
     niveau_alerte: str | None = None
-    qualite_tendance: str | None = None
 
 
 class PiezoDaily(BaseModel):

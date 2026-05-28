@@ -212,7 +212,6 @@ export function SignaturesPanel({ signatures }: Props) {
       {/* Signature picker */}
       {showConfig && (
         <div className="bg-bg-card rounded-lg border border-white/5 p-3 space-y-2">
-          <p className="text-[10px] text-text-muted">Cliquez sur les signatures pour les ajouter/retirer du radar :</p>
           {categoryEntries.map(([cat, sigs]) => {
             const validSigs = sigs.filter(s => s in signatures.observed)
             if (validSigs.length === 0) return null

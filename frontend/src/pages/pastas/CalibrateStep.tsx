@@ -182,7 +182,7 @@ export default function CalibrateStep() {
 
                 <div>
                   <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                    Période de préchauffage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
+                    Période d'amorçage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
                     <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
                   </label>
                   <input
@@ -277,7 +277,7 @@ export default function CalibrateStep() {
 
             <div className="bg-bg-card border border-white/5 rounded-xl p-4">
               <label className="text-xs text-text-muted mb-1 flex items-center gap-1">
-                Période de préchauffage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
+                Période d'amorçage ({warmUpYears} an{warmUpYears !== 1 ? 's' : ''})
                 <InfoTip text="Données en début de chronique utilisées pour initialiser l'état interne du modèle (mémoire de la fonction de réponse) mais NON incluses dans les métriques de calibration. Choisir 1-2 ans pour les aquifères à réponse rapide (alluvial, peu profond), 3-5 ans pour ceux à réponse lente (sédimentaire profond, captif). Si votre temps de réponse T95 vaut ~500 jours, utiliser au moins 2 ans." />
               </label>
               <input
@@ -302,7 +302,7 @@ export default function CalibrateStep() {
                 <div>
                   <span className="text-sm font-medium text-text-secondary flex items-center gap-1">
                     Deux passes (ajout d'une tendance)
-                    <InfoTip text="Calibre d'abord le modèle sans tendance, puis vérifie si les résidus présentent encore une dérive significative (test de Mann-Kendall). Si oui, ajoute un stress LinearTrend et recalibre. Recommandé lorsque les diagnostics pré-calibration ont détecté une tendance — capture les évolutions long terme (climat, usage des sols, pompage) que la seule recharge ne peut expliquer." />
+                    <InfoTip text="Calibre d'abord le modèle sans tendance, puis vérifie si les résidus présentent encore une dérive significative (test de Mann-Kendall). Si oui, ajoute un stress LinearTrend et recalibre — capture les évolutions long terme (climat, usage des sols, pompage) que la seule recharge ne peut expliquer." />
                   </span>
                   <p className="text-xs text-text-muted">Première calibration sans tendance, puis ajout d'un stress de tendance linéaire si les résidus en présentent une.</p>
                 </div>
@@ -381,7 +381,6 @@ export default function CalibrateStep() {
             <div className="text-center space-y-2">
               <Zap className="w-10 h-10 mx-auto text-text-muted/30" />
               <p className="text-sm text-text-secondary">Prêt pour la calibration automatique</p>
-              <p className="text-xs">Cliquez sur « Calibration automatique » pour trouver la meilleure configuration de modèle.</p>
             </div>
           </div>
         )}
@@ -391,7 +390,6 @@ export default function CalibrateStep() {
             <div className="text-center space-y-3">
               <Loader2 className="w-10 h-10 mx-auto text-accent-cyan animate-spin" />
               <p className="text-sm text-text-secondary">Test des configurations...</p>
-              <p className="text-xs">Cela peut prendre quelques minutes. Chaque candidat est calibré et évalué.</p>
             </div>
           </div>
         )}
@@ -401,7 +399,6 @@ export default function CalibrateStep() {
             <div className="text-center space-y-2">
               <Play className="w-10 h-10 mx-auto text-text-muted/30" />
               <p className="text-sm text-text-secondary">Configurer et calibrer</p>
-              <p className="text-xs">Définissez vos paramètres et cliquez sur « Calibrer le modèle » pour lancer la calibration.</p>
             </div>
           </div>
         )}
@@ -467,7 +464,6 @@ function AutoFitResultsTable({ result, onSelect, selectedRunId }: {
             {result.candidates.length} configurations testées en {result.total_elapsed_s.toFixed(1)} s
           </p>
         </div>
-        <p className="text-xs text-text-muted">Cliquez sur une ligne pour sélectionner, puis passez aux résultats.</p>
       </div>
 
       {/* Table */}

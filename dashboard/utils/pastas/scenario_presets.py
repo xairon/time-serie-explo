@@ -37,16 +37,16 @@ PumpingUsage = Literal["aep", "irrigation", "industrial"]
 
 AQUIFER_FAMILY_LABELS: dict[AquiferFamily, str] = {
     "alluvial": "Alluvial",
-    "sedimentary": "Sedimentary (porous)",
-    "karst": "Karst",
-    "fractured": "Fractured / basement",
-    "volcanic": "Volcanic",
+    "sedimentary": "Sédimentaire (poreux)",
+    "karst": "Karstique",
+    "fractured": "Socle / fracturé",
+    "volcanic": "Volcanique",
 }
 
 USAGE_LABELS: dict[PumpingUsage, str] = {
-    "aep": "Drinking water (AEP)",
+    "aep": "Eau potable (AEP)",
     "irrigation": "Irrigation",
-    "industrial": "Industrial",
+    "industrial": "Industriel",
 }
 
 
@@ -248,10 +248,10 @@ def validate_modifications(
         mod_type = mod.get("type", "")
         start = mod.get("start")
         end = mod.get("end")
-        prefix = f"Modification #{i + 1}"
+        prefix = f"Modification n°{i + 1}"
 
         if start and end and str(end) <= str(start):
-            errors.append(f"{prefix}: end date is before or equal to start date")
+            errors.append(f"{prefix} : la date de fin est antérieure ou égale à la date de début")
 
         if mod_type in ("pumping_synthetic", "pumping_upload"):
             rate = float(mod.get("rate_m3d", 0))
@@ -261,20 +261,20 @@ def validate_modifications(
             dist_range = _DISTANCE[aquifer_family]
 
             if rate < 0:
-                errors.append(f"{prefix}: negative flow rate ({rate} m³/d)")
+                errors.append(f"{prefix} : débit négatif ({rate} m³/j)")
             elif rate > hard_max_rate:
                 errors.append(
-                    f"{prefix}: flow rate {rate} m³/d exceeds maximum "
-                    f"for {family_label} aquifer ({hard_max_rate} m³/d)"
+                    f"{prefix} : débit {rate} m³/j supérieur au maximum "
+                    f"pour un aquifère {family_label.lower()} ({hard_max_rate} m³/j)"
                 )
 
             if distance < dist_range.hard_min:
                 errors.append(
-                    f"{prefix}: distance {distance}m below minimum ({dist_range.hard_min}m)"
+                    f"{prefix} : distance {distance} m inférieure au minimum ({dist_range.hard_min} m)"
                 )
             elif distance > dist_range.hard_max:
                 errors.append(
-                    f"{prefix}: distance {distance}m exceeds maximum ({dist_range.hard_max}m)"
+                    f"{prefix} : distance {distance} m supérieure au maximum ({dist_range.hard_max} m)"
                 )
 
             total_pumping_rate += rate
@@ -282,35 +282,35 @@ def validate_modifications(
             if usage == "irrigation":
                 season = mod.get("season_months", [])
                 if season and not any(m in range(4, 10) for m in season):
-                    warnings.append("Irrigation pumping outside growing season (Apr-Sep)")
+                    warnings.append("Pompage d'irrigation hors saison agricole (avril-septembre)")
 
         elif mod_type == "scale_stress":
             factor = float(mod.get("factor", 1.0))
             if factor < SCALE_STRESS_LIMITS.hard_min or factor > SCALE_STRESS_LIMITS.hard_max:
                 errors.append(
-                    f"{prefix}: factor {factor} out of range "
+                    f"{prefix} : facteur {factor} hors plage "
                     f"[{SCALE_STRESS_LIMITS.hard_min}, {SCALE_STRESS_LIMITS.hard_max}]"
                 )
             elif factor < 0.5:
-                stress_name = "precipitation" if mod.get("stress") == "precip" else "evapotranspiration"
+                stress_name = "précipitations" if mod.get("stress") == "precip" else "évapotranspiration"
                 pct = round((1 - factor) * 100)
                 warnings.append(
-                    f"{pct}% reduction in {stress_name} — very severe scenario"
+                    f"Réduction de {pct} % des {stress_name} — scénario très sévère"
                 )
 
         elif mod_type == "linear_trend":
             slope = float(mod.get("slope_m_per_year", mod.get("slope", 0)))
             if slope < LINEAR_TREND_LIMITS.hard_min or slope > LINEAR_TREND_LIMITS.hard_max:
                 errors.append(
-                    f"{prefix}: slope {slope} m/yr out of range "
+                    f"{prefix} : pente {slope} m/an hors plage "
                     f"[{LINEAR_TREND_LIMITS.hard_min}, {LINEAR_TREND_LIMITS.hard_max}]"
                 )
 
     cumulative_hard_max = 2 * _get_max_hard_rate(aquifer_family)
     if total_pumping_rate > cumulative_hard_max:
         errors.append(
-            f"Cumulative pumping rate ({total_pumping_rate} m³/d) exceeds "
-            f"2× maximum for {family_label} aquifer ({cumulative_hard_max} m³/d)"
+            f"Débit cumulé de pompage ({total_pumping_rate} m³/j) supérieur à "
+            f"2× le maximum pour un aquifère {family_label.lower()} ({cumulative_hard_max} m³/j)"
         )
 
     return ValidationResult(
@@ -333,8 +333,8 @@ def build_preset_scenarios(
     return [
         {
             "id": "aep_well",
-            "name": "Drinking water well",
-            "description": f"Constant pumping at {aep.rate_m3d.default} m³/d",
+            "name": "Forage d'eau potable",
+            "description": f"Pompage constant à {aep.rate_m3d.default} m³/j",
             "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
@@ -352,8 +352,8 @@ def build_preset_scenarios(
         },
         {
             "id": "irrigation",
-            "name": "Seasonal irrigation",
-            "description": f"Agricultural pumping {irr.rate_m3d.default} m³/d (Apr-Sep)",
+            "name": "Irrigation saisonnière",
+            "description": f"Pompage agricole {irr.rate_m3d.default} m³/j (avril-septembre)",
             "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
@@ -371,8 +371,8 @@ def build_preset_scenarios(
         },
         {
             "id": "industrial",
-            "name": "Industrial pumping",
-            "description": f"Constant pumping at {ind.rate_m3d.default} m³/d",
+            "name": "Pompage industriel",
+            "description": f"Pompage constant à {ind.rate_m3d.default} m³/j",
             "icon": "",
             "modifications": [{
                 "type": "pumping_synthetic",
@@ -388,8 +388,8 @@ def build_preset_scenarios(
         },
         {
             "id": "summer_drought",
-            "name": "Summer drought",
-            "description": "−30% precipitation Jun-Sep",
+            "name": "Sécheresse estivale",
+            "description": "−30 % de précipitations juin-septembre",
             "icon": "",
             "modifications": [{
                 "type": "scale_stress",
@@ -401,8 +401,8 @@ def build_preset_scenarios(
         },
         {
             "id": "prolonged_drought",
-            "name": "Prolonged drought",
-            "description": "−20% precipitation + +10% PET",
+            "name": "Sécheresse prolongée",
+            "description": "−20 % de précipitations + +10 % d'ETP",
             "icon": "",
             "modifications": [
                 {"type": "scale_stress", "stress": "precip", "factor": 0.8,
@@ -413,8 +413,8 @@ def build_preset_scenarios(
         },
         {
             "id": "climate_trend",
-            "name": "Climate trend",
-            "description": "−2 cm/yr decline + +5% PET increase",
+            "name": "Tendance climatique",
+            "description": "−2 cm/an de baisse + +5 % d'ETP",
             "icon": "",
             "modifications": [
                 {"type": "linear_trend", "start": tmin, "end": tmax,
