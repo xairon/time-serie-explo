@@ -174,7 +174,8 @@ class ModelRegistry:
     def list_all_models(
         self,
         model_type: Optional[str] = None,
-        model_name: Optional[str] = None
+        model_name: Optional[str] = None,
+        owner_filter: Optional[str] = None
     ) -> List[ModelEntry]:
         """List models from MLflow."""
         self._ensure_tracking_uri()
@@ -186,8 +187,11 @@ class ModelRegistry:
                 logger.warning(f"Experiment '{self.mlflow_manager.experiment_name}' not found")
                 return []
 
+            filter_string = owner_filter or ""
+
             runs = client.search_runs(
                 experiment_ids=[experiment.experiment_id],
+                filter_string=filter_string,
                 order_by=["start_time DESC"]
             )
 
@@ -228,6 +232,15 @@ class ModelRegistry:
             return None
         except Exception as e:
             logger.error(f"Failed to get model {model_id}: {e}")
+            return None
+
+    def get_model_owner(self, model_id: str) -> Optional[str]:
+        """Return the owner_id tag of a run, or None if absent/not found."""
+        self._ensure_tracking_uri()
+        try:
+            run = mlflow.get_run(model_id)
+            return run.data.tags.get("owner_id") or None
+        except Exception:
             return None
 
     def load_model(self, model_entry: ModelEntry) -> Any:

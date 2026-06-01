@@ -8,9 +8,12 @@ import logging
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owns_dataset
 from api.config import settings
+from api.models_db import User
 from api.serializers import clean_nans
 from api.task_manager import TaskStatus, task_manager
 from api.schemas.pumping_detection import PumpingDetectionRequest
@@ -79,8 +82,9 @@ def _run_pipeline_thread(task_id: str, req: PumpingDetectionRequest) -> None:
 
 
 @router.post("/analyze")
-def start_analysis(req: PumpingDetectionRequest):
+def start_analysis(req: PumpingDetectionRequest, current: User = Depends(get_current_user)):
     """Start a pumping detection analysis."""
+    assert_owns_dataset(current, req.dataset_id)
     task = task_manager.create("pumping_detection", config=req.model_dump())
     thread = threading.Thread(target=_run_pipeline_thread, args=(task.task_id, req), daemon=True)
     task.thread = thread

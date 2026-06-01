@@ -13,8 +13,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owner_or_admin
 from api.config import settings
 from api.database import get_brgm_db
+from api.models_db import User, UserRole
 from api.serializers import clean_nans
 from api.schemas.datasets import (
     DatasetCreateRequest,
@@ -70,10 +73,11 @@ def _ds_to_summary(ds) -> DatasetSummary:
 
 
 @router.get("", response_model=list[DatasetSummary])
-async def list_datasets():
+async def list_datasets(current: User = Depends(get_current_user)):
     """List all prepared datasets."""
     registry = _get_registry()
-    return [_ds_to_summary(ds) for ds in registry.scan_datasets()]
+    owner_filter = None if current.role == UserRole.admin else str(current.id)
+    return [_ds_to_summary(ds) for ds in registry.scan_datasets(owner_id=owner_filter)]
 
 
 @router.post("", response_model=DatasetSummary, status_code=201)
@@ -84,6 +88,7 @@ async def create_dataset(
     covariate_columns: str = Query(""),  # comma-separated
     station_column: Optional[str] = Query(None),
     stations: str = Query(""),  # comma-separated
+    current: User = Depends(get_current_user),
 ):
     """Upload a CSV file and register it as a prepared dataset."""
     import pandas as pd
@@ -126,6 +131,7 @@ async def create_dataset(
             target_column=target_column,
             covariate_columns=cov_cols,
             preprocessing_config={},
+            owner_id=str(current.id),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Échec d'enregistrement du jeu de données : {exc}")
@@ -145,9 +151,10 @@ async def create_dataset(
 
 
 @router.get("/{dataset_id}", response_model=DatasetDetail)
-async def get_dataset(dataset_id: str):
+async def get_dataset(dataset_id: str, current: User = Depends(get_current_user)):
     """Get full details for a dataset."""
     registry = _get_registry()
+    assert_owner_or_admin(current, registry.get_owner(dataset_id))
     ds = _find_dataset(registry, dataset_id)
     if ds is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -160,9 +167,10 @@ async def get_dataset(dataset_id: str):
 
 
 @router.patch("/{dataset_id}", response_model=DatasetSummary)
-async def update_dataset(dataset_id: str, req: DatasetUpdateRequest):
+async def update_dataset(dataset_id: str, req: DatasetUpdateRequest, current: User = Depends(get_current_user)):
     """Update dataset configuration (target variable, covariates, preprocessing)."""
     registry = _get_registry()
+    assert_owner_or_admin(current, registry.get_owner(dataset_id))
     ds = _find_dataset(registry, dataset_id)
     if ds is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -177,9 +185,10 @@ async def update_dataset(dataset_id: str, req: DatasetUpdateRequest):
 
 
 @router.delete("/{dataset_id}", status_code=204)
-async def delete_dataset(dataset_id: str):
+async def delete_dataset(dataset_id: str, current: User = Depends(get_current_user)):
     """Delete a prepared dataset."""
     registry = _get_registry()
+    assert_owner_or_admin(current, registry.get_owner(dataset_id))
     ds = _find_dataset(registry, dataset_id)
     if ds is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -193,6 +202,7 @@ async def delete_dataset(dataset_id: str):
 async def import_from_db(
     req: ImportDBRequest,
     brgm_db: AsyncSession = Depends(get_brgm_db),
+    current: User = Depends(get_current_user),
 ):
     """Import data from the BRGM PostgreSQL gold schema."""
     from dashboard.utils.postgres_connector import (
@@ -272,6 +282,7 @@ async def import_from_db(
         target_column=target_col,
         covariate_columns=cov_cols,
         preprocessing_config={"source": "brgm-postgres", "schema": req.schema_name},
+        owner_id=str(current.id),
     )
 
     # Use the actual directory name (includes timestamp) as ID
@@ -292,9 +303,10 @@ async def import_from_db(
 
 
 @router.get("/{dataset_id}/preview", response_model=DatasetPreview)
-async def preview_dataset(dataset_id: str, n: int = Query(50, ge=1, le=1000)):
+async def preview_dataset(dataset_id: str, n: int = Query(50, ge=1, le=1000), current: User = Depends(get_current_user)):
     """Preview the first N rows of a dataset."""
     registry = _get_registry()
+    assert_owner_or_admin(current, registry.get_owner(dataset_id))
     ds = _find_dataset(registry, dataset_id)
     if ds is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -315,9 +327,10 @@ async def preview_dataset(dataset_id: str, n: int = Query(50, ge=1, le=1000)):
 
 
 @router.get("/{dataset_id}/profile", response_model=DatasetProfile)
-async def profile_dataset(dataset_id: str):
+async def profile_dataset(dataset_id: str, current: User = Depends(get_current_user)):
     """Compute statistical profile of a dataset."""
     registry = _get_registry()
+    assert_owner_or_admin(current, registry.get_owner(dataset_id))
     ds = _find_dataset(registry, dataset_id)
     if ds is None:
         raise HTTPException(status_code=404, detail="Dataset not found")

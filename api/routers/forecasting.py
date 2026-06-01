@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owns_model
+from api.models_db import User
 from api.serializers import clean_nans, serialize_timeseries
 from api.utils import force_cpu_if_needed
 from api.schemas.forecasting import (
@@ -85,14 +88,16 @@ def _load_model_and_data(model_id: str):
 
 
 @router.post("/run", response_model=ForecastResult)
-async def run_forecast(req: ForecastRequest):
+async def run_forecast(req: ForecastRequest, current: User = Depends(get_current_user)):
     """Convenience endpoint - alias for /single forecast."""
-    return await single_forecast(req)
+    assert_owns_model(current, req.model_id)
+    return await single_forecast(req, current)
 
 
 @router.post("/single", response_model=ForecastResult)
-async def single_forecast(req: ForecastRequest):
+async def single_forecast(req: ForecastRequest, current: User = Depends(get_current_user)):
     """Generate a single-window forecast from a given start date."""
+    assert_owns_model(current, req.model_id)
     import pandas as pd
 
     from dashboard.utils.forecasting import generate_single_window_forecast
@@ -186,8 +191,9 @@ async def single_forecast(req: ForecastRequest):
 
 
 @router.post("/rolling", response_model=ForecastResult)
-async def rolling_forecast(req: RollingForecastRequest):
+async def rolling_forecast(req: RollingForecastRequest, current: User = Depends(get_current_user)):
     """Generate rolling (historical) forecasts."""
+    assert_owns_model(current, req.model_id)
     import pandas as pd
 
     from dashboard.utils.forecasting import generate_rolling_forecast
@@ -227,8 +233,9 @@ async def rolling_forecast(req: RollingForecastRequest):
 
 
 @router.post("/comparison", response_model=ForecastResult)
-async def comparison_forecast(req: ComparisonForecastRequest):
+async def comparison_forecast(req: ComparisonForecastRequest, current: User = Depends(get_current_user)):
     """Compare autoregressive vs teacher-forcing forecasts."""
+    assert_owns_model(current, req.model_id)
     import pandas as pd
 
     from dashboard.utils.forecasting import generate_comparison_forecast
@@ -269,8 +276,9 @@ async def comparison_forecast(req: ComparisonForecastRequest):
 
 
 @router.post("/global", response_model=ForecastResult)
-async def global_forecast(req: GlobalForecastRequest):
+async def global_forecast(req: GlobalForecastRequest, current: User = Depends(get_current_user)):
     """Generate a global forecast over the full test set."""
+    assert_owns_model(current, req.model_id)
     import pandas as pd
 
     from dashboard.utils.forecasting import generate_global_forecast

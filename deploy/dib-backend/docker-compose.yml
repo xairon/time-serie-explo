@@ -110,6 +110,10 @@ services:
       - DEBUG=${DEBUG:-false}
       # Doit inclure l'URL publique servie par le front K8s (cf. .env.example)
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:49513}
+      # Auth : secret JWT (OBLIGATOIRE en prod, >=32 octets) + cookie Secure.
+      # COOKIE_SECURE=false uniquement si l'accès est en HTTP (pas de TLS).
+      - JWT_SECRET=${JWT_SECRET:-dev-insecure-change-me}
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
       - DATA_DIR=/app/data
       - CHECKPOINTS_DIR=/app/checkpoints
       - RESULTS_DIR=/app/results

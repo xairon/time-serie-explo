@@ -42,12 +42,16 @@ async function fetchJson<T>(path: string, init?: RequestInit & { timeout?: numbe
   try {
     const res = await fetch(url, {
       ...init,
+      credentials: 'include',
       signal: controller.signal,
       headers: {
         'Accept': 'application/json',
         ...init?.headers,
       },
     })
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
     if (!res.ok) {
       let detail = ''
       try {
@@ -73,7 +77,10 @@ async function postJson<T>(path: string, body: unknown, timeout?: number): Promi
 
 async function deleteJson(path: string): Promise<void> {
   const url = `${API_BASE}${path}`
-  const res = await fetch(url, { method: 'DELETE' })
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' })
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+  }
   if (!res.ok) {
     let detail = ''
     try {
@@ -173,7 +180,8 @@ export const api = {
     list: () => fetchJson<DatasetSummary[]>('/datasets'),
     get: (id: string) => fetchJson<DatasetSummary>(`/datasets/${id}`),
     create: (body: FormData) =>
-      fetch(`${API_BASE}/datasets`, { method: 'POST', body }).then(async (res) => {
+      fetch(`${API_BASE}/datasets`, { method: 'POST', body, credentials: 'include' }).then(async (res) => {
+        if (res.status === 401) { window.dispatchEvent(new CustomEvent('auth:unauthorized')) }
         if (!res.ok) throw new Error(`API ${res.status}`)
         return res.json() as Promise<DatasetSummary>
       }),

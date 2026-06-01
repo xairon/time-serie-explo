@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Waves,
@@ -12,6 +12,7 @@ import {
 import { useHealth } from '@/hooks/useHealth'
 import { useCompareSelection } from '@/contexts/CompareSelection'
 import { LanguageSwitcher } from '../LanguageSwitcher'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -19,6 +20,8 @@ export function TopNav() {
   const { t } = useTranslation()
   const { data: health } = useHealth()
   const { count: compareCount, type: compareType } = useCompareSelection()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   const navItems = [
     { to: '/', icon: Map, label: t('nav.observatory'), end: true, tour: 'nav-observatory' },
@@ -95,6 +98,34 @@ export function TopNav() {
         </div>
 
         <LanguageSwitcher />
+
+        {/* Account area */}
+        {user ? (
+          <div className="hidden md:flex items-center gap-2">
+            {user.role === 'admin' && (
+              <Link
+                to="/admin/users"
+                className="text-xs px-2.5 py-1 rounded-lg text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 transition-colors"
+              >
+                Admin
+              </Link>
+            )}
+            <span className="text-xs text-text-secondary hidden lg:block">{user.display_name}</span>
+            <button
+              onClick={async () => { await logout(); navigate('/') }}
+              className="text-xs px-2.5 py-1 rounded-lg text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 transition-colors"
+            >
+              Déconnexion
+            </button>
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            className="hidden md:inline-flex text-xs px-2.5 py-1 rounded-lg text-accent-cyan border border-accent-cyan/30 hover:bg-accent-cyan/10 transition-colors"
+          >
+            Se connecter
+          </Link>
+        )}
 
         <button
           onClick={() => setMobileOpen(!mobileOpen)}

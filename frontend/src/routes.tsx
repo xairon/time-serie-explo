@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate, useSearchParams } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
+import { RequireAuth } from './components/auth/RequireAuth'
 
 function RedirectWithParams({ to }: { to: string }) {
   const [searchParams] = useSearchParams()
@@ -25,6 +26,9 @@ const DataPage = lazy(() => import('./pages/DataPage'))
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const UsersPage = lazy(() => import('./pages/admin/UsersPage'))
+
 function SW({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<div className="flex items-center justify-center h-full text-text-secondary">Chargement...</div>}>{children}</Suspense>
 }
@@ -46,7 +50,7 @@ export const router = createBrowserRouter([
       // Pastas Lab
       {
         path: '/pastas',
-        element: <SW><PastasLayout /></SW>,
+        element: <RequireAuth><SW><PastasLayout /></SW></RequireAuth>,
         children: [
           { index: true, element: <Navigate to="/pastas/station" replace /> },
           { path: 'station', element: <SW><StationStep /></SW> },
@@ -63,7 +67,7 @@ export const router = createBrowserRouter([
       // AI Lab
       {
         path: '/ai',
-        element: <SW><AILabLayout /></SW>,
+        element: <RequireAuth><SW><AILabLayout /></SW></RequireAuth>,
         children: [
           { index: true, element: <Navigate to="/ai/data" replace /> },
           { path: 'data', element: <SW><DataPage /></SW> },
@@ -77,6 +81,12 @@ export const router = createBrowserRouter([
       { path: '/training', element: <RedirectWithParams to="/ai/training" /> },
       { path: '/forecasting', element: <RedirectWithParams to="/ai/forecasting" /> },
       { path: '/dashboard', element: <SW><DashboardPage /></SW> },
+
+      // Auth
+      { path: '/login', element: <SW><LoginPage /></SW> },
+
+      // Admin
+      { path: '/admin/users', element: <RequireAuth adminOnly><SW><UsersPage /></SW></RequireAuth> },
 
       // 404
       { path: '*', element: <div className="flex flex-col items-center justify-center h-full gap-4"><h1 className="text-4xl font-bold text-text-primary">404</h1><p className="text-text-secondary">Page introuvable</p></div> },

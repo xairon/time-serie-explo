@@ -13,6 +13,9 @@ from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
 from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, pastas
 from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa
+from api.routers import auth as auth_router
+from api.routers import admin as admin_router
+from api.auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +60,19 @@ app.add_middleware(
 )
 
 # Register routers
-app.include_router(datasets.router)
-app.include_router(training.router)
-app.include_router(models.router)
-app.include_router(forecasting.router)
-app.include_router(explainability.router)
-app.include_router(counterfactual.router)
-app.include_router(db_introspection.router)
-app.include_router(pumping_detection.router)
-app.include_router(pastas.router)
+_auth = [Depends(get_current_user)]
+
+app.include_router(auth_router.router)
+app.include_router(admin_router.router)
+app.include_router(datasets.router, dependencies=_auth)
+app.include_router(training.router, dependencies=_auth)
+app.include_router(models.router, dependencies=_auth)
+app.include_router(forecasting.router, dependencies=_auth)
+app.include_router(explainability.router, dependencies=_auth)
+app.include_router(counterfactual.router, dependencies=_auth)
+app.include_router(db_introspection.router, dependencies=_auth)
+app.include_router(pumping_detection.router, dependencies=_auth)
+app.include_router(pastas.router, dependencies=_auth)
 app.include_router(observatory_piezo.router)
 app.include_router(observatory_hydro.router)
 app.include_router(observatory_common.router)
