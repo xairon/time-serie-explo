@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, Response
 from api.auth.deps import get_current_user
 from api.auth.ownership import assert_owns_model
 from api.config import settings
-from api.models_db import User
+from api.models_db import User, UserRole
 from api.schemas.pastas import (
     AdaptiveBoundsResponse,
     CompareRequest,
@@ -316,7 +316,10 @@ def fit_model(req: FitRequest) -> FitResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/models", response_model=list[PastasModelSummary])
-def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
+def list_models(
+    code_bss: Optional[str] = None,
+    current: User = Depends(get_current_user),
+) -> list[PastasModelSummary]:
     """List Pastas models stored in MLflow."""
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
@@ -325,11 +328,14 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
     if experiment is None:
         return []
 
-    filter_str = ""
+    clauses = []
     if code_bss:
         if not re.fullmatch(r"[A-Za-z0-9/_.X-]+", code_bss):
             raise HTTPException(422, "Format code_bss invalide")
-        filter_str = f"tags.station_id = '{code_bss}'"
+        clauses.append(f"tags.station_id = '{code_bss}'")
+    if current.role != UserRole.admin:
+        clauses.append(f"tags.owner_id = '{current.id}'")
+    filter_str = " and ".join(clauses)
 
     runs = client.search_runs(
         experiment_ids=[experiment.experiment_id],
