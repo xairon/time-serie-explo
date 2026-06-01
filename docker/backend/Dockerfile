@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY dashboard/ ./dashboard/
 COPY api/ ./api/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+COPY scripts/ ./scripts/
 
 RUN mkdir -p /app/data/prepared /app/checkpoints /app/results /app/logs
 
