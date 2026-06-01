@@ -11,9 +11,11 @@ import logging
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.deps import get_current_user
 from api.config import settings
+from api.models_db import User
 from api.serializers import clean_nans
 from api.task_manager import TaskStatus, task_manager
 from api.schemas.training import PresetInfo, TrainingRequest, TrainingResult, TrainingStatus
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/training", tags=["training"])
 
 
-def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
+def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | None = None) -> None:
     """Background thread that runs the training pipeline."""
     task = task_manager.get(task_id)
     if task is None:
@@ -140,6 +142,7 @@ def _run_training_thread(task_id: str, req: TrainingRequest) -> None:
                 "target_var": target_col,
                 "covariate_vars": cov_cols or [],
             },
+            owner_id=owner_id,
         )
 
         with task.lock:
@@ -192,7 +195,7 @@ def list_presets():
 
 
 @router.post("/start", response_model=TrainingStatus, status_code=202)
-async def start_training(req: TrainingRequest):
+async def start_training(req: TrainingRequest, current: User = Depends(get_current_user)):
     """Start a training job in a background thread. Returns task_id."""
     from api.task_manager import TaskStatus
 
@@ -225,7 +228,7 @@ async def start_training(req: TrainingRequest):
 
     thread = threading.Thread(
         target=_run_training_thread,
-        args=(task.task_id, req),
+        args=(task.task_id, req, str(current.id)),
         daemon=True,
         name=f"training-{task.task_id}",
     )

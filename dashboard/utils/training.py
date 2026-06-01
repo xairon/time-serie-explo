@@ -474,7 +474,8 @@ def run_training_pipeline(
     all_stations: Optional[List[str]] = None,  # For global models: list of all station IDs
     early_stopping_patience: Optional[int] = None,
     metrics_file: Optional[Path] = None,  # NEW: Path to JSON file for metrics (replaces Streamlit callbacks)
-    n_epochs: Optional[int] = None  # NEW: Total epochs for metrics callback
+    n_epochs: Optional[int] = None,  # NEW: Total epochs for metrics callback
+    owner_id: Optional[str] = None  # NEW: User ID to stamp on MLflow run tags
 ) -> Dict[str, Any]:
     """
     Complete training pipeline with split saving.
@@ -537,6 +538,9 @@ def run_training_pipeline(
         tags['model_type'] = 'single'
         tags['station_count'] = "1"
         tags['stations'] = json.dumps([station_name])
+
+    if owner_id:
+        tags['owner_id'] = owner_id
 
     # START MLFLOW RUN (avec system metrics: CPU/GPU/memory)
     with mlflow_manager.start_run(run_name=run_name, tags=tags, log_system_metrics=True) as run:

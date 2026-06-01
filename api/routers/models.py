@@ -9,10 +9,13 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owner_or_admin, owner_filter_clause
 from api.config import settings
+from api.models_db import User
 from api.serializers import clean_nans
 from api.schemas.models import AvailableModel, ModelDetail, ModelSummary
 
@@ -95,10 +98,15 @@ async def list_available_models():
 async def list_models(
     model_type: Optional[str] = Query(None),
     model_name: Optional[str] = Query(None),
+    current: User = Depends(get_current_user),
 ):
     """List all trained models from MLflow."""
     registry = _get_model_registry()
-    entries = registry.list_all_models(model_type=model_type, model_name=model_name)
+    entries = registry.list_all_models(
+        model_type=model_type,
+        model_name=model_name,
+        owner_filter=owner_filter_clause(current),
+    )
     return [
         ModelSummary(
             model_id=e.model_id,
@@ -115,9 +123,10 @@ async def list_models(
 
 
 @router.get("/{model_id}", response_model=ModelDetail)
-async def get_model(model_id: str):
+async def get_model(model_id: str, current: User = Depends(get_current_user)):
     """Get full details of a trained model."""
     registry = _get_model_registry()
+    assert_owner_or_admin(current, registry.get_model_owner(model_id))
     entry = registry.get_model(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -138,9 +147,10 @@ async def get_model(model_id: str):
 
 
 @router.delete("/{model_id}", status_code=204)
-async def delete_model(model_id: str):
+async def delete_model(model_id: str, current: User = Depends(get_current_user)):
     """Delete a trained model (marks the MLflow run as deleted)."""
     registry = _get_model_registry()
+    assert_owner_or_admin(current, registry.get_model_owner(model_id))
     entry = registry.get_model(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -149,9 +159,10 @@ async def delete_model(model_id: str):
 
 
 @router.get("/{model_id}/test-info")
-async def get_model_test_info(model_id: str):
+async def get_model_test_info(model_id: str, current: User = Depends(get_current_user)):
     """Return test set dates and model chunk lengths for the sliding window UI."""
     registry = _get_model_registry()
+    assert_owner_or_admin(current, registry.get_model_owner(model_id))
     entry = registry.get_model(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -204,9 +215,10 @@ async def get_model_test_info(model_id: str):
 
 
 @router.get("/{model_id}/download")
-async def download_model(model_id: str):
+async def download_model(model_id: str, current: User = Depends(get_current_user)):
     """Download model artifacts as a ZIP archive."""
     registry = _get_model_registry()
+    assert_owner_or_admin(current, registry.get_model_owner(model_id))
     entry = registry.get_model(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
