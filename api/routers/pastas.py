@@ -372,9 +372,10 @@ def list_models(code_bss: Optional[str] = None) -> list[PastasModelSummary]:
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}", response_model=FitResponse)
-def get_model(run_id: str) -> FitResponse:
+def get_model(run_id: str, current: User = Depends(get_current_user)) -> FitResponse:
     """Reconstruct FitResponse for a stored Pastas model."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.fit_service import _extract_parameters, _acf_stats
     from dashboard.utils.pastas.io import load_model
 
@@ -453,9 +454,10 @@ def get_model(run_id: str) -> FitResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/signatures")
-def get_signatures(run_id: str):
+def get_signatures(run_id: str, current: User = Depends(get_current_user)):
     """Compute hydrological signatures (observed vs simulated) for a stored Pastas model."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.signatures import compute_signatures
 
@@ -487,9 +489,10 @@ def get_signatures(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/diagnostics")
-def get_diagnostics(run_id: str):
+def get_diagnostics(run_id: str, current: User = Depends(get_current_user)):
     """Compute full diagnostic statistics on residuals — split by cal/val."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.diagnostics import compute_diagnostics
 
@@ -520,9 +523,10 @@ def get_diagnostics(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/outlier-diagnostics")
-def get_outlier_diagnostics(run_id: str):
+def get_outlier_diagnostics(run_id: str, current: User = Depends(get_current_user)):
     """Compute outlier diagnostics — split by cal/val."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.outlier_diagnostics import compute_outlier_diagnostics
     from sqlalchemy import create_engine
@@ -569,9 +573,10 @@ def get_outlier_diagnostics(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/confidence-bands")
-def get_confidence_bands(run_id: str):
+def get_confidence_bands(run_id: str, current: User = Depends(get_current_user)):
     """Compute bootstrap confidence bands — full period (cal+val)."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.confidence_intervals import compute_confidence_bands
 
@@ -594,9 +599,10 @@ def get_confidence_bands(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/recession")
-def get_recession(run_id: str):
+def get_recession(run_id: str, current: User = Depends(get_current_user)):
     """Compute recession analysis — full observed period."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.recession import compute_recession_analysis
 
@@ -619,9 +625,10 @@ def get_recession(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/baseflow")
-def get_baseflow(run_id: str):
+def get_baseflow(run_id: str, current: User = Depends(get_current_user)):
     """Compute baseflow separation — full observed period."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.baseflow import compute_baseflow
 
@@ -644,9 +651,10 @@ def get_baseflow(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/spectral")
-def get_spectral(run_id: str):
+def get_spectral(run_id: str, current: User = Depends(get_current_user)):
     """Compute spectral analysis — split by cal/val."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.spectral import compute_spectral_analysis
 
@@ -676,9 +684,10 @@ def get_spectral(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/decomposition")
-def get_decomposition(run_id: str):
+def get_decomposition(run_id: str, current: User = Depends(get_current_user)):
     """Compute STL decomposition — full observed period."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.signal_decomposition import compute_stl_decomposition
 
@@ -701,9 +710,10 @@ def get_decomposition(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/cross-correlation")
-def get_cross_correlation(run_id: str):
+def get_cross_correlation(run_id: str, current: User = Depends(get_current_user)):
     """Compute precipitation-piezometry cross-correlogram — full period."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.cross_correlation import compute_cross_correlation
     from sqlalchemy import create_engine
@@ -732,9 +742,10 @@ def get_cross_correlation(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/regional-residuals")
-def get_regional_residuals(run_id: str):
+def get_regional_residuals(run_id: str, current: User = Depends(get_current_user)):
     """Compare model residuals with neighbors — split by cal/val."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import load_model
     from dashboard.utils.pastas.multi_station_residuals import compute_regional_residuals
     from sqlalchemy import create_engine
@@ -768,9 +779,10 @@ def get_regional_residuals(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/input-quality")
-def get_input_quality(run_id: str):
+def get_input_quality(run_id: str, current: User = Depends(get_current_user)):
     """Detect anomalous months in input data using Isolation Forest."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.input_quality import detect_input_anomalies
     from sqlalchemy import create_engine
 
@@ -794,9 +806,10 @@ def get_input_quality(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/export/pas")
-def export_pas(run_id: str):
+def export_pas(run_id: str, current: User = Depends(get_current_user)):
     """Export a Pastas model as a .pas file."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     import os
     from starlette.background import BackgroundTask
     from dashboard.utils.pastas.io import load_model
@@ -822,9 +835,10 @@ def export_pas(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/export/csv")
-def export_csv(run_id: str):
+def export_csv(run_id: str, current: User = Depends(get_current_user)):
     """Export model params, metrics and tags as a CSV file."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     client = mlflow.tracking.MlflowClient()
     try:
@@ -855,9 +869,10 @@ def export_csv(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.delete("/models/{run_id}")
-def delete_model(run_id: str) -> dict:
+def delete_model(run_id: str, current: User = Depends(get_current_user)) -> dict:
     """Delete a Pastas model from MLflow and evict cache."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.io import evict_cache
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
@@ -883,12 +898,14 @@ def delete_model(run_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/compare", response_model=CompareResponse)
-def compare_models_endpoint(req: CompareRequest) -> CompareResponse:
+def compare_models_endpoint(req: CompareRequest, current: User = Depends(get_current_user)) -> CompareResponse:
     """Load N models and return side-by-side metrics + aligned series."""
     from dashboard.utils.pastas.comparison import compare_models
 
     if len(req.run_ids) < 2 or len(req.run_ids) > 5:
         raise HTTPException(422, "Provide 2-5 run IDs to compare")
+    for rid in req.run_ids:
+        assert_owns_model(current, rid)
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
 
@@ -1107,9 +1124,10 @@ def apply_scenario(run_id: str, name: str, target_run_id: str = Body(..., embed=
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/adaptive-bounds", response_model=AdaptiveBoundsResponse)
-def get_adaptive_bounds(run_id: str, t_final_days: Optional[int] = Query(None, ge=1)):
+def get_adaptive_bounds(run_id: str, t_final_days: Optional[int] = Query(None, ge=1), current: User = Depends(get_current_user)):
     """Compute adaptive pumping bounds from the calibrated model's step response."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.scenario_presets import compute_adaptive_bounds
 
     result = compute_adaptive_bounds(run_id, t_final_days=t_final_days)
@@ -1192,8 +1210,10 @@ def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), v
 # ---------------------------------------------------------------------------
 
 @router.post("/compare-ai")
-def compare_ai_endpoint(pastas_run_id: str = Body(...), ai_model_id: str = Body(...)):
+def compare_ai_endpoint(pastas_run_id: str = Body(...), ai_model_id: str = Body(...), current: User = Depends(get_current_user)):
     _validate_run_id(pastas_run_id)
+    assert_owns_model(current, pastas_run_id)
+    assert_owns_model(current, ai_model_id)
     from dashboard.utils.pastas.io import load_model as load_pastas_model
     import numpy as np
 

@@ -61,3 +61,45 @@ async def test_training_foreign_dataset_404(client, make_user):
             "/api/v1/training/start", json=body, cookies=_cookies(u)
         )
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pastas_model_analytics_foreign_404(client, make_user):
+    """Pastas analytics endpoints must return 404 for a foreign model."""
+    u = await make_user(email="pastasintruder@test.fr")
+    fake_run_id = uuid.uuid4().hex  # 32-char hex, passes _validate_run_id
+
+    with patch("api.auth.ownership._model_registry", return_value=_ForeignModelReg()):
+        res = await client.get(
+            f"/api/v1/pastas/models/{fake_run_id}/signatures",
+            cookies=_cookies(u),
+        )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pastas_model_get_foreign_404(client, make_user):
+    """GET /models/{run_id} must return 404 for a foreign model."""
+    u = await make_user(email="pastasget-intruder@test.fr")
+    fake_run_id = uuid.uuid4().hex
+
+    with patch("api.auth.ownership._model_registry", return_value=_ForeignModelReg()):
+        res = await client.get(
+            f"/api/v1/pastas/models/{fake_run_id}",
+            cookies=_cookies(u),
+        )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pastas_model_delete_foreign_404(client, make_user):
+    """DELETE /models/{run_id} must return 404 for a foreign model."""
+    u = await make_user(email="pastasdelete-intruder@test.fr")
+    fake_run_id = uuid.uuid4().hex
+
+    with patch("api.auth.ownership._model_registry", return_value=_ForeignModelReg()):
+        res = await client.delete(
+            f"/api/v1/pastas/models/{fake_run_id}",
+            cookies=_cookies(u),
+        )
+    assert res.status_code == 404
