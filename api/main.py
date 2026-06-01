@@ -14,6 +14,7 @@ from api.json_response import FastJSONResponse
 from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, pastas
 from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa
 from api.routers import auth as auth_router
+from api.routers import admin as admin_router
 from api.auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ app.add_middleware(
 _auth = [Depends(get_current_user)]
 
 app.include_router(auth_router.router)
+app.include_router(admin_router.router)
 app.include_router(datasets.router, dependencies=_auth)
 app.include_router(training.router, dependencies=_auth)
 app.include_router(models.router, dependencies=_auth)
