@@ -74,7 +74,8 @@ class DatasetRegistry:
         stations: List[str],
         target_column: str,
         covariate_columns: List[str],
-        preprocessing_config: Dict[str, Any]
+        preprocessing_config: Dict[str, Any],
+        owner_id: Optional[str] = None,
     ) -> Path:
         """
         Save a prepared dataset with its config.
@@ -121,7 +122,8 @@ class DatasetRegistry:
             'preprocessing': preprocessing_config,
             'creation_date': datetime.now().isoformat(),
             'n_rows': len(df),
-            'date_range': list(date_range)
+            'date_range': list(date_range),
+            'owner_id': owner_id,
         }
         
         config_path = dataset_dir / "config.yaml"
@@ -130,20 +132,27 @@ class DatasetRegistry:
         
         return dataset_dir
     
-    def scan_datasets(self) -> List[PreparedDataset]:
+    def scan_datasets(self, owner_id: Optional[str] = None) -> List[PreparedDataset]:
         """
         Scan for all prepared datasets.
-        
+
+        Args:
+            owner_id: If provided, return only datasets owned by this user.
+                      Pass None to return all datasets (admin / internal callers).
+
         Returns:
             List of PreparedDataset info objects
         """
         datasets = []
-        
+
         for config_path in self.datasets_dir.rglob("config.yaml"):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)
-                
+
+                if owner_id is not None and config.get('owner_id') != owner_id:
+                    continue
+
                 dataset = PreparedDataset.from_dict(config, config_path.parent)
                 datasets.append(dataset)
             except Exception as e:
@@ -154,6 +163,15 @@ class DatasetRegistry:
         
         return datasets
     
+    def get_owner(self, dataset_id: str) -> Optional[str]:
+        """Return the owner_id from a dataset's config.yaml, or None if absent/not found."""
+        config_path = self.datasets_dir / dataset_id / "config.yaml"
+        if not config_path.exists():
+            return None
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f) or {}
+        return config.get("owner_id")
+
     def load_dataset(self, dataset: PreparedDataset) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
         Load a prepared dataset.
