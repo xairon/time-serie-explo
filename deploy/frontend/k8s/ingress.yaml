@@ -1,0 +1,28 @@
+# Point d'entrée public (seul élément exposé à l'extérieur).
+# TLS et hostname à finaliser avec la DSI (cert-manager / ingress-controller en place).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: junon-frontend
+  annotations:
+    # Uploads CSV volumineux + timeouts longs (SSE entraînement).
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - junon.example.univ-tours.fr   # À REMPLACER
+      secretName: junon-frontend-tls
+  rules:
+    - host: junon.example.univ-tours.fr  # À REMPLACER
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: junon-frontend
+                port:
+                  number: 80

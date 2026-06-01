@@ -1,0 +1,72 @@
+# Template nginx du frontend distant.
+# ${DIB_BACKEND} est substitué au démarrage (envsubst) par l'adresse du backend
+# sur dib, ex : "dib-2019006065.univ-tours.fr:49514" ou "10.x.x.x:49514".
+# Les variables nginx ($host, $remote_addr, ...) ne sont PAS substituées
+# (elles ne sont pas des variables d'environnement).
+
+upstream backend_pool {
+    server ${DIB_BACKEND};
+    keepalive 32;
+}
+
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
+limit_req_zone $binary_remote_addr zone=general:10m rate=60r/s;
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Les uploads CSV peuvent faire plusieurs dizaines de Mo.
+    client_max_body_size 100m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 256;
+    gzip_comp_level 5;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: ws: wss:; worker-src 'self' blob:;" always;
+
+    # API — proxy vers le backend FastAPI sur dib (réseau interne)
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass http://backend_pool;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 600s;
+
+        # Support SSE (critique pour le suivi d'entraînement)
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
+        chunked_transfer_encoding off;
+    }
+
+    # Script bridge de l'observatoire (statique, servi aux deux domaines)
+    location = /observatory-bridge.js {
+        alias /usr/share/nginx/html/observatory-bridge.js;
+        add_header Content-Type application/javascript;
+        add_header Cache-Control "no-cache";
+        add_header Access-Control-Allow-Origin "*";
+    }
+
+    # Assets versionnés du build (cache long)
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # SPA React — fallback vers index.html
+    location / {
+        limit_req zone=general burst=30 nodelay;
+        try_files $uri $uri/ /index.html;
+    }
+}

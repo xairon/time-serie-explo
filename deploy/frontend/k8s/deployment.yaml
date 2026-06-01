@@ -1,0 +1,49 @@
+# Frontend Junon — Deployment Kubernetes.
+# Image à construire depuis deploy/frontend/Dockerfile et poussée sur le
+# registry universitaire (ex : registry.scm.univ-tours.fr/ringuet/junon-frontend).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: junon-frontend
+  labels:
+    app: junon-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: junon-frontend
+  template:
+    metadata:
+      labels:
+        app: junon-frontend
+    spec:
+      containers:
+        - name: frontend
+          # À REMPLACER par l'image poussée sur le registry de la DSI
+          image: registry.scm.univ-tours.fr/ringuet/junon-frontend:latest
+          ports:
+            - containerPort: 80
+          env:
+            # Backend FastAPI sur dib-2019006065 (réseau interne universitaire).
+            # IP LAN validée localement ; à confirmer avec la DSI (routage K8s → dib).
+            - name: DIB_BACKEND
+              value: "10.195.25.16:49514"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 20

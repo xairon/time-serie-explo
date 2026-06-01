@@ -1,0 +1,40 @@
+## ──────────────────────────────────────────────
+##  Junon — FRONTEND stack (à déployer côté distant : K8s ou serveur dédié)
+##  Un seul service nginx : sert le SPA React + proxie /api/ vers le backend dib.
+##
+##  Usage (depuis deploy/frontend/) :
+##    cp .env.example .env   # renseigner DIB_BACKEND
+##    docker compose up -d --build
+## ──────────────────────────────────────────────
+
+services:
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/frontend/Dockerfile
+    image: junon-frontend:latest
+    container_name: junon-frontend
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    environment:
+      # Adresse du backend FastAPI sur dib (réseau interne universitaire)
+      - DIB_BACKEND=${DIB_BACKEND:-dib-2019006065.univ-tours.fr:49514}
+    # Permet de résoudre host.docker.internal vers l'hôte (utile si le backend
+    # est joint via un port publié sur l'hôte). Sans effet sur K8s.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FRONT_PORT:-49513}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M

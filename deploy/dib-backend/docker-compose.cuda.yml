@@ -1,0 +1,21 @@
+## CUDA (NVIDIA) override pour la stack backend sur dib-2019006065.
+## Usage : BACKEND=cuda docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build
+
+services:
+  backend:
+    build:
+      args:
+        BACKEND: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 24G
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - BACKEND=cuda
