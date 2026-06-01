@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     allowed_origins: Annotated[list[str], NoDecode] = ["http://localhost:49513"]
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     debug: bool = False
+    # Auth
+    jwt_secret: str = "dev-insecure-change-me"
+    jwt_alg: str = "HS256"
+    session_ttl_hours: int = 12
+    cookie_name: str = "junon_session"
+    cookie_secure: bool = True
+    cookie_samesite: Literal["strict", "lax", "none"] = "strict"
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
