@@ -135,6 +135,7 @@ export default function StationPage() {
           baselineEnd={(station as any).index_baseline_end}
           refValue={(station as any).index_ref_value}
           monthMedian={(station as any).index_month_median}
+          thresholdValues={(station as any).index_threshold_values}
           measureUnit={unit}
         />
 

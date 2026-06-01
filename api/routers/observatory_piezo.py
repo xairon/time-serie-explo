@@ -383,7 +383,8 @@ def get_station(code_bss: str):
                    sci.baseline_start AS index_baseline_start,
                    sci.baseline_end AS index_baseline_end,
                    lm.ref_value AS index_ref_value,
-                   lm.month_median AS index_month_median
+                   lm.month_median AS index_month_median,
+                   lm.threshold_values AS index_threshold_values
             FROM gold.dim_piezo_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
             LEFT JOIN LATERAL (
@@ -391,7 +392,12 @@ def get_station(code_bss: str):
                        (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY m2.niveau_moyen)
                         FROM gold.fct_monthly_chroniques m2
                         WHERE m2.code_bss = s.code_bss AND m2.niveau_moyen IS NOT NULL
-                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
+                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median,
+                       (SELECT percentile_cont(ARRAY[0.0401, 0.1003, 0.2005, 0.7995, 0.8997, 0.9599])
+                               WITHIN GROUP (ORDER BY m3.niveau_moyen)
+                        FROM gold.fct_monthly_chroniques m3
+                        WHERE m3.code_bss = s.code_bss AND m3.niveau_moyen IS NOT NULL
+                          AND EXTRACT(MONTH FROM m3.mois) = EXTRACT(MONTH FROM m.mois)) AS threshold_values
                 FROM gold.fct_monthly_chroniques m
                 WHERE m.code_bss = s.code_bss AND m.niveau_moyen IS NOT NULL
                 ORDER BY m.mois DESC LIMIT 1

@@ -12,6 +12,7 @@ interface Props {
   baselineEnd?: string | null
   refValue?: number | null      // value of the reference month (the value actually classified)
   monthMedian?: number | null   // median of that same calendar month across years
+  thresholdValues?: (number | null)[] | null  // real-unit values at the 6 class boundaries (same month)
   measureUnit: string
 }
 
@@ -36,7 +37,9 @@ export function SituationPanel(props: Props) {
           {isPiezo ? t('observatory.situation.title') : t('observatory.situation.titleHydro')}
         </span>
         {props.indexName && (
-          <span className="text-[10px] text-text-secondary">{props.indexName} <InfoDot tip={indexTip} /></span>
+          <span className="text-[10px] text-text-secondary">{props.indexName}
+            {props.indexValue != null && <span className="ml-1 font-mono text-text-primary">{props.indexValue > 0 ? '+' : ''}{props.indexValue.toFixed(2).replace('.', ',')}</span>} <InfoDot tip={indexTip} />
+          </span>
         )}
       </div>
 
@@ -58,12 +61,17 @@ export function SituationPanel(props: Props) {
               frac = Math.max(0, Math.min(1, (v - lo) / (hi - lo)))
             }
             const markerPct = idx >= 0 ? ((idx + frac) / 7) * 100 : 50
-            const fmt = (z: number) => `${z > 0 ? '+' : ''}${z.toFixed(2).replace('.', ',')}`
+            const dec = isPiezo ? 2 : 1
+            const tv = props.thresholdValues
+            const hasReal = Array.isArray(tv) && tv.length === 6
+            const fmtZ = (z: number) => `${z > 0 ? '+' : ''}${z.toFixed(2).replace('.', ',')}`
+            const boundaryLabel = (j: number) =>
+              hasReal ? (tv![j - 1] != null ? formatNumber(tv![j - 1] as number, dec) : '—') : fmtZ(ZB[j])
             return (
               <div className="mb-2">
                 <div className="relative h-3.5">
-                  {v != null && (
-                    <span className="absolute -translate-x-1/2 text-[10px] font-mono font-semibold whitespace-nowrap" style={{ left: `${markerPct}%`, color }}>{fmt(v)}</span>
+                  {props.refValue != null && (
+                    <span className="absolute -translate-x-1/2 text-[10px] font-mono font-semibold whitespace-nowrap" style={{ left: `${markerPct}%`, color }}>{formatNumber(props.refValue, dec)}</span>
                   )}
                 </div>
                 <div className="relative" role="img" aria-label={CLASSIFICATION_LABELS[cls!] ?? cls!}>
@@ -81,7 +89,7 @@ export function SituationPanel(props: Props) {
                 </div>
                 <div className="relative h-3 mt-0.5 text-[8px] text-text-secondary font-mono">
                   {[1, 2, 3, 4, 5, 6].map(j => (
-                    <span key={j} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(j / 7) * 100}%` }}>{fmt(ZB[j])}</span>
+                    <span key={j} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(j / 7) * 100}%` }}>{boundaryLabel(j)}</span>
                   ))}
                 </div>
                 <div className="flex justify-between text-[9px] text-text-secondary">
