@@ -101,21 +101,60 @@ function createSdfIcon(draw: (ctx: CanvasRenderingContext2D, size: number) => vo
   return ctx.getImageData(0, 0, size, size)
 }
 
-function drawPiezoCircle(ctx: CanvasRenderingContext2D, size: number) {
-  const cx = size / 2, cy = size / 2
+// Non-SDF icon (keeps its own colors, e.g. a white glyph that must NOT be
+// recolored by icon-color). Used for the type glyph drawn on top of the badge.
+function createRgbaIcon(draw: (ctx: CanvasRenderingContext2D, size: number) => void, size = 44): ImageData {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  draw(ctx, size)
+  return ctx.getImageData(0, 0, size, size)
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
-  ctx.arc(cx, cy, size * 0.38, 0, Math.PI * 2)
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+// Unified modern squircle badge (SDF, tinted at runtime by the water-level
+// classification color). Centered so the selection ring and hit-testing stay aligned.
+function drawStationBadge(ctx: CanvasRenderingContext2D, size: number) {
+  const pad = size * 0.16
+  const w = size - pad * 2
+  roundRect(ctx, pad, pad, w, w, w * 0.36)
   ctx.fillStyle = '#fff'
   ctx.fill()
 }
 
-function drawHydroDrop(ctx: CanvasRenderingContext2D, size: number) {
+// White type glyph — piezo = groundwater: a small borehole stem + downward
+// triangle (level measured below the surface).
+function drawPiezoGlyph(ctx: CanvasRenderingContext2D, size: number) {
   const cx = size / 2
-  const r = size * 0.32
-  const bottomY = size * 0.62
-  const tipY = size * 0.12
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(cx - size * 0.045, size * 0.30, size * 0.09, size * 0.13)
+  const w = size * 0.16, top = size * 0.44, bot = size * 0.66
   ctx.beginPath()
-  ctx.arc(cx, bottomY, r, 0.15 * Math.PI, 0.85 * Math.PI)
+  ctx.moveTo(cx - w, top)
+  ctx.lineTo(cx + w, top)
+  ctx.lineTo(cx, bot)
+  ctx.closePath()
+  ctx.fill()
+}
+
+// White type glyph — hydro = surface water: a water drop.
+function drawHydroGlyph(ctx: CanvasRenderingContext2D, size: number) {
+  const cx = size / 2
+  const r = size * 0.15
+  const bottomY = size * 0.58
+  const tipY = size * 0.34
+  ctx.beginPath()
+  ctx.arc(cx, bottomY, r, 0.12 * Math.PI, 0.88 * Math.PI)
   ctx.lineTo(cx, tipY)
   ctx.closePath()
   ctx.fillStyle = '#fff'
@@ -123,18 +162,24 @@ function drawHydroDrop(ctx: CanvasRenderingContext2D, size: number) {
 }
 
 const CLUSTER_STYLE = {
-  piezo: { bg: 'rgba(6,182,212,0.85)', border: 'rgba(6,182,212,0.5)', text: '#ffffff' },
-  hydro: { bg: 'rgba(99,102,241,0.85)', border: 'rgba(99,102,241,0.5)', text: '#ffffff' },
+  piezo: { bg: 'rgba(6,182,212,0.9)', border: 'rgba(255,255,255,0.7)', text: '#ffffff' },
+  hydro: { bg: 'rgba(99,102,241,0.9)', border: 'rgba(255,255,255,0.7)', text: '#ffffff' },
 } as const
 
+// Shared icon-size ramp so badge + glyph scale together and stay registered.
+const MARKER_SIZE: maplibregl.ExpressionSpecification = ['interpolate', ['linear'], ['zoom'], 4, 0.4, 8, 0.55, 12, 0.8]
+
 function addClusteredSource(
-  map: maplibregl.Map, sourceId: string, prefix: string, iconImage: string,
+  map: maplibregl.Map, sourceId: string, prefix: string, iconImage: string, glyphImage: string,
   style: { bg: string; border: string; text: string },
 ) {
   map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: true, clusterMaxZoom: 9, clusterRadius: 80 })
-  map.addLayer({ id: `${prefix}-clusters`, type: 'circle', source: sourceId, filter: ['has', 'point_count'], paint: { 'circle-color': style.bg, 'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 50, 26, 200, 32, 1000, 38], 'circle-stroke-width': 2, 'circle-stroke-color': style.border } })
+  map.addLayer({ id: `${prefix}-clusters`, type: 'circle', source: sourceId, filter: ['has', 'point_count'], paint: { 'circle-color': style.bg, 'circle-radius': ['step', ['get', 'point_count'], 16, 10, 20, 50, 26, 200, 32, 1000, 38], 'circle-blur': 0.15, 'circle-stroke-width': 2, 'circle-stroke-color': style.border } })
   map.addLayer({ id: `${prefix}-cluster-count`, type: 'symbol', source: sourceId, filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], 'text-size': ['step', ['get', 'point_count'], 11, 100, 12, 1000, 13], 'text-allow-overlap': true }, paint: { 'text-color': style.text } })
-  map.addLayer({ id: `${prefix}-unclustered`, type: 'symbol', source: sourceId, filter: ['!', ['has', 'point_count']], layout: { 'icon-image': iconImage, 'icon-size': ['interpolate', ['linear'], ['zoom'], 4, 0.35, 8, 0.5, 12, 0.75], 'icon-allow-overlap': true }, paint: { 'icon-color': buildClassificationColorExpression() as any, 'icon-halo-color': '#000000', 'icon-halo-width': 0.8 } })
+  // Tinted badge (clickable layer — keep this id) with a soft dark halo as a drop shadow.
+  map.addLayer({ id: `${prefix}-unclustered`, type: 'symbol', source: sourceId, filter: ['!', ['has', 'point_count']], layout: { 'icon-image': iconImage, 'icon-size': MARKER_SIZE, 'icon-allow-overlap': true }, paint: { 'icon-color': buildClassificationColorExpression() as any, 'icon-halo-color': 'rgba(2,6,23,0.5)', 'icon-halo-width': 1.4, 'icon-halo-blur': 1.6 } })
+  // White type glyph on top (non-SDF → stays white, never tinted).
+  map.addLayer({ id: `${prefix}-glyph`, type: 'symbol', source: sourceId, filter: ['!', ['has', 'point_count']], layout: { 'icon-image': glyphImage, 'icon-size': MARKER_SIZE, 'icon-allow-overlap': true, 'icon-ignore-placement': true } })
   map.on('click', `${prefix}-clusters`, (e) => {
     const cluster = e.features?.[0]; if (!cluster) return
     const clusterId = cluster.properties?.cluster_id
@@ -271,11 +316,13 @@ export function ObservatoryMap({
         })
       }
 
-      map.addImage('piezo-marker', createSdfIcon(drawPiezoCircle, 40), { sdf: true })
-      map.addImage('hydro-marker', createSdfIcon(drawHydroDrop, 40), { sdf: true })
+      map.addImage('piezo-marker', createSdfIcon(drawStationBadge, 44), { sdf: true })
+      map.addImage('hydro-marker', createSdfIcon(drawStationBadge, 44), { sdf: true })
+      map.addImage('piezo-glyph', createRgbaIcon(drawPiezoGlyph, 44))
+      map.addImage('hydro-glyph', createRgbaIcon(drawHydroGlyph, 44))
 
-      addClusteredSource(map, 'piezo-stations', 'piezo', 'piezo-marker', CLUSTER_STYLE.piezo)
-      addClusteredSource(map, 'hydro-stations', 'hydro', 'hydro-marker', CLUSTER_STYLE.hydro)
+      addClusteredSource(map, 'piezo-stations', 'piezo', 'piezo-marker', 'piezo-glyph', CLUSTER_STYLE.piezo)
+      addClusteredSource(map, 'hydro-stations', 'hydro', 'hydro-marker', 'hydro-glyph', CLUSTER_STYLE.hydro)
 
       const addExcludedSource = (sourceId: string, iconImage: string, layerId: string) => {
         map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
@@ -430,8 +477,8 @@ export function ObservatoryMap({
   useEffect(() => {
     if (!mapRef.current || !mapLoadedRef.current) return; const map = mapRef.current
     const toggle = (layers: string[], visible: boolean) => { const vis = visible ? 'visible' : 'none'; layers.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis) }) }
-    toggle(['piezo-clusters', 'piezo-cluster-count', 'piezo-unclustered', 'piezo-excluded-layer'], showPiezo)
-    toggle(['hydro-clusters', 'hydro-cluster-count', 'hydro-unclustered', 'hydro-excluded-layer'], showHydro)
+    toggle(['piezo-clusters', 'piezo-cluster-count', 'piezo-unclustered', 'piezo-glyph', 'piezo-excluded-layer'], showPiezo)
+    toggle(['hydro-clusters', 'hydro-cluster-count', 'hydro-unclustered', 'hydro-glyph', 'hydro-excluded-layer'], showHydro)
   }, [showPiezo, showHydro, mapLoaded])
 
   // Toggle terrain
@@ -545,9 +592,19 @@ export function ObservatoryMap({
           ))}
         </div>
         <div className="border-t border-white/10 pt-1 mt-1 flex gap-3">
-          <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#10b981' }} /><span className="text-gray-300">{t('observatory.map.piezo')}</span></div>
           <div className="flex items-center gap-1.5">
-            <svg width="12" height="14" viewBox="0 0 12 14" className="shrink-0"><path d="M6,1 Q6,1 10,8 A4.5,4.5 0 1,1 2,8 Q6,1 6,1Z" fill="#10b981" /></svg>
+            <svg width="14" height="14" viewBox="0 0 14 14" className="shrink-0">
+              <rect x="1.5" y="1.5" width="11" height="11" rx="3.8" fill="#475569" />
+              <rect x="6.4" y="4.1" width="1.2" height="1.9" fill="#fff" />
+              <path d="M4.9 6.2 H9.1 L7 8.9 Z" fill="#fff" />
+            </svg>
+            <span className="text-gray-300">{t('observatory.map.piezo')}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 14 14" className="shrink-0">
+              <rect x="1.5" y="1.5" width="11" height="11" rx="3.8" fill="#475569" />
+              <path d="M7 4.2 Q7 4.2 8.9 8 A2.1 2.1 0 1 1 5.1 8 Q7 4.2 7 4.2Z" fill="#fff" />
+            </svg>
             <span className="text-gray-300">{t('observatory.map.hydro')}</span>
           </div>
         </div>
