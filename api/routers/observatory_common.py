@@ -18,6 +18,13 @@ ALERTS_TTL = 3600
 STATS_TTL = 21600
 TIMELINE_TTL = 86400
 
+# Days after which a station's last measurement is considered stale (inactive).
+# Single source of truth for "active station" server-side. Kept in sync with the
+# frontend ACTIVE_STATION_DAYS in frontend/src/lib/observatory-utils.ts.
+# NOTE: derniere_mesure is month-bucketed (MAX(mois)) in gold.dim_*_stations,
+# so this threshold is compared against month-start dates.
+ACTIVE_STATION_DAYS = 90
+
 SeverityType = Literal[
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
 ]
@@ -138,7 +145,7 @@ def list_alerts(
 
     def fetch():
         bind: dict = {}
-        recent_cutoff = date.today() - timedelta(days=90)
+        recent_cutoff = date.today() - timedelta(days=ACTIVE_STATION_DAYS)
         parts = []
 
         if type is None or type == "piezo":
@@ -245,7 +252,7 @@ def list_alerts(
 @router.get("/stats/national", response_model=NationalStats)
 def get_national_stats():
     def fetch():
-        recent_cutoff = date.today() - timedelta(days=90)
+        recent_cutoff = date.today() - timedelta(days=ACTIVE_STATION_DAYS)
         query = """
             WITH piezo AS (
                 SELECT count(*) AS total,

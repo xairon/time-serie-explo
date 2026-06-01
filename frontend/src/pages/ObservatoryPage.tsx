@@ -11,6 +11,7 @@ import { RightDrawer } from '@/components/observatory/RightDrawer'
 import { useStationsGeoJSON, useWfsLayer, useObsFilters } from '@/hooks/useObservatory'
 import type { StationGeoJSONFeature, WfsLayerId, ClassificationTimeline } from '@/lib/observatory-types'
 import { TIMELINE_CLASSIFICATIONS } from '@/lib/observatory-types'
+import { isStationActive, ACTIVE_FILTER_DAYS } from '@/lib/observatory-utils'
 
 type Bbox = [number, number, number, number]
 
@@ -75,7 +76,7 @@ export default function ObservatoryPage() {
     const all = geojsonData?.features ?? []
     return all.filter(f => {
       if (f.properties.type === 'piezo' && !showPiezo) return false; if (f.properties.type === 'hydro' && !showHydro) return false
-      if (filters.activeOnly) { const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 365); const cutoffStr = cutoff.toISOString().slice(0, 10); if (!f.properties.derniere_mesure || f.properties.derniere_mesure < cutoffStr) return false }
+      if (filters.activeOnly && !isStationActive(f.properties.derniere_mesure, ACTIVE_FILTER_DAYS)) return false
       if (filters.codeDepartement && f.properties.code_departement !== filters.codeDepartement) return false
       if (filters.classification?.length && !filters.classification.includes(f.properties.classification ?? '')) return false
       if (filters.codeBdlisa && f.properties.type === 'piezo') { const codes = f.properties.codes_bdlisa ?? ''; if (!codes.startsWith(filters.codeBdlisa)) return false }

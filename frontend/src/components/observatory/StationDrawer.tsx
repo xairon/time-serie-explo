@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, ExternalLink, Droplets, Waves } from 'lucide-react'
 import { ClassificationBadge } from './ClassificationBadge'
 import { AddToCompareButton } from './AddToCompareButton'
-import { formatNumber, formatDate } from '@/lib/observatory-utils'
+import { formatNumber, formatDate, isStationActive } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, useObsPastasSummary } from '@/hooks/useObservatory'
 
@@ -11,12 +11,6 @@ interface Props {
   code: string
   type: 'piezo' | 'hydro'
   onClose: () => void
-}
-
-function isRecent(dateStr: string | null | undefined): boolean {
-  if (!dateStr) return false
-  const d = new Date(dateStr); const ago = new Date(); ago.setMonth(ago.getMonth() - 3)
-  return d >= ago
 }
 
 function DrawerSkeleton({ onClose }: { onClose: () => void }) {
@@ -69,7 +63,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
     const histMin = isPiezo ? s.niveau_min_absolu : s.resultat_min_global
     const histMax = isPiezo ? s.niveau_max_absolu : s.resultat_max_global
     const lastMeasure = s.derniere_mesure
-    const recent = isRecent(lastMeasure)
+    const recent = isStationActive(lastMeasure)
     const dataCount = isPiezo ? s.nb_mesures_total : s.nb_jours_total
     const dataPeriodYears = s.nb_mois_total ? Math.round(s.nb_mois_total / 12) : null
 
