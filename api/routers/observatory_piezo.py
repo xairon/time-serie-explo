@@ -381,9 +381,21 @@ def get_station(code_bss: str):
                    sci.index_name, sci.index_value, sci.index_class,
                    sci.ref_month AS index_ref_month,
                    sci.baseline_start AS index_baseline_start,
-                   sci.baseline_end AS index_baseline_end
+                   sci.baseline_end AS index_baseline_end,
+                   lm.ref_value AS index_ref_value,
+                   lm.month_median AS index_month_median
             FROM gold.dim_piezo_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
+            LEFT JOIN LATERAL (
+                SELECT m.niveau_moyen AS ref_value,
+                       (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY m2.niveau_moyen)
+                        FROM gold.fct_monthly_chroniques m2
+                        WHERE m2.code_bss = s.code_bss AND m2.niveau_moyen IS NOT NULL
+                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
+                FROM gold.fct_monthly_chroniques m
+                WHERE m.code_bss = s.code_bss AND m.niveau_moyen IS NOT NULL
+                ORDER BY m.mois DESC LIMIT 1
+            ) lm ON true
             WHERE s.code_bss = :code
         """
         engine = create_engine(_brgm_url())

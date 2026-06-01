@@ -519,9 +519,25 @@ def get_station(code_station: str):
                    sci.index_name, sci.index_value, sci.index_class,
                    sci.ref_month AS index_ref_month,
                    sci.baseline_start AS index_baseline_start,
-                   sci.baseline_end AS index_baseline_end
+                   sci.baseline_end AS index_baseline_end,
+                   lm.ref_value AS index_ref_value,
+                   lm.month_median AS index_month_median
             FROM gold.dim_hydro_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
+            LEFT JOIN LATERAL (
+                SELECT m.resultat_moyen AS ref_value,
+                       (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY m2.resultat_moyen)
+                        FROM gold.fct_monthly_hydro m2
+                        WHERE m2.code_station = s.code_station
+                          AND m2.grandeur_hydro_elab = s.grandeur_hydro_principale
+                          AND m2.resultat_moyen IS NOT NULL AND m2.resultat_moyen < 1e8
+                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
+                FROM gold.fct_monthly_hydro m
+                WHERE m.code_station = s.code_station
+                  AND m.grandeur_hydro_elab = s.grandeur_hydro_principale
+                  AND m.resultat_moyen IS NOT NULL AND m.resultat_moyen < 1e8
+                ORDER BY m.mois DESC LIMIT 1
+            ) lm ON true
             WHERE s.code_station = :code
         """
         engine = create_engine(_brgm_url())
@@ -533,7 +549,7 @@ def get_station(code_station: str):
             engine.dispose()
         if not row:
             raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
-        return _convert_qmnj_row(dict(row), _FLOW_COLS_DIM)
+        return _convert_qmnj_row(dict(row), _FLOW_COLS_DIM + ("index_ref_value", "index_month_median"))
 
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)
 

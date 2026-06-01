@@ -54,7 +54,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
     const name = isPiezo ? (s.nom_commune || s.code_bss) : (s.libelle_station || s.code_station)
     const sCode = isPiezo ? s.code_bss : s.code_station
     const dept = s.nom_departement ?? s.code_departement ?? ''
-    const currentValue = isPiezo ? s.niveau_derniere_annee : s.resultat_moyen_dern_annee
     const isHauteur = s.grandeur_hydro_principale === 'H'
     const unit = isPiezo ? 'm NGF' : (isHauteur ? 'm' : 'm\u00b3/s')
     const histMin = isPiezo ? s.niveau_min_absolu : s.resultat_min_global
@@ -90,7 +89,8 @@ export function StationDrawer({ code, type, onClose }: Props) {
             refMonth={(station as any).index_ref_month}
             baselineStart={(station as any).index_baseline_start}
             baselineEnd={(station as any).index_baseline_end}
-            measure={currentValue}
+            refValue={(station as any).index_ref_value}
+            monthMedian={(station as any).index_month_median}
             measureUnit={unit}
           />
         ) : (

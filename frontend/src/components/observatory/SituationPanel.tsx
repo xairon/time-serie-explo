@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { CLASSIFICATION_COLORS, CLASSIFICATION_LABELS, CLASSIFICATION_ORDER } from '@/lib/observatory-constants'
-import { formatNumber, formatDate } from '@/lib/observatory-utils'
+import { formatNumber } from '@/lib/observatory-utils'
 
 interface Props {
   type: 'piezo' | 'hydro'
@@ -10,7 +10,8 @@ interface Props {
   refMonth?: string | null
   baselineStart?: string | null
   baselineEnd?: string | null
-  measure?: number | null
+  refValue?: number | null      // value of the reference month (the value actually classified)
+  monthMedian?: number | null   // median of that same calendar month across years
   measureUnit: string
 }
 
@@ -21,7 +22,7 @@ function InfoDot({ tip }: { tip: string }) {
 }
 
 export function SituationPanel(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const isPiezo = props.type === 'piezo'
   const cls = props.indexClass
   const unknown = !cls || cls === 'UNKNOWN'
@@ -92,13 +93,33 @@ export function SituationPanel(props: Props) {
         </>
       )}
 
-      {props.measure != null && (
-        <div className="text-xs text-text-secondary">
-          {t('observatory.situation.measure')} : <span className="text-text-primary font-mono">{formatNumber(props.measure, 2)} {props.measureUnit}</span>
-          {isPiezo && <> <InfoDot tip={t('observatory.situation.ngfTip')} /></>}
-        </div>
-      )}
-      {props.refMonth && <div className="text-[10px] text-text-secondary mt-1">{formatDate(props.refMonth)}{props.baselineStart && props.baselineEnd && <> · {props.baselineStart.slice(0,4)}–{props.baselineEnd.slice(0,4)}</>}</div>}
+      {props.refMonth && (() => {
+        const locale = i18n.language?.startsWith('en') ? 'en-GB' : 'fr-FR'
+        const d = new Date(props.refMonth!)
+        const monthYear = d.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+        const monthName = d.toLocaleDateString(locale, { month: 'long' })
+        const dec = isPiezo ? 2 : 1
+        return (
+          <div className="space-y-0.5">
+            {props.refValue != null && (
+              <div className="text-xs">
+                <span className="text-text-secondary capitalize">{monthYear}</span>
+                <span className="text-text-secondary"> : </span>
+                <span className="text-text-primary font-mono">{formatNumber(props.refValue, dec)} {props.measureUnit}</span>
+                {isPiezo && <> <InfoDot tip={t('observatory.situation.ngfTip')} /></>}
+              </div>
+            )}
+            {props.monthMedian != null && (
+              <div className="text-[11px] text-text-secondary">
+                {t('observatory.situation.typicalForMonth', { month: monthName })} : <span className="font-mono">{formatNumber(props.monthMedian, dec)} {props.measureUnit}</span>
+              </div>
+            )}
+            {props.baselineStart && props.baselineEnd && (
+              <div className="text-[10px] text-text-secondary">{props.baselineStart.slice(0, 4)}–{props.baselineEnd.slice(0, 4)}</div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

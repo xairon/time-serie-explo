@@ -133,7 +133,8 @@ export default function StationPage() {
           refMonth={(station as any).index_ref_month}
           baselineStart={(station as any).index_baseline_start}
           baselineEnd={(station as any).index_baseline_end}
-          measure={isPiezo ? (station as any).niveau_derniere_annee : (station as any).resultat_moyen_dern_annee}
+          refValue={(station as any).index_ref_value}
+          monthMedian={(station as any).index_month_median}
           measureUnit={unit}
         />
 

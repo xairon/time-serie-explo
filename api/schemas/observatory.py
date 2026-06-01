@@ -49,6 +49,8 @@ class PiezoStation(BaseModel):
     index_ref_month: date | None = None
     index_baseline_start: date | None = None
     index_baseline_end: date | None = None
+    index_ref_value: float | None = None
+    index_month_median: float | None = None
 
 
 class PiezoDaily(BaseModel):
@@ -148,6 +150,8 @@ class HydroStation(BaseModel):
     index_ref_month: date | None = None
     index_baseline_start: date | None = None
     index_baseline_end: date | None = None
+    index_ref_value: float | None = None
+    index_month_median: float | None = None
 
 
 class HydroDaily(BaseModel):
