@@ -103,3 +103,35 @@ async def test_pastas_model_delete_foreign_404(client, make_user):
             cookies=_cookies(u),
         )
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pastas_simulate_foreign_404(client, make_user):
+    """POST /pastas/simulate must return 404 for a foreign model."""
+    u = await make_user(email="simintruder@test.fr")
+    fake_run_id = uuid.uuid4().hex  # 32-char hex — passes _validate_run_id
+
+    body = {
+        "run_id": fake_run_id,
+        "tmin": "2020-01-01",
+        "tmax": "2023-12-31",
+        "modifications": [],
+    }
+    with patch("api.auth.ownership._model_registry", return_value=_ForeignModelReg()):
+        res = await client.post(
+            "/api/v1/pastas/simulate", json=body, cookies=_cookies(u)
+        )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pumping_detection_foreign_dataset_404(client, make_user):
+    """POST /pumping-detection/analyze must return 404 for a foreign dataset."""
+    u = await make_user(email="pumpintruder@test.fr")
+
+    body = {"dataset_id": str(uuid.uuid4())}
+    with patch("api.auth.ownership._dataset_registry", return_value=_ForeignDatasetReg()):
+        res = await client.post(
+            "/api/v1/pumping-detection/analyze", json=body, cookies=_cookies(u)
+        )
+    assert res.status_code == 404

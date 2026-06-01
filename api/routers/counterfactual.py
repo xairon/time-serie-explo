@@ -707,6 +707,10 @@ async def pastas_validate(req: PastasValidateRequest, current: User = Depends(ge
     # --- Load model and data (same pattern as _run_cf_thread) ---
     registry = ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
     model_id = pastas_ctx.get("model_id", req.model_id)
+    # Re-check ownership on the EFFECTIVE model_id (may differ from req.model_id
+    # when the CF task context embeds a different model).
+    if model_id != req.model_id:
+        assert_owns_model(current, model_id)
     entry = registry.get_model(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")

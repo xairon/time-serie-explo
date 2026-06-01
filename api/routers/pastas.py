@@ -942,9 +942,12 @@ def compare_models_endpoint(req: CompareRequest, current: User = Depends(get_cur
 # ---------------------------------------------------------------------------
 
 @router.post("/simulate", response_model=ScenarioResponse)
-def simulate(req: ScenarioRequest) -> ScenarioResponse:
+def simulate(req: ScenarioRequest, current: User = Depends(get_current_user)) -> ScenarioResponse:
     """Apply what-if modifications to a calibrated model and simulate."""
     from dashboard.utils.pastas.scenario import simulate_scenario
+
+    _validate_run_id(req.run_id)
+    assert_owns_model(current, req.run_id)
 
     modifications = [m.model_dump() for m in req.modifications]
 

@@ -57,6 +57,7 @@ async def update_user(user_id: uuid.UUID, req: UpdateUserRequest, _: User = Depe
         user.token_version += 1
     if req.role is not None:
         user.role = req.role
+        user.token_version += 1
     if req.new_password is not None:
         user.password_hash = hash_password(req.new_password)
         user.token_version += 1

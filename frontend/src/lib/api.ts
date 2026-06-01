@@ -180,7 +180,8 @@ export const api = {
     list: () => fetchJson<DatasetSummary[]>('/datasets'),
     get: (id: string) => fetchJson<DatasetSummary>(`/datasets/${id}`),
     create: (body: FormData) =>
-      fetch(`${API_BASE}/datasets`, { method: 'POST', body }).then(async (res) => {
+      fetch(`${API_BASE}/datasets`, { method: 'POST', body, credentials: 'include' }).then(async (res) => {
+        if (res.status === 401) { window.dispatchEvent(new CustomEvent('auth:unauthorized')) }
         if (!res.ok) throw new Error(`API ${res.status}`)
         return res.json() as Promise<DatasetSummary>
       }),
