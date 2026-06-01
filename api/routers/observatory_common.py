@@ -170,7 +170,7 @@ def list_alerts(
                 SELECT s.code_bss AS code, 'piezo' AS type,
                        s.latitude, s.longitude,
                        s.nom_commune AS commune, s.code_departement, s.nom_departement AS departement,
-                       sci.index_class AS classification, s.derniere_mesure,
+                       sci.index_class AS classification, s.derniere_mesure::text AS derniere_mesure,
                        cs.alerte_depuis_annee, cs.nb_annees_consecutives
                 FROM gold.dim_piezo_stations s
                 LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
@@ -210,7 +210,7 @@ def list_alerts(
                 SELECT s.code_station AS code, 'hydro' AS type,
                        s.latitude_station AS latitude, s.longitude_station AS longitude,
                        s.libelle_station AS commune, s.code_departement, s.nom_departement AS departement,
-                       sci.index_class AS classification, s.derniere_mesure,
+                       sci.index_class AS classification, s.derniere_mesure::text AS derniere_mesure,
                        cs.alerte_depuis_annee, cs.nb_annees_consecutives
                 FROM gold.dim_hydro_stations s
                 LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
