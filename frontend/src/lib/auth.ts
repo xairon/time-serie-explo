@@ -20,3 +20,11 @@ export const authApi = {
     req<AuthUser>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => req<void>('/auth/logout', { method: 'POST' }),
 }
+
+export const adminApi = {
+  list: () => req<AuthUser[]>('/admin/users'),
+  create: (body: { email: string; display_name: string; role: string; initial_password: string }) =>
+    req<AuthUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+  update: (id: string, body: { is_active?: boolean; role?: string; new_password?: string }) =>
+    req<AuthUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+}
