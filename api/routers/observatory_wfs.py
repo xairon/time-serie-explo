@@ -9,6 +9,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import Response
 
+from api.config import settings
 from dashboard.utils.cache import get_cached
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ def get_wfs_layer(
     key = f"junon:obs_wfs_{layer_id}:{h}"
 
     try:
-        pool = sync_redis.ConnectionPool(host="redis", port=6379, db=0, decode_responses=False)
+        pool = sync_redis.ConnectionPool.from_url(settings.redis_url, decode_responses=False)
         r = sync_redis.Redis(connection_pool=pool)
         cached_val = r.get(key)
         if cached_val:

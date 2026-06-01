@@ -97,7 +97,7 @@ services:
       - BRGM_DB_USER=postgres
       - BRGM_DB_PASSWORD=${BRGM_DB_PASSWORD:-}
       - BRGM_DB_NAME=postgres
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://junon-redis:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - DEBUG=${DEBUG:-false}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:49513}

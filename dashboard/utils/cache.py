@@ -7,12 +7,18 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 
 import redis
 
 logger = logging.getLogger(__name__)
 
-_pool = redis.ConnectionPool(host="redis", port=6379, db=0, decode_responses=True)
+# Honor REDIS_URL so the host is explicit. Default to the unambiguous container
+# name junon-redis: the backend is attached to both the compose network and the
+# BRGM network, and the bare service alias "redis" collides with the BRGM stack's
+# own redis (it resolved there, serving stale cache). See compose REDIS_URL.
+_REDIS_URL = os.environ.get("REDIS_URL", "redis://junon-redis:6379/0")
+_pool = redis.ConnectionPool.from_url(_REDIS_URL, decode_responses=True)
 
 
 def _normalize_value(v):

@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     brgm_db_name: str = "postgres"
     brgm_db_user: str = "postgres"
     brgm_db_password: str = ""
-    # Redis
-    redis_url: str = "redis://redis:6379/0"
+    # Redis — explicit container name (the bare "redis" alias collides with the
+    # BRGM stack's redis on the shared brgm_net network). Overridable via REDIS_URL.
+    redis_url: str = "redis://junon-redis:6379/0"
     # MLflow
     mlflow_tracking_uri: str = "http://mlflow:5000"
     # API
