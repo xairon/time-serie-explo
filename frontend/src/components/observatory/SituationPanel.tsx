@@ -35,9 +35,7 @@ export function SituationPanel(props: Props) {
           {isPiezo ? t('observatory.situation.title') : t('observatory.situation.titleHydro')}
         </span>
         {props.indexName && (
-          <span className="text-[10px] text-text-secondary">{props.indexName} <InfoDot tip={indexTip} />
-            {props.indexValue != null && <span className="ml-1 font-mono text-text-primary">{props.indexValue.toFixed(2)}</span>}
-          </span>
+          <span className="text-[10px] text-text-secondary">{props.indexName} <InfoDot tip={indexTip} /></span>
         )}
       </div>
 
@@ -49,18 +47,48 @@ export function SituationPanel(props: Props) {
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
             <span className="text-sm font-semibold" style={{ color }}>{CLASSIFICATION_LABELS[cls!] ?? cls}</span>
           </div>
-          <div className="flex gap-0.5 mb-1" role="img" aria-label={CLASSIFICATION_LABELS[cls!] ?? cls!}>
-            {CLASSIFICATION_ORDER.map(c => (
-              <span key={c} className="h-2 flex-1 rounded-sm" style={{
-                backgroundColor: CLASSIFICATION_COLORS[c as string],
-                opacity: c === cls ? 1 : 0.25,
-                outline: c === cls ? '1px solid rgba(255,255,255,0.8)' : 'none',
-              }} />
-            ))}
-          </div>
-          <div className="flex justify-between text-[9px] text-text-secondary mb-2">
-            <span>{t('observatory.situation.scaleLow')}</span><span>{t('observatory.situation.scaleHigh')}</span>
-          </div>
+          {(() => {
+            const ZB = [-2.5, -1.75, -1.28, -0.84, 0.84, 1.28, 1.75, 2.5]
+            const idx = CLASSIFICATION_ORDER.indexOf(cls as any)
+            const v = props.indexValue
+            let frac = 0.5
+            if (idx >= 0 && v != null) {
+              const lo = ZB[idx], hi = ZB[idx + 1]
+              frac = Math.max(0, Math.min(1, (v - lo) / (hi - lo)))
+            }
+            const markerPct = idx >= 0 ? ((idx + frac) / 7) * 100 : 50
+            const fmt = (z: number) => `${z > 0 ? '+' : ''}${z.toFixed(2).replace('.', ',')}`
+            return (
+              <div className="mb-2">
+                <div className="relative h-3.5">
+                  {v != null && (
+                    <span className="absolute -translate-x-1/2 text-[10px] font-mono font-semibold whitespace-nowrap" style={{ left: `${markerPct}%`, color }}>{fmt(v)}</span>
+                  )}
+                </div>
+                <div className="relative" role="img" aria-label={CLASSIFICATION_LABELS[cls!] ?? cls!}>
+                  <div className="flex gap-0.5 h-2.5">
+                    {CLASSIFICATION_ORDER.map(c => (
+                      <span key={c} className="flex-1 rounded-sm" style={{
+                        backgroundColor: CLASSIFICATION_COLORS[c as string],
+                        opacity: c === cls ? 1 : 0.4,
+                      }} />
+                    ))}
+                  </div>
+                  {v != null && (
+                    <span className="absolute -top-0.5 -bottom-0.5 w-0.5 bg-white rounded-full" style={{ left: `${markerPct}%`, transform: 'translateX(-50%)' }} />
+                  )}
+                </div>
+                <div className="relative h-3 mt-0.5 text-[8px] text-text-secondary font-mono">
+                  {[1, 2, 3, 4, 5, 6].map(j => (
+                    <span key={j} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(j / 7) * 100}%` }}>{fmt(ZB[j])}</span>
+                  ))}
+                </div>
+                <div className="flex justify-between text-[9px] text-text-secondary">
+                  <span>{t('observatory.situation.scaleLow')}</span><span>{t('observatory.situation.scaleHigh')}</span>
+                </div>
+              </div>
+            )
+          })()}
         </>
       )}
 
