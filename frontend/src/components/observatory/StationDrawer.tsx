@@ -59,6 +59,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
     const unit = isPiezo ? 'm NGF' : (isHauteur ? 'm' : 'm\u00b3/s')
     const histMin = isPiezo ? s.niveau_min_absolu : s.resultat_min_global
     const histMax = isPiezo ? s.niveau_max_absolu : s.resultat_max_global
+    const histMean = isPiezo ? s.niveau_moyen_global : s.resultat_moyen_global
     const lastMeasure = s.derniere_mesure
     const recent = isStationActive(lastMeasure)
     const dataCount = isPiezo ? s.nb_mesures_total : s.nb_jours_total
@@ -100,6 +101,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
           <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.history')}</div>
           <div className="divide-y divide-white/5">
             {histMin != null && histMax != null && <InfoRow label={t('observatory.range')} value={<><span className="font-mono">{formatNumber(histMin)}</span> -- <span className="font-mono">{formatNumber(histMax)}</span> {unit}</>} />}
+            {histMean != null && <InfoRow label={t('observatory.historicalMean')} value={<><span className="font-mono">{formatNumber(histMean)}</span> {unit}</>} />}
             <InfoRow label={t('observatory.lastMeasure')} value={formatDate(lastMeasure)} />
             <InfoRow label={t('observatory.dataCount')} value={<>{dataCount?.toLocaleString() ?? '--'} {isPiezo ? t('observatory.measures') : t('observatory.days')}</>} sub={dataPeriodYears ? `${dataPeriodYears} ${t('observatory.yearsRecorded')}` : undefined} />
           </div>
