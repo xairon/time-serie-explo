@@ -508,15 +508,21 @@ def get_siblings(code_station: str):
 def get_station(code_station: str):
     def fetch():
         query = """
-            SELECT code_station, libelle_station, code_site, libelle_site,
-                   code_cours_eau, nom_cours_eau, code_departement, nom_departement,
-                   date_ouverture_station, longitude_station, latitude_station,
-                   grandeur_hydro_principale, premiere_mesure, derniere_mesure,
-                   nb_jours_total, nb_mois_total, resultat_moyen_global,
-                   resultat_min_global, resultat_max_global, resultat_stddev_global,
-                   annee_dernier_bilan, resultat_moyen_dern_annee,
-                   classification_resultat_dern_annee, percentile_resultat_dern_annee
-            FROM gold.dim_hydro_stations WHERE code_station = :code
+            SELECT s.code_station, s.libelle_station, s.code_site, s.libelle_site,
+                   s.code_cours_eau, s.nom_cours_eau, s.code_departement, s.nom_departement,
+                   s.date_ouverture_station, s.longitude_station, s.latitude_station,
+                   s.grandeur_hydro_principale, s.premiere_mesure, s.derniere_mesure,
+                   s.nb_jours_total, s.nb_mois_total, s.resultat_moyen_global,
+                   s.resultat_min_global, s.resultat_max_global, s.resultat_stddev_global,
+                   s.annee_dernier_bilan, s.resultat_moyen_dern_annee,
+                   s.classification_resultat_dern_annee, s.percentile_resultat_dern_annee,
+                   sci.index_name, sci.index_value, sci.index_class,
+                   sci.ref_month AS index_ref_month,
+                   sci.baseline_start AS index_baseline_start,
+                   sci.baseline_end AS index_baseline_end
+            FROM gold.dim_hydro_stations s
+            LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
+            WHERE s.code_station = :code
         """
         engine = create_engine(_brgm_url())
         try:

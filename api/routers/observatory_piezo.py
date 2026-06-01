@@ -369,16 +369,22 @@ def get_spi(code_bss: str):
 def get_station(code_bss: str):
     def fetch():
         query = """
-            SELECT code_bss, bss_id, latitude, longitude, nom_commune,
-                   code_departement, nom_departement, codes_bdlisa,
-                   altitude_station, date_debut_mesure, date_fin_mesure,
-                   nb_mesures_total, nb_mois_total, premiere_mesure, derniere_mesure,
-                   niveau_moyen_global, niveau_min_absolu, niveau_max_absolu,
-                   niveau_stddev_global, amplitude_totale, profondeur_moyenne_globale,
-                   temperature_moyenne_globale, precipitation_moyenne_mensuelle,
-                   derniere_annee, niveau_derniere_annee, classification_derniere_annee,
-                   percentile_derniere_annee, slope_precipitation, niveau_alerte
-            FROM gold.dim_piezo_stations WHERE code_bss = :code
+            SELECT s.code_bss, s.bss_id, s.latitude, s.longitude, s.nom_commune,
+                   s.code_departement, s.nom_departement, s.codes_bdlisa,
+                   s.altitude_station, s.date_debut_mesure, s.date_fin_mesure,
+                   s.nb_mesures_total, s.nb_mois_total, s.premiere_mesure, s.derniere_mesure,
+                   s.niveau_moyen_global, s.niveau_min_absolu, s.niveau_max_absolu,
+                   s.niveau_stddev_global, s.amplitude_totale, s.profondeur_moyenne_globale,
+                   s.temperature_moyenne_globale, s.precipitation_moyenne_mensuelle,
+                   s.derniere_annee, s.niveau_derniere_annee, s.classification_derniere_annee,
+                   s.percentile_derniere_annee, s.slope_precipitation, s.niveau_alerte,
+                   sci.index_name, sci.index_value, sci.index_class,
+                   sci.ref_month AS index_ref_month,
+                   sci.baseline_start AS index_baseline_start,
+                   sci.baseline_end AS index_baseline_end
+            FROM gold.dim_piezo_stations s
+            LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
+            WHERE s.code_bss = :code
         """
         engine = create_engine(_brgm_url())
         try:

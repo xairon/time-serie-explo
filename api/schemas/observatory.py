@@ -43,6 +43,12 @@ class PiezoStation(BaseModel):
     percentile_derniere_annee: float | None = None
     slope_precipitation: float | None = None
     niveau_alerte: str | None = None
+    index_name: str | None = None
+    index_value: float | None = None
+    index_class: str | None = None
+    index_ref_month: date | None = None
+    index_baseline_start: date | None = None
+    index_baseline_end: date | None = None
 
 
 class PiezoDaily(BaseModel):
@@ -136,6 +142,12 @@ class HydroStation(BaseModel):
     resultat_moyen_dern_annee: float | None = None
     classification_resultat_dern_annee: str | None = None
     percentile_resultat_dern_annee: float | None = None
+    index_name: str | None = None
+    index_value: float | None = None
+    index_class: str | None = None
+    index_ref_month: date | None = None
+    index_baseline_start: date | None = None
+    index_baseline_end: date | None = None
 
 
 class HydroDaily(BaseModel):

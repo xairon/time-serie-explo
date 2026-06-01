@@ -57,14 +57,17 @@ def get_stations_geojson(
             with engine.connect() as conn:
                 if want_piezo:
                     piezo_result = conn.execute(text("""
-                        SELECT code_bss AS code, 'piezo' AS type,
-                               latitude, longitude, nom_commune AS commune,
-                               code_departement, nom_departement AS departement,
-                               classification_derniere_annee AS classification,
-                               codes_bdlisa, derniere_mesure,
-                               nb_mesures_total, nb_mois_total
-                        FROM gold.dim_piezo_stations
-                        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                        SELECT s.code_bss AS code, 'piezo' AS type,
+                               s.latitude, s.longitude, s.nom_commune AS commune,
+                               s.code_departement, s.nom_departement AS departement,
+                               COALESCE(sci.index_class, 'UNKNOWN') AS classification,
+                               sci.index_value,
+                               s.codes_bdlisa, s.derniere_mesure,
+                               s.nb_mesures_total, s.nb_mois_total
+                        FROM gold.dim_piezo_stations s
+                        LEFT JOIN gold.station_current_index sci
+                            ON sci.type = 'piezo' AND sci.code = s.code_bss
+                        WHERE s.latitude IS NOT NULL AND s.longitude IS NOT NULL
                     """))
                     for row in piezo_result.mappings():
                         r = dict(row)
@@ -76,6 +79,7 @@ def get_stations_geojson(
                             "properties": {
                                 "code": r["code"], "type": r["type"],
                                 "classification": r["classification"],
+                                "index_value": r.get("index_value"),
                                 "commune": r["commune"], "departement": r["departement"],
                                 "code_departement": r["code_departement"],
                                 "codes_bdlisa": r.get("codes_bdlisa"),
@@ -87,15 +91,18 @@ def get_stations_geojson(
 
                 if want_hydro:
                     hydro_result = conn.execute(text("""
-                        SELECT code_station AS code, 'hydro' AS type,
-                               latitude_station AS latitude, longitude_station AS longitude,
-                               libelle_station AS commune,
-                               code_departement, nom_departement AS departement,
-                               classification_resultat_dern_annee AS classification,
-                               LEFT(code_cours_eau, 1) AS code_district, code_site, derniere_mesure,
-                               nb_jours_total, nb_mois_total
-                        FROM gold.dim_hydro_stations
-                        WHERE latitude_station IS NOT NULL AND longitude_station IS NOT NULL
+                        SELECT s.code_station AS code, 'hydro' AS type,
+                               s.latitude_station AS latitude, s.longitude_station AS longitude,
+                               s.libelle_station AS commune,
+                               s.code_departement, s.nom_departement AS departement,
+                               COALESCE(sci.index_class, 'UNKNOWN') AS classification,
+                               sci.index_value,
+                               LEFT(s.code_cours_eau, 1) AS code_district, s.code_site, s.derniere_mesure,
+                               s.nb_jours_total, s.nb_mois_total
+                        FROM gold.dim_hydro_stations s
+                        LEFT JOIN gold.station_current_index sci
+                            ON sci.type = 'hydro' AND sci.code = s.code_station
+                        WHERE s.latitude_station IS NOT NULL AND s.longitude_station IS NOT NULL
                     """))
                     for row in hydro_result.mappings():
                         r = dict(row)
@@ -107,6 +114,7 @@ def get_stations_geojson(
                             "properties": {
                                 "code": r["code"], "type": r["type"],
                                 "classification": r["classification"],
+                                "index_value": r.get("index_value"),
                                 "commune": r["commune"], "departement": r["departement"],
                                 "code_departement": r["code_departement"],
                                 "code_district": r.get("code_district"),
@@ -150,7 +158,7 @@ def list_alerts(
 
         if type is None or type == "piezo":
             conds = ["1=1"]
-            conds.append("s.classification_derniere_annee = ANY(:severity)")
+            conds.append("sci.index_class = ANY(:severity)")
             bind["severity"] = severity_list
             if code_departement:
                 conds.append("s.code_departement = :dept")
@@ -162,9 +170,10 @@ def list_alerts(
                 SELECT s.code_bss AS code, 'piezo' AS type,
                        s.latitude, s.longitude,
                        s.nom_commune AS commune, s.code_departement, s.nom_departement AS departement,
-                       s.classification_derniere_annee AS classification, s.derniere_mesure,
+                       sci.index_class AS classification, s.derniere_mesure,
                        cs.alerte_depuis_annee, cs.nb_annees_consecutives
                 FROM gold.dim_piezo_stations s
+                LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
                 LEFT JOIN LATERAL (
                     SELECT min(y.annee) AS alerte_depuis_annee,
                            count(*) AS nb_annees_consecutives
@@ -190,7 +199,7 @@ def list_alerts(
             conds = ["1=1"]
             if "severity" not in bind:
                 bind["severity"] = severity_list
-            conds.append("s.classification_resultat_dern_annee = ANY(:severity)")
+            conds.append("sci.index_class = ANY(:severity)")
             if code_departement:
                 conds.append("s.code_departement = :dept")
             if active_only:
@@ -201,9 +210,10 @@ def list_alerts(
                 SELECT s.code_station AS code, 'hydro' AS type,
                        s.latitude_station AS latitude, s.longitude_station AS longitude,
                        s.libelle_station AS commune, s.code_departement, s.nom_departement AS departement,
-                       s.classification_resultat_dern_annee AS classification, s.derniere_mesure,
+                       sci.index_class AS classification, s.derniere_mesure,
                        cs.alerte_depuis_annee, cs.nb_annees_consecutives
                 FROM gold.dim_hydro_stations s
+                LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
                 LEFT JOIN LATERAL (
                     SELECT min(y.annee) AS alerte_depuis_annee,
                            count(*) AS nb_annees_consecutives
@@ -256,28 +266,30 @@ def get_national_stats():
         query = """
             WITH piezo AS (
                 SELECT count(*) AS total,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'EXTREMEMENT_BAS') AS extremement_bas,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'TRES_BAS') AS tres_bas,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'BAS') AS bas,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'NORMAL') AS normal,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'HAUT') AS haut,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'TRES_HAUT') AS tres_haut,
-                       count(*) FILTER (WHERE classification_derniere_annee = 'EXTREMEMENT_HAUT') AS extremement_haut,
-                       count(*) FILTER (WHERE classification_derniere_annee IS NULL) AS no_class
-                FROM gold.dim_piezo_stations
-                WHERE derniere_mesure >= :recent_cutoff
+                       count(*) FILTER (WHERE sci.index_class = 'EXTREMEMENT_BAS') AS extremement_bas,
+                       count(*) FILTER (WHERE sci.index_class = 'TRES_BAS') AS tres_bas,
+                       count(*) FILTER (WHERE sci.index_class = 'BAS') AS bas,
+                       count(*) FILTER (WHERE sci.index_class = 'NORMAL') AS normal,
+                       count(*) FILTER (WHERE sci.index_class = 'HAUT') AS haut,
+                       count(*) FILTER (WHERE sci.index_class = 'TRES_HAUT') AS tres_haut,
+                       count(*) FILTER (WHERE sci.index_class = 'EXTREMEMENT_HAUT') AS extremement_haut,
+                       count(*) FILTER (WHERE sci.index_class IS NULL OR sci.index_class = 'UNKNOWN') AS no_class
+                FROM gold.dim_piezo_stations s
+                LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
+                WHERE s.derniere_mesure >= :recent_cutoff
             ),
             hydro AS (
                 SELECT count(*) AS total,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'EXTREMEMENT_BAS') AS extremement_bas,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'TRES_BAS') AS tres_bas,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'BAS') AS bas,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'NORMAL') AS normal,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'HAUT') AS haut,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'TRES_HAUT') AS tres_haut,
-                       count(*) FILTER (WHERE classification_resultat_dern_annee = 'EXTREMEMENT_HAUT') AS extremement_haut
-                FROM gold.dim_hydro_stations
-                WHERE derniere_mesure >= :recent_cutoff
+                       count(*) FILTER (WHERE sci.index_class = 'EXTREMEMENT_BAS') AS extremement_bas,
+                       count(*) FILTER (WHERE sci.index_class = 'TRES_BAS') AS tres_bas,
+                       count(*) FILTER (WHERE sci.index_class = 'BAS') AS bas,
+                       count(*) FILTER (WHERE sci.index_class = 'NORMAL') AS normal,
+                       count(*) FILTER (WHERE sci.index_class = 'HAUT') AS haut,
+                       count(*) FILTER (WHERE sci.index_class = 'TRES_HAUT') AS tres_haut,
+                       count(*) FILTER (WHERE sci.index_class = 'EXTREMEMENT_HAUT') AS extremement_haut
+                FROM gold.dim_hydro_stations s
+                LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
+                WHERE s.derniere_mesure >= :recent_cutoff
             )
             SELECT p.total AS total_piezo,
                    p.extremement_bas AS piezo_extremement_bas,
