@@ -293,6 +293,17 @@
     "compare": {
       "addedLabel": "Dans la comparaison",
       "addLabel": "Comparer"
+    },
+    "situation": {
+      "title": "Niveau de la nappe",
+      "titleHydro": "Débit de la rivière",
+      "scaleLow": "Très bas",
+      "scaleHigh": "Très haut",
+      "measure": "Mesure",
+      "unclassified": "Non classé — historique insuffisant (< 5 ans)",
+      "ipsTip": "Indicateur Piézométrique Standardisé (IPS/SPLI). Compare le niveau de ce mois à tous les mois équivalents passés de cette station, sur une échelle standard (BRGM/Météo-France). 0 = médiane ; négatif = plus bas que d'habitude, positif = plus haut.",
+      "ssfiTip": "Indicateur Standardisé d'Écoulement (SSFI). Compare le débit de ce mois à tous les mois équivalents passés de cette station, sur une échelle standard. 0 = médiane ; négatif = plus bas que d'habitude.",
+      "ngfTip": "Nivellement Général de la France : altitude de référence nationale (≈ niveau moyen de la mer). Une valeur en m NGF est l'altitude de la surface de la nappe."
     }
   },
   "data": {

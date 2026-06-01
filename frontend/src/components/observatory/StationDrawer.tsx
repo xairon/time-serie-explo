@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { X, ExternalLink, Droplets, Waves } from 'lucide-react'
-import { ClassificationBadge } from './ClassificationBadge'
+import { X, ExternalLink, Waves } from 'lucide-react'
+import { SituationPanel } from './SituationPanel'
 import { AddToCompareButton } from './AddToCompareButton'
 import { formatNumber, formatDate, isStationActive } from '@/lib/observatory-utils'
 import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
@@ -54,10 +54,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
     const name = isPiezo ? (s.nom_commune || s.code_bss) : (s.libelle_station || s.code_station)
     const sCode = isPiezo ? s.code_bss : s.code_station
     const dept = s.nom_departement ?? s.code_departement ?? ''
-    const classification = isPiezo ? s.classification_derniere_annee : s.classification_resultat_dern_annee
-    const classColor = CLASSIFICATION_COLORS[classification] ?? '#6b7280'
     const currentValue = isPiezo ? s.niveau_derniere_annee : s.resultat_moyen_dern_annee
-    const historicMean = isPiezo ? s.niveau_moyen_global : s.resultat_moyen_global
     const isHauteur = s.grandeur_hydro_principale === 'H'
     const unit = isPiezo ? 'm NGF' : (isHauteur ? 'm' : 'm\u00b3/s')
     const histMin = isPiezo ? s.niveau_min_absolu : s.resultat_min_global
@@ -84,14 +81,17 @@ export function StationDrawer({ code, type, onClose }: Props) {
         </div>
 
         {recent ? (
-          <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.currentState')}</div>
-            <div className="flex items-center justify-between">
-              <ClassificationBadge classification={classification} />
-              {currentValue != null && (<span className="text-lg font-semibold font-mono" style={{ color: classColor }}>{formatNumber(currentValue)} <span className="text-xs text-text-secondary font-normal">{unit}</span></span>)}
-            </div>
-            {historicMean != null && currentValue != null && (<div className="mt-2 text-[11px] text-text-secondary">{t('observatory.historicalMean')} : <span className="text-text-primary font-mono">{formatNumber(historicMean)}</span> {unit}<span className="ml-1.5">({currentValue > historicMean ? '+' : ''}{formatNumber(currentValue - historicMean, 2)} {unit})</span></div>)}
-          </div>
+          <SituationPanel
+            type={type}
+            indexName={(station as any).index_name}
+            indexValue={(station as any).index_value}
+            indexClass={(station as any).index_class}
+            refMonth={(station as any).index_ref_month}
+            baselineStart={(station as any).index_baseline_start}
+            baselineEnd={(station as any).index_baseline_end}
+            measure={currentValue}
+            measureUnit={unit}
+          />
         ) : (
           <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">{t('observatory.inactiveStation', { date: formatDate(lastMeasure) })}</div></div>
         )}
@@ -121,8 +121,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
             </div>
           </div>
         )}
-
-        {recent && s.niveau_alerte && (<div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20"><div className="flex items-center gap-2"><Droplets className="w-4 h-4 text-red-400" /><span className="text-xs font-medium text-red-400">{t('observatory.stationDrawer.alert', { level: s.niveau_alerte })}</span></div></div>)}
 
         <div className="flex items-center gap-2">
           <Link to={`/station/${type}/${sCode}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">{t('observatory.viewDetails')} <ExternalLink className="w-4 h-4" /></Link>

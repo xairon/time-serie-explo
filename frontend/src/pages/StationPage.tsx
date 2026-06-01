@@ -3,6 +3,7 @@ import { useParams, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Info, Waves, Brain } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
+import { SituationPanel } from '@/components/observatory/SituationPanel'
 import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
@@ -123,6 +124,18 @@ export default function StationPage() {
             <div className="space-y-1">{hydroSiblings.siblings.map(sib => (<Link key={sib.code_station} to={`/station/hydro/${sib.code_station}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-bg-hover transition-colors"><div><span className="text-xs text-gray-200">{sib.libelle_station || sib.code_station}</span><span className="text-[10px] text-gray-500 ml-2">{sib.code_station}</span></div><div className="flex items-center gap-2">{sib.classification && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CLASSIFICATION_COLORS[sib.classification] ?? '#6b7280' }} title={sib.classification} />}</div></Link>))}</div>
           </section>
         )}
+
+        <SituationPanel
+          type={isPiezo ? 'piezo' : 'hydro'}
+          indexName={(station as any).index_name}
+          indexValue={(station as any).index_value}
+          indexClass={(station as any).index_class}
+          refMonth={(station as any).index_ref_month}
+          baselineStart={(station as any).index_baseline_start}
+          baselineEnd={(station as any).index_baseline_end}
+          measure={isPiezo ? (station as any).niveau_derniere_annee : (station as any).resultat_moyen_dern_annee}
+          measureUnit={unit}
+        />
 
         <StationKPICards station={station} type={type} />
 

@@ -293,6 +293,17 @@
     "compare": {
       "addedLabel": "In comparison",
       "addLabel": "Compare"
+    },
+    "situation": {
+      "title": "Groundwater level",
+      "titleHydro": "River flow",
+      "scaleLow": "Very low",
+      "scaleHigh": "Very high",
+      "measure": "Measure",
+      "unclassified": "Unclassified — insufficient history (< 5 years)",
+      "ipsTip": "Standardized Piezometric Level Index (SPLI/IPS). Compares this month's level with all equivalent past months at this station on a standard scale (BRGM/Météo-France). 0 = median; negative = below normal, positive = above normal.",
+      "ssfiTip": "Standardized Streamflow Index (SSFI). Compares this month's flow with all equivalent past months at this station on a standard scale. 0 = median; negative = below normal.",
+      "ngfTip": "Nivellement Général de la France: national elevation reference (≈ mean sea level). A value in m NGF is the altitude of the water table surface."
     }
   },
   "data": {
