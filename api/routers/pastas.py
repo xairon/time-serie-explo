@@ -10,10 +10,13 @@ from typing import Optional
 
 import mlflow
 import pandas as pd
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owns_model
 from api.config import settings
+from api.models_db import User
 from api.schemas.pastas import (
     AdaptiveBoundsResponse,
     CompareRequest,
@@ -1008,9 +1011,10 @@ def validate_modifications_endpoint(req: ValidateModificationsRequest):
 # ---------------------------------------------------------------------------
 
 @router.get("/models/{run_id}/scenarios")
-def get_scenarios(run_id: str):
+def get_scenarios(run_id: str, current: User = Depends(get_current_user)):
     """List saved scenarios for a model."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.scenario_presets import list_scenarios
     return list_scenarios(run_id)
 
@@ -1020,9 +1024,10 @@ def get_scenarios(run_id: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/models/{run_id}/scenarios", status_code=201)
-def create_scenario(run_id: str, req: SaveScenarioRequest):
+def create_scenario(run_id: str, req: SaveScenarioRequest, current: User = Depends(get_current_user)):
     """Save a named scenario."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.scenario_presets import save_scenario
     from dashboard.utils.pastas.scenario import resolve_aquifer_family
 
@@ -1045,9 +1050,10 @@ def create_scenario(run_id: str, req: SaveScenarioRequest):
 # ---------------------------------------------------------------------------
 
 @router.delete("/models/{run_id}/scenarios/{name}")
-def remove_scenario(run_id: str, name: str):
+def remove_scenario(run_id: str, name: str, current: User = Depends(get_current_user)):
     """Delete a saved scenario."""
     _validate_run_id(run_id)
+    assert_owns_model(current, run_id)
     from dashboard.utils.pastas.scenario_presets import delete_scenario
     delete_scenario(run_id, name)
     return {"status": "deleted", "name": name}
@@ -1058,10 +1064,12 @@ def remove_scenario(run_id: str, name: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/models/{run_id}/scenarios/{name}/apply")
-def apply_scenario(run_id: str, name: str, target_run_id: str = Body(..., embed=True)):
+def apply_scenario(run_id: str, name: str, target_run_id: str = Body(..., embed=True), current: User = Depends(get_current_user)):
     """Load a saved scenario, adjusting for cross-model reuse."""
     _validate_run_id(run_id)
     _validate_run_id(target_run_id)
+    assert_owns_model(current, run_id)
+    assert_owns_model(current, target_run_id)
     from dashboard.utils.pastas.scenario_presets import load_scenario, validate_modifications as _validate
     from dashboard.utils.pastas.scenario import resolve_aquifer_family
     from dashboard.utils.pastas.io import load_model

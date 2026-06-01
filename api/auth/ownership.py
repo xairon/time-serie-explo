@@ -22,3 +22,25 @@ def owner_filter_clause(user: User) -> str | None:
     if user.role == UserRole.admin:
         return None
     return f"tags.owner_id = '{user.id}'"
+
+
+def _model_registry():
+    from pathlib import Path
+    from api.config import settings
+    from dashboard.utils.model_registry import ModelRegistry
+    return ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
+
+
+def _dataset_registry():
+    from pathlib import Path
+    from api.config import settings
+    from dashboard.utils.dataset_registry import DatasetRegistry
+    return DatasetRegistry(Path(settings.data_dir) / "prepared")
+
+
+def assert_owns_model(user, model_id: str) -> None:
+    assert_owner_or_admin(user, _model_registry().get_model_owner(model_id))
+
+
+def assert_owns_dataset(user, dataset_id: str) -> None:
+    assert_owner_or_admin(user, _dataset_registry().get_owner(dataset_id))

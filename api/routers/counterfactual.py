@@ -12,9 +12,12 @@ import logging
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owns_model
 from api.config import settings
+from api.models_db import User
 from api.serializers import clean_nans
 from api.task_manager import TaskStatus, task_manager
 from api.schemas.counterfactual import (
@@ -462,8 +465,9 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
 
 
 @router.post("/run", response_model=CFResult, status_code=202)
-async def run_counterfactual(req: CFGenerateRequest):
+async def run_counterfactual(req: CFGenerateRequest, current: User = Depends(get_current_user)):
     """Unified counterfactual generation endpoint. Dispatches to the correct method."""
+    assert_owns_model(current, req.model_id)
     method = req.method or "physcf"
     # Alias: "comet" → "comte" (backwards compat)
     if method == "comet":
@@ -478,8 +482,9 @@ async def run_counterfactual(req: CFGenerateRequest):
 
 
 @router.post("/generate", response_model=CFResult, status_code=202)
-async def generate_physcf(req: CFGenerateRequest):
+async def generate_physcf(req: CFGenerateRequest, current: User = Depends(get_current_user)):
     """Start PhysCF gradient-based counterfactual generation (background task)."""
+    assert_owns_model(current, req.model_id)
     task = task_manager.create(task_type="counterfactual", config={"method": "physcf", **req.model_dump()})
     thread = threading.Thread(
         target=_run_cf_thread, args=(task.task_id, "physcf", req), daemon=True, name=f"cf-physcf-{task.task_id}"
@@ -490,8 +495,9 @@ async def generate_physcf(req: CFGenerateRequest):
 
 
 @router.post("/generate-optuna", response_model=CFResult, status_code=202)
-async def generate_optuna(req: CFGenerateRequest):
+async def generate_optuna(req: CFGenerateRequest, current: User = Depends(get_current_user)):
     """Start Optuna black-box counterfactual generation (background task)."""
+    assert_owns_model(current, req.model_id)
     task = task_manager.create(task_type="counterfactual", config={"method": "optuna", **req.model_dump()})
     thread = threading.Thread(
         target=_run_cf_thread, args=(task.task_id, "optuna", req), daemon=True, name=f"cf-optuna-{task.task_id}"
@@ -502,8 +508,9 @@ async def generate_optuna(req: CFGenerateRequest):
 
 
 @router.post("/generate-comte", response_model=CFResult, status_code=202)
-async def generate_comte(req: CFGenerateRequest):
+async def generate_comte(req: CFGenerateRequest, current: User = Depends(get_current_user)):
     """Start CoMTE feature-swapping counterfactual generation (Ates et al. 2021)."""
+    assert_owns_model(current, req.model_id)
     task = task_manager.create(task_type="counterfactual", config={"method": "comte", **req.model_dump()})
     thread = threading.Thread(
         target=_run_cf_thread, args=(task.task_id, "comte", req), daemon=True, name=f"cf-comte-{task.task_id}"
@@ -518,8 +525,10 @@ async def ips_reference(
     model_id: str = Query(...),
     window: int = Query(1, ge=1, le=12),
     aquifer_type: str = Query(None),
+    current: User = Depends(get_current_user),
 ):
     """Get IPS reference statistics for a trained model."""
+    assert_owns_model(current, model_id)
     from dashboard.utils.model_registry import ModelRegistry
 
     registry = ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
@@ -566,8 +575,10 @@ async def ips_reference(
 async def ips_bounds(
     model_id: str = Query(...),
     window: int = Query(1, ge=1, le=12),
+    current: User = Depends(get_current_user),
 ):
     """Return monthly IPS class bounds (m NGF) for the test set date range."""
+    assert_owns_model(current, model_id)
     from dashboard.utils.model_registry import ModelRegistry
     from dashboard.utils.counterfactual.ips import (
         compute_ips_reference_n,
@@ -608,7 +619,7 @@ async def ips_bounds(
         raise HTTPException(status_code=404, detail="Test data not found")
 
     # Get IPS reference (reuse existing endpoint logic)
-    ref_response = await ips_reference(model_id=model_id, window=window, aquifer_type=None)
+    ref_response = await ips_reference(model_id=model_id, window=window, aquifer_type=None, current=current)
     ref_stats_raw = ref_response.get("ref_stats", {})
     ref_stats = {int(k): tuple(v) for k, v in ref_stats_raw.items()}
 
@@ -640,13 +651,14 @@ async def ips_bounds(
 
 
 @router.post("/pastas-validate")
-async def pastas_validate(req: PastasValidateRequest):
+async def pastas_validate(req: PastasValidateRequest, current: User = Depends(get_current_user)):
     """Run Pastas dual validation on a counterfactual result.
 
     Fits a Pastas TFN model on the same data used for CF generation,
     then checks TFT-Pastas agreement on the counterfactual stresses.
     CPU-bound Pastas fitting is offloaded to a thread via asyncio.to_thread().
     """
+    assert_owns_model(current, req.model_id)
     from dashboard.utils.model_registry import ModelRegistry
 
     try:

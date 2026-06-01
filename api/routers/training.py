@@ -197,6 +197,9 @@ def list_presets():
 @router.post("/start", response_model=TrainingStatus, status_code=202)
 async def start_training(req: TrainingRequest, current: User = Depends(get_current_user)):
     """Start a training job in a background thread. Returns task_id."""
+    from api.auth.ownership import assert_owns_dataset
+    assert_owns_dataset(current, req.dataset_id)
+
     from api.task_manager import TaskStatus
 
     active = [

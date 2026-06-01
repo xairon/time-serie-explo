@@ -8,9 +8,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth.deps import get_current_user
+from api.auth.ownership import assert_owns_model
 from api.config import settings
+from api.models_db import User
 from api.serializers import clean_nans
 from api.utils import force_cpu_if_needed
 from api.schemas.explainability import (
@@ -72,15 +75,17 @@ def _load_model_for_explain(model_id: str):
 
 
 @router.get("/{model_id}/feature-importance", response_model=ExplainResult)
-async def feature_importance_get(model_id: str):
+async def feature_importance_get(model_id: str, current: User = Depends(get_current_user)):
     """GET endpoint for feature importance (correlation method)."""
+    assert_owns_model(current, model_id)
     req = ExplainRequest(model_id=model_id, method="correlation")
-    return await feature_importance(req)
+    return await feature_importance(req, current)
 
 
 @router.post("/feature-importance", response_model=ExplainResult)
-async def feature_importance(req: ExplainRequest):
+async def feature_importance(req: ExplainRequest, current: User = Depends(get_current_user)):
     """Compute feature importance (correlation or permutation)."""
+    assert_owns_model(current, req.model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(req.model_id)
     )
@@ -142,8 +147,9 @@ async def feature_importance(req: ExplainRequest):
 
 
 @router.post("/attention", response_model=ExplainResult)
-async def attention_analysis(req: ExplainRequest):
+async def attention_analysis(req: ExplainRequest, current: User = Depends(get_current_user)):
     """Extract attention weights (TFT/Transformer models only)."""
+    assert_owns_model(current, req.model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(req.model_id)
     )
@@ -197,8 +203,9 @@ async def attention_analysis(req: ExplainRequest):
 
 
 @router.post("/shap", response_model=ExplainResult)
-async def shap_analysis(req: ExplainRequest):
+async def shap_analysis(req: ExplainRequest, current: User = Depends(get_current_user)):
     """Compute SHAP values using TimeSHAP or perturbation fallback."""
+    assert_owns_model(current, req.model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(req.model_id)
     )
@@ -282,8 +289,9 @@ async def shap_analysis(req: ExplainRequest):
 
 
 @router.post("/gradients", response_model=ExplainResult)
-async def gradient_analysis(req: ExplainRequest):
+async def gradient_analysis(req: ExplainRequest, current: User = Depends(get_current_user)):
     """Compute gradient-based attributions (saliency, integrated gradients, or deeplift)."""
+    assert_owns_model(current, req.model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(req.model_id)
     )
@@ -354,8 +362,9 @@ async def gradient_analysis(req: ExplainRequest):
 
 
 @router.get("/{model_id}/lag-importance", response_model=LagImportanceResult)
-async def lag_importance(model_id: str, max_lag: int = 60):
+async def lag_importance(model_id: str, max_lag: int = 60, current: User = Depends(get_current_user)):
     """Compute lag importance (autocorrelation analysis) for the target variable."""
+    assert_owns_model(current, model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(model_id)
     )
@@ -398,8 +407,9 @@ async def lag_importance(model_id: str, max_lag: int = 60):
 
 
 @router.get("/{model_id}/residuals", response_model=ResidualAnalysisResult)
-async def residual_analysis(model_id: str):
+async def residual_analysis(model_id: str, current: User = Depends(get_current_user)):
     """Compute residual analysis on the test set using sliding window predictions."""
+    assert_owns_model(current, model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(model_id)
     )
@@ -534,8 +544,9 @@ async def residual_analysis(model_id: str):
 
 
 @router.get("/{model_id}/seasonality", response_model=SeasonalityResult)
-async def seasonality_analysis(model_id: str):
+async def seasonality_analysis(model_id: str, current: User = Depends(get_current_user)):
     """Detect seasonality patterns and compute STL decomposition."""
+    assert_owns_model(current, model_id)
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
         _load_model_for_explain(model_id)
     )
