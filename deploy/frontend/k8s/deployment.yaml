@@ -19,8 +19,9 @@ spec:
     spec:
       containers:
         - name: frontend
-          # À REMPLACER par l'image poussée sur le registry de la DSI
-          image: registry.scm.univ-tours.fr/ringuet/junon-frontend:latest
+          # Image produite par la CI (.gitlab-ci.yml → job build-frontend).
+          # = $CI_REGISTRY_IMAGE/frontend. Utiliser :latest ou un tag SHA précis.
+          image: registry.scm.univ-tours.fr/ringuet/time-serie-explo/frontend:latest
           ports:
             - containerPort: 80
           env:

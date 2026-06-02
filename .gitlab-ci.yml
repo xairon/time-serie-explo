@@ -1,0 +1,37 @@
+# CI GitLab — build + push de l'image Docker du FRONTEND Junon.
+#
+# Fournie clé en main pour la DSI : à chaque push sur `main` touchant le
+# frontend, l'image est construite (deploy/frontend/Dockerfile) et poussée sur
+# le Container Registry du projet. Le déploiement Kubernetes (manifests dans
+# deploy/frontend/k8s/) n'a plus qu'à tirer l'image `:latest` (ou le tag SHA).
+#
+# Aucune variable à configurer : $CI_REGISTRY*, $CI_REGISTRY_IMAGE et le
+# token de job sont fournis automatiquement par GitLab.
+# Runner : kaniko (pas besoin de Docker privilégié → compatible runners K8s).
+
+stages:
+  - build
+
+build-frontend:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  rules:
+    # Ne (re)construit que si le frontend ou son packaging change, sur main.
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - frontend/**/*
+        - deploy/frontend/**/*
+        - .gitlab-ci.yml
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - |
+      echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
+        > /kaniko/.docker/config.json
+  script:
+    - /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/deploy/frontend/Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA"
+      --destination "$CI_REGISTRY_IMAGE/frontend:latest"
