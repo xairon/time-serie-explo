@@ -56,13 +56,16 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
       : rmse != null
         ? `RMSE=${rmse.toFixed(4)}`
         : ''
-    const dateStr = m.created_at
-      ? new Date(m.created_at).toLocaleDateString('en-US')
-      : ''
-    const parts = [m.model_name]
-    if (metricStr) parts[0] += ` (${metricStr})`
-    if (dateStr) parts.push(dateStr)
-    return parts.join(' — ')
+    const station = m.primary_station || m.stations[0] || ''
+    const nCov = m.variables?.covariates?.length ?? 0
+    const kind = nCov > 0
+      ? t('sharedComponents.forecast.multivariate')
+      : t('sharedComponents.forecast.univariate')
+    let label = m.model_name
+    if (station && station !== 'default') label += ` · ${station}`
+    label += ` · ${kind}`
+    if (metricStr) label += ` (${metricStr})`
+    return label
   }
 
   return (
@@ -127,6 +130,15 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps) {
           </div>
           <div className="text-xs text-text-secondary">
             {t('sharedComponents.forecast.stations')} : {selectedDetail.stations.join(', ') || selectedDetail.primary_station || '—'}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('sharedComponents.forecast.dataset')} : {selectedDetail.dataset_id || selectedDetail.data_source || '—'}
+          </div>
+          <div className="text-xs text-text-secondary">
+            {t('sharedComponents.forecast.variables')} : {selectedDetail.variables?.target || '—'}
+            {selectedDetail.variables?.covariates?.length
+              ? ` + ${selectedDetail.variables.covariates.join(', ')}`
+              : ` (${t('sharedComponents.forecast.univariate')})`}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(selectedDetail.metrics)

@@ -1384,7 +1384,11 @@
       "allStations": "Toutes les stations",
       "model": "Modèle",
       "selectModel": "Sélectionner un modèle",
-      "stations": "Station(s)"
+      "stations": "Station(s)",
+      "univariate": "univarié",
+      "multivariate": "multivarié",
+      "variables": "Variables",
+      "dataset": "Jeu de données"
     },
     "training": {
       "modelConfig": "Configuration du modèle",

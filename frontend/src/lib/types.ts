@@ -67,6 +67,8 @@ export interface ModelSummary {
   created_at: string
   metrics: Record<string, number>
   data_source: string | null
+  dataset_id: string | null
+  variables: { target?: string | null; covariates?: string[] } | null
 }
 
 export interface ModelDetail extends ModelSummary {

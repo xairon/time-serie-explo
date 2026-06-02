@@ -174,7 +174,7 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
             test_cov=test_cov,
             full_cov=full_cov,
             use_covariates=req.use_covariates,
-            station_name=req.station_name or "default",
+            station_name=req.station_name or (getattr(ds, "stations", None) or ["default"])[0],
             verbose=False,
             early_stopping_patience=es_patience,
             metrics_file=metrics_file,

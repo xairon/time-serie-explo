@@ -31,6 +31,11 @@ def _get_model_registry():
     return ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
 
 
+def _model_metrics(metrics: dict) -> dict:
+    """Keep only model-quality metrics; drop MLflow system/* (cpu, gpu, disk…)."""
+    return clean_nans({k: v for k, v in (metrics or {}).items() if not k.startswith("system/")})
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -115,8 +120,10 @@ async def list_models(
             stations=e.stations,
             primary_station=e.primary_station,
             created_at=e.created_at,
-            metrics=clean_nans(e.metrics),
+            metrics=_model_metrics(e.metrics),
             data_source=e.data_source,
+            dataset_id=e.dataset_id,
+            variables=e.preprocessing_config.get("columns"),
         )
         for e in entries
     ]
@@ -137,8 +144,10 @@ async def get_model(model_id: str, current: User = Depends(get_current_user)):
         stations=entry.stations,
         primary_station=entry.primary_station,
         created_at=entry.created_at,
-        metrics=clean_nans(entry.metrics),
+        metrics=_model_metrics(entry.metrics),
         data_source=entry.data_source,
+        dataset_id=entry.dataset_id,
+        variables=entry.preprocessing_config.get("columns"),
         run_id=entry.run_id,
         hyperparams=clean_nans(entry.hyperparams),
         preprocessing_config=clean_nans(entry.preprocessing_config),

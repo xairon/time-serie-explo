@@ -18,6 +18,9 @@ class ModelSummary(BaseModel):
     created_at: str
     metrics: dict[str, Any] = Field(default_factory=dict)
     data_source: Optional[str] = None
+    dataset_id: Optional[str] = None
+    # {"target": str, "covariates": [str, ...]} — empty covariates ⇒ univariate
+    variables: Optional[dict[str, Any]] = None
 
 
 class ModelDetail(ModelSummary):
