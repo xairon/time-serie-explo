@@ -13,10 +13,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - junon.example.univ-tours.fr   # À REMPLACER
+        - junon.univ-tours.fr   # hostname proposé, à confirmer par la DSI
       secretName: junon-frontend-tls
   rules:
-    - host: junon.example.univ-tours.fr  # À REMPLACER
+    - host: junon.univ-tours.fr  # hostname proposé, à confirmer par la DSI
       http:
         paths:
           - path: /
