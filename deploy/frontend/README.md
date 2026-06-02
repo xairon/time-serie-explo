@@ -18,6 +18,11 @@ Le backend + GPU + base de données restent sur `dib-2019006065`.
 - Le backend n'est **jamais** exposé à Internet (joignable seulement depuis le front, en interne).
 - `/api/` et le site sont sur la même origine → **cookie de session** sans souci cross-site.
 
+> **Deux environnements isolés tournent sur dib** (cf. `docs/dev-environment.md`) :
+> un backend **PROD** sur `10.195.25.16:49514` — **c'est celui que le front K8s utilise**, stable —
+> et un backend **DEV** séparé (port interne 49516, base + MLflow dédiés). Le développement se
+> fait sur l'environnement dev, donc il **n'impacte jamais** le backend de prod qui sert le front public.
+
 ## 2. Fourni clé en main dans ce dépôt
 
 Tout est prêt ; la DSI n'a en principe **rien à écrire**, juste à brancher.
