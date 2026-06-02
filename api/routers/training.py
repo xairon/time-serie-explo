@@ -74,7 +74,14 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
         # index has duplicates. Build ONE series per station, split + scale each one
         # independently, and pass lists to the (global-aware) training pipeline.
         station_col = getattr(ds, "station_column", None)
-        is_multi = bool(station_col) and station_col in df.columns
+        # Global multi-station path only when there are genuinely several stations.
+        # A single-station dataset that merely carries a station id must use the
+        # single-series path, otherwise its covariates would be silently dropped.
+        is_multi = (
+            bool(station_col)
+            and station_col in df.columns
+            and df[station_col].nunique() > 1
+        )
 
         target_preprocessor = None
         cov_preprocessor = None
