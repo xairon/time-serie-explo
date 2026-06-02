@@ -11,10 +11,12 @@ URL locale : http://dib-2019006065:49513 (ou l'URL publique une fois sur K8s DSI
 ## 0. Pré-vol (à vérifier avant la présentation)
 
 - [ ] Les 3 stacks tournent (`docker ps` : junon-frontend / junon-backend / junon-mlflow + brgm-postgres).
-- [ ] Comptes prêts : **admin** `ringuetnicolas2@gmail.com` / `v6tOBAVsOY9qgGPt`.
+- [ ] Comptes prêts : compte **admin** connecté (identifiants hors de ce dépôt).
 - [ ] Artefacts de démo présents (déjà en base, ne pas re-supprimer) :
   - IA : NHiTS Ruan mono-station (MAE 0,25 m) + NHiTS **global 54 stations** (MAE 0,31 m)
-  - Pastas : Ruan `03276X0009/P` + Engenville `03282X0043/S1` (NSE 0,87)
+  - Pastas : Ruan `03276X0009/P` + Engenville `03282X0043/S1`, **2 modèles chacun** —
+    *complet* (toutes données, opérationnel, NSE ≈ 0,70–0,72) + *validation* (holdout 80/20,
+    NSE validation Ruan +0,51 — généralise ; Engenville négatif — station à forte dérive)
 - [ ] Connexion réseau front → back OK (ouvrir une page atelier loggué = données qui chargent).
 - [ ] Onglet déjà ouvert sur l'observatoire, zoomé sur la région Centre-Val de Loire.
 
@@ -49,9 +51,10 @@ Sur la page station Ruan (`/station/piezo/03276X0009/P`) :
 ## 3. COMPRENDRE — modèle physique Pastas (~3 min)
 
 Depuis la fiche station → bouton **« Analyser dans Pastas »** (ou page Pastas, charger le modèle Ruan déjà calibré).
-1. Montrer l'ajustement **observé vs simulé** (NSE 0,87) : *« un modèle physique relie la pluie efficace au niveau de nappe. »*
+1. Montrer l'ajustement **observé vs simulé** (modèle complet, NSE ≈ 0,72) : *« un modèle physique relie la pluie efficace au niveau de nappe. »*
 2. **Réponse impulsionnelle / contributions** : *« combien de temps la nappe met à réagir à la pluie, part recharge vs prélèvement. »*
-3. (Si le temps le permet) un **scénario** : « et si la pluie baissait de 20 % ? ».
+3. **Honnêteté méthodo** (si public technique) : 2 modèles par station — un *complet* (opérationnel) et un *validation* (holdout temporel). La validation révèle la non-stationnarité (dérive long terme) ; d'où l'usage d'une tendance + modèle de bruit.
+4. (Si le temps le permet) un **scénario** : « et si la pluie baissait de 20 % ? ».
 
 **Message** : au-delà de l'observation, on **explique** la dynamique — interprétable pour un hydrogéologue.
 
