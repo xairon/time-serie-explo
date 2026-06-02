@@ -210,9 +210,15 @@ def evaluate_model_sliding(
         raw = [raw]
 
     mlist = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE', 'NSE', 'KGE']
-    agg: Dict[str, List[float]] = {k: [] for k in mlist}
-    dir_accs: List[float] = []
 
+    # Concaténer toutes les fenêtres de prévision (non chevauchantes) en une seule
+    # série couvrant toute la période de test, puis calculer les métriques UNE fois.
+    # Indispensable pour les scores basés sur la variance (NSE, KGE, NRMSE) : calculés
+    # par fenêtre de `horizon` jours, ss_tot ≈ 0 (la nappe bouge peu sur 30 j) et le NSE
+    # explose en négatif même pour une bonne prévision. Sur la série complète, ss_tot
+    # reflète la vraie variance saisonnière → score interprétable.
+    actual_parts: List[np.ndarray] = []
+    pred_parts: List[np.ndarray] = []
     for fc in raw:
         actual_slice = test.slice_intersect(fc)
         if len(actual_slice) == 0:
@@ -223,21 +229,29 @@ def evaluate_model_sliding(
         if target_scaler is not None:
             actual_slice = target_scaler.inverse_transform(actual_slice)
             pred_slice = target_scaler.inverse_transform(pred_slice)
-        m = calculate_metrics(actual_slice, pred_slice, metrics_list=mlist + ['Dir_Acc'])
-        for k in mlist:
-            v = m.get(k)
-            if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                agg[k].append(float(v))
-        da = m.get('Dir_Acc')
-        if da is not None and not (isinstance(da, float) and np.isnan(da)):
-            dir_accs.append(float(da))
+        actual_parts.append(_to_numpy(actual_slice))
+        pred_parts.append(_to_numpy(pred_slice))
+
+    if not actual_parts:
+        return {}
+
+    a = np.concatenate(actual_parts)
+    p = np.concatenate(pred_parts)
 
     out: Dict[str, float] = {}
-    for k in mlist:
-        if agg[k]:
-            out[k] = float(np.nanmean(agg[k]))
-    if dir_accs:
-        out['Dir_Acc'] = float(np.nanmean(dir_accs))
+    out['MAE'] = float(np.mean(np.abs(a - p)))
+    out['RMSE'] = float(np.sqrt(np.mean((a - p) ** 2)))
+    denom_smape = (np.abs(a) + np.abs(p))
+    with np.errstate(divide='ignore', invalid='ignore'):
+        smape_terms = np.where(denom_smape == 0, 0.0, np.abs(a - p) / denom_smape)
+    out['sMAPE'] = float(np.mean(smape_terms) * 200.0)
+    out['WAPE'] = _wape(a, p)
+    out['NRMSE'] = _nrmse(a, p)
+    out['NSE'] = _nse(a, p)
+    out['KGE'] = _kge(a, p)
+    # Direction accuracy sur la série complète concaténée
+    if len(a) > 1:
+        out['Dir_Acc'] = float(np.mean(np.sign(np.diff(a)) == np.sign(np.diff(p))) * 100.0)
     return out
 
 
