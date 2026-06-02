@@ -62,26 +62,70 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
 
         target_col = ds.target_column
         cov_cols = ds.covariate_columns if req.use_covariates else None
-
-        # Prepare Darts series
         fill_method = ds.preprocessing.get("fill_method", "Linear interpolation")
-        full_series, covariates = prepare_dataframe_for_darts(
-            df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
-        )
 
-        # Split
-        n = len(full_series)
-        n_train = int(n * req.train_ratio)
-        n_val = int(n * req.val_ratio)
+        from dashboard.utils.model_factory import ModelFactory
+        is_torch = ModelFactory.is_torch_model(req.model_name)
+        preprocessing_config = ds.preprocessing if ds.preprocessing else {}
+        normalization = preprocessing_config.get("normalization", "Standardization (z-score)")
+        do_norm = is_torch and normalization and normalization != "None"
 
-        train = full_series[:n_train]
-        val = full_series[n_train : n_train + n_val]
-        test = full_series[n_train + n_val :]
+        # Multi-station (global) datasets store one row per (station, date) -> the date
+        # index has duplicates. Build ONE series per station, split + scale each one
+        # independently, and pass lists to the (global-aware) training pipeline.
+        station_col = getattr(ds, "station_column", None)
+        is_multi = bool(station_col) and station_col in df.columns
 
-        train_cov = covariates[:n_train] if covariates else None
-        val_cov = covariates[n_train : n_train + n_val] if covariates else None
-        test_cov = covariates[n_train + n_val :] if covariates else None
-        full_cov = covariates if covariates else None
+        target_preprocessor = None
+        cov_preprocessor = None
+        all_stations = None
+        train_cov = val_cov = test_cov = full_cov = None
+
+        if is_multi:
+            from dashboard.utils.preprocessing import TimeSeriesPreprocessor
+            ic = int(req.hyperparams.get("input_chunk_length", 30))
+            oc = int(req.hyperparams.get("output_chunk_length", 7))
+            min_len = ic + oc + 1
+
+            train, val, test, all_stations = [], [], [], []
+            target_preprocessor = {} if do_norm else None
+            skipped = 0
+            # Global multi-station: univariate target per station (calendar via add_encoders).
+            for stn, sub in df.groupby(station_col, sort=False):
+                sub = sub.drop(columns=[station_col])
+                series, _ = prepare_dataframe_for_darts(
+                    sub, target_col=target_col, covariate_cols=None, freq="D", fill_method=fill_method
+                )
+                n = len(series)
+                n_tr = int(n * req.train_ratio)
+                n_v = int(n * req.val_ratio)
+                tr = series[:n_tr]; v = series[n_tr:n_tr + n_v]; te = series[n_tr + n_v:]
+                # Each split must hold at least one (input+output) window for a torch model.
+                if is_torch and min(len(tr), len(v), len(te)) < min_len:
+                    skipped += 1
+                    continue
+                if do_norm:
+                    pp = TimeSeriesPreprocessor({"normalization": normalization, "fill_method": "None"})
+                    tr = pp.fit_transform(tr); v = pp.transform(v); te = pp.transform(te)
+                    target_preprocessor[str(stn)] = pp
+                train.append(tr); val.append(v); test.append(te); all_stations.append(str(stn))
+            if not train:
+                raise ValueError("Aucune station n'a assez de données pour ce horizon (input+output).")
+            logger.info(f"Global training: {len(all_stations)} stations retenues, {skipped} écartées (trop courtes).")
+        else:
+            full_series, covariates = prepare_dataframe_for_darts(
+                df, target_col=target_col, covariate_cols=cov_cols, freq="D", fill_method=fill_method
+            )
+            n = len(full_series)
+            n_train = int(n * req.train_ratio)
+            n_val = int(n * req.val_ratio)
+            train = full_series[:n_train]
+            val = full_series[n_train : n_train + n_val]
+            test = full_series[n_train + n_val :]
+            train_cov = covariates[:n_train] if covariates else None
+            val_cov = covariates[n_train : n_train + n_val] if covariates else None
+            test_cov = covariates[n_train + n_val :] if covariates else None
+            full_cov = covariates if covariates else None
 
         # Check cancellation before training
         if task.stop_event.is_set():
@@ -95,28 +139,22 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
             hyperparams["loss_fn"] = req.loss_function
 
         # Handle early stopping (only for torch models)
-        from dashboard.utils.model_factory import ModelFactory
-        es_patience = req.early_stopping_patience if (req.early_stopping and ModelFactory.is_torch_model(req.model_name)) else None
+        es_patience = req.early_stopping_patience if (req.early_stopping and is_torch) else None
 
-        # Normalize data for DL models (matching Streamlit behavior)
-        target_preprocessor = None
-        cov_preprocessor = None
-        preprocessing_config = ds.preprocessing if ds.preprocessing else {}
-        if ModelFactory.is_torch_model(req.model_name):
-            normalization = preprocessing_config.get("normalization", "Standardization (z-score)")
-            if normalization and normalization != "None":
-                from dashboard.utils.preprocessing import TimeSeriesPreprocessor
-                preproc_cfg = {"normalization": normalization, "fill_method": "None"}
-                target_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
-                train = target_preprocessor.fit_transform(train)
-                val = target_preprocessor.transform(val)
-                test = target_preprocessor.transform(test)
-                if train_cov is not None:
-                    cov_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
-                    train_cov = cov_preprocessor.fit_transform(train_cov)
-                    val_cov = cov_preprocessor.transform(val_cov) if val_cov else None
-                    test_cov = cov_preprocessor.transform(test_cov) if test_cov else None
-                    full_cov = cov_preprocessor.transform(full_cov) if full_cov else None
+        # Normalize data for DL models — single-series path (multi-station handled above)
+        if not is_multi and do_norm:
+            from dashboard.utils.preprocessing import TimeSeriesPreprocessor
+            preproc_cfg = {"normalization": normalization, "fill_method": "None"}
+            target_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
+            train = target_preprocessor.fit_transform(train)
+            val = target_preprocessor.transform(val)
+            test = target_preprocessor.transform(test)
+            if train_cov is not None:
+                cov_preprocessor = TimeSeriesPreprocessor(preproc_cfg)
+                train_cov = cov_preprocessor.fit_transform(train_cov)
+                val_cov = cov_preprocessor.transform(val_cov) if val_cov else None
+                test_cov = cov_preprocessor.transform(test_cov) if test_cov else None
+                full_cov = cov_preprocessor.transform(full_cov) if full_cov else None
 
         results = run_training_pipeline(
             model_name=req.model_name,
@@ -137,6 +175,7 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
             dataset_name=req.dataset_id,
             target_preprocessor=target_preprocessor,
             cov_preprocessor=cov_preprocessor,
+            all_stations=all_stations,
             preprocessing_config=preprocessing_config,
             column_mapping={
                 "target_var": target_col,

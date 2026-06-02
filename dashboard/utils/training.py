@@ -350,23 +350,31 @@ def calculate_metrics(
             out['KGE'] = _kge(a, p)
         return out
 
+    # In global (multi-series) mode, darts metrics return one value per series
+    # (a list). Reduce to a single scalar (mean over stations) so downstream
+    # logging/serialization gets a float.
+    def _reduce(v):
+        if isinstance(v, (list, tuple, np.ndarray)):
+            return float(np.nanmean(v))
+        return float(v)
+
     try:
         if 'MAE' in metrics_list:
-            results['MAE'] = mae(actual_aligned, predicted_aligned)
+            results['MAE'] = _reduce(mae(actual_aligned, predicted_aligned))
     except Exception as e:
         logger.warning(f"MAE calculation failed: {e}")
         results['MAE'] = np.nan
 
     try:
         if 'RMSE' in metrics_list:
-            results['RMSE'] = rmse(actual_aligned, predicted_aligned)
+            results['RMSE'] = _reduce(rmse(actual_aligned, predicted_aligned))
     except Exception as e:
         logger.warning(f"RMSE calculation failed: {e}")
         results['RMSE'] = np.nan
 
     try:
         if 'sMAPE' in metrics_list:
-            results['sMAPE'] = smape(actual_aligned, predicted_aligned)
+            results['sMAPE'] = _reduce(smape(actual_aligned, predicted_aligned))
     except Exception as e:
         logger.warning(f"sMAPE calculation failed: {e}")
         results['sMAPE'] = np.nan
