@@ -134,6 +134,8 @@ services:
     container_name: junon-frontend
     restart: unless-stopped
     logging: *default-logging
+    ports:
+      - "${FRONTEND_PORT:-49513}:80"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
       interval: 15s
