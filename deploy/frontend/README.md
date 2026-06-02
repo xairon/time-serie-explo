@@ -29,7 +29,7 @@ Tout est prêt ; la DSI n'a en principe **rien à écrire**, juste à brancher.
 | **Proxy backend** | `deploy/frontend/nginx.conf.template` | `${DIB_BACKEND}` substitué au démarrage (envsubst). |
 | **Deployment** | `deploy/frontend/k8s/deployment.yaml` | 1 réplica, `DIB_BACKEND=10.195.25.16:49514`, probes, limites CPU/mémoire. |
 | **Service** | `deploy/frontend/k8s/service.yaml` | ClusterIP interne (port 80). |
-| **Ingress** | `deploy/frontend/k8s/ingress.yaml` | Entrée publique + TLS. **Seul placeholder à remplir : le `host`.** |
+| **Ingress** | `deploy/frontend/k8s/ingress.yaml` | Entrée publique + TLS. `host` pré-rempli (`junon.univ-tours.fr`, **à confirmer** par la DSI). |
 
 ## 3. Le workflow (une fois branché)
 
@@ -43,12 +43,12 @@ C'est exactement le flux décrit par la DSI. Côté dév : on pousse du code, ri
 
 1. 🔴 **Route réseau** : pods du cluster → `10.195.25.16:49514`. **Point critique** — sans ça, le
    site s'affiche mais aucune donnée ne remonte (502 sur `/api/`).
-2. 🔴 **Hostname public + DNS** (ex. `junon.univ-tours.fr`) → à reporter dans `k8s/ingress.yaml`.
+2. 🔴 **DNS** vers l'ingress pour le hostname proposé `junon.univ-tours.fr` (ou un autre — une ligne à ajuster dans `k8s/ingress.yaml`).
 3. 🟡 **TLS** : ingress-controller nginx + cert-manager pour le certificat auto (sinon, certificat fourni à la main).
 4. 🟢 **Registry/CI** : le job utilise les variables GitLab standard (`$CI_REGISTRY*`, token de job) — rien à configurer sauf si le runner kaniko doit être adapté à votre infra.
 
 Réponses aux questions du ticket :
-- **URL souhaitée** : à définir (voir point 2) — à reporter dans `ingress.yaml`.
+- **URL souhaitée** : `junon.univ-tours.fr` (pré-remplie dans `ingress.yaml`, ajustable).
 - **Stockage persistant** : **non**. Le front est *stateless* (fichiers statiques + reverse-proxy) ; tout l'état est sur dib.
 - **Flux sortants du front** : depuis le **pod**, uniquement → `10.195.25.16:49514` (backend) + DNS.
   Côté **navigateur** (client), l'app charge en plus les **tuiles carto** (`basemaps.cartocdn.com`) et
@@ -61,7 +61,7 @@ Côté `dib` : une fois le front en HTTPS, passer `COOKIE_SECURE=true` dans `dep
 
 | Fichier | Réglage | Valeur |
 |---|---|---|
-| `k8s/ingress.yaml` | `host:` + `tls.hosts` | le hostname public retenu |
+| `k8s/ingress.yaml` | `host:` + `tls.hosts` | `junon.univ-tours.fr` (pré-rempli, à confirmer) |
 | `k8s/deployment.yaml` | `DIB_BACKEND` | `10.195.25.16:49514` (déjà rempli) |
 | `k8s/deployment.yaml` | `image:` | `$CI_REGISTRY_IMAGE/frontend:latest` (déjà rempli) |
 
@@ -79,12 +79,19 @@ kubectl rollout restart deploy/junon-frontend # forcer une maj d'image
 2. Connexion avec un compte → l'atelier répond (preuve que `/api/` atteint dib).
 3. Site OK mais 502 sur `/api/` → c'est le **point 1 du §4** (route réseau vers dib).
 
-## 8. Filet de sécurité
+## 8. Transition & filet de sécurité
 
-Le front tourne déjà sur `dib` en local (validation) — l'app reste utilisable en interne
-pendant la mise en place K8s. Build/test sans registry :
+Aujourd'hui, `dib` fait tourner **tout** (front + back) via le `docker-compose.yml` racine :
+le front interne reste accessible sur `http://dib-2019006065:49513` pendant la mise en place K8s.
+
+Une fois le front K8s en ligne et validé, le front interne `:49513` devient **redondant** :
+on bascule `dib` sur la **stack backend seul** (`deploy/dib-backend/`), qui garde le backend
+sur `:49514` (indispensable au front K8s) sans plus servir de frontend local.
 
 ```bash
+# Build/test de l'image front sans registry :
 docker build -f deploy/frontend/Dockerfile -t junon-frontend:test .
-cd deploy/frontend && docker compose up -d --build   # front local, port 49513
 ```
+
+> Le **backend** sur `dib:49514` doit rester en service quoi qu'il arrive : c'est lui que
+> le front K8s appelle. On ne retire que le **frontend** local, pas le backend.
