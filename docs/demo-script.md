@@ -13,7 +13,7 @@ URL locale : http://dib-2019006065:49513 (ou l'URL publique une fois sur K8s DSI
 - [ ] Les 3 stacks tournent (`docker ps` : junon-frontend / junon-backend / junon-mlflow + brgm-postgres).
 - [ ] Comptes prêts : compte **admin** connecté (identifiants hors de ce dépôt).
 - [ ] Artefacts de démo présents (déjà en base, ne pas re-supprimer) :
-  - IA : NHiTS Ruan mono-station (MAE 0,25 m) + NHiTS **global 54 stations** (MAE 0,31 m)
+  - IA : **NHiTS mono-station, 2 par station** (univarié + multivarié météo) pour Ruan & Engenville (MAE 0,18–0,29 m)
   - Pastas : Ruan `03276X0009/P` + Engenville `03282X0043/S1`, **2 modèles chacun** —
     *complet* (toutes données, opérationnel, NSE ≈ 0,70–0,72) + *validation* (holdout 80/20,
     NSE validation Ruan +0,51 — généralise ; Engenville négatif — station à forte dérive)
@@ -63,17 +63,20 @@ Depuis la fiche station → bouton **« Analyser dans Pastas »** (ou page Pasta
 ## 4. PRÉVOIR — l'IA (~4 min)
 
 ### 4a. Prévision sur une station
-Page IA → modèle NHiTS Ruan déjà entraîné → **prévision à 30 jours** + intervalle.
-*« MAE 0,25 m sur une nappe qui varie d'environ 1 m — robuste. »*
+Page IA → modèle **NHiTS univarié** Ruan → **prévision à 30 jours** + intervalle.
+*« MAE 0,25 m sur une nappe qui varie d'environ 1 m — robuste. »* (Engenville : MAE 0,19 m.)
 
-### 4b. Le modèle GLOBAL (le point fort)
-Montrer le modèle **NHiTS global** entraîné sur **54 stations Beauce d'un coup** (MAE 0,31 m).
-*« Un seul modèle prévoit toute la nappe de Beauce — déployable à l'échelle d'un aquifère. »*
+### 4b. Deux modèles par station (univarié + multivarié)
+Chaque station de démo a **2 modèles NHiTS mono-station** :
+- **univarié** (niveau seul) — la prévision opérationnelle ;
+- **multivarié** (+ pluie/ETP/température) — pour l'explicabilité.
 
-### 4c. (Optionnel) explicabilité / contrefactuel
-Si module prêt : « quels facteurs pèsent », « et si... ».
+*« Bien entraînés, les deux sont au coude-à-coude (Ruan 0,25 vs 0,29 ; Engenville 0,19 vs 0,18) — la météo n'apporte pas de gain de précision net ici, mais ouvre l'explicabilité. »*
 
-**Message** : prévision opérationnelle + passage à l'échelle (un modèle pour tout l'aquifère).
+### 4c. Explicabilité / contrefactuel (sur le modèle multivarié)
+« Ce qui pilote le niveau de nappe » : importance **pluie / ETP / température** + scénario « et si la pluie… ».
+
+**Message** : prévision opérationnelle (univarié) + interprétation des moteurs météo (multivarié).
 
 ---
 
