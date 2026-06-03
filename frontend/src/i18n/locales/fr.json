@@ -113,6 +113,8 @@
     "inactiveStation": "Station inactive — dernière mesure le {{date}}",
     "siblings": {
       "title": "Stations du même groupe",
+      "help": "Autres stations rattachées à la même entité hydrogéologique ou au même site. Cliquez une station pour y accéder.",
+      "entity": "entité",
       "empty": "Aucune autre station à ce niveau",
       "notLinked": "Station non rattachée à une entité BDLISA",
       "piezo": {

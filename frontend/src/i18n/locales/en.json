@@ -113,6 +113,8 @@
     "inactiveStation": "Inactive station — last measure on {{date}}",
     "siblings": {
       "title": "Stations in the same group",
+      "help": "Other stations linked to the same hydrogeological entity or hydrometric site. Click a station to open it.",
+      "entity": "entity",
       "empty": "No other station at this level",
       "notLinked": "Station not linked to a BDLISA entity",
       "piezo": {
