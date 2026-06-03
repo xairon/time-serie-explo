@@ -925,68 +925,9 @@ def run_training_pipeline(
             }
             custom_artifacts['model_config.json'] = config_dict
 
-            # 7. Compute and save IPS reference stats (for Counterfactual Analysis page)
-            # IPS must be computed on RAW physical values (m NGF), not normalized.
-            # We compute IPS-N for all windows (1, 3, 6, 12) so the CF page
-            # can let the user choose which aggregation to use.
-            try:
-                from dashboard.utils.counterfactual.ips import (
-                    compute_all_ips_references,
-                    extract_scaler_params,
-                    validate_ips_data,
-                    IPS_WINDOWS,
-                )
-                # Extract real scaler params
-                if target_preprocessor:
-                    _scalers_dict = {'target': target_preprocessor, 'covariates': cov_preprocessor}
-                    _mu, _sigma, _cov_params = extract_scaler_params(_scalers_dict)
-                    if _mu is not None and _sigma is not None:
-                        # Denormalize training target to raw values
-                        train_target_df = _to_df(train, _stations)
-                        target_var_name = column_mapping.get('target_var') if column_mapping else None
-                        if target_var_name and target_var_name in train_target_df.columns:
-                            gwl_norm = train_target_df[target_var_name]
-                        else:
-                            gwl_norm = train_target_df.iloc[:, 0]
-                        gwl_raw = gwl_norm * _sigma + _mu
-
-                        # Validate data quality
-                        _validation = validate_ips_data(gwl_raw)
-                        if _validation["valid"]:
-                            # Compute ALL IPS-N references (IPS-1, IPS-3, IPS-6, IPS-12)
-                            _all_refs = compute_all_ips_references(
-                                gwl_raw, windows=IPS_WINDOWS, aggregate_to_monthly=True
-                            )
-                            # Serialize: {window: {month: [mu, sigma]}}
-                            all_refs_serialized = {}
-                            for w, ref_dict in _all_refs.items():
-                                all_refs_serialized[str(w)] = {
-                                    str(m): list(v) for m, v in ref_dict.items()
-                                }
-                            ips_meta = {
-                                "ref_stats_all": all_refs_serialized,
-                                # Keep backward compat: ref_stats = IPS-1
-                                "ref_stats": all_refs_serialized.get("1", {}),
-                                "windows": IPS_WINDOWS,
-                                "mu_target": _mu,
-                                "sigma_target": _sigma,
-                                "covariate_params": _cov_params,
-                                "n_years": _validation["n_years"],
-                                "n_monthly_values": _validation.get("n_monthly_values", 0),
-                                "validation": {
-                                    "valid": _validation["valid"],
-                                    "warnings": _validation["warnings"],
-                                },
-                            }
-                            custom_artifacts['ips_reference.json'] = ips_meta
-                            logger.info(
-                                f"IPS reference computed for windows {IPS_WINDOWS} "
-                                f"({_validation['n_years']} years)"
-                            )
-                        else:
-                            logger.warning(f"IPS reference not computed: {_validation['errors']}")
-            except Exception as e:
-                logger.warning(f"Could not compute IPS reference stats: {e}")
+            # NOTE: IPS reference stats are NO LONGER frozen at train time.
+            # The IPS bands are read at query time from gold.station_reference_stats
+            # (shared fixed reference keyed by code_bss = station_name).
 
             # Log Model + Artifacts (with model signature/info)
             # Robustness: ensure there's an active MLflow run before logging

@@ -256,91 +256,6 @@ def validate_ips_data(
     return result
 
 
-def compute_ips_reference(
-    gwl_series: pd.Series,
-    ref_start: str = "1981",
-    ref_end: str = "2010",
-    aggregate_to_monthly: bool = True,
-) -> dict[int, tuple[float, float]]:
-    """Compute monthly reference statistics (mean, std) for IPS.
-
-    BRGM standard: daily data is first aggregated to monthly means,
-    then for each calendar month (1-12), computes mu_m and sigma_m
-    over the reference period.
-
-    IMPORTANT: gwl_series must contain RAW values in m NGF, NOT normalized values.
-
-    Args:
-        gwl_series: Series with DatetimeIndex and gwl values (m NGF).
-        ref_start: Start of reference period (default BRGM 1981).
-        ref_end: End of reference period (default BRGM 2010).
-        aggregate_to_monthly: If True, aggregate daily data to monthly means first.
-            Set to False if data is already monthly.
-
-    Returns:
-        Dict {month: (mean, std)} for months 1-12.
-    """
-    # Step 1: Aggregate to monthly means if daily data
-    if aggregate_to_monthly:
-        monthly_series = daily_to_monthly_mean(gwl_series)
-    else:
-        monthly_series = gwl_series.dropna()
-
-    if len(monthly_series) == 0:
-        logger.warning("No valid monthly data for IPS reference computation.")
-        return {m: (float("nan"), float("nan")) for m in range(1, 13)}
-
-    # Step 2: Select reference period
-    ref = monthly_series.loc[ref_start:ref_end]
-
-    # Check if we have enough data in the reference period
-    n_years = len(ref.index.year.unique()) if len(ref) > 0 else 0
-    if n_years < BRGM_MIN_YEARS:
-        logger.info(
-            f"Reference period {ref_start}-{ref_end} has only {n_years} years "
-            f"(BRGM requires {BRGM_MIN_YEARS}). Using full series "
-            f"({len(monthly_series)} monthly values, "
-            f"{len(monthly_series.index.year.unique())} years)."
-        )
-        ref = monthly_series
-
-    # Step 3: Compute per-calendar-month statistics
-    monthly_groups = ref.groupby(ref.index.month)
-    stats = {}
-    for month in range(1, 13):
-        if month in monthly_groups.groups:
-            vals = monthly_groups.get_group(month)
-            mu = float(vals.mean())
-            sigma = float(vals.std())
-            n_vals = len(vals)
-            # Protect against zero/NaN std
-            if sigma == 0 or np.isnan(sigma):
-                logger.warning(
-                    f"Month {month}: std=0 or NaN ({n_vals} values). "
-                    f"IPS for this month will be unreliable."
-                )
-                sigma = np.nan
-            if n_vals < 10:
-                logger.warning(
-                    f"Month {month}: only {n_vals} years of data "
-                    f"(BRGM recommends >= 15). Statistics may be unreliable."
-                )
-            stats[month] = (mu, sigma)
-        else:
-            stats[month] = (float("nan"), float("nan"))
-
-    # Fill NaN months by interpolation from neighbors
-    for month in range(1, 13):
-        if np.isnan(stats[month][0]):
-            prev_m = ((month - 2) % 12) + 1
-            next_m = (month % 12) + 1
-            if not np.isnan(stats[prev_m][0]) and not np.isnan(stats[next_m][0]):
-                mu_interp = (stats[prev_m][0] + stats[next_m][0]) / 2
-                sigma_interp = (stats[prev_m][1] + stats[next_m][1]) / 2
-                stats[month] = (mu_interp, sigma_interp)
-                logger.info(f"Month {month}: interpolated from months {prev_m} and {next_m}")
-
-    return stats
 
 
 def gwl_to_ips_zscore(gwl: float, month: int, ref_stats: dict[int, tuple[float, float]]) -> float:
@@ -399,7 +314,7 @@ def compute_ips_series(
 
     Args:
         gwl_series: Daily or monthly gwl series in m NGF.
-        ref_stats: Monthly reference statistics from compute_ips_reference.
+        ref_stats: Monthly reference statistics {month: (mu, sigma)}.
         aggregate_to_monthly: If True, aggregate to monthly means first (BRGM standard).
 
     Returns DataFrame with columns [gwl, ips_zscore, ips_class].
@@ -626,121 +541,6 @@ def compute_rolling_monthly_mean(
     return monthly_series.rolling(window=window, min_periods=window).mean()
 
 
-def compute_ips_reference_n(
-    gwl_series: pd.Series,
-    window: int = 1,
-    ref_start: str = "1981",
-    ref_end: str = "2010",
-    aggregate_to_monthly: bool = True,
-) -> dict[int, tuple[float, float]]:
-    """Compute IPS-N reference statistics.
-
-    Same as compute_ips_reference but with rolling window applied first.
-    For IPS-3: monthly means are smoothed with a 3-month rolling average
-    before computing the per-calendar-month mu_m and sigma_m.
-
-    Args:
-        gwl_series: Daily or monthly gwl series in m NGF.
-        window: IPS aggregation window (1, 3, 6, 12).
-        ref_start: Reference period start.
-        ref_end: Reference period end.
-        aggregate_to_monthly: Whether to aggregate daily -> monthly first.
-
-    Returns:
-        Dict {month: (mean, std)} for months 1-12.
-    """
-    # Step 1: Get monthly means
-    if aggregate_to_monthly:
-        monthly = daily_to_monthly_mean(gwl_series)
-    else:
-        monthly = gwl_series.dropna()
-
-    if len(monthly) == 0:
-        return {m: (float("nan"), float("nan")) for m in range(1, 13)}
-
-    # Step 2: Apply rolling window
-    smoothed = compute_rolling_monthly_mean(monthly, window)
-    smoothed = smoothed.dropna()
-
-    if len(smoothed) == 0:
-        logger.warning(f"IPS-{window}: no data after rolling window.")
-        return {m: (float("nan"), float("nan")) for m in range(1, 13)}
-
-    # Step 3: Select reference period
-    ref = smoothed.loc[ref_start:ref_end]
-    n_years = len(ref.index.year.unique()) if len(ref) > 0 else 0
-    if n_years < BRGM_MIN_YEARS:
-        logger.info(
-            f"IPS-{window}: reference period has only {n_years} years. "
-            f"Using full series ({len(smoothed)} values)."
-        )
-        ref = smoothed
-
-    # Step 4: Per-calendar-month statistics on the smoothed series
-    monthly_groups = ref.groupby(ref.index.month)
-    stats = {}
-    for month in range(1, 13):
-        if month in monthly_groups.groups:
-            vals = monthly_groups.get_group(month)
-            mu = float(vals.mean())
-            sigma = float(vals.std())
-            if sigma == 0 or np.isnan(sigma):
-                sigma = np.nan
-            stats[month] = (mu, sigma)
-        else:
-            stats[month] = (float("nan"), float("nan"))
-
-    # Fill NaN months by interpolation
-    for month in range(1, 13):
-        if np.isnan(stats[month][0]):
-            prev_m = ((month - 2) % 12) + 1
-            next_m = (month % 12) + 1
-            if not np.isnan(stats[prev_m][0]) and not np.isnan(stats[next_m][0]):
-                stats[month] = (
-                    (stats[prev_m][0] + stats[next_m][0]) / 2,
-                    (stats[prev_m][1] + stats[next_m][1]) / 2,
-                )
-
-    return stats
-
-
-def compute_all_ips_references(
-    gwl_series: pd.Series,
-    windows: list[int] | None = None,
-    ref_start: str = "1981",
-    ref_end: str = "2010",
-    aggregate_to_monthly: bool = True,
-) -> dict[int, dict[int, tuple[float, float]]]:
-    """Compute IPS reference stats for multiple windows (IPS-1, IPS-3, IPS-6, IPS-12).
-
-    Args:
-        gwl_series: Daily gwl series in m NGF.
-        windows: List of IPS windows to compute (default: [1, 3, 6, 12]).
-        ref_start: Reference period start.
-        ref_end: Reference period end.
-        aggregate_to_monthly: Whether to aggregate daily -> monthly first.
-
-    Returns:
-        Dict {window: {month: (mean, std)}} for each window and months 1-12.
-        Example: {1: {1: (130.5, 2.1), ...}, 3: {1: (130.2, 1.8), ...}, ...}
-    """
-    if windows is None:
-        windows = IPS_WINDOWS
-
-    all_refs = {}
-    for w in windows:
-        all_refs[w] = compute_ips_reference_n(
-            gwl_series,
-            window=w,
-            ref_start=ref_start,
-            ref_end=ref_end,
-            aggregate_to_monthly=aggregate_to_monthly,
-        )
-        logger.info(f"IPS-{w}: reference computed for 12 months")
-
-    return all_refs
-
-
 def compute_ips_series_n(
     gwl_series: pd.Series,
     ref_stats: dict[int, tuple[float, float]],
@@ -752,7 +552,7 @@ def compute_ips_series_n(
     Args:
         gwl_series: Daily gwl series in m NGF.
         ref_stats: Monthly reference statistics for this specific window
-            (from compute_ips_reference_n or compute_all_ips_references[window]).
+            (per-month {month: (mu, sigma)} derived from reference data).
         window: IPS aggregation window (must match ref_stats).
         aggregate_to_monthly: Whether to aggregate daily -> monthly first.
 

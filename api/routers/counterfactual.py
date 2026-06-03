@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import ProgrammingError
 
 from api.auth.deps import get_current_user
 from api.auth.ownership import assert_owns_model
@@ -26,10 +28,51 @@ from api.schemas.counterfactual import (
     IPSReferenceRequest,
     PastasValidateRequest,
 )
+from dashboard.utils.reference import class_bounds_ngf, PCTL_GRID
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/counterfactual", tags=["counterfactual"])
+
+
+# ---------------------------------------------------------------------------
+# Shared fixed-reference grid helpers
+# ---------------------------------------------------------------------------
+
+def _brgm_url() -> str:
+    return (
+        f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
+        f"@{settings.brgm_db_host}:{settings.brgm_db_port}/{settings.brgm_db_name}"
+    )
+
+
+def _load_station_grid(code_bss: str) -> dict[int, list[float] | None]:
+    """Load the per-month quantile grid for a piezo station from gold.station_reference_stats.
+
+    Returns {month (1-12): grid_list | None}. Returns empty dict if table missing or no rows.
+    Handles gracefully: missing table, no data for station, DB unavailable.
+    """
+    try:
+        engine = create_engine(_brgm_url())
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    text(
+                        "SELECT month, quantile_grid "
+                        "FROM gold.station_reference_stats "
+                        "WHERE type='piezo' AND code=:code"
+                    ),
+                    {"code": code_bss},
+                ).mappings().all()
+        except ProgrammingError:
+            logger.info("gold.station_reference_stats not yet materialized — returning empty grid")
+            return {}
+        finally:
+            engine.dispose()
+        return {r["month"]: r["quantile_grid"] for r in rows}
+    except Exception as exc:
+        logger.warning("Could not load station grid for %s: %s", code_bss, exc)
+        return {}
 
 
 def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
@@ -63,7 +106,6 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
         from dashboard.utils.counterfactual.ips import (
             IPS_CLASSES,
             extract_scaler_params,
-            compute_ips_reference_n,
         )
         from dashboard.utils.counterfactual.perturbation import PerturbationLayer
         from dashboard.utils.preprocessing import detect_columns_from_config, build_complete_dataframe
@@ -77,19 +119,9 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
         scalers = registry.load_scalers(entry)
         config = registry.load_model_config(entry)
 
-        # Load IPS reference from model artifacts
-        ips_ref = {}
-        try:
-            import mlflow
-
-            local_path = mlflow.artifacts.download_artifacts(
-                run_id=entry.run_id,
-                artifact_path="model/ips_reference.json",
-            )
-            with open(local_path, "r", encoding="utf-8") as f:
-                ips_ref = json.load(f)
-        except Exception as exc:
-            logger.warning("Could not load IPS reference: %s", exc)
+        # Load IPS reference grid from shared warehouse table (fixed reference)
+        # entry.station_name holds the real code_bss for this model
+        _station_grid = _load_station_grid(entry.station_name)
 
         # Load data splits
         data_dict = {}
@@ -195,18 +227,17 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
                 if sigma_c > 0:
                     s_obs_phys[:, j] = s_obs_norm[:, j] * sigma_c + mu_c
 
-        # Load/compute IPS reference stats for target bounds
-        ref_stats = {}
-        all_ref_stats = {}
-        if ips_ref and "ref_stats_all" in ips_ref:
-            for w_str, month_dict in ips_ref["ref_stats_all"].items():
-                all_ref_stats[int(w_str)] = {int(m): tuple(v) for m, v in month_dict.items()}
-        elif ips_ref and "ref_stats" in ips_ref:
-            all_ref_stats[1] = {int(k): tuple(v) for k, v in ips_ref["ref_stats"].items()}
-
-        if 1 in all_ref_stats:
-            ref_stats = all_ref_stats[1]
-        else:
+        # Build ref_stats {month: (mu, sigma)} from the shared fixed-reference grid.
+        # Used by CoMTE's distractor classification; falls back to train/val stats if grid empty.
+        ref_stats: dict[int, tuple[float, float]] = {}
+        if _station_grid:
+            for _m, _g in _station_grid.items():
+                if _g is not None and len(_g) == 99:
+                    _arr = np.array(_g, dtype=np.float64)
+                    _mu_m = float(_arr.mean())
+                    _sigma_m = float(_arr.std()) if float(_arr.std()) > 0 else 1.0
+                    ref_stats[int(_m)] = (_mu_m, _sigma_m)
+        if not ref_stats:
             # G5 fix: Compute from train+val data only (no test leakage)
             train_target = data_dict["train"][target_col] if target_col in data_dict["train"].columns else None
             val_target = data_dict.get("val", pd.DataFrame()).get(target_col) if "val" in data_dict else None
@@ -216,8 +247,15 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
             else:
                 gwl_ref_norm = df_full[target_col]
             gwl_ref_raw = gwl_ref_norm.values * sigma_target + mu_target
+            # Compute per-month mu/sigma from train+val physical values
             gwl_series = pd.Series(gwl_ref_raw, index=gwl_ref_norm.index)
-            ref_stats = compute_ips_reference_n(gwl_series, window=1, aggregate_to_monthly=True)
+            monthly_groups = gwl_series.resample("ME").mean().dropna()
+            for _m in range(1, 13):
+                _vals = monthly_groups[monthly_groups.index.month == _m].values
+                if len(_vals) >= 2:
+                    ref_stats[_m] = (float(_vals.mean()), float(_vals.std()) or 1.0)
+                else:
+                    ref_stats[_m] = (mu_target, sigma_target)
 
         # Resolve IPS class name (handles aliases like "bas" -> "low")
         ips_name_map = {
@@ -243,25 +281,57 @@ def _run_cf_thread(task_id: str, method: str, req: CFGenerateRequest) -> None:
         for month_str, cls_name in req.target_ips_classes.items():
             per_month_ips[int(month_str)] = _resolve_ips_class(cls_name)
 
+        # IPS class → index pair into the 6-element class_bounds_ngf output:
+        # bounds = [b0, b1, b2, b3, b4, b5] separating 7 classes (very_low..very_high)
+        _IPS_CLASS_BOUND_IDX = {
+            "very_low":        (-1, 0),   # (-inf, bounds[0])
+            "low":             (0,  1),
+            "moderately_low":  (1,  2),
+            "normal":          (2,  3),
+            "moderately_high": (3,  4),
+            "high":            (4,  5),
+            "very_high":       (5,  6),   # (bounds[5], +inf)
+        }
+
         # Compute target bounds per timestep using per-month IPS classes
         horizon_months = horizon_df.index.month.values if len(horizon_df) >= H_model else np.full(H_model, 6)
         lower_norm_arr = np.zeros(H_model, dtype=np.float32)
         upper_norm_arr = np.zeros(H_model, dtype=np.float32)
 
+        # Pre-compute class bounds per month from the shared grid (or fall back to gaussian)
+        _month_bounds_cache: dict[int, list[float] | None] = {}
+        for _m_key in range(1, 13):
+            _grid_m = _station_grid.get(_m_key)
+            _month_bounds_cache[_m_key] = class_bounds_ngf(_grid_m)  # None if no grid
+
         for t in range(min(H_model, len(horizon_months))):
             m = int(horizon_months[t])
             ips_key = per_month_ips.get(m, default_ips_key)
-            z_min, z_max = IPS_CLASSES[ips_key]
-            z_min_c = max(z_min, -5.0)
-            z_max_c = min(z_max, 5.0)
-            mu_m, sigma_m = ref_stats.get(m, (mu_target, sigma_target))
-            lower_raw = mu_m + z_min_c * sigma_m if sigma_m > 0 else mu_m
-            upper_raw = mu_m + z_max_c * sigma_m if sigma_m > 0 else mu_m
-            if sigma_target > 0:
-                lower_norm_arr[t] = (lower_raw - mu_target) / sigma_target
-                upper_norm_arr[t] = (upper_raw - mu_target) / sigma_target
+            bounds_m = _month_bounds_cache.get(m)
+
+            if bounds_m is not None:
+                # Grid-based physical bounds
+                lo_idx, hi_idx = _IPS_CLASS_BOUND_IDX.get(ips_key, (2, 3))
+                lower_raw = bounds_m[lo_idx] if lo_idx >= 0 else -1e9
+                upper_raw = bounds_m[hi_idx] if hi_idx < len(bounds_m) else 1e9
+                if sigma_target > 0:
+                    lower_norm_arr[t] = (lower_raw - mu_target) / sigma_target
+                    upper_norm_arr[t] = (upper_raw - mu_target) / sigma_target
+                else:
+                    lower_norm_arr[t], upper_norm_arr[t] = -3.0, 3.0
             else:
-                lower_norm_arr[t], upper_norm_arr[t] = z_min_c, z_max_c
+                # Gaussian fallback using ref_stats
+                z_min, z_max = IPS_CLASSES[ips_key]
+                z_min_c = max(z_min, -5.0)
+                z_max_c = min(z_max, 5.0)
+                mu_m, sigma_m = ref_stats.get(m, (mu_target, sigma_target))
+                lower_raw = mu_m + z_min_c * sigma_m if sigma_m > 0 else mu_m
+                upper_raw = mu_m + z_max_c * sigma_m if sigma_m > 0 else mu_m
+                if sigma_target > 0:
+                    lower_norm_arr[t] = (lower_raw - mu_target) / sigma_target
+                    upper_norm_arr[t] = (upper_raw - mu_target) / sigma_target
+                else:
+                    lower_norm_arr[t], upper_norm_arr[t] = z_min_c, z_max_c
 
         # Convert to tensors
         h_t = torch.tensor(h_obs_norm, dtype=torch.float32)
@@ -527,7 +597,7 @@ async def ips_reference(
     aquifer_type: str = Query(None),
     current: User = Depends(get_current_user),
 ):
-    """Get IPS reference statistics for a trained model."""
+    """Get IPS reference statistics for a trained model from the shared fixed reference grid."""
     assert_owns_model(current, model_id)
     from dashboard.utils.model_registry import ModelRegistry
 
@@ -536,31 +606,48 @@ async def ips_reference(
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    # Try to load pre-computed IPS reference from artifacts
+    # Load from shared fixed-reference grid (warehouse table)
+    station_grid = _load_station_grid(entry.station_name)
+
+    # Build ref_stats {month: [mu, sigma]} for the requested window
+    # (window smoothing not applied at grid level — use IPS-1 grid for all windows)
+    ref_stats_for_window: dict[str, list[float]] = {}
+    n_years = None
     try:
-        import mlflow
+        import numpy as np
+        engine = create_engine(_brgm_url())
+        try:
+            with engine.connect() as conn:
+                meta_rows = conn.execute(
+                    text(
+                        "SELECT month, quantile_grid, n_years "
+                        "FROM gold.station_reference_stats "
+                        "WHERE type='piezo' AND code=:code"
+                    ),
+                    {"code": entry.station_name},
+                ).mappings().all()
+        except ProgrammingError:
+            meta_rows = []
+        finally:
+            engine.dispose()
 
-        local_path = mlflow.artifacts.download_artifacts(
-            run_id=entry.run_id,
-            artifact_path="model/ips_reference.json",
-        )
-        with open(local_path, "r", encoding="utf-8") as f:
-            ips_data = json.load(f)
-    except Exception:
-        raise HTTPException(status_code=404, detail="IPS reference not found for this model")
-
-    # Return requested window
-    all_refs = ips_data.get("ref_stats_all", {})
-    ref_for_window = all_refs.get(str(window), ips_data.get("ref_stats", {}))
+        for r in meta_rows:
+            g = r["quantile_grid"]
+            if n_years is None:
+                n_years = r["n_years"]
+            if g is not None and len(g) == 99:
+                _arr = np.array(g, dtype=np.float64)
+                ref_stats_for_window[str(r["month"])] = [float(_arr.mean()), float(_arr.std()) or 1.0]
+    except Exception as exc:
+        logger.warning("ips_reference: error loading grid for %s: %s", entry.station_name, exc)
 
     result = {
         "model_id": model_id,
         "window": window,
-        "ref_stats": ref_for_window,
-        "mu_target": ips_data.get("mu_target"),
-        "sigma_target": ips_data.get("sigma_target"),
-        "n_years": ips_data.get("n_years"),
-        "validation": ips_data.get("validation"),
+        "ref_stats": ref_stats_for_window,
+        "n_years": n_years,
+        "source": "gold.station_reference_stats",
+        "station_code": entry.station_name,
     }
 
     if aquifer_type:
@@ -577,15 +664,17 @@ async def ips_bounds(
     window: int = Query(1, ge=1, le=12),
     current: User = Depends(get_current_user),
 ):
-    """Return monthly IPS class bounds (m NGF) for the test set date range."""
+    """Return monthly IPS class bounds (m NGF) for the test set date range.
+
+    Bounds are derived from the shared fixed-reference grid
+    (gold.station_reference_stats keyed by the model's station code_bss).
+    If the grid is not yet materialized, returns empty bounds (no 500).
+    """
     assert_owns_model(current, model_id)
-    from dashboard.utils.model_registry import ModelRegistry
-    from dashboard.utils.counterfactual.ips import (
-        compute_ips_reference_n,
-        compute_monthly_ips_bounds,
-        IPS_CLASSES,
-    )
+    import numpy as np
     import pandas as pd
+    from dashboard.utils.model_registry import ModelRegistry
+    from dashboard.utils.counterfactual.ips import IPS_CLASSES
 
     # Human-readable labels for IPS classes
     ips_labels = {
@@ -618,29 +707,53 @@ async def ips_bounds(
     if test_df is None:
         raise HTTPException(status_code=404, detail="Test data not found")
 
-    # Get IPS reference (reuse existing endpoint logic)
-    ref_response = await ips_reference(model_id=model_id, window=window, aquifer_type=None, current=current)
-    ref_stats_raw = ref_response.get("ref_stats", {})
-    ref_stats = {int(k): tuple(v) for k, v in ref_stats_raw.items()}
-
-    # Compute bounds
-    bounds_df = compute_monthly_ips_bounds(test_df.index, ref_stats)
-    if bounds_df.empty:
+    # Load shared fixed-reference grid for this station
+    station_grid = _load_station_grid(entry.station_name)
+    if not station_grid:
+        # Grid not yet materialized — return empty bounds (no 500)
         return {"bounds": [], "classes": ips_labels, "colors": ips_colors}
 
-    # Serialize
+    # IPS class name → index pair into class_bounds_ngf (6-element list)
+    _class_bound_idx = {
+        "very_low":        (-1, 0),
+        "low":             (0,  1),
+        "moderately_low":  (1,  2),
+        "normal":          (2,  3),
+        "moderately_high": (3,  4),
+        "high":            (4,  5),
+        "very_high":       (5,  6),
+    }
+
+    # One row per distinct (year, month) in the test set date range
+    ym_set: set[tuple[int, int]] = set()
+    for d in test_df.index:
+        ym_set.add((d.year, d.month))
+
     rows = []
-    for _, row in bounds_df.iterrows():
-        r = {
-            "month_start": row["month_start"].isoformat(),
-            "month_end": row["month_end"].isoformat(),
-            "month": int(row["month"]),
-            "mu": float(row["mu"]),
-            "sigma": float(row["sigma"]),
+    for year, month in sorted(ym_set):
+        grid_m = station_grid.get(month)
+        bounds_m = class_bounds_ngf(grid_m)
+        if bounds_m is None:
+            continue
+
+        # Derive mu/sigma from the grid for metadata fields (mu, sigma)
+        _arr = np.array(grid_m, dtype=np.float64)
+        mu_m = float(_arr.mean())
+        sigma_m = float(_arr.std()) or 1.0
+
+        r: dict = {
+            "month_start": pd.Timestamp(year=year, month=month, day=1).isoformat(),
+            "month_end": (
+                pd.Timestamp(year=year, month=month, day=1) + pd.offsets.MonthEnd(0)
+            ).isoformat(),
+            "month": month,
+            "mu": mu_m,
+            "sigma": sigma_m,
         }
         for cls_name in IPS_CLASSES:
-            r[f"{cls_name}_lower"] = float(row[f"{cls_name}_lower"])
-            r[f"{cls_name}_upper"] = float(row[f"{cls_name}_upper"])
+            lo_idx, hi_idx = _class_bound_idx[cls_name]
+            r[f"{cls_name}_lower"] = bounds_m[lo_idx] if lo_idx >= 0 else -1e9
+            r[f"{cls_name}_upper"] = bounds_m[hi_idx] if hi_idx < len(bounds_m) else 1e9
         rows.append(r)
 
     return {

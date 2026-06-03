@@ -48,8 +48,6 @@ from dashboard.utils.counterfactual import (
     IPS_WINDOWS,
     BRGM_MIN_YEARS,
     AQUIFER_IPS_WINDOW,
-    compute_ips_reference,
-    compute_ips_reference_n,
     validate_ips_data,
     ips_class_to_gwl_bounds,
     extract_scaler_params,
@@ -341,21 +339,33 @@ with st.expander("Qualite des donnees et methodologie IPS (BRGM)", expanded=not 
         st.error("L'IPS ne peut pas etre calcule de maniere fiable.")
         st.stop()
 
-# Load IPS reference stats
-all_ref_stats = {}
-if ips_reference_cached and "ref_stats_all" in ips_reference_cached:
-    for w_str, month_dict in ips_reference_cached["ref_stats_all"].items():
-        all_ref_stats[int(w_str)] = {int(m): tuple(v) for m, v in month_dict.items()}
-elif ips_reference_cached and "ref_stats" in ips_reference_cached:
-    all_ref_stats[1] = {int(k): tuple(v) for k, v in ips_reference_cached["ref_stats"].items()}
+# Build IPS reference stats from per-month mean/std of the full series
+# (train-time freezing is no longer used; the API reads from the shared fixed-reference grid)
+def _compute_ref_stats_from_series(series, window=1):
+    """Compute {month: (mu, sigma)} from a raw gwl series with optional rolling smoothing."""
+    import numpy as np
+    from dashboard.utils.counterfactual.ips import (
+        daily_to_monthly_mean,
+        compute_rolling_monthly_mean,
+    )
+    monthly = daily_to_monthly_mean(series)
+    smoothed = compute_rolling_monthly_mean(monthly, window).dropna()
+    stats = {}
+    for m in range(1, 13):
+        vals = smoothed[smoothed.index.month == m].values
+        if len(vals) >= 2:
+            stats[m] = (float(np.mean(vals)), float(np.std(vals)) or 1.0)
+        else:
+            stats[m] = (float(gwl_all_raw.mean()), float(gwl_all_raw.std()) or 1.0)
+    return stats
 
-if selected_ips_window not in all_ref_stats:
-    with st.spinner(f"Calcul IPS-{selected_ips_window}..."):
-        all_ref_stats[selected_ips_window] = compute_ips_reference_n(
-            gwl_all_raw, window=selected_ips_window, aggregate_to_monthly=True
-        )
+all_ref_stats = {}
+with st.spinner(f"Calcul IPS-{selected_ips_window}..."):
+    all_ref_stats[selected_ips_window] = _compute_ref_stats_from_series(
+        gwl_all_raw, window=selected_ips_window
+    )
 if 1 not in all_ref_stats:
-    all_ref_stats[1] = compute_ips_reference(gwl_all_raw, aggregate_to_monthly=True)
+    all_ref_stats[1] = _compute_ref_stats_from_series(gwl_all_raw, window=1)
 
 ref_stats = all_ref_stats[selected_ips_window]
 
