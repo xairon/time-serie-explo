@@ -1,6 +1,7 @@
 """Observatory piezo router — sync SQLAlchemy against BRGM data warehouse."""
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Literal, Optional
 
@@ -29,6 +30,31 @@ MONTHLY_TTL = 43200
 YEARLY_TTL = 86400
 PERCENTILES_TTL = 86400
 SPLI_TTL = 86400
+SIBLINGS_TTL = 3600
+
+_BDLISA_SYSTEM_RE = re.compile(r"^(\d{3}[A-Z]{2})")
+
+
+def _bdlisa_primary(codes_bdlisa: str | None) -> str | None:
+    """Return the primary (first) BDLISA entity code from a possibly comma-joined string."""
+    if not codes_bdlisa:
+        return None
+    first = codes_bdlisa.split(",")[0].strip()
+    return first or None
+
+
+def _bdlisa_system_prefix(codes_bdlisa: str | None) -> str | None:
+    """Return the BDLISA system-level prefix (3 digits + 2 letters) of the primary code.
+
+    '101AC01' -> '101AC' ; '101AC' -> '101AC' ; None/'' -> None.
+    Falls back to the primary code unchanged if it doesn't match the BDLISA shape.
+    """
+    primary = _bdlisa_primary(codes_bdlisa)
+    if not primary:
+        return None
+    m = _BDLISA_SYSTEM_RE.match(primary)
+    return m.group(1) if m else primary
+
 
 ClassificationType = Literal[
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
