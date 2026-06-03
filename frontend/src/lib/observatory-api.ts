@@ -10,6 +10,7 @@ import type {
   StationGeoJSON, ClassificationTimeline,
   SPIDataPoint, SPLIDataPoint, SSFIDataPoint,
   HydroSiteSiblings,
+  PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
 } from './observatory-types'
 
@@ -56,6 +57,8 @@ export const observatoryApi = {
     yearly: (code: string) => fetchJson<YearlyPiezoData[]>(`/observatory/piezo/stations/${code}/yearly`),
     spli: (code: string) => fetchJson<SPLIDataPoint[]>(`/observatory/piezo/stations/${code}/spli`),
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`),
+    siblings: (code: string, level: 'nappe' | 'systeme' = 'nappe') =>
+      fetchJson<PiezoBdlisaSiblings>(`/observatory/piezo/stations/${encodeURIComponent(code)}/siblings`, { level }),
   },
   hydro: {
     stations: (params?: Record<string, string | string[] | undefined>) =>
@@ -69,7 +72,8 @@ export const observatoryApi = {
     yearly: (code: string) => fetchJson<YearlyHydroData[]>(`/observatory/hydro/stations/${code}/yearly`),
     ssfi: (code: string) => fetchJson<SSFIDataPoint[]>(`/observatory/hydro/stations/${code}/ssfi`),
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`),
-    siblings: (code: string) => fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${code}/siblings`),
+    siblings: (code: string, level: 'site' | 'cours_eau' = 'site') =>
+      fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${encodeURIComponent(code)}/siblings`, { level }),
   },
   common: {
     geojson: (stationType?: 'piezo' | 'hydro' | 'all') =>

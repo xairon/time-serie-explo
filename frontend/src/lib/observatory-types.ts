@@ -106,11 +106,27 @@ export interface HydroSiblingStation {
 }
 
 export interface HydroSiteSiblings {
-  code_site: string
+  code_site: string | null
   libelle_site: string | null
   nom_cours_eau: string | null
   nb_stations: number
+  level: string
   siblings: HydroSiblingStation[]
+}
+
+export interface PiezoBdlisaSibling {
+  code_bss: string
+  nom_commune: string | null
+  codes_bdlisa: string | null
+  classification: string | null
+}
+
+export interface PiezoBdlisaSiblings {
+  level: string
+  code_bdlisa: string | null
+  non_rattachee: boolean
+  nb_stations: number
+  siblings: PiezoBdlisaSibling[]
 }
 
 // Drought index types

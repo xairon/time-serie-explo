@@ -49,10 +49,20 @@ export function useStationsGeoJSON() {
   })
 }
 
-export function useHydroSiblings(code: string) {
+export function usePiezoSiblings(code: string, level: 'nappe' | 'systeme') {
   return useQuery({
-    queryKey: ['obs-siblings', 'hydro', code],
-    queryFn: () => observatoryApi.hydro.siblings(code),
+    queryKey: ['obs-siblings', 'piezo', code, level],
+    queryFn: () => observatoryApi.piezo.siblings(code, level),
+    enabled: !!code,
+    staleTime: 3_600_000,
+    retry: false,
+  })
+}
+
+export function useHydroSiblings(code: string, level: 'site' | 'cours_eau' = 'site') {
+  return useQuery({
+    queryKey: ['obs-siblings', 'hydro', code, level],
+    queryFn: () => observatoryApi.hydro.siblings(code, level),
     enabled: !!code,
     staleTime: 3_600_000,
     retry: false,
