@@ -327,8 +327,10 @@
     "reference": {
       "title": "Reference ranges",
       "normale": "Reference: 1991–2020 (30 years)",
+      "normaleDated": "Reference: {{start}}–{{end}} (30-year normal)",
       "adaptee": "Adapted period: {{start}}–{{end}}",
       "provisoire": "Provisional reference — series < 15 years",
+      "provisoireDated": "Provisional reference: {{start}}–{{end}} (series < 15 years)",
       "unavailable": "Reference unavailable"
     }
   },

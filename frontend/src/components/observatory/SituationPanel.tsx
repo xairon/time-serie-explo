@@ -166,12 +166,15 @@ function ReferenceSection({ referenceFlag, indexClassBounds, baselineStart, base
 
   // Build reference period caption
   let refCaption: string | null = null
+  const yrs = baselineStart && baselineEnd
+    ? { start: baselineStart.slice(0, 4), end: baselineEnd.slice(0, 4) }
+    : null
   if (referenceFlag === 'normale') {
-    refCaption = t('observatory.reference.normale')
-  } else if (referenceFlag === 'adaptee' && baselineStart && baselineEnd) {
-    refCaption = t('observatory.reference.adaptee', { start: baselineStart.slice(0, 4), end: baselineEnd.slice(0, 4) })
+    refCaption = yrs ? t('observatory.reference.normaleDated', yrs) : t('observatory.reference.normale')
+  } else if (referenceFlag === 'adaptee' && yrs) {
+    refCaption = t('observatory.reference.adaptee', yrs)
   } else if (referenceFlag === 'provisoire') {
-    refCaption = t('observatory.reference.provisoire')
+    refCaption = yrs ? t('observatory.reference.provisoireDated', yrs) : t('observatory.reference.provisoire')
   } else if (!hasBounds) {
     refCaption = t('observatory.reference.unavailable')
   }

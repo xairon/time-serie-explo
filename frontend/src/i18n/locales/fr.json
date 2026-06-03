@@ -327,8 +327,10 @@
     "reference": {
       "title": "Plages de référence",
       "normale": "Référence : 1991–2020 (30 ans)",
+      "normaleDated": "Référence : {{start}}–{{end}} (normale 30 ans)",
       "adaptee": "Période adaptée : {{start}}–{{end}}",
       "provisoire": "Référence provisoire — série < 15 ans",
+      "provisoireDated": "Référence provisoire : {{start}}–{{end}} (série < 15 ans)",
       "unavailable": "Référence indisponible"
     }
   },
