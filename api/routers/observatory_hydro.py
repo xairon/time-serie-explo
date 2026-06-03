@@ -451,37 +451,49 @@ def get_spi(code_station: str):
 # ---------------------------------------------------------------------------
 
 @router.get("/stations/{code_station}/siblings", response_model=HydroSiteSiblings)
-def get_siblings(code_station: str):
-    """Return other hydro stations at the same hydrometric site."""
+def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|cours_eau)$")):
+    """Other hydro stations at the same hydrometric site or on the same watercourse."""
 
     def fetch():
         engine = create_engine(_brgm_url())
         try:
             with engine.connect() as conn:
                 row = conn.execute(
-                    text("SELECT code_site, libelle_site, nom_cours_eau FROM gold.dim_hydro_stations WHERE code_station = :code"),
+                    text(
+                        "SELECT code_site, libelle_site, code_cours_eau, nom_cours_eau "
+                        "FROM gold.dim_hydro_stations WHERE code_station = :code"
+                    ),
                     {"code": code_station},
                 ).mappings().first()
                 if not row:
                     raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
-                code_site = row["code_site"]
-                if not code_site:
-                    raise HTTPException(404, f"Aucun code de site pour la station {code_station}")
 
-                query = """
+                if level == "cours_eau":
+                    group_val = row["code_cours_eau"]
+                    if not group_val:
+                        raise HTTPException(404, f"Aucun cours d'eau pour la station {code_station}")
+                    where = "code_cours_eau = :grp AND code_station != :code"
+                else:
+                    group_val = row["code_site"]
+                    if not group_val:
+                        raise HTTPException(404, f"Aucun code de site pour la station {code_station}")
+                    where = "code_site = :grp AND code_station != :code"
+
+                query = f"""
                     SELECT code_station, libelle_station, grandeur_hydro_principale,
                            classification_resultat_dern_annee, derniere_mesure
                     FROM gold.dim_hydro_stations
-                    WHERE code_site = :site AND code_station != :code
+                    WHERE {where}
                     ORDER BY code_station
+                    LIMIT 50
                 """
-                result = conn.execute(text(query), {"site": code_site, "code": code_station})
+                result = conn.execute(text(query), {"grp": group_val, "code": code_station})
                 siblings = [dict(r._mapping) for r in result]
         finally:
             engine.dispose()
 
         return {
-            "code_site": code_site,
+            "code_site": row["code_site"],
             "libelle_site": row["libelle_site"],
             "nom_cours_eau": row["nom_cours_eau"],
             "nb_stations": len(siblings) + 1,
@@ -497,7 +509,12 @@ def get_siblings(code_station: str):
             ],
         }
 
-    return get_cached("obs_hydro_siblings", {"code_station": code_station}, SIBLINGS_TTL, fetch)
+    return get_cached(
+        "obs_hydro_siblings",
+        {"code_station": code_station, "level": level},
+        SIBLINGS_TTL,
+        fetch,
+    )
 
 
 # ---------------------------------------------------------------------------
