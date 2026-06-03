@@ -32,8 +32,19 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
         { value: 'cours_eau', label: t('observatory.siblings.hydro.coursEau') },
       ]
   const activeLevel = isPiezo ? piezoLevel : hydroLevel
-  const setLevel = (v: string) =>
-    isPiezo ? setPiezoLevel(v as 'nappe' | 'systeme') : setHydroLevel(v as 'site' | 'cours_eau')
+
+  // Fix 1: expose isLoading and compute isDrawer before any early return
+  const isLoading = isPiezo ? piezo.isLoading : hydro.isLoading
+  const isDrawer = variant === 'drawer'
+
+  if (isLoading) {
+    if (isDrawer) return null
+    return (
+      <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4">
+        <div className="h-16 animate-pulse bg-white/5 rounded-lg" />
+      </section>
+    )
+  }
 
   // Build a uniform shape from the two payloads
   const data = isPiezo ? piezo.data : hydro.data
@@ -58,13 +69,17 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
         classification: s.classification,
       }))
 
-  const isDrawer = variant === 'drawer'
+  // Fix 2: call typed setters directly; Fix 3: type="button" + aria-pressed
   const Toggle = !nonRattachee && (
     <div className="flex gap-1">
       {levels.map(l => (
         <button
           key={l.value}
-          onClick={() => setLevel(l.value)}
+          type="button"
+          aria-pressed={activeLevel === l.value}
+          onClick={() => isPiezo
+            ? setPiezoLevel(l.value as 'nappe' | 'systeme')
+            : setHydroLevel(l.value as 'site' | 'cours_eau')}
           className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
             activeLevel === l.value
               ? 'bg-accent-cyan/20 text-accent-cyan'
@@ -92,7 +107,7 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
   ) : rows.length === 0 ? (
     <p className="text-xs text-text-secondary">{t('observatory.siblings.empty')}</p>
   ) : (
-    <div className={`space-y-1 ${isDrawer ? 'max-h-32 overflow-y-auto' : ''}`}>
+    <div className={`space-y-1 ${isDrawer ? 'max-h-48 overflow-y-auto' : ''}`}>
       {(isDrawer ? rows.slice(0, 5) : rows).map(r => (
         <Link
           key={r.to}
