@@ -23,7 +23,7 @@ export default function TrainingPage() {
 
   const [logs, setLogs] = useState<string[]>([])
   const [phase, setPhase] = useState<TrainingPhase>('idle')
-  const logsEndRef = useRef<HTMLDivElement>(null)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
 
   const startMutation = useStartTraining()
   const stopMutation = useStopTraining()
@@ -76,9 +76,11 @@ export default function TrainingPage() {
     }
   }, [sse.status])
 
-  // Auto-scroll logs
+  // Auto-scroll logs WITHIN the logs panel only (never move the page — the loss
+  // curve above must stay in view during training).
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = logsContainerRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [logs])
 
   // Use full loss arrays from SSE (sent by backend from MetricsFileCallback)
@@ -224,7 +226,7 @@ export default function TrainingPage() {
           {/* Scrollable logs */}
           <div>
             <h4 className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">{t('mainPages.training.logs')}</h4>
-            <div className="bg-bg-primary rounded-lg border border-white/5 p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-text-secondary space-y-0.5">
+            <div ref={logsContainerRef} className="bg-bg-primary rounded-lg border border-white/5 p-3 max-h-48 overflow-y-auto font-mono text-[11px] text-text-secondary space-y-0.5">
               {logs.length === 0 ? (
                 <p className="text-text-secondary/50">{t('mainPages.training.waitingLogs')}</p>
               ) : (
@@ -234,7 +236,6 @@ export default function TrainingPage() {
                   </div>
                 ))
               )}
-              <div ref={logsEndRef} />
             </div>
           </div>
         </div>
