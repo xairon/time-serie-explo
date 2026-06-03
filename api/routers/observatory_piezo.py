@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 
 from api.config import settings
 from api.schemas.observatory import (
+    PiezoBdlisaSiblings,
     PiezoDaily,
     PiezoMonthly,
     PiezoPercentiles,
@@ -389,6 +390,80 @@ def get_spi(code_bss: str):
         return compute_spi(months, values)
 
     return get_cached("obs_piezo_spi", {"code_bss": code_bss}, SPLI_TTL, fetch)
+
+
+@router.get("/stations/{code_bss:path}/siblings", response_model=PiezoBdlisaSiblings)
+def get_siblings(code_bss: str, level: str = Query("nappe", pattern="^(nappe|systeme)$")):
+    """Other piezometers in the same BDLISA entity (nappe) or system (préfixe)."""
+
+    def fetch():
+        engine = create_engine(_brgm_url())
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(
+                    text("SELECT codes_bdlisa FROM gold.dim_piezo_stations WHERE code_bss = :code"),
+                    {"code": code_bss},
+                ).mappings().first()
+                if row is None:
+                    raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
+
+                codes_bdlisa = row["codes_bdlisa"]
+                primary = _bdlisa_primary(codes_bdlisa)
+                if not primary:
+                    return {
+                        "level": level,
+                        "code_bdlisa": None,
+                        "non_rattachee": True,
+                        "nb_stations": 1,
+                        "siblings": [],
+                    }
+
+                if level == "systeme":
+                    match = _bdlisa_system_prefix(codes_bdlisa)
+                    where = "s.codes_bdlisa LIKE :pat AND s.code_bss != :code"
+                    params = {"pat": f"{match}%", "code": code_bss}
+                else:
+                    match = primary
+                    where = "s.codes_bdlisa = :pat AND s.code_bss != :code"
+                    params = {"pat": match, "code": code_bss}
+
+                query = f"""
+                    SELECT s.code_bss, s.nom_commune, s.codes_bdlisa,
+                           sci.index_class AS classification
+                    FROM gold.dim_piezo_stations s
+                    LEFT JOIN gold.station_current_index sci
+                      ON sci.type = 'piezo' AND sci.code = s.code_bss
+                    WHERE {where}
+                    ORDER BY s.code_bss
+                    LIMIT 50
+                """
+                result = conn.execute(text(query), params)
+                siblings = [dict(r._mapping) for r in result]
+        finally:
+            engine.dispose()
+
+        return {
+            "level": level,
+            "code_bdlisa": match,
+            "non_rattachee": False,
+            "nb_stations": len(siblings) + 1,
+            "siblings": [
+                {
+                    "code_bss": s["code_bss"],
+                    "nom_commune": s.get("nom_commune"),
+                    "codes_bdlisa": s.get("codes_bdlisa"),
+                    "classification": s.get("classification"),
+                }
+                for s in siblings
+            ],
+        }
+
+    return get_cached(
+        "obs_piezo_siblings",
+        {"code_bss": code_bss, "level": level},
+        SIBLINGS_TTL,
+        fetch,
+    )
 
 
 @router.get("/stations/{code_bss:path}", response_model=PiezoStation)

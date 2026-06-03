@@ -232,6 +232,21 @@ class HydroSiteSiblings(BaseModel):
     siblings: list[HydroSiblingStation]
 
 
+class PiezoBdlisaSibling(BaseModel):
+    code_bss: str
+    nom_commune: str | None = None
+    codes_bdlisa: str | None = None
+    classification: str | None = None
+
+
+class PiezoBdlisaSiblings(BaseModel):
+    level: str
+    code_bdlisa: str | None = None
+    non_rattachee: bool = False
+    nb_stations: int
+    siblings: list[PiezoBdlisaSibling]
+
+
 # ---------------------------------------------------------------------------
 # Common (alerts, stats)
 # ---------------------------------------------------------------------------
