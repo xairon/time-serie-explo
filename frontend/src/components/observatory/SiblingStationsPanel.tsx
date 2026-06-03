@@ -22,14 +22,14 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
   const piezo = usePiezoSiblings(isPiezo ? code : '', piezoLevel)
   const hydro = useHydroSiblings(!isPiezo ? code : '', hydroLevel)
 
-  const levels: { value: string; label: string }[] = isPiezo
+  const levels: { value: string; label: string; hint: string }[] = isPiezo
     ? [
-        { value: 'nappe', label: t('observatory.siblings.piezo.nappe') },
-        { value: 'systeme', label: t('observatory.siblings.piezo.systeme') },
+        { value: 'nappe', label: t('observatory.siblings.piezo.nappe'), hint: t('observatory.siblings.piezo.nappeHint') },
+        { value: 'systeme', label: t('observatory.siblings.piezo.systeme'), hint: t('observatory.siblings.piezo.systemeHint') },
       ]
     : [
-        { value: 'site', label: t('observatory.siblings.hydro.site') },
-        { value: 'cours_eau', label: t('observatory.siblings.hydro.coursEau') },
+        { value: 'site', label: t('observatory.siblings.hydro.site'), hint: t('observatory.siblings.hydro.siteHint') },
+        { value: 'cours_eau', label: t('observatory.siblings.hydro.coursEau'), hint: t('observatory.siblings.hydro.coursEauHint') },
       ]
   const activeLevel = isPiezo ? piezoLevel : hydroLevel
 
@@ -76,6 +76,7 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
         <button
           key={l.value}
           type="button"
+          title={l.hint}
           aria-pressed={activeLevel === l.value}
           onClick={() => isPiezo
             ? setPiezoLevel(l.value as 'nappe' | 'systeme')
@@ -107,7 +108,7 @@ export function SiblingStationsPanel({ code, type, variant = 'page' }: Props) {
   ) : rows.length === 0 ? (
     <p className="text-xs text-text-secondary">{t('observatory.siblings.empty')}</p>
   ) : (
-    <div className={`space-y-1 ${isDrawer ? 'max-h-48 overflow-y-auto' : ''}`}>
+    <div className={`space-y-1 overflow-y-auto ${isDrawer ? 'max-h-48' : 'max-h-64'}`}>
       {(isDrawer ? rows.slice(0, 5) : rows).map(r => (
         <Link
           key={r.to}

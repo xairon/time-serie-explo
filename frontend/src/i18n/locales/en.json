@@ -115,8 +115,18 @@
       "title": "Stations in the same group",
       "empty": "No other station at this level",
       "notLinked": "Station not linked to a BDLISA entity",
-      "piezo": { "nappe": "Aquifer", "systeme": "System" },
-      "hydro": { "site": "Site", "coursEau": "Watercourse" }
+      "piezo": {
+        "nappe": "Aquifer",
+        "nappeHint": "Stations in the same hydrogeological entity (BDLISA)",
+        "systeme": "Aquifer system",
+        "systemeHint": "Stations in the same aquifer system — broader grouping (parent BDLISA entity)"
+      },
+      "hydro": {
+        "site": "Site",
+        "siteHint": "Stations at the same hydrometric site",
+        "coursEau": "Watercourse",
+        "coursEauHint": "Stations on the same watercourse"
+      }
     },
     "active": "Active",
     "inactive": "Inactive",
