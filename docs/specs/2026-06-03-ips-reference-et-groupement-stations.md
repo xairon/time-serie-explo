@@ -130,9 +130,20 @@ de référence côté app.
 
 ### A.4 Transparence UI
 
-- Tooltip de l'échelle IPS : « Référence : 1991–2020 (30 ans) » ou « période adaptée
-  (AAAA–AAAA) » / « provisoire — série < 15 ans ».
-- La page Prévision affiche les mêmes bandes que l'Observatoire pour une station donnée.
+Les plages fixes doivent être **explicitement données à l'utilisateur**, pas seulement
+appliquées en interne :
+
+- **Valeurs des classes en clair** : afficher, pour le mois de référence, les bornes de
+  chaque classe IPS **en m NGF** (ex. « Normal : 12,4–13,1 m NGF »), pas seulement la
+  couleur. Sous forme d'un petit tableau/légende déroulable sous l'échelle, ou au survol
+  de chaque bande.
+- **Période de référence visible** : tooltip de l'échelle IPS « Référence : 1991–2020
+  (30 ans) » ou « période adaptée (AAAA–AAAA) » / « provisoire — série < 15 ans », +
+  `baseline_start/end` exposés par l'API.
+- **Reproductibilité** : indiquer que les plages sont fixes (recalculées par décennie),
+  donc qu'un même niveau donne toujours la même classe.
+- La page Prévision affiche les mêmes bandes (et donc les mêmes plages en m NGF) que
+  l'Observatoire pour une station donnée.
 
 ### A.5 Cadence
 
