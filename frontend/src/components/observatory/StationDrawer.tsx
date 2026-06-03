@@ -4,8 +4,8 @@ import { X, ExternalLink, Waves } from 'lucide-react'
 import { SituationPanel } from './SituationPanel'
 import { AddToCompareButton } from './AddToCompareButton'
 import { formatNumber, formatDate, isStationActive } from '@/lib/observatory-utils'
-import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
-import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, useObsPastasSummary } from '@/hooks/useObservatory'
+import { usePiezoStationDetail, useHydroStationDetail, useObsPastasSummary } from '@/hooks/useObservatory'
+import { SiblingStationsPanel } from '@/components/observatory/SiblingStationsPanel'
 
 interface Props {
   code: string
@@ -43,7 +43,6 @@ export function StationDrawer({ code, type, onClose }: Props) {
   const { data: station, isLoading, isError } = isPiezo ? piezoQuery : hydroQuery
 
   const stationCode = isPiezo ? (station as any)?.code_bss ?? code : (station as any)?.code_station ?? code
-  const hydroSiblings = useHydroSiblings(!isPiezo ? stationCode : '')
   const { data: pastasSummary } = useObsPastasSummary(isPiezo ? stationCode : '')
 
   const content = (() => {
@@ -108,22 +107,7 @@ export function StationDrawer({ code, type, onClose }: Props) {
           </div>
         </div>
 
-        {!isPiezo && hydroSiblings.data && hydroSiblings.data.siblings.length > 0 && (
-          <div className="bg-white/[0.03] rounded-lg p-3 border border-white/5">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-2">{t('observatory.hydroSite', { count: hydroSiblings.data.nb_stations })}</div>
-            <p className="text-xs text-text-primary mb-2 font-medium">{hydroSiblings.data.libelle_site || hydroSiblings.data.code_site}{hydroSiblings.data.nom_cours_eau ? ` - ${hydroSiblings.data.nom_cours_eau}` : ''}</p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {hydroSiblings.data.siblings.slice(0, 5).map(sib => (
-                <Link key={sib.code_station} to={`/station/hydro/${sib.code_station}`} className="flex items-center justify-between py-1 px-1.5 rounded hover:bg-bg-hover text-xs transition-colors">
-                  <span className="text-text-primary truncate">{sib.libelle_station || sib.code_station}</span>
-                  <span className="flex items-center gap-1.5 shrink-0 ml-2">
-                    {sib.classification && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CLASSIFICATION_COLORS[sib.classification] ?? '#6b7280' }} title={sib.classification} />}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        <SiblingStationsPanel code={sCode} type={type} variant="drawer" />
 
         <div className="flex items-center gap-2">
           <Link to={`/station/${type}/${sCode}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors">{t('observatory.viewDetails')} <ExternalLink className="w-4 h-4" /></Link>

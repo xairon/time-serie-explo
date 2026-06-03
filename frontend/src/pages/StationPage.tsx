@@ -2,14 +2,14 @@ import { useState, useMemo, useCallback } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, Info, Waves, Brain } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { usePiezoStationDetail, useHydroStationDetail, useHydroSiblings, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
+import { usePiezoStationDetail, useHydroStationDetail, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
 import { SituationPanel } from '@/components/observatory/SituationPanel'
 import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
-import { CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
+import { SiblingStationsPanel } from '@/components/observatory/SiblingStationsPanel'
 
 type Resolution = 'daily' | 'monthly' | 'yearly'
 
@@ -73,7 +73,6 @@ export default function StationPage() {
   const stationError = isPiezo ? piezoError : hydroError
   const type = isPiezo ? 'piezo' as const : 'hydro' as const
 
-  const { data: hydroSiblings } = useHydroSiblings(!isPiezo ? code : '')
   const { data: spliData } = usePiezoSPLI(isPiezo ? code : '')
   const { data: ssfiData } = useHydroSSFI(!isPiezo ? code : '')
   const { data: spiData } = useSPI(code, type)
@@ -117,13 +116,7 @@ export default function StationPage() {
           </div>
         </section>
 
-        {!isPiezo && hydroSiblings && hydroSiblings.siblings.length > 0 && (
-          <section className="bg-gray-900/50 rounded-xl border border-white/5 p-4">
-            <h2 className="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2"><Waves className="w-4 h-4" />{t('mainPages.station.hydroSite')} - {hydroSiblings.nb_stations} {t('observatory.stations').toLowerCase()}</h2>
-            <p className="text-xs text-gray-500 mb-3">{hydroSiblings.libelle_site || hydroSiblings.code_site}{hydroSiblings.nom_cours_eau ? ` - ${hydroSiblings.nom_cours_eau}` : ''}</p>
-            <div className="space-y-1">{hydroSiblings.siblings.map(sib => (<Link key={sib.code_station} to={`/station/hydro/${sib.code_station}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-bg-hover transition-colors"><div><span className="text-xs text-gray-200">{sib.libelle_station || sib.code_station}</span><span className="text-[10px] text-gray-500 ml-2">{sib.code_station}</span></div><div className="flex items-center gap-2">{sib.classification && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CLASSIFICATION_COLORS[sib.classification] ?? '#6b7280' }} title={sib.classification} />}</div></Link>))}</div>
-          </section>
-        )}
+        <SiblingStationsPanel code={code} type={type} variant="page" />
 
         <SituationPanel
           type={isPiezo ? 'piezo' : 'hydro'}
