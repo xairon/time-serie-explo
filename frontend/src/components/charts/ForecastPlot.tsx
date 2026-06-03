@@ -76,6 +76,31 @@ export function ForecastPlot({
   const shapes: Partial<Shape>[] = []
   const annotations: Partial<Annotations>[] = []
 
+  // Faithful error badge: quantify the real error (in m) so a tight y-zoom can't
+  // make a small constant offset look catastrophic (or vice-versa).
+  const mae = result.metrics?.['MAE']
+  const bias = result.metrics?.['bias']
+  if (mae != null) {
+    annotations.push({
+      xref: 'paper',
+      yref: 'paper',
+      x: 0.01,
+      y: 0.99,
+      xanchor: 'left',
+      yanchor: 'top',
+      text: t('sharedComponents.charts.errorBadge', {
+        mae: mae.toFixed(3),
+        bias: `${bias != null && bias >= 0 ? '+' : ''}${bias != null ? bias.toFixed(3) : '—'}`,
+      }),
+      showarrow: false,
+      bgcolor: 'rgba(0,0,0,0.45)',
+      bordercolor: 'rgba(255,255,255,0.15)',
+      borderwidth: 1,
+      borderpad: 4,
+      font: { size: 11, color: '#e5e7eb' },
+    })
+  }
+
   // Auto-detect prediction window from non-null predictions
   const firstPredIdx = predictions.findIndex((v) => v !== null)
   let lastPredIdx = predictions.length - 1

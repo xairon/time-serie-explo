@@ -32,8 +32,24 @@ def _get_model_registry():
 
 
 def _model_metrics(metrics: dict) -> dict:
-    """Keep only model-quality metrics; drop MLflow system/* (cpu, gpu, disk…)."""
-    return clean_nans({k: v for k, v in (metrics or {}).items() if not k.startswith("system/")})
+    """Surface honest, interpretable model-quality metrics.
+
+    Drops MLflow system/* and loss curves. The un-prefixed NSE/KGE/NRMSE are
+    single-window scores computed on one forecast horizon, where the observed
+    variance is tiny → they explode (e.g. NSE = -88) even for a good model. The
+    sliding_* variants are computed over the WHOLE test period and are the
+    trustworthy ones. We therefore expose the sliding_* values (prefix stripped)
+    as canonical and drop the misleading single-window variance metrics.
+    """
+    m = {k: v for k, v in (metrics or {}).items()
+         if not k.startswith("system/") and k not in ("train_loss", "val_loss")}
+    sliding = {k[len("sliding_"):]: v for k, v in m.items() if k.startswith("sliding_")}
+    if sliding:
+        misleading = {"NSE", "KGE", "NRMSE"}  # single-window variance scores
+        base = {k: v for k, v in m.items()
+                if not k.startswith("sliding_") and k not in sliding and k not in misleading}
+        return clean_nans({**base, **sliding})
+    return clean_nans(m)
 
 
 # --------------------------------------------------------------------------- #

@@ -9,13 +9,17 @@ import { useForecastSingle } from '@/hooks/useForecasting'
 import { useModelDetail, useModelTestInfo } from '@/hooks/useModels'
 
 /** Display order for metrics (matches Streamlit) */
-const METRIC_ORDER = ['MAE', 'RMSE', 'NRMSE', 'sMAPE', 'WAPE', 'NSE', 'KGE', 'Dir_Acc']
+const METRIC_ORDER = ['MAE', 'RMSE', 'bias', 'sMAPE', 'NRMSE', 'WAPE', 'NSE', 'KGE', 'Dir_Acc']
+
+// Metrics expressed in the target's physical unit (m NGF for piezometry)
+const PHYSICAL_METRICS = ['MAE', 'RMSE', 'bias']
 
 /** Color coding for metric values */
 function metricColor(key: string, value: number): string {
-  const lowerBetter = ['MAE', 'RMSE', 'sMAPE', 'WAPE', 'NRMSE']
   const higherBetter = ['NSE', 'KGE', 'Dir_Acc']
-  if (lowerBetter.includes(key)) return value < 0.1 ? 'text-accent-green' : value > 1 ? 'text-accent-red' : 'text-text-primary'
+  // Physical-unit errors have no universal good/bad threshold → judge in context (see relMAE line)
+  if (PHYSICAL_METRICS.includes(key)) return 'text-text-primary'
+  if (['sMAPE', 'WAPE', 'NRMSE'].includes(key)) return value < 10 ? 'text-accent-green' : value > 50 ? 'text-accent-red' : 'text-text-primary'
   if (higherBetter.includes(key)) return value > 0.7 ? 'text-accent-green' : value < 0 ? 'text-accent-red' : 'text-text-primary'
   return 'text-text-primary'
 }
@@ -23,6 +27,8 @@ function metricColor(key: string, value: number): string {
 /** Format metric value with suffix */
 function formatMetric(key: string, value: number): string {
   const pctMetrics = ['sMAPE', 'WAPE', 'NRMSE', 'Dir_Acc']
+  if (key === 'bias') return `${value >= 0 ? '+' : ''}${value.toFixed(3)} m`
+  if (PHYSICAL_METRICS.includes(key)) return `${value.toFixed(3)} m`
   return `${value.toFixed(4)}${pctMetrics.includes(key) ? '%' : ''}`
 }
 
@@ -31,6 +37,7 @@ export default function ForecastingPage() {
   const METRIC_TOOLTIPS: Record<string, string> = {
     MAE: t('mainPages.forecasting.metricTooltipMAE'),
     RMSE: t('mainPages.forecasting.metricTooltipRMSE'),
+    bias: t('mainPages.forecasting.metricTooltipBias'),
     sMAPE: t('mainPages.forecasting.metricTooltipSMAPE'),
     WAPE: t('mainPages.forecasting.metricTooltipWAPE'),
     NRMSE: t('mainPages.forecasting.metricTooltipNRMSE'),

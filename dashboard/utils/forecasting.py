@@ -207,16 +207,25 @@ def generate_single_window_forecast(
     pred_onestep_raw = pred_onestep_raw[:min_len] if len(pred_onestep_raw) >= min_len else pred_onestep_raw
     target_series_raw = target_series_raw[:min_len]
 
-    # Calculate metrics on PROCESSED data (same scale as model training)
+    # Calculate metrics on RAW (physical, m NGF) data so they are interpretable to users,
+    # and include the signed bias (mean predicted − observed) — i.e. the constant gap one
+    # sees between the prediction and observation curves.
+    import numpy as np
+
     def compute_metrics(target, pred):
+        t = target.values().flatten()
+        p = pred.values().flatten()
+        n = min(len(t), len(p))
+        t, p = t[:n], p[:n]
         return {
             'MAE': float(mae(target, pred)),
             'RMSE': float(rmse(target, pred)),
-            'sMAPE': float(smape(target, pred))
+            'sMAPE': float(smape(target, pred)),
+            'bias': float(np.mean(p - t)),
         }
 
-    metrics_auto = compute_metrics(target_processed_aligned, pred_auto_processed_aligned)
-    metrics_onestep = compute_metrics(target_processed_aligned, pred_onestep_processed_aligned)
+    metrics_auto = compute_metrics(target_series_raw, pred_auto_raw)
+    metrics_onestep = compute_metrics(target_series_raw, pred_onestep_raw)
 
     if onestep_fell_back:
         metrics_onestep['onestep_fallback'] = True

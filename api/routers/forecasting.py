@@ -135,42 +135,20 @@ async def single_forecast(req: ForecastRequest, current: User = Depends(get_curr
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Forecast failed: {exc}")
 
-    # Enrich metrics with WAPE, NRMSE, NSE, KGE, Dir_Acc
+    # Per-window enrichment: only direction accuracy is meaningful on a single short
+    # horizon. Variance-based scores (NSE/KGE/NRMSE) and ratio scores (WAPE) explode or
+    # mislead when the observed window barely moves; they are reported at MODEL level
+    # (full-test rolling) via the model record instead. Window panel stays interpretable:
+    # MAE / RMSE / bias / sMAPE (physical units) + Dir_Acc.
     def _enrich_metrics(metrics: dict, pred_ts, target_ts) -> dict:
-        """Add extra metrics computed from prediction/target TimeSeries."""
         import numpy as np
         try:
             pred_vals = pred_ts.values().flatten()
             tgt_vals = target_ts.values().flatten()
             min_len = min(len(pred_vals), len(tgt_vals))
-            pred_vals = pred_vals[:min_len]
-            tgt_vals = tgt_vals[:min_len]
-            if min_len == 0:
-                return metrics
-
-            # WAPE
-            if np.sum(np.abs(tgt_vals)) > 0:
-                metrics["WAPE"] = float(np.sum(np.abs(tgt_vals - pred_vals)) / np.sum(np.abs(tgt_vals)) * 100)
-            # NRMSE
-            rmse = metrics.get("RMSE", np.sqrt(np.mean((tgt_vals - pred_vals) ** 2)))
-            amp = float(np.max(tgt_vals) - np.min(tgt_vals))
-            if amp > 0:
-                metrics["NRMSE"] = float(rmse / amp * 100)
-            # NSE
-            mean_obs = np.mean(tgt_vals)
-            ss_res = np.sum((tgt_vals - pred_vals) ** 2)
-            ss_tot = np.sum((tgt_vals - mean_obs) ** 2)
-            if ss_tot > 0:
-                metrics["NSE"] = float(1 - ss_res / ss_tot)
-            # KGE
-            r = float(np.corrcoef(tgt_vals, pred_vals)[0, 1]) if min_len > 1 else 0
-            beta = float(np.mean(pred_vals) / np.mean(tgt_vals)) if np.mean(tgt_vals) != 0 else 1
-            gamma = float((np.std(pred_vals) / np.mean(pred_vals)) / (np.std(tgt_vals) / np.mean(tgt_vals))) if np.mean(tgt_vals) != 0 and np.mean(pred_vals) != 0 and np.std(tgt_vals) != 0 else 1
-            metrics["KGE"] = float(1 - np.sqrt((r - 1) ** 2 + (beta - 1) ** 2 + (gamma - 1) ** 2))
-            # Dir_Acc
             if min_len > 1:
-                actual_dir = np.diff(tgt_vals) > 0
-                pred_dir = np.diff(pred_vals) > 0
+                actual_dir = np.diff(tgt_vals[:min_len]) > 0
+                pred_dir = np.diff(pred_vals[:min_len]) > 0
                 metrics["Dir_Acc"] = float(np.mean(actual_dir == pred_dir) * 100)
         except Exception:
             pass
