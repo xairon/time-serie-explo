@@ -323,6 +323,13 @@
       "ipsTip": "Indicateur Piézométrique Standardisé (IPS/SPLI). Compare le niveau de ce mois à tous les mois équivalents passés de cette station, sur une échelle standard (BRGM/Météo-France). 0 = médiane ; négatif = plus bas que d'habitude, positif = plus haut. Classes : normal de −0,84 à +0,84 ; bas −1,28 à −0,84 ; très bas −1,75 à −1,28 ; extrêmement bas sous −1,75 (symétrique vers le haut).",
       "ssfiTip": "Indicateur Standardisé d'Écoulement (SSFI). Compare le débit de ce mois à tous les mois équivalents passés de cette station, sur une échelle standard. 0 = médiane ; négatif = plus bas que d'habitude, positif = plus haut. Classes : normal de −0,84 à +0,84 ; bas −1,28 à −0,84 ; très bas −1,75 à −1,28 ; extrêmement bas sous −1,75 (symétrique vers le haut).",
       "ngfTip": "Nivellement Général de la France : altitude de référence nationale (≈ niveau moyen de la mer). Une valeur en m NGF est l'altitude de la surface de la nappe."
+    },
+    "reference": {
+      "title": "Plages de référence",
+      "normale": "Référence : 1991–2020 (30 ans)",
+      "adaptee": "Période adaptée : {{start}}–{{end}}",
+      "provisoire": "Référence provisoire — série < 15 ans",
+      "unavailable": "Référence indisponible"
     }
   },
   "data": {

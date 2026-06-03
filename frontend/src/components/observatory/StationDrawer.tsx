@@ -92,6 +92,8 @@ export function StationDrawer({ code, type, onClose }: Props) {
             monthMedian={(station as any).index_month_median}
             thresholdValues={(station as any).index_threshold_values}
             measureUnit={unit}
+            referenceFlag={(station as any).reference_flag}
+            indexClassBounds={(station as any).index_class_bounds}
           />
         ) : (
           <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-500/20"><div className="text-xs text-amber-400">{t('observatory.inactiveStation', { date: formatDate(lastMeasure) })}</div></div>

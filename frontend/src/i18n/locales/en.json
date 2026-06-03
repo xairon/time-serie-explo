@@ -323,6 +323,13 @@
       "ipsTip": "Standardized Piezometric Level Index (SPLI/IPS). Compares this month's level with all equivalent past months at this station on a standard scale (BRGM/Météo-France). 0 = median; negative = below normal, positive = above normal. Classes: normal from −0.84 to +0.84; low −1.28 to −0.84; very low −1.75 to −1.28; extremely low below −1.75 (symmetric on the high side).",
       "ssfiTip": "Standardized Streamflow Index (SSFI). Compares this month's flow with all equivalent past months at this station on a standard scale. 0 = median; negative = below normal, positive = above normal. Classes: normal from −0.84 to +0.84; low −1.28 to −0.84; very low −1.75 to −1.28; extremely low below −1.75 (symmetric on the high side).",
       "ngfTip": "Nivellement Général de la France: national elevation reference (≈ mean sea level). A value in m NGF is the altitude of the water table surface."
+    },
+    "reference": {
+      "title": "Reference ranges",
+      "normale": "Reference: 1991–2020 (30 years)",
+      "adaptee": "Adapted period: {{start}}–{{end}}",
+      "provisoire": "Provisional reference — series < 15 years",
+      "unavailable": "Reference unavailable"
     }
   },
   "data": {

@@ -130,6 +130,8 @@ export default function StationPage() {
           monthMedian={(station as any).index_month_median}
           thresholdValues={(station as any).index_threshold_values}
           measureUnit={unit}
+          referenceFlag={(station as any).reference_flag}
+          indexClassBounds={(station as any).index_class_bounds}
         />
 
         <StationKPICards station={station} type={type} />

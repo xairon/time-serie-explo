@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CLASSIFICATION_COLORS, CLASSIFICATION_LABELS, CLASSIFICATION_ORDER } from '@/lib/observatory-constants'
 import { formatNumber } from '@/lib/observatory-utils'
@@ -14,6 +15,8 @@ interface Props {
   monthMedian?: number | null   // median of that same calendar month across years
   thresholdValues?: (number | null)[] | null  // real-unit values at the 6 class boundaries (same month)
   measureUnit: string
+  referenceFlag?: string | null    // 'normale' | 'adaptee' | 'provisoire' | null
+  indexClassBounds?: number[] | null  // 6 ascending boundary values in physical units
 }
 
 function InfoDot({ tip }: { tip: string }) {
@@ -24,6 +27,7 @@ function InfoDot({ tip }: { tip: string }) {
 
 export function SituationPanel(props: Props) {
   const { t, i18n } = useTranslation()
+  const [rangesOpen, setRangesOpen] = useState(false)
   const isPiezo = props.type === 'piezo'
   const cls = props.indexClass
   const unknown = !cls || cls === 'UNKNOWN'
@@ -128,6 +132,96 @@ export function SituationPanel(props: Props) {
           </div>
         )
       })()}
+
+      <ReferenceSection
+        referenceFlag={props.referenceFlag}
+        indexClassBounds={props.indexClassBounds}
+        baselineStart={props.baselineStart}
+        baselineEnd={props.baselineEnd}
+        measureUnit={props.measureUnit}
+        rangesOpen={rangesOpen}
+        setRangesOpen={setRangesOpen}
+        t={t}
+      />
+    </div>
+  )
+}
+
+interface ReferenceSectionProps {
+  referenceFlag?: string | null
+  indexClassBounds?: number[] | null
+  baselineStart?: string | null
+  baselineEnd?: string | null
+  measureUnit: string
+  rangesOpen: boolean
+  setRangesOpen: (v: boolean) => void
+  t: (key: string, opts?: Record<string, string | number>) => string
+}
+
+function ReferenceSection({ referenceFlag, indexClassBounds, baselineStart, baselineEnd, measureUnit, rangesOpen, setRangesOpen, t }: ReferenceSectionProps) {
+  const hasBounds = Array.isArray(indexClassBounds) && indexClassBounds.length === 6
+  const hasFlag = referenceFlag != null
+
+  if (!hasBounds && !hasFlag) return null
+
+  // Build reference period caption
+  let refCaption: string | null = null
+  if (referenceFlag === 'normale') {
+    refCaption = t('observatory.reference.normale')
+  } else if (referenceFlag === 'adaptee' && baselineStart && baselineEnd) {
+    refCaption = t('observatory.reference.adaptee', { start: baselineStart.slice(0, 4), end: baselineEnd.slice(0, 4) })
+  } else if (referenceFlag === 'provisoire') {
+    refCaption = t('observatory.reference.provisoire')
+  } else if (!hasBounds) {
+    refCaption = t('observatory.reference.unavailable')
+  }
+
+  return (
+    <div className="mt-2 border-t border-white/5 pt-2">
+      <button
+        type="button"
+        className="flex items-center gap-1 w-full text-left"
+        onClick={() => setRangesOpen(!rangesOpen)}
+        aria-expanded={rangesOpen}
+      >
+        <span className="text-[10px] uppercase tracking-wider text-text-secondary flex-1">
+          {t('observatory.reference.title')} ({measureUnit})
+        </span>
+        <span className="text-[10px] text-text-secondary select-none">{rangesOpen ? '▲' : '▼'}</span>
+      </button>
+
+      {refCaption && (
+        <div className="text-[10px] text-text-secondary mt-0.5 italic">{refCaption}</div>
+      )}
+
+      {rangesOpen && hasBounds && (
+        <div className="mt-1.5 space-y-0.5">
+          {CLASSIFICATION_ORDER.map((cls, idx) => {
+            const b = indexClassBounds!
+            const dec = measureUnit.includes('m³') ? 1 : 2
+            const lo = idx === 0 ? null : b[idx - 1]
+            const hi = idx === 6 ? null : b[idx]
+            const loStr = lo == null ? '−∞' : formatNumber(lo, dec)
+            const hiStr = hi == null ? '+∞' : formatNumber(hi, dec)
+            const color = CLASSIFICATION_COLORS[cls as string] ?? '#6b7280'
+            return (
+              <div key={cls} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                <span className="text-[10px] text-text-secondary flex-1 leading-tight">
+                  {CLASSIFICATION_LABELS[cls as string] ?? cls}
+                </span>
+                <span className="text-[10px] font-mono text-text-primary whitespace-nowrap">
+                  {loStr} – {hiStr}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {rangesOpen && !hasBounds && (
+        <div className="mt-1 text-[10px] text-text-secondary italic">{t('observatory.reference.unavailable')}</div>
+      )}
     </div>
   )
 }
