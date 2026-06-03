@@ -112,6 +112,13 @@
     "historicalMean": "Moyenne historique",
     "inactiveStation": "Station inactive — dernière mesure le {{date}}",
     "hydroSite": "Site hydrométrique - {{count}} stations",
+    "siblings": {
+      "title": "Stations du même groupe",
+      "empty": "Aucune autre station à ce niveau",
+      "notLinked": "Station non rattachée à une entité BDLISA",
+      "piezo": { "nappe": "Nappe", "systeme": "Système" },
+      "hydro": { "site": "Site", "coursEau": "Cours d'eau" }
+    },
     "active": "Active",
     "inactive": "Inactive",
     "loadFailed": "Impossible de charger cette station.",
