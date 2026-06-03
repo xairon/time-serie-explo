@@ -53,6 +53,8 @@ class PiezoStation(BaseModel):
     index_ref_value: float | None = None
     index_month_median: float | None = None
     index_threshold_values: list[float] | None = None
+    reference_flag: str | None = None
+    index_class_bounds: list[float] | None = None
 
 
 class PiezoDaily(BaseModel):
@@ -155,6 +157,8 @@ class HydroStation(BaseModel):
     index_ref_value: float | None = None
     index_month_median: float | None = None
     index_threshold_values: list[float] | None = None
+    reference_flag: str | None = None
+    index_class_bounds: list[float] | None = None
 
 
 class HydroDaily(BaseModel):
