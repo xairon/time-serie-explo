@@ -6,6 +6,7 @@ import { usePiezoStationDetail, useHydroStationDetail, usePiezoMonthly, useHydro
 import { SituationPanel } from '@/components/observatory/SituationPanel'
 import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
+import { StationPeriodsPanel } from '@/components/observatory/StationPeriodsPanel'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
@@ -143,6 +144,8 @@ export default function StationPage() {
         </div>
 
         {activeLoading ? <SkeletonChart /> : activeData && activeData.length > 0 ? (<div className="bg-bg-card border border-white/5 rounded-xl p-5"><TimeseriesChart data={activeData} valueKey={valueKey} valueLabel={valueLabel} unit={unit} precipKey={resolution === 'yearly' ? 'precipitation_totale_annuelle' : 'precipitation_totale'} percentiles={undefined} resolution={resolution} defaultPeriod={resolution === 'daily' ? 60 : Infinity} onPeriodChange={resolution === 'daily' ? handleDailyPeriodChange : undefined} /></div>) : (<div className="bg-bg-card border border-white/5 rounded-xl p-5 flex items-center justify-center h-64 text-text-secondary text-sm">{t('mainPages.station.noDataForResolution')}</div>)}
+
+        <StationPeriodsPanel code={code} type={type} unit={unit} />
 
         {(droughtData && droughtData.length > 0) || (spiData && spiData.length > 0) ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
