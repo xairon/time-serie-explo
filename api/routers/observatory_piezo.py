@@ -7,6 +7,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import ProgrammingError
 
 from api.config import settings
 from api.schemas.observatory import (
@@ -20,7 +21,8 @@ from api.schemas.observatory import (
     PiezoYearly,
 )
 from dashboard.utils.cache import get_cached
-from dashboard.utils.drought import compute_spli, compute_spi
+from dashboard.utils.drought import compute_spi, _classify
+from dashboard.utils.reference import value_to_zscore, class_bounds_ngf
 
 router = APIRouter(prefix="/api/v1/observatory/piezo", tags=["observatory-piezo"])
 
@@ -326,19 +328,20 @@ def get_yearly(
 
 @router.get("/stations/{code_bss:path}/spli", response_model=list[PiezoSPLI])
 def get_spli(code_bss: str):
-    """Compute SPLI (IPS) -- Standardized Piezometric Level Index (BRGM methodology)."""
+    """Compute SPLI (IPS) from fixed reference grid (gold.station_reference_stats)."""
 
     def fetch():
-        query = """
-            SELECT mois, niveau_moyen
-            FROM gold.fct_monthly_chroniques
-            WHERE code_bss = :code AND niveau_moyen IS NOT NULL
-            ORDER BY mois
-        """
         engine = create_engine(_brgm_url())
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"code": code_bss})
+                # 1. Load monthly level series
+                result = conn.execute(
+                    text(
+                        "SELECT mois, niveau_moyen FROM gold.fct_monthly_chroniques"
+                        " WHERE code_bss = :code AND niveau_moyen IS NOT NULL ORDER BY mois"
+                    ),
+                    {"code": code_bss},
+                )
                 rows = [dict(r._mapping) for r in result]
                 if not rows:
                     exists = conn.execute(
@@ -348,12 +351,54 @@ def get_spli(code_bss: str):
                     if exists is None:
                         raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
                     return []
+
         finally:
             engine.dispose()
 
-        months = [str(r["mois"]) for r in rows]
-        values = [float(r["niveau_moyen"]) if r["niveau_moyen"] is not None else None for r in rows]
-        return compute_spli(months, values)
+        # 2. Load fixed reference grid in a separate connection so a missing table
+        #    (pre-materialization) doesn't poison the main query connection.
+        grid_by_month: dict[int, list[float] | None] = {}
+        engine2 = create_engine(_brgm_url())
+        try:
+            with engine2.connect() as conn2:
+                ref_result = conn2.execute(
+                    text(
+                        "SELECT month, quantile_grid FROM gold.station_reference_stats"
+                        " WHERE type='piezo' AND code=:code"
+                    ),
+                    {"code": code_bss},
+                )
+                for r in ref_result.mappings():
+                    g = r["quantile_grid"]
+                    if isinstance(g, str):
+                        import json
+                        g = json.loads(g)
+                    grid_by_month[int(r["month"])] = g
+        except ProgrammingError:
+            # Table not yet created (pre-materialization) — return empty series
+            pass
+        finally:
+            engine2.dispose()
+
+        # If no reference grid exists yet, return empty (table not yet materialized)
+        if not grid_by_month:
+            return []
+
+        # 3. Compute z-score and classification per monthly value
+        import pandas as pd
+        out = []
+        for r in rows:
+            mois_dt = pd.to_datetime(str(r["mois"]))
+            val = float(r["niveau_moyen"])
+            m = mois_dt.month
+            z = value_to_zscore(val, grid_by_month.get(m))
+            out.append({
+                "mois": mois_dt.strftime("%Y-%m-%d"),
+                "value": round(val, 4),
+                "spli": z,
+                "classification": _classify(z),
+            })
+        return out
 
     return get_cached("obs_piezo_spli", {"code_bss": code_bss}, SPLI_TTL, fetch)
 
@@ -469,6 +514,9 @@ def get_siblings(code_bss: str, level: str = Query("nappe", pattern="^(nappe|sys
 @router.get("/stations/{code_bss:path}", response_model=PiezoStation)
 def get_station(code_bss: str):
     def fetch():
+        # Main station query — keeps all existing fields; threshold computation
+        # is done via a second query against gold.station_reference_stats instead
+        # of the old LATERAL percentile_cont subquery.
         query = """
             SELECT s.code_bss, s.bss_id, s.latitude, s.longitude, s.nom_commune,
                    s.code_departement, s.nom_departement, s.codes_bdlisa,
@@ -484,8 +532,7 @@ def get_station(code_bss: str):
                    sci.baseline_start AS index_baseline_start,
                    sci.baseline_end AS index_baseline_end,
                    lm.ref_value AS index_ref_value,
-                   lm.month_median AS index_month_median,
-                   lm.threshold_values AS index_threshold_values
+                   lm.month_median AS index_month_median
             FROM gold.dim_piezo_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
             LEFT JOIN LATERAL (
@@ -493,12 +540,7 @@ def get_station(code_bss: str):
                        (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY m2.niveau_moyen)
                         FROM gold.fct_monthly_chroniques m2
                         WHERE m2.code_bss = s.code_bss AND m2.niveau_moyen IS NOT NULL
-                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median,
-                       (SELECT percentile_cont(ARRAY[0.0401, 0.1003, 0.2005, 0.7995, 0.8997, 0.9599])
-                               WITHIN GROUP (ORDER BY m3.niveau_moyen)
-                        FROM gold.fct_monthly_chroniques m3
-                        WHERE m3.code_bss = s.code_bss AND m3.niveau_moyen IS NOT NULL
-                          AND EXTRACT(MONTH FROM m3.mois) = EXTRACT(MONTH FROM m.mois)) AS threshold_values
+                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
                 FROM gold.fct_monthly_chroniques m
                 WHERE m.code_bss = s.code_bss AND m.niveau_moyen IS NOT NULL
                 ORDER BY m.mois DESC LIMIT 1
@@ -510,11 +552,48 @@ def get_station(code_bss: str):
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_bss})
                 row = result.mappings().first()
+                if not row:
+                    raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
+                out = dict(row)
+
         finally:
             engine.dispose()
-        if not row:
-            raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
-        return dict(row)
+
+        # Fetch fixed reference grid for the reference calendar month in a separate
+        # connection so a missing table (pre-materialization) doesn't poison the above.
+        import pandas as pd
+        reference_flag = None
+        index_class_bounds = None
+        ref_month_val = out.get("index_ref_month")
+        ref_m = pd.to_datetime(str(ref_month_val)).month if ref_month_val is not None else None
+        if ref_m is not None:
+            engine2 = create_engine(_brgm_url())
+            try:
+                with engine2.connect() as conn2:
+                    ref_row = conn2.execute(
+                        text(
+                            "SELECT quantile_grid, flag FROM gold.station_reference_stats"
+                            " WHERE type='piezo' AND code=:code AND month=:month"
+                        ),
+                        {"code": code_bss, "month": ref_m},
+                    ).mappings().first()
+                    if ref_row is not None:
+                        reference_flag = ref_row["flag"]
+                        g = ref_row["quantile_grid"]
+                        if isinstance(g, str):
+                            import json
+                            g = json.loads(g)
+                        index_class_bounds = class_bounds_ngf(g)
+            except ProgrammingError:
+                pass  # Table not yet created (pre-materialization)
+            finally:
+                engine2.dispose()
+
+        out["reference_flag"] = reference_flag
+        out["index_class_bounds"] = index_class_bounds
+        # Keep backward-compat: threshold_values still populated from class bounds
+        out["index_threshold_values"] = index_class_bounds
+        return out
 
     return get_cached("obs_piezo_detail", {"code_bss": code_bss}, DETAIL_TTL, fetch)
 

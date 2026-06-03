@@ -6,6 +6,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import ProgrammingError
 
 from api.config import settings
 from api.schemas.observatory import (
@@ -19,7 +20,8 @@ from api.schemas.observatory import (
     HydroYearly,
 )
 from dashboard.utils.cache import get_cached
-from dashboard.utils.drought import compute_spi, compute_ssfi
+from dashboard.utils.drought import compute_spi, _classify
+from dashboard.utils.reference import value_to_zscore, class_bounds_ngf
 
 router = APIRouter(prefix="/api/v1/observatory/hydro", tags=["observatory-hydro"])
 
@@ -376,19 +378,21 @@ def get_yearly(
 
 @router.get("/stations/{code_station}/ssfi", response_model=list[HydroSSFI])
 def get_ssfi(code_station: str):
-    """Compute Standardized Streamflow Index (SSFI) from monthly data."""
+    """Compute SSFI from fixed reference grid (gold.station_reference_stats)."""
 
     def fetch():
-        query = """
-            SELECT mois, resultat_moyen
-            FROM gold.fct_monthly_hydro
-            WHERE code_station = :code AND resultat_moyen IS NOT NULL
-            ORDER BY mois
-        """
         engine = create_engine(_brgm_url())
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"code": code_station})
+                # 1. Load monthly flow series (positive only; sentinels already filtered)
+                result = conn.execute(
+                    text(
+                        "SELECT mois, resultat_moyen FROM gold.fct_monthly_hydro"
+                        " WHERE code_station = :code AND resultat_moyen IS NOT NULL"
+                        " AND resultat_moyen > 0 AND resultat_moyen < :max_v ORDER BY mois"
+                    ),
+                    {"code": code_station, "max_v": _QMNJ_MAX_VALID},
+                )
                 rows = [dict(r._mapping) for r in result]
                 if not rows:
                     exists = conn.execute(
@@ -398,12 +402,56 @@ def get_ssfi(code_station: str):
                     if exists is None:
                         raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
                     return []
+
         finally:
             engine.dispose()
 
-        months = [str(r["mois"]) for r in rows]
-        values = [_qmnj_to_m3_s(r["resultat_moyen"]) for r in rows]
-        return compute_ssfi(months, values)
+        # 2. Load fixed reference grid in a separate connection so a missing table
+        #    (pre-materialization) doesn't poison the main query connection.
+        grid_by_month: dict[int, list[float] | None] = {}
+        engine2 = create_engine(_brgm_url())
+        try:
+            with engine2.connect() as conn2:
+                ref_result = conn2.execute(
+                    text(
+                        "SELECT month, quantile_grid FROM gold.station_reference_stats"
+                        " WHERE type='hydro' AND code=:code"
+                    ),
+                    {"code": code_station},
+                )
+                for r in ref_result.mappings():
+                    g = r["quantile_grid"]
+                    if isinstance(g, str):
+                        import json
+                        g = json.loads(g)
+                    grid_by_month[int(r["month"])] = g
+        except ProgrammingError:
+            pass  # Table not yet created (pre-materialization)
+        finally:
+            engine2.dispose()
+
+        # If no reference grid exists yet, return empty (table not yet materialized)
+        if not grid_by_month:
+            return []
+
+        # 3. Compute z-score and classification per monthly value
+        import pandas as pd
+        out = []
+        for r in rows:
+            mois_dt = pd.to_datetime(str(r["mois"]))
+            val_raw = r["resultat_moyen"]
+            val = _qmnj_to_m3_s(val_raw)
+            if val is None:
+                continue
+            m = mois_dt.month
+            z = value_to_zscore(val, grid_by_month.get(m))
+            out.append({
+                "mois": mois_dt.strftime("%Y-%m-%d"),
+                "value": round(val, 4),
+                "ssfi": z,
+                "classification": _classify(z),
+            })
+        return out
 
     return get_cached("obs_hydro_ssfi", {"code_station": code_station}, SSFI_TTL, fetch)
 
@@ -525,6 +573,8 @@ def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|c
 @router.get("/stations/{code_station}", response_model=HydroStation)
 def get_station(code_station: str):
     def fetch():
+        # Main station query — threshold computation moved to a second query against
+        # gold.station_reference_stats instead of the old LATERAL percentile_cont subquery.
         query = """
             SELECT s.code_station, s.libelle_station, s.code_site, s.libelle_site,
                    s.code_cours_eau, s.nom_cours_eau, s.code_departement, s.nom_departement,
@@ -539,8 +589,7 @@ def get_station(code_station: str):
                    sci.baseline_start AS index_baseline_start,
                    sci.baseline_end AS index_baseline_end,
                    lm.ref_value AS index_ref_value,
-                   lm.month_median AS index_month_median,
-                   lm.threshold_values AS index_threshold_values
+                   lm.month_median AS index_month_median
             FROM gold.dim_hydro_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'hydro' AND sci.code = s.code_station
             LEFT JOIN LATERAL (
@@ -550,14 +599,7 @@ def get_station(code_station: str):
                         WHERE m2.code_station = s.code_station
                           AND m2.grandeur_hydro_elab = s.grandeur_hydro_principale
                           AND m2.resultat_moyen IS NOT NULL AND m2.resultat_moyen < 1e8
-                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median,
-                       (SELECT percentile_cont(ARRAY[0.0401, 0.1003, 0.2005, 0.7995, 0.8997, 0.9599])
-                               WITHIN GROUP (ORDER BY m3.resultat_moyen)
-                        FROM gold.fct_monthly_hydro m3
-                        WHERE m3.code_station = s.code_station
-                          AND m3.grandeur_hydro_elab = s.grandeur_hydro_principale
-                          AND m3.resultat_moyen IS NOT NULL AND m3.resultat_moyen < 1e8
-                          AND EXTRACT(MONTH FROM m3.mois) = EXTRACT(MONTH FROM m.mois)) AS threshold_values
+                          AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
                 FROM gold.fct_monthly_hydro m
                 WHERE m.code_station = s.code_station
                   AND m.grandeur_hydro_elab = s.grandeur_hydro_principale
@@ -571,13 +613,53 @@ def get_station(code_station: str):
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_station})
                 row = result.mappings().first()
+                if not row:
+                    raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
+                out = _convert_qmnj_row(
+                    dict(row),
+                    _FLOW_COLS_DIM + ("index_ref_value", "index_month_median"),
+                )
+
         finally:
             engine.dispose()
-        if not row:
-            raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
-        out = _convert_qmnj_row(dict(row), _FLOW_COLS_DIM + ("index_ref_value", "index_month_median"))
-        if out.get("index_threshold_values"):
-            out["index_threshold_values"] = [_qmnj_to_m3_s(v) for v in out["index_threshold_values"]]
+
+        # Fetch fixed reference grid in a separate connection so a missing table
+        # (pre-materialization) doesn't poison the main query connection.
+        import pandas as pd
+        reference_flag = None
+        index_class_bounds = None
+        ref_month_val = out.get("index_ref_month")
+        ref_m = pd.to_datetime(str(ref_month_val)).month if ref_month_val is not None else None
+        if ref_m is not None:
+            engine2 = create_engine(_brgm_url())
+            try:
+                with engine2.connect() as conn2:
+                    ref_row = conn2.execute(
+                        text(
+                            "SELECT quantile_grid, flag FROM gold.station_reference_stats"
+                            " WHERE type='hydro' AND code=:code AND month=:month"
+                        ),
+                        {"code": code_station, "month": ref_m},
+                    ).mappings().first()
+                    if ref_row is not None:
+                        reference_flag = ref_row["flag"]
+                        g = ref_row["quantile_grid"]
+                        if isinstance(g, str):
+                            import json
+                            g = json.loads(g)
+                        raw_bounds = class_bounds_ngf(g)
+                        # Convert bounds from L/s warehouse units to m³/s
+                        if raw_bounds is not None:
+                            index_class_bounds = [_qmnj_to_m3_s(v) for v in raw_bounds]
+            except ProgrammingError:
+                pass  # Table not yet created (pre-materialization)
+            finally:
+                engine2.dispose()
+
+        out["reference_flag"] = reference_flag
+        out["index_class_bounds"] = index_class_bounds
+        # Keep backward-compat: threshold_values still populated from class bounds
+        out["index_threshold_values"] = index_class_bounds
         return out
 
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)
