@@ -32,3 +32,7 @@ def test_bdlisa_system_prefix_none_and_fallback():
     assert _bdlisa_system_prefix("") is None
     # No regex match → return the primary code unchanged
     assert _bdlisa_system_prefix("WEIRD") == "WEIRD"
+
+
+def test_bdlisa_system_prefix_with_comma_list():
+    assert _bdlisa_system_prefix("101AC01,123AK03") == "101AC"

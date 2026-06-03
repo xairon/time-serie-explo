@@ -5,6 +5,7 @@ Covers piezo, hydro, ERA5, common (alerts, stats), and Pastas observatory types.
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -225,11 +226,12 @@ class HydroSiblingStation(BaseModel):
 
 
 class HydroSiteSiblings(BaseModel):
-    code_site: str
+    code_site: str | None = None
     libelle_site: str | None = None
     nom_cours_eau: str | None = None
     nb_stations: int
     siblings: list[HydroSiblingStation]
+    level: Literal["site", "cours_eau"] = "site"
 
 
 class PiezoBdlisaSibling(BaseModel):
@@ -240,7 +242,7 @@ class PiezoBdlisaSibling(BaseModel):
 
 
 class PiezoBdlisaSiblings(BaseModel):
-    level: str
+    level: Literal["nappe", "systeme"]
     code_bdlisa: str | None = None
     non_rattachee: bool = False
     nb_stations: int
