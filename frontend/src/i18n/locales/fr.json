@@ -111,7 +111,6 @@
     "yearsRecorded": "années d'enregistrement",
     "historicalMean": "Moyenne historique",
     "inactiveStation": "Station inactive — dernière mesure le {{date}}",
-    "hydroSite": "Site hydrométrique - {{count}} stations",
     "siblings": {
       "title": "Stations du même groupe",
       "empty": "Aucune autre station à ce niveau",
@@ -1039,7 +1038,6 @@
       "historicalMin": "Min historique",
       "historicalMax": "Max historique",
       "historicalMean": "Moyenne historique",
-      "hydroSite": "Site hydrométrique",
       "resolution": "Résolution :",
       "temporalResolution": "Résolution temporelle",
       "daily": "Journalier",
