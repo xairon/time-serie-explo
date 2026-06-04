@@ -105,7 +105,7 @@ export default function StationPage() {
           </div>
           <div className="flex items-center gap-2">
             <AddToCompareButton code={code} type={type} />
-            {isPiezo && <Link to={`/pastas/station?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"><Waves className="w-3.5 h-3.5" />{t('mainPages.station.analyzeInPastas')}</Link>}
+            {isPiezo && <Link to={`/pastas/calibrate?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"><Waves className="w-3.5 h-3.5" />{t('mainPages.station.analyzeInPastas')}</Link>}
             {isPiezo && <Link to={`/ai/data?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"><Brain className="w-3.5 h-3.5" />{t('mainPages.station.trainAIModel')}</Link>}
           </div>
         </div>

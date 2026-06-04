@@ -77,7 +77,7 @@ export default function ResultsStep() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs text-text-muted">
           <Link
-            to={`/pastas/station?station=${encodeURIComponent(effectiveCodeBss)}`}
+            to={`/station/piezo/${encodeURIComponent(effectiveCodeBss)}`}
             className="text-accent-cyan hover:underline"
           >
             {effectiveCodeBss}

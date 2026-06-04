@@ -15,7 +15,6 @@ const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 
 const PastasLayout = lazy(() => import('./pages/pastas/PastasLayout'))
-const StationStep = lazy(() => import('./pages/pastas/StationStep'))
 const CalibrateStep = lazy(() => import('./pages/pastas/CalibrateStep'))
 const ResultsStep = lazy(() => import('./pages/pastas/ResultsStep'))
 const ScenariosStep = lazy(() => import('./pages/pastas/ScenariosStep'))
@@ -52,14 +51,14 @@ export const router = createBrowserRouter([
         path: '/pastas',
         element: <RequireAuth><SW><PastasLayout /></SW></RequireAuth>,
         children: [
-          { index: true, element: <Navigate to="/pastas/station" replace /> },
-          { path: 'station', element: <SW><StationStep /></SW> },
+          { index: true, element: <Navigate to="/pastas/calibrate" replace /> },
+          { path: 'station', element: <RedirectWithParams to="/pastas/calibrate" /> },
           { path: 'calibrate', element: <SW><CalibrateStep /></SW> },
           { path: 'results', element: <SW><ResultsStep /></SW> },
           { path: 'scenarios', element: <SW><ScenariosStep /></SW> },
           { path: 'gallery', element: <SW><PastasGalleryPage /></SW> },
           // Backward compatibility — preserve query params
-          { path: 'fit', element: <RedirectWithParams to="/pastas/station" /> },
+          { path: 'fit', element: <RedirectWithParams to="/pastas/calibrate" /> },
           { path: 'compare', element: <RedirectWithParams to="/pastas/gallery" /> },
         ],
       },

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { MapPin, SlidersHorizontal, BarChart3, FlaskConical, LayoutGrid } from 'lucide-react'
+import { SlidersHorizontal, BarChart3, FlaskConical, LayoutGrid } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { GuidedExpertToggle } from '@/components/pastas/GuidedExpertToggle'
 import { useState, createContext, useContext, useEffect, useCallback } from 'react'
@@ -46,7 +46,6 @@ export function usePastasMode() {
 const STORAGE_KEY = 'pastas_mode'
 
 const TABS = [
-  { to: '/pastas/station', icon: MapPin, labelKey: 'pastas.tabs.station' },
   { to: '/pastas/calibrate', icon: SlidersHorizontal, labelKey: 'pastas.tabs.calibrate' },
   { to: '/pastas/results', icon: BarChart3, labelKey: 'pastas.tabs.results' },
   { to: '/pastas/scenarios', icon: FlaskConical, labelKey: 'pastas.tabs.scenarios' },

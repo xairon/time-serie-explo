@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { Loader2, Play, Zap, ArrowLeft, Check, AlertTriangle, RotateCcw } from 'lucide-react'
+import { Loader2, Play, Zap, Check, AlertTriangle, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { usePastasFit, usePastasAutoFit, usePastasStationInfo } from '@/hooks/usePastas'
 import { InfoTip } from '@/components/pastas/InfoTip'
+import { StationPicker } from '@/components/pastas/StationPicker'
 import { usePastasMode } from './PastasLayout'
 import { PastasConfigForm } from '@/components/pastas/PastasConfigForm'
 import { CalValToggle } from '@/components/pastas/CalValToggle'
@@ -11,7 +12,7 @@ import type { AutoFitResult, AutoFitCandidate } from '@/lib/types'
 
 export default function CalibrateStep() {
   const { t } = useTranslation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { mode, setMode, pipeline, setCodeBss, setAutoFitResult: setPipelineAutoFit, selectModel } = usePastasMode()
 
@@ -120,18 +121,22 @@ export default function CalibrateStep() {
     navigate(`/pastas/results?model=${runId}&station=${codeBss}`)
   }
 
+  function setStation(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set('station', value)
+    else next.delete('station')
+    setSearchParams(next, { replace: true })
+  }
+
   if (!codeBss) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted">
-        <div className="text-center space-y-3">
-          <p className="text-sm text-text-secondary">{t('pastas.station.noSelection')}</p>
-          <button
-            onClick={() => navigate('/pastas/station')}
-            className="flex items-center gap-2 text-accent-cyan text-sm hover:underline mx-auto"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {t('pastas.ui.backToStationStep')}
-          </button>
+      <div className="p-6 flex justify-center">
+        <div className="w-full max-w-md space-y-3">
+          <div className="bg-bg-card border border-white/5 rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-text-primary mb-1">{t('pastas.ui.stationSection')}</h2>
+            <p className="text-xs text-text-muted mb-4">{t('pastas.station.selectPrompt')}</p>
+            <StationPicker codeBss="" onChange={setStation} />
+          </div>
         </div>
       </div>
     )
@@ -148,7 +153,7 @@ export default function CalibrateStep() {
             <div className="text-sm font-mono text-accent-cyan">{codeBss}</div>
           </div>
           <button
-            onClick={() => navigate(`/pastas/station?station=${encodeURIComponent(codeBss)}`)}
+            onClick={() => setStation('')}
             className="text-xs text-text-muted hover:text-text-secondary"
           >
             {t('pastas.ui.change')}

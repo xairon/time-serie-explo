@@ -30,7 +30,7 @@ export function PastasSection({ codeBss }: Props) {
         <div className="flex flex-col items-center justify-center py-6 text-center">
           <p className="text-sm text-gray-400 mb-4">{t('observatory.pastas.noModel')}</p>
           <Link
-            to={`/pastas/station?station=${encodeURIComponent(codeBss)}`}
+            to={`/pastas/calibrate?station=${encodeURIComponent(codeBss)}`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -91,7 +91,7 @@ export function PastasSection({ codeBss }: Props) {
             {t('observatory.pastas.viewInLab')}
           </Link>
           <Link
-            to={`/pastas/station?station=${encodeURIComponent(codeBss)}`}
+            to={`/pastas/calibrate?station=${encodeURIComponent(codeBss)}`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-colors"
           >
             <Plus className="w-3 h-3" />
