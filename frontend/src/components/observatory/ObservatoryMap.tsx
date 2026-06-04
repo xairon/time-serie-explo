@@ -561,6 +561,9 @@ export function ObservatoryMap({
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
   useEffect(() => {
     if (!flyToBbox || !mapRef.current || !mapLoadedRef.current) return
+    // Guard against non-finite bounds (e.g. a searched station with missing
+    // coordinates) — fitBounds throws "Invalid LngLat object: (NaN, NaN)".
+    if (!flyToBbox.every(Number.isFinite)) { onFlyToCompleteRef.current?.(); return }
     mapRef.current.fitBounds(flyToBbox as maplibregl.LngLatBoundsLike, { padding: 80, duration: 600 }); onFlyToCompleteRef.current?.()
   }, [flyToBbox])
 

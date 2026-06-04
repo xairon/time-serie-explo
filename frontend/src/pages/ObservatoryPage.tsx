@@ -36,8 +36,15 @@ function computeBboxFromGeometry(geometry: GeoJSONGeometry): Bbox {
   const collect = (g: any) => { if (!g) return; switch (g.type) { case 'Point': coords.push(g.coordinates); break; case 'LineString': g.coordinates.forEach((c: number[]) => coords.push(c)); break; case 'MultiLineString': g.coordinates.forEach((line: number[][]) => line.forEach((c: number[]) => coords.push(c))); break; case 'Polygon': g.coordinates[0].forEach((c: number[]) => coords.push(c)); break; case 'MultiPolygon': g.coordinates.forEach((p: number[][][]) => p[0].forEach((c: number[]) => coords.push(c))); break } }
   collect(geometry)
   if (coords.length === 0) return [-5, 41, 10, 51]
-  if (coords.length === 1) { const [lon, lat] = coords[0]; return [lon - 0.15, lat - 0.1, lon + 0.15, lat + 0.1] }
-  const lons = coords.map(c => c[0]); const lats = coords.map(c => c[1])
+  // Coerce to numbers (geojson coords may arrive as strings) and drop invalid
+  // vertices so one bad coordinate can't poison the bbox; if none remain, return
+  // NaN bounds so the map skips the fly instead of crashing on fitBounds.
+  const valid = coords
+    .map(c => [Number(c?.[0]), Number(c?.[1])] as [number, number])
+    .filter(c => Number.isFinite(c[0]) && Number.isFinite(c[1]))
+  if (valid.length === 0) return [NaN, NaN, NaN, NaN]
+  if (valid.length === 1) { const [lon, lat] = valid[0]; return [lon - 0.15, lat - 0.1, lon + 0.15, lat + 0.1] }
+  const lons = valid.map(c => c[0]); const lats = valid.map(c => c[1])
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 

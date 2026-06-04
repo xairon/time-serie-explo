@@ -75,7 +75,7 @@ def get_stations_geojson(
                         fiab = "fiable" if nb_mois >= 120 else ("indicatif" if nb_mois >= 60 else "insuffisant")
                         features.append({
                             "type": "Feature",
-                            "geometry": {"type": "Point", "coordinates": [r["longitude"], r["latitude"]]},
+                            "geometry": {"type": "Point", "coordinates": [float(r["longitude"]), float(r["latitude"])]},
                             "properties": {
                                 "code": r["code"], "type": r["type"],
                                 "classification": r["classification"],
@@ -110,7 +110,7 @@ def get_stations_geojson(
                         fiab = "fiable" if nb_mois >= 120 else ("indicatif" if nb_mois >= 60 else "insuffisant")
                         features.append({
                             "type": "Feature",
-                            "geometry": {"type": "Point", "coordinates": [r["longitude"], r["latitude"]]},
+                            "geometry": {"type": "Point", "coordinates": [float(r["longitude"]), float(r["latitude"])]},
                             "properties": {
                                 "code": r["code"], "type": r["type"],
                                 "classification": r["classification"],
