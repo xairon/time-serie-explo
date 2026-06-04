@@ -86,23 +86,26 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
     }
   }, [datasets, datasetId])
 
-  // Update hyperparams when model type changes — extract chunk lengths
+  // Update hyperparams + chunk lengths when the model OR the active preset
+  // changes. A preset's input/output windows take priority over the model's
+  // defaults, so picking a preset actually moves the "entrée/sortie" fields
+  // (otherwise this effect would immediately overwrite them with model defaults).
   useEffect(() => {
     const model = availableModels?.find((m) => m.name === modelType)
-    if (model) {
-      const hp = { ...model.default_hyperparams }
-      // Extract chunk lengths from hyperparams to top-level controls
-      if (hp.input_chunk_length != null) {
-        setInputChunk(Number(hp.input_chunk_length))
-        delete hp.input_chunk_length
-      }
-      if (hp.output_chunk_length != null) {
-        setOutputChunk(Number(hp.output_chunk_length))
-        delete hp.output_chunk_length
-      }
-      setHyperparams(hp)
+    if (!model) return
+    const hp = { ...model.default_hyperparams }
+    delete hp.input_chunk_length
+    delete hp.output_chunk_length
+    setHyperparams(hp)
+    const preset = presetId ? presets?.find((p) => p.id === presetId) : null
+    if (preset && preset.model_name === modelType) {
+      if (preset.input_chunk_length != null) setInputChunk(preset.input_chunk_length)
+      setOutputChunk(preset.horizon_days)
+    } else {
+      if (model.default_hyperparams.input_chunk_length != null) setInputChunk(Number(model.default_hyperparams.input_chunk_length))
+      if (model.default_hyperparams.output_chunk_length != null) setOutputChunk(Number(model.default_hyperparams.output_chunk_length))
     }
-  }, [modelType, availableModels])
+  }, [modelType, availableModels, presetId, presets])
 
   const selectedDataset = datasets?.find((d) => d.id === datasetId)
   const selectedModel = availableModels?.find((m) => m.name === modelType)
@@ -187,7 +190,7 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
         ) : (
           <select
             value={modelType}
-            onChange={(e) => setModelType(e.target.value)}
+            onChange={(e) => { setModelType(e.target.value); setPresetId(PRESET_NONE) }}
             className="w-full bg-bg-input text-text-primary border border-white/10 rounded-lg px-3 py-2 text-sm"
           >
             {[...modelsByCategory.entries()].map(([category, models]) => (

@@ -100,6 +100,7 @@ export interface TrainingPreset {
   target_domain: 'piezo' | 'hydro'
   model_name: string
   horizon_days: number
+  input_chunk_length: number | null
   n_epochs: number
 }
 

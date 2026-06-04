@@ -36,6 +36,7 @@ class PresetInfo(BaseModel):
     target_domain: str
     model_name: str
     horizon_days: int
+    input_chunk_length: Optional[int] = None
     n_epochs: int
 
 

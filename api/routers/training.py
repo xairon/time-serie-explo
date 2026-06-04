@@ -234,6 +234,7 @@ def list_presets():
             target_domain=p["target_domain"],
             model_name=p["model_name"],
             horizon_days=p["horizon_days"],
+            input_chunk_length=p["hyperparams"].get("input_chunk_length"),
             n_epochs=p["n_epochs"],
         )
         for p in PRESETS
