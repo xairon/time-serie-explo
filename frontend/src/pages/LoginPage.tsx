@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function LoginPage() {
   const { login } = useAuth()
   const nav = useNavigate()
+  const loc = useLocation()
+  const from = (loc.state as { from?: string } | null)?.from ?? '/ai/data'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -16,7 +18,7 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await login(email, password)
-      nav('/ai/data')
+      nav(from, { replace: true })
     } catch {
       setError('Identifiants invalides. Vérifiez votre adresse e-mail et votre mot de passe.')
     } finally {
