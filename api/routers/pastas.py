@@ -6,6 +6,7 @@ import io
 import logging
 import re
 import tempfile
+from datetime import datetime, timezone
 from typing import Optional
 
 import mlflow
@@ -366,7 +367,7 @@ def list_models(
                 val_evp=metrics.get("val_evp"),
                 has_validation="val_tmin" in tags,
                 include_temp=params.get("include_temp") == "True",
-                created_at=str(run.info.start_time),
+                created_at=(datetime.fromtimestamp(run.info.start_time / 1000, tz=timezone.utc).isoformat() if run.info.start_time else ""),
                 pastas_version=tags.get("pastas_version", "unknown"),
             )
         )

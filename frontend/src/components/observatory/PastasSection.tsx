@@ -1,6 +1,7 @@
 import { Activity, ExternalLink, Plus } from 'lucide-react'
+import Plot from 'react-plotly.js'
 import { useTranslation } from 'react-i18next'
-import { usePastasModels } from '@/hooks/usePastas'
+import { usePastasModels, usePastasModel } from '@/hooks/usePastas'
 import { Link } from 'react-router-dom'
 
 interface Props { codeBss: string }
@@ -9,6 +10,8 @@ export function PastasSection({ codeBss }: Props) {
   const { t, i18n } = useTranslation()
   const localeTag = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
   const { data: models, isLoading } = usePastasModels(codeBss)
+  const bestModel = models?.slice().sort((a, b) => (b.nse ?? 0) - (a.nse ?? 0))[0]
+  const { data: bestFit } = usePastasModel(bestModel?.run_id ?? null)
 
   if (isLoading) {
     return (
@@ -18,8 +21,6 @@ export function PastasSection({ codeBss }: Props) {
       </section>
     )
   }
-
-  const bestModel = models?.sort((a, b) => (b.nse ?? 0) - (a.nse ?? 0))[0]
 
   if (!bestModel) {
     return (
@@ -82,6 +83,27 @@ export function PastasSection({ codeBss }: Props) {
           ))}
         </div>
 
+        {(bestFit?.observed?.index?.length ?? 0) > 0 && (
+          <div className="pt-1">
+            <p className="text-xs text-gray-400 mb-1">{t('observatory.pastas.obsVsModel', 'Observé vs modèle')}</p>
+            <Plot
+              data={[
+                { x: bestFit!.observed.index, y: bestFit!.observed.values, name: 'Observé', type: 'scatter', mode: 'markers', marker: { color: '#9ca3af', size: 2 }, hoverinfo: 'skip' },
+                { x: bestFit!.simulated.index, y: bestFit!.simulated.values, name: 'Modèle', type: 'scatter', mode: 'lines', line: { color: '#06b6d4', width: 1.5 } },
+              ]}
+              layout={{
+                paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+                height: 200, margin: { t: 6, r: 10, b: 24, l: 44 },
+                font: { color: '#9ca3af', size: 9 },
+                showlegend: true, legend: { orientation: 'h', y: 1.18, x: 0 },
+                xaxis: { gridcolor: 'rgba(255,255,255,0.05)' },
+                yaxis: { gridcolor: 'rgba(255,255,255,0.05)', title: { text: 'm NGF' } },
+              }}
+              config={{ displayModeBar: false }}
+              useResizeHandler className="w-full"
+            />
+          </div>
+        )}
         <div className="flex items-center gap-2 pt-2 border-t border-white/5">
           <Link
             to={`/pastas/results?model=${bestModel.run_id}&station=${encodeURIComponent(codeBss)}`}

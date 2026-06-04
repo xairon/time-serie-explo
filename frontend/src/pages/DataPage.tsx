@@ -9,12 +9,10 @@ import { ImportCSVForm } from '@/components/data/ImportCSVForm'
 import { DatasetCard } from '@/components/cards/DatasetCard'
 import { DataTable } from '@/components/data/DataTable'
 import { DataProfiler } from '@/components/data/DataProfiler'
-import { TimeseriesPlot } from '@/components/charts/TimeseriesPlot'
-import { CorrelationMatrix } from '@/components/charts/CorrelationMatrix'
 import { darkLayout, plotlyConfig } from '@/lib/plotly-theme'
 
 type Tab = 'import' | 'explore'
-type ExploreSubTab = 'apercu' | 'qualite' | 'series' | 'correlation' | 'config'
+type ExploreSubTab = 'apercu' | 'qualite' | 'config'
 
 export default function DataPage() {
   const { t } = useTranslation()
@@ -143,27 +141,6 @@ export default function DataPage() {
     }))
   }, [profile])
 
-  // Extract first numeric series for TimeseriesPlot
-  const timeseriesData = useMemo(() => {
-    if (!profile?.timeseries_data) return { dates: [] as string[], values: [] as (number | null)[], label: '' }
-    const { dates, series } = profile.timeseries_data
-    // Prefer the target variable, fall back to first available series
-    const targetKey = selectedDataset?.target_variable
-    const seriesKey = targetKey && series[targetKey] ? targetKey : Object.keys(series)[0]
-    if (!seriesKey) return { dates: [] as string[], values: [] as (number | null)[], label: '' }
-    return { dates, values: series[seriesKey], label: seriesKey }
-  }, [profile, selectedDataset])
-
-  // Transform correlation data for CorrelationMatrix
-  const correlationData = useMemo(() => {
-    if (!profile?.correlation) return { labels: [] as string[], matrix: [] as number[][] }
-    const labels = Object.keys(profile.correlation)
-    const matrix = labels.map((row) =>
-      labels.map((col) => profile.correlation![row]?.[col] ?? 0),
-    )
-    return { labels, matrix }
-  }, [profile])
-
   // Data quality stats derived from profile
   const qualityStats = useMemo(() => {
     if (!profile) return null
@@ -183,6 +160,7 @@ export default function DataPage() {
       totalColumns: columns.length,
       missingPerColumn,
       overallCompleteness,
+      totalMissing,
     }
   }, [profile])
 
@@ -192,8 +170,6 @@ export default function DataPage() {
   const exploreSubTabs: { key: ExploreSubTab; label: string }[] = [
     { key: 'apercu', label: t('mainPages.data.tabApercu') },
     { key: 'qualite', label: t('mainPages.data.tabQualite') },
-    { key: 'series', label: t('mainPages.data.tabSeries') },
-    { key: 'correlation', label: t('mainPages.data.tabCorrelation') },
     { key: 'config', label: t('mainPages.data.tabConfig') },
   ]
 
@@ -327,9 +303,12 @@ export default function DataPage() {
                     </div>
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
                       <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.overallCompleteness')}</p>
-                      <p className={`text-2xl font-bold ${qualityStats.overallCompleteness >= 95 ? 'text-accent-green' : qualityStats.overallCompleteness >= 80 ? 'text-yellow-400' : 'text-accent-red'}`}>
-                        {qualityStats.overallCompleteness.toFixed(1)}%
+                      <p className={`text-2xl font-bold ${qualityStats.totalMissing === 0 ? 'text-accent-green' : qualityStats.overallCompleteness >= 95 ? 'text-yellow-400' : 'text-accent-red'}`}>
+                        {(Math.floor(qualityStats.overallCompleteness * 10) / 10).toFixed(1)}%
                       </p>
+                      {qualityStats.totalMissing > 0 && (
+                        <p className="text-[10px] text-accent-amber mt-0.5">{qualityStats.totalMissing.toLocaleString()} {t('mainPages.data.missing').toLowerCase()}</p>
+                      )}
                     </div>
                     <div className="bg-bg-card rounded-xl border border-white/5 p-4 text-center">
                       <p className="text-[10px] text-text-secondary uppercase tracking-wide">{t('mainPages.data.dateRange')}</p>
@@ -410,33 +389,6 @@ export default function DataPage() {
                       </table>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Serie temporelle sub-tab */}
-              {exploreSubTab === 'series' && (
-                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-text-primary mb-3">{t('mainPages.data.timeSeries')}</h3>
-                  <TimeseriesPlot
-                    dates={timeseriesData.dates}
-                    values={timeseriesData.values}
-                    label={timeseriesData.label || selectedDataset.target_variable}
-                    className="h-[300px]"
-                  />
-                </div>
-              )}
-
-              {/* Correlation sub-tab */}
-              {exploreSubTab === 'correlation' && (
-                <div className="bg-bg-card rounded-xl border border-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-text-primary mb-3">
-                    {t('mainPages.data.correlationMatrix')}
-                  </h3>
-                  <CorrelationMatrix
-                    labels={correlationData.labels}
-                    matrix={correlationData.matrix}
-                    className="h-[400px]"
-                  />
                 </div>
               )}
 
