@@ -424,6 +424,11 @@ def get_ssfi(code_station: str):
                     if isinstance(g, str):
                         import json
                         g = json.loads(g)
+                    # The warehouse stores the grid in raw QmnJ (L/s); the series
+                    # value is converted to m³/s below, so convert the grid too —
+                    # otherwise every month floors to the same z-score (constant SSFI).
+                    if g is not None:
+                        g = [v / 1000.0 for v in g]
                     grid_by_month[int(r["month"])] = g
         except ProgrammingError:
             pass  # Table not yet created (pre-materialization)

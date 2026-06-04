@@ -6,6 +6,32 @@ from api.routers.observatory_hydro import (
     _convert_qmnj_row,
     _qmnj_to_m3_s,
 )
+from dashboard.utils.reference import value_to_zscore
+
+
+def test_ssfi_value_and_grid_must_share_units():
+    """Regression: SSFI was constant over time because the series value was
+    converted to m³/s but interpolated against an L/s reference grid.
+
+    The warehouse stores the hydro quantile grid in raw QmnJ (L/s), so the
+    z-score must be computed with value and grid in the *same* unit.
+    """
+    # Reference grid in warehouse units (L/s), ascending ~400..1576
+    grid_ls = [400.0 + i * 12 for i in range(99)]
+    val_ls = 1500.0  # high within the grid → z should be clearly positive
+
+    z_raw = value_to_zscore(val_ls, grid_ls)
+    z_converted = value_to_zscore(val_ls / 1000.0, [g / 1000.0 for g in grid_ls])
+
+    # Consistent units (both L/s, or both m³/s) give an identical, sensible z
+    assert z_raw == z_converted
+    assert z_raw > 1.0
+
+    # The bug: value in m³/s vs grid in L/s floors every month to the same value
+    z_bug = value_to_zscore(val_ls / 1000.0, grid_ls)
+    assert z_bug < -2.0
+    # ...and it is constant regardless of the input value (the reported symptom)
+    assert z_bug == value_to_zscore(900.0 / 1000.0, grid_ls)
 
 
 def test_qmnj_none_stays_none():
