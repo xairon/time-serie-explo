@@ -198,6 +198,7 @@ def run_fit(
     initial_params: Optional[dict[str, float]] = None,
     add_trend: bool = False,
     station_metadata: dict[str, str] | None = None,
+    owner_id: str | None = None,
 ) -> FitResult:
     """Fit a Pastas TFN model and persist to MLflow.
 
@@ -411,6 +412,8 @@ def run_fit(
             "pastas_version": ps.__version__,
             "series_hash": sh,
         }
+        if owner_id:
+            tags_dict["owner_id"] = owner_id
         if cal_period:
             tags_dict["cal_tmin"] = cal_period[0]
             tags_dict["cal_tmax"] = cal_period[1]

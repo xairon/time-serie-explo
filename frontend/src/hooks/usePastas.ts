@@ -154,6 +154,17 @@ export function usePastasAutoFit() {
   })
 }
 
+export function usePastasPruneAutoFit() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ keepRunId, runIds }: { keepRunId: string; runIds: string[] }) =>
+      api.pastas.pruneAutoFit(keepRunId, runIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pastas', 'models'] })
+    },
+  })
+}
+
 export function usePastasCompareAI() {
   return useMutation({
     mutationFn: api.pastas.compareAI,

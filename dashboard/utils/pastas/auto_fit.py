@@ -139,6 +139,7 @@ def run_auto_fit(
     val_split: float = 0.2,
     include_temp: bool = False,
     on_progress: Optional[Callable[[int, int, str, str], None]] = None,
+    owner_id: Optional[str] = None,
 ) -> AutoFitResult:
     """Run the auto-fit grid search.
 
@@ -254,6 +255,7 @@ def run_auto_fit(
                 warm_up_years=warm_up_years,
                 two_pass=(noise != "none"),
                 add_trend=trend,
+                owner_id=owner_id,
             )
             candidate.fit_result = fit_result
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Loader2, Play, Zap, Check, AlertTriangle, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { usePastasFit, usePastasAutoFit, usePastasStationInfo } from '@/hooks/usePastas'
+import { usePastasFit, usePastasAutoFit, usePastasStationInfo, usePastasPruneAutoFit } from '@/hooks/usePastas'
 import { InfoTip } from '@/components/pastas/InfoTip'
 import { StationPicker } from '@/components/pastas/StationPicker'
 import { usePastasMode } from './PastasLayout'
@@ -69,6 +69,7 @@ export default function CalibrateStep() {
   // Mutations
   const fitMutation = usePastasFit()
   const autoFitMutation = usePastasAutoFit()
+  const pruneMut = usePastasPruneAutoFit()
 
   // Auto-fit state from pipeline context (persists across tab switches)
   const autoFitResult = pipeline.autoFitResult
@@ -118,6 +119,14 @@ export default function CalibrateStep() {
 
   function viewResults(runId: string, stowa?: AutoFitCandidate['stowa']) {
     selectModel(runId, stowa ?? null)
+    // Keep only the chosen model: discard the other auto-fit candidates so the
+    // gallery isn't polluted with the 4–8 runs of each batch.
+    if (autoFitResult) {
+      const runIds = autoFitResult.candidates
+        .map(c => c.run_id)
+        .filter((r): r is string => !!r)
+      if (runIds.length > 1) pruneMut.mutate({ keepRunId: runId, runIds })
+    }
     navigate(`/pastas/results?model=${runId}&station=${codeBss}`)
   }
 

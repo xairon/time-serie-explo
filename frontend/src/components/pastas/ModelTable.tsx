@@ -126,10 +126,12 @@ function ModelCard({ m, onView, onRefit, onDelete }: {
   )
 }
 
-export function ModelTable() {
+export function ModelTable({ defaultCodeBss }: { defaultCodeBss?: string } = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: models, isLoading } = usePastasModels()
+  const [scopeToStation, setScopeToStation] = useState(!!defaultCodeBss)
+  const effectiveCodeBss = defaultCodeBss && scopeToStation ? defaultCodeBss : undefined
+  const { data: models, isLoading } = usePastasModels(effectiveCodeBss)
   const deleteMut = usePastasDeleteModel()
   const [sortKey, setSortKey] = useState<SortKey>('created_at')
   const [sortAsc, setSortAsc] = useState(false)
@@ -199,6 +201,20 @@ export function ModelTable() {
             className="w-full bg-bg-primary border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
           />
         </div>
+
+        {defaultCodeBss && (
+          <button
+            onClick={() => setScopeToStation(s => !s)}
+            className={`shrink-0 text-xs px-3 py-2 rounded-lg border transition-colors ${
+              scopeToStation
+                ? 'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/30'
+                : 'bg-bg-primary text-text-muted border-white/10 hover:text-text-secondary'
+            }`}
+            title={scopeToStation ? 'Afficher les modèles de toutes les stations' : `Limiter à la station ${defaultCodeBss}`}
+          >
+            {scopeToStation ? `Station ${defaultCodeBss} · voir toutes` : 'Toutes stations · station courante'}
+          </button>
+        )}
 
         {/* Sort */}
         <div className="flex items-center gap-1 text-xs text-text-muted">

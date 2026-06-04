@@ -346,6 +346,8 @@ export const api = {
       include_temp?: boolean
       add_trend?: boolean | null
     }) => postJson<AutoFitResult>('/pastas/auto-fit', body, 300_000),
+    pruneAutoFit: (keepRunId: string, runIds: string[]) =>
+      postJson<{ kept: string; deleted: string[] }>('/pastas/auto-fit/prune', { keep_run_id: keepRunId, run_ids: runIds }),
     compareAI: (body: { pastas_run_id: string; ai_model_id: string }) =>
       postJson<CompareAIResult>('/pastas/compare-ai', body),
   },

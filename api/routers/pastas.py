@@ -246,7 +246,7 @@ def preview_station(code_bss: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/fit", response_model=FitResponse)
-def fit_model(req: FitRequest) -> FitResponse:
+def fit_model(req: FitRequest, current: User = Depends(get_current_user)) -> FitResponse:
     """Fit a Pastas TFN model to the given station from the BRGM data warehouse."""
     from dashboard.utils.pastas.station_loader import load_station_series
     from dashboard.utils.pastas.builder import ValidationError
@@ -284,6 +284,7 @@ def fit_model(req: FitRequest) -> FitResponse:
             val_split=req.val_split,
             additional_stresses=extra_stresses,
             station_metadata=station.metadata,
+            owner_id=str(current.id),
         )
     except ValidationError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -900,6 +901,46 @@ def delete_model(run_id: str, current: User = Depends(get_current_user)) -> dict
 
 
 # ---------------------------------------------------------------------------
+# POST /auto-fit/prune  — discard non-selected auto-fit candidates
+# ---------------------------------------------------------------------------
+
+@router.post("/auto-fit/prune")
+def prune_auto_fit(
+    keep_run_id: str = Body(...),
+    run_ids: list[str] = Body(...),
+    current: User = Depends(get_current_user),
+) -> dict:
+    """Delete every auto-fit candidate run except the one the user kept.
+
+    Called when a model is selected so the gallery isn't polluted with the
+    4–8 candidates produced by each auto-fit batch. Silently skips runs the
+    caller doesn't own or that are already gone.
+    """
+    _validate_run_id(keep_run_id)
+    from dashboard.utils.pastas.io import evict_cache
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    client = mlflow.tracking.MlflowClient()
+
+    deleted: list[str] = []
+    for rid in run_ids:
+        if rid == keep_run_id:
+            continue
+        try:
+            _validate_run_id(rid)
+            assert_owns_model(current, rid)
+        except HTTPException:
+            continue
+        try:
+            evict_cache(rid)
+            client.delete_run(rid)
+            deleted.append(rid)
+        except Exception:
+            continue
+    return {"kept": keep_run_id, "deleted": deleted}
+
+
+# ---------------------------------------------------------------------------
 # POST /compare
 # ---------------------------------------------------------------------------
 
@@ -1161,7 +1202,7 @@ def get_adaptive_bounds(run_id: str, t_final_days: Optional[int] = Query(None, g
 # ---------------------------------------------------------------------------
 
 @router.post("/auto-fit")
-def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), val_split: float = Body(0.2), include_temp: bool = Body(False), add_trend: Optional[bool] = Body(None)):
+def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), val_split: float = Body(0.2), include_temp: bool = Body(False), add_trend: Optional[bool] = Body(None), current: User = Depends(get_current_user)):
     from dashboard.utils.pastas.station_loader import load_station_series
     from dashboard.utils.pastas.auto_fit import run_auto_fit
     from dashboard.utils.pastas.config import get_preset
@@ -1184,6 +1225,7 @@ def auto_fit_endpoint(code_bss: str = Body(...), warm_up_years: int = Body(2), v
         code_bss=code_bss, db_url=_brgm_url(),
         bdlisa_preset=preset, warm_up_years=warm_up_years,
         add_trend=detect_trend, val_split=val_split, include_temp=include_temp,
+        owner_id=str(current.id),
     )
 
     candidates = []
