@@ -11,7 +11,6 @@ export interface PiezoStation {
   nom_departement: string | null
   nb_mesures_total: number | null
   derniere_mesure: string | null
-  classification_derniere_annee: string | null
   niveau_derniere_annee: number | null
   codes_bdlisa: string | null
   reference_flag: string | null
@@ -32,7 +31,6 @@ export interface HydroStation {
   grandeur_hydro_principale: 'Q' | 'H' | null
   nb_jours_total: number | null
   derniere_mesure: string | null
-  classification_resultat_dern_annee: string | null
   resultat_min_global: number | null
   resultat_max_global: number | null
   reference_flag: string | null

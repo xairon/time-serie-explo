@@ -73,11 +73,6 @@ def _convert_qmnj_row(row: dict, columns) -> dict:
             row[col] = _qmnj_to_m3_s(row[col])
     return row
 
-ClassificationType = Literal[
-    "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
-]
-
-
 def _brgm_url() -> str:
     return (
         f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
@@ -93,7 +88,6 @@ def _brgm_url() -> str:
 def list_stations(
     min_observations: Optional[int] = Query(None, ge=0),
     last_measurement_after: Optional[date] = Query(None),
-    classification: Optional[list[ClassificationType]] = Query(None),
     code_departement: Optional[str] = Query(None, min_length=1, max_length=3),
     grandeur_hydro: Optional[str] = Query(None),
     bbox: Optional[str] = Query(None, description="min_lon,min_lat,max_lon,max_lat"),
@@ -102,7 +96,6 @@ def list_stations(
     params = {
         "min_observations": min_observations,
         "last_measurement_after": last_measurement_after,
-        "classification": classification,
         "code_departement": code_departement,
         "grandeur_hydro": grandeur_hydro,
         "bbox": bbox,
@@ -119,9 +112,6 @@ def list_stations(
         if last_measurement_after is not None:
             conditions.append("derniere_mesure >= :last_after")
             bind["last_after"] = last_measurement_after
-        if classification is not None:
-            conditions.append("classification_resultat_dern_annee = ANY(:classification)")
-            bind["classification"] = list(classification)
         if code_departement is not None:
             conditions.append("code_departement = :dept")
             bind["dept"] = code_departement
@@ -151,8 +141,7 @@ def list_stations(
                    grandeur_hydro_principale, premiere_mesure, derniere_mesure,
                    nb_jours_total, nb_mois_total, resultat_moyen_global,
                    resultat_min_global, resultat_max_global, resultat_stddev_global,
-                   annee_dernier_bilan, resultat_moyen_dern_annee,
-                   classification_resultat_dern_annee, percentile_resultat_dern_annee
+                   annee_dernier_bilan, resultat_moyen_dern_annee
             FROM gold.dim_hydro_stations
             WHERE {where}
             ORDER BY code_station
@@ -164,9 +153,6 @@ def list_stations(
                 rows = [dict(r._mapping) for r in result]
         finally:
             engine.dispose()
-
-        if classification is not None:
-            rows = [r for r in rows if r.get("classification_resultat_dern_annee") in classification]
 
         for r in rows:
             _convert_qmnj_row(r, _FLOW_COLS_DIM)
@@ -533,11 +519,13 @@ def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|c
                     where = "code_site = :grp AND code_station != :code"
 
                 query = f"""
-                    SELECT code_station, libelle_station, grandeur_hydro_principale,
-                           classification_resultat_dern_annee, derniere_mesure
-                    FROM gold.dim_hydro_stations
+                    SELECT s.code_station, s.libelle_station, s.grandeur_hydro_principale,
+                           sci.index_class AS classification, s.derniere_mesure
+                    FROM gold.dim_hydro_stations s
+                    LEFT JOIN gold.station_current_index sci
+                      ON sci.type = 'hydro' AND sci.code = s.code_station
                     WHERE {where}
-                    ORDER BY code_station
+                    ORDER BY s.code_station
                     LIMIT 50
                 """
                 result = conn.execute(text(query), {"grp": group_val, "code": code_station})
@@ -556,7 +544,7 @@ def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|c
                     "code_station": s["code_station"],
                     "libelle_station": s.get("libelle_station"),
                     "grandeur_hydro_principale": s.get("grandeur_hydro_principale"),
-                    "classification": s.get("classification_resultat_dern_annee"),
+                    "classification": s.get("classification"),
                     "derniere_mesure": s.get("derniere_mesure"),
                 }
                 for s in siblings
@@ -588,7 +576,6 @@ def get_station(code_station: str):
                    s.nb_jours_total, s.nb_mois_total, s.resultat_moyen_global,
                    s.resultat_min_global, s.resultat_max_global, s.resultat_stddev_global,
                    s.annee_dernier_bilan, s.resultat_moyen_dern_annee,
-                   s.classification_resultat_dern_annee, s.percentile_resultat_dern_annee,
                    sci.index_name, sci.index_value, sci.index_class,
                    sci.ref_month AS index_ref_month,
                    sci.baseline_start AS index_baseline_start,

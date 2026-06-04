@@ -342,7 +342,7 @@ export default function ComparePage({ stationType }: Props) {
                       const min = stationType === 'piezo' ? d.niveau_min_absolu : d.resultat_min_global
                       const max = stationType === 'piezo' ? d.niveau_max_absolu : d.resultat_max_global
                       const last = d.derniere_mesure
-                      const cls = stationType === 'piezo' ? d.classification_derniere_annee : d.classification_resultat_dern_annee
+                      const cls = d.index_class
                       const clsColor = cls ? CLASSIFICATION_COLORS[cls] ?? '#6b7280' : null
                       const name = (stationType === 'piezo' ? d.nom_commune : d.libelle_station) || s.code
                       return (

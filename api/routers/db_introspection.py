@@ -144,7 +144,7 @@ async def search_stations(
                    premiere_mesure::text, derniere_mesure::text,
                    nb_mesures_total, niveau_moyen_global,
                    amplitude_totale,
-                   niveau_alerte, classification_derniere_annee
+                   niveau_alerte
             FROM gold.dim_piezo_stations
             {where_sql}
             ORDER BY nb_mesures_total DESC NULLS LAST
@@ -173,7 +173,6 @@ async def station_filters() -> dict[str, list[str]]:
             for col, key in [
                 ("code_departement", "departements"),
                 ("niveau_alerte", "alertes"),
-                ("classification_derniere_annee", "classifications"),
             ]:
                 result = conn.execute(
                     sql_text(

@@ -59,11 +59,6 @@ def _bdlisa_system_prefix(codes_bdlisa: str | None) -> str | None:
     return m.group(1) if m else primary
 
 
-ClassificationType = Literal[
-    "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"
-]
-
-
 def _brgm_url() -> str:
     return (
         f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
@@ -79,7 +74,6 @@ def _brgm_url() -> str:
 def list_stations(
     min_observations: Optional[int] = Query(None, ge=0),
     last_measurement_after: Optional[date] = Query(None),
-    classification: Optional[list[ClassificationType]] = Query(None),
     code_departement: Optional[str] = Query(None, min_length=1, max_length=3),
     bbox: Optional[str] = Query(None, description="min_lon,min_lat,max_lon,max_lat"),
     search: Optional[str] = Query(None, min_length=2, max_length=100),
@@ -87,7 +81,6 @@ def list_stations(
     params = {
         "min_observations": min_observations,
         "last_measurement_after": last_measurement_after,
-        "classification": classification,
         "code_departement": code_departement,
         "bbox": bbox,
         "search": search,
@@ -103,9 +96,6 @@ def list_stations(
         if last_measurement_after is not None:
             conditions.append("derniere_mesure >= :last_after")
             bind["last_after"] = last_measurement_after
-        if classification is not None:
-            conditions.append("classification_derniere_annee = ANY(:classification)")
-            bind["classification"] = list(classification)
         if code_departement is not None:
             conditions.append("code_departement = :dept")
             bind["dept"] = code_departement
@@ -133,8 +123,8 @@ def list_stations(
                    niveau_moyen_global, niveau_min_absolu, niveau_max_absolu,
                    niveau_stddev_global, amplitude_totale, profondeur_moyenne_globale,
                    temperature_moyenne_globale, precipitation_moyenne_mensuelle,
-                   derniere_annee, niveau_derniere_annee, classification_derniere_annee,
-                   percentile_derniere_annee, slope_precipitation, niveau_alerte
+                   derniere_annee, niveau_derniere_annee,
+                   slope_precipitation, niveau_alerte
             FROM gold.dim_piezo_stations
             WHERE {where}
             ORDER BY code_bss
@@ -146,9 +136,6 @@ def list_stations(
                 rows = [dict(row._mapping) for row in result]
         finally:
             engine.dispose()
-
-        if classification is not None:
-            rows = [r for r in rows if r.get("classification_derniere_annee") in classification]
 
         return rows
 
@@ -525,8 +512,8 @@ def get_station(code_bss: str):
                    s.niveau_moyen_global, s.niveau_min_absolu, s.niveau_max_absolu,
                    s.niveau_stddev_global, s.amplitude_totale, s.profondeur_moyenne_globale,
                    s.temperature_moyenne_globale, s.precipitation_moyenne_mensuelle,
-                   s.derniere_annee, s.niveau_derniere_annee, s.classification_derniere_annee,
-                   s.percentile_derniere_annee, s.slope_precipitation, s.niveau_alerte,
+                   s.derniere_annee, s.niveau_derniere_annee,
+                   s.slope_precipitation, s.niveau_alerte,
                    sci.index_name, sci.index_value, sci.index_class,
                    sci.ref_month AS index_ref_month,
                    sci.baseline_start AS index_baseline_start,

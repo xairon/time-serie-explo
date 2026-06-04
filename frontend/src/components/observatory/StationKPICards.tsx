@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { ClassificationBadge } from './ClassificationBadge'
 import { formatNumber } from '@/lib/observatory-utils'
 
 interface Props { station: any; type: 'piezo' | 'hydro' }
@@ -10,12 +9,12 @@ export function StationKPICards({ station, type }: Props) {
   const hydroUnit = isHauteur ? 'm' : 'm³/s'
   const cards = type === 'piezo'
     ? [
-        { title: t('observatory.kpi.currentState'), value: formatNumber(station.niveau_derniere_annee ?? station.niveau_moyen_global), unit: 'm NGF', sub: (<><ClassificationBadge classification={station.classification_derniere_annee} />{station.niveau_moyen_global != null && <p className="text-xs text-text-secondary mt-1">{t('observatory.kpi.historicalMean')} : {formatNumber(station.niveau_moyen_global)} m NGF</p>}</>) },
+        { title: t('observatory.kpi.currentState'), value: formatNumber(station.niveau_derniere_annee ?? station.niveau_moyen_global), unit: 'm NGF', sub: (station.niveau_moyen_global != null ? <p className="text-xs text-text-secondary mt-1">{t('observatory.kpi.historicalMean')} : {formatNumber(station.niveau_moyen_global)} m NGF</p> : null) },
         { title: t('observatory.kpi.precipMean'), value: formatNumber(station.precipitation_moyenne_mensuelle), unit: 'mm/mois', sub: null },
         { title: t('observatory.kpi.tempMean'), value: formatNumber(station.temperature_moyenne_globale), unit: '°C', sub: null },
       ]
     : [
-        { title: t('observatory.kpi.currentState'), value: formatNumber(station.resultat_moyen_dern_annee ?? station.resultat_moyen_global, 2), unit: hydroUnit, sub: (<><ClassificationBadge classification={station.classification_resultat_dern_annee} />{station.resultat_moyen_global != null && <p className="text-xs text-text-secondary mt-1">{t('observatory.kpi.historicalMean')} : {formatNumber(station.resultat_moyen_global, 2)} {hydroUnit}</p>}</>) },
+        { title: t('observatory.kpi.currentState'), value: formatNumber(station.resultat_moyen_dern_annee ?? station.resultat_moyen_global, 2), unit: hydroUnit, sub: (station.resultat_moyen_global != null ? <p className="text-xs text-text-secondary mt-1">{t('observatory.kpi.historicalMean')} : {formatNumber(station.resultat_moyen_global, 2)} {hydroUnit}</p> : null) },
         { title: t('observatory.kpi.minMax'), value: `${formatNumber(station.resultat_min_global)} / ${formatNumber(station.resultat_max_global)}`, unit: hydroUnit, sub: null },
         { title: t('observatory.kpi.stddev'), value: formatNumber(station.resultat_stddev_global, 2), unit: hydroUnit, sub: null },
         { title: t('observatory.kpi.measurementDays'), value: station.nb_jours_total?.toLocaleString() ?? 'N/A', unit: '', sub: null },

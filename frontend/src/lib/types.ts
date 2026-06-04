@@ -54,7 +54,6 @@ export interface StationInfo {
   niveau_moyen_global: number | null
   amplitude_totale: number | null
   niveau_alerte: string | null
-  classification_derniere_annee: string | null
 }
 
 // Models - matches backend ModelSummary schema

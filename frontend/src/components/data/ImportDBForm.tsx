@@ -160,7 +160,6 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
               niveau_moyen_global: null,
               amplitude_totale: null,
               niveau_alerte: null,
-              classification_derniere_annee: null,
             },
           ])
         }
@@ -175,18 +174,6 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
     if (alerte === 'NORMAL') return 'text-accent-green'
     if (alerte === 'VIGILANCE') return 'text-accent-amber'
     return 'text-accent-red'
-  }
-
-  const classifLabel = (c: string | null) => {
-    if (!c) return null
-    const map: Record<string, string> = {
-      TRES_HAUT: t('sharedComponents.import.classifVeryHigh'),
-      HAUT: t('sharedComponents.import.classifHigh'),
-      NORMAL: t('sharedComponents.import.classifNormal'),
-      BAS: t('sharedComponents.import.classifLow'),
-      TRES_BAS: t('sharedComponents.import.classifVeryLow'),
-    }
-    return map[c] || c
   }
 
   return (
@@ -329,11 +316,6 @@ export function ImportDBForm({ initialStation, onImportSuccess }: ImportDBFormPr
                   {station.niveau_alerte && (
                     <span className={`text-[10px] ${alerteColor(station.niveau_alerte)}`}>
                       {station.niveau_alerte === 'NORMAL' ? '' : station.niveau_alerte}
-                    </span>
-                  )}
-                  {station.classification_derniere_annee && (
-                    <span className="text-[10px] text-text-secondary">
-                      {classifLabel(station.classification_derniere_annee)}
                     </span>
                   )}
                 </div>

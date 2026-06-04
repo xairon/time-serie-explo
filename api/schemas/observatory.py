@@ -40,8 +40,6 @@ class PiezoStation(BaseModel):
     precipitation_moyenne_mensuelle: float | None = None
     derniere_annee: int | None = None
     niveau_derniere_annee: float | None = None
-    classification_derniere_annee: str | None = None
-    percentile_derniere_annee: float | None = None
     slope_precipitation: float | None = None
     niveau_alerte: str | None = None
     index_name: str | None = None
@@ -146,8 +144,6 @@ class HydroStation(BaseModel):
     resultat_stddev_global: float | None = None
     annee_dernier_bilan: int | None = None
     resultat_moyen_dern_annee: float | None = None
-    classification_resultat_dern_annee: str | None = None
-    percentile_resultat_dern_annee: float | None = None
     index_name: str | None = None
     index_value: float | None = None
     index_class: str | None = None

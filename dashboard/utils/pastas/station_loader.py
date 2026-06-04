@@ -64,8 +64,7 @@ def load_station_metadata(code_bss: str, db_url: str) -> dict[str, Any]:
                    s.niveau_moyen_global, s.niveau_min_absolu, s.niveau_max_absolu,
                    s.niveau_stddev_global, s.amplitude_totale,
                    s.tendance_classification, s.niveau_alerte,
-                   s.classification_derniere_annee, s.qualite_tendance,
-                   s.slope_niveau, s.percentile_derniere_annee,
+                   s.qualite_tendance, s.slope_niveau,
                    s.precipitation_moyenne_mensuelle, s.temperature_moyenne_globale,
                    m.codes_bdlisa, m.nature_eh, m.milieu_eh
             FROM gold.dim_piezo_stations s
@@ -99,10 +98,8 @@ def load_station_metadata(code_bss: str, db_url: str) -> dict[str, Any]:
             "amplitude_totale": _safe_float(r.get("amplitude_totale")),
             "tendance_classification": _safe_str(r.get("tendance_classification")),
             "niveau_alerte": _safe_str(r.get("niveau_alerte")),
-            "classification_derniere_annee": _safe_str(r.get("classification_derniere_annee")),
             "qualite_tendance": _safe_str(r.get("qualite_tendance")),
             "slope_niveau": _safe_float(r.get("slope_niveau")),
-            "percentile_derniere_annee": _safe_float(r.get("percentile_derniere_annee")),
             "precipitation_moyenne_mensuelle": _safe_float(r.get("precipitation_moyenne_mensuelle")),
             "temperature_moyenne_globale": _safe_float(r.get("temperature_moyenne_globale")),
             "codes_bdlisa": _safe_str(r.get("codes_bdlisa")),
