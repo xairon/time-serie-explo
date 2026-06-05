@@ -9,7 +9,6 @@ pyyaml>=6.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 plotly>=5.17.0
-streamlit>=1.28.0
 
 # Deep Learning (Framework Agnostic)
 pytorch-lightning>=2.0.0

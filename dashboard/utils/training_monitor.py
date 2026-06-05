@@ -1,8 +1,8 @@
 """
 Moniteur de progression d'entraînement.
 
-Ce module lit les métriques écrites par MetricsFileCallback.
-La partie UI (affichage Streamlit) est dans dashboard.components.training_monitor_ui.
+Ce module lit les métriques écrites par MetricsFileCallback. Le suivi en temps
+réel côté frontend est servi par l'API (SSE) ; voir api/routers/training.py.
 """
 
 import json
