@@ -1,98 +1,98 @@
-# Gestion des comptes et des secrets — JUNON
+# Account and Secret Management — JUNON
 
-Procédé opérationnel pour les comptes utilisateurs (provisionnés par l'admin) et
-pour les secrets d'infrastructure. À tenir à jour.
-
----
-
-## Principe
-
-- **Comptes internes** : pas d'auto-inscription, pas de SSO. L'admin crée chaque compte.
-- **Rôles** : `admin` (voit tout, gère les comptes) et `user` (ne voit que ses propres
-  datasets / modèles / scénarios — cloisonnement par `owner_id`).
-- **Auth** : JWT en cookie httpOnly `junon_session`. Révocable côté serveur via
-  `is_active` et `token_version` (rechargés en base à chaque requête).
-- **Mots de passe** : hashés en **argon2** (`pwdlib`). **Personne ne les détient en clair**,
-  pas même l'admin. Ne jamais tenir de liste des mots de passe utilisateurs.
+Operational procedure for user accounts (provisioned by the admin) and for
+infrastructure secrets. Keep up to date.
 
 ---
 
-## Créer un compte utilisateur
+## Principle
 
-1. Se connecter en admin sur l'interface → menu compte → **Utilisateurs**
-   (ou via l'API, voir plus bas).
-2. Choisir email + nom affiché + rôle, et un **mot de passe temporaire** (min 8 car.,
-   ex. `openssl rand -base64 12`).
-3. Transmettre ce temporaire **une seule fois, par un canal sûr** : en personne, ou
-   messagerie institutionnelle. **Éviter le mail en clair.**
-4. Demander à l'utilisateur de **le changer dès la première connexion**
-   (menu compte → changer le mot de passe). L'admin oublie alors le temporaire.
+- **Internal accounts**: no self-registration, no SSO. The admin creates each account.
+- **Roles**: `admin` (sees everything, manages accounts) and `user` (sees only their own
+  datasets / models / scenarios — partitioning by `owner_id`).
+- **Auth**: JWT in an httpOnly cookie `junon_session`. Revocable server-side via
+  `is_active` and `token_version` (reloaded from the database on every request).
+- **Passwords**: hashed with **argon2** (`pwdlib`). **Nobody holds them in cleartext**,
+  not even the admin. Never keep a list of user passwords.
 
-> ⚠️ L'email doit être un domaine réel : `email-validator` **refuse** `.local`, `.test`, etc.
+---
 
-### Via l'API (équivalent)
+## Create a user account
+
+1. Log in as admin in the interface → account menu → **Users**
+   (or via the API, see below).
+2. Choose email + display name + role, and a **temporary password** (min. 8 chars,
+   e.g. `openssl rand -base64 12`).
+3. Transmit this temporary password **only once, over a secure channel**: in person, or
+   institutional messaging. **Avoid cleartext email.**
+4. Ask the user to **change it on first login**
+   (account menu → change password). The admin then forgets the temporary password.
+
+> ⚠️ The email must use a real domain: `email-validator` **rejects** `.local`, `.test`, etc.
+
+### Via the API (equivalent)
 
 ```bash
-# 1. login admin -> cookie dans admin.jar
+# 1. admin login -> cookie stored in admin.jar
 curl -s -c admin.jar -X POST http://<BACKEND>/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@exemple.fr","password":"<MDP_ADMIN>"}'
+  -d '{"email":"admin@example.com","password":"<ADMIN_PASSWORD>"}'
 
-# 2. créer le compte (initial_password = temporaire)
+# 2. create the account (initial_password = temporary)
 curl -s -b admin.jar -X POST http://<BACKEND>/api/v1/admin/users \
   -H 'Content-Type: application/json' \
-  -d '{"email":"nouveau@exemple.fr","display_name":"Prénom Nom","role":"user","initial_password":"<TEMP>"}'
+  -d '{"email":"newuser@example.com","display_name":"First Last","role":"user","initial_password":"<TEMP>"}'
 ```
 
-Le script `scripts/verify_compartmentalization.py` automatise création + vérification
-du cloisonnement (utile pour un compte de test).
+The `scripts/verify_compartmentalization.py` script automates creation + verification
+of partitioning (useful for a test account).
 
 ---
 
-## Réinitialiser un mot de passe (oubli)
+## Reset a password (forgotten)
 
-L'admin **régénère un temporaire** — il ne peut pas récupérer l'ancien (hashé).
+The admin **regenerates a temporary password** — they cannot recover the old one (hashed).
 
-- Interface : page Utilisateurs → réinitialiser.
-- API : `PATCH /api/v1/admin/users/{user_id}` avec `{"new_password":"<TEMP>"}`.
+- Interface: Users page → reset.
+- API: `PATCH /api/v1/admin/users/{user_id}` with `{"new_password":"<TEMP>"}`.
 
-Effet de bord : `token_version` est incrémenté → toutes les sessions ouvertes de cet
-utilisateur sont **immédiatement invalidées**. Idem pour désactivation (`is_active=false`)
-et changement de rôle.
-
----
-
-## Désactiver / révoquer un compte
-
-`PATCH /api/v1/admin/users/{user_id}` avec `{"is_active": false}`.
-La session en cours est coupée à la requête suivante (rechargement `is_active`).
-On **désactive**, on ne supprime pas (préserve l'attribution `owner_id` des données).
+Side effect: `token_version` is incremented → all of this user's open sessions are
+**immediately invalidated**. Same for deactivation (`is_active=false`)
+and role change.
 
 ---
 
-## Secrets d'infrastructure → coffre
+## Deactivate / revoke an account
 
-Contrairement aux mots de passe utilisateurs, ces secrets **doivent être conservés**
-(dans un gestionnaire de mots de passe d'équipe : Bitwarden/Vaultwarden, KeePassXC,
-ou le coffre de la DSI). Ne jamais les committer.
+`PATCH /api/v1/admin/users/{user_id}` with `{"is_active": false}`.
+The current session is cut off on the next request (reload of `is_active`).
+You **deactivate**, you do not delete (this preserves the `owner_id` attribution of the data).
 
-| Secret | Où il vit | Usage |
+---
+
+## Infrastructure secrets → vault
+
+Unlike user passwords, these secrets **must be retained**
+(in a team password manager: Bitwarden/Vaultwarden, KeePassXC,
+or the IT department (DSI) vault). Never commit them.
+
+| Secret | Where it lives | Usage |
 |--------|-----------|-------|
-| `JWT_SECRET` | `deploy/dib-backend/.env` (gitignoré, sur dib) | Signature des JWT |
-| `POSTGRES_PASSWORD` | idem | Base interne `junon_db` |
-| `BRGM_DB_PASSWORD` | idem | Lecture entrepôt BRGM (gold) |
-| Compte admin bootstrap | coffre d'équipe | Accès admin de secours |
+| `JWT_SECRET` | `deploy/dib-backend/.env` (gitignored, on dib) | JWT signing |
+| `POSTGRES_PASSWORD` | same | Internal database `junon_db` |
+| `BRGM_DB_PASSWORD` | same | Read access to the BRGM warehouse (gold) |
+| Bootstrap admin account | team vault | Emergency admin access |
 
-- Le `.env` sur dib reste le point d'exécution, mais une **copie de référence** des
-  secrets doit être dans le coffre (sinon perte du serveur = perte des secrets).
-- `COOKIE_SECURE=false` sur dib (accès HTTP). En prod TLS (K8s DSI) → `true`.
-- **Migration K8s (front DSI)** : les secrets côté cluster iront dans des **K8s Secrets**.
-  Le `JWT_SECRET` reste sur dib (backend), non concerné par le cluster.
+- The `.env` on dib remains the execution point, but a **reference copy** of the
+  secrets must be in the vault (otherwise loss of the server = loss of the secrets).
+- `COOKIE_SECURE=false` on dib (HTTP access). In TLS production (DSI K8s) → `true`.
+- **K8s migration (DSI frontend)**: the cluster-side secrets will go into **K8s Secrets**.
+  The `JWT_SECRET` stays on dib (backend), not affected by the cluster.
 
 ---
 
-## Compte admin de secours
+## Emergency admin account
 
-Bootstrap initial via `scripts/create_admin.py`. Garder au moins **un** compte admin
-actif et ses identifiants dans le coffre. Si le dernier admin est perdu, recréer un
-admin avec ce script directement sur dib.
+Initial bootstrap via `scripts/create_admin.py`. Keep at least **one** active admin
+account and its credentials in the vault. If the last admin is lost, recreate an
+admin with this script directly on dib.

@@ -1,37 +1,37 @@
-# Déploiement du frontend JUNON (K8s)
+# JUNON frontend deployment (K8s)
 
-Le **frontend** (SPA React + nginx) tourne sur le cluster Kubernetes ; il sert le site
-**et** relaie `/api/` vers le **backend** resté sur `dib-2019006065` (`10.195.25.16:49514`).
-Le backend n'est jamais exposé : seul le front l'appelle, en interne.
+The **frontend** (React SPA + nginx) runs on the Kubernetes cluster; it serves the site
+**and** proxies `/api/` to the **backend**, which remains on `dib-2019006065` (`10.195.25.16:49514`).
+The backend is never exposed: only the frontend calls it, internally.
 
-## Fourni dans le dépôt
+## Provided in the repository
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `.gitlab-ci.yml` (racine) | Build + push de l'image (`$CI_REGISTRY_IMAGE/frontend:latest`) à chaque push sur `main`. Runner kaniko. |
-| `deploy/frontend/Dockerfile` | Image : SPA compilé + nginx (proxy `/api/`). Contexte de build = racine du dépôt. |
-| `deploy/frontend/nginx.conf.template` | `${DIB_BACKEND}` substitué au démarrage. |
+| `.gitlab-ci.yml` (root) | Build + push of the image (`$CI_REGISTRY_IMAGE/frontend:latest`) on every push to `main`. kaniko runner. |
+| `deploy/frontend/Dockerfile` | Image: compiled SPA + nginx (`/api/` proxy). Build context = repository root. |
+| `deploy/frontend/nginx.conf.template` | `${DIB_BACKEND}` substituted at startup. |
 | `deploy/frontend/k8s/` | `deployment.yaml`, `service.yaml`, `ingress.yaml`. |
 
-## À ajuster (les seuls réglages)
+## To adjust (the only settings)
 
-| Fichier | Réglage | Défaut |
+| File | Setting | Default |
 |---|---|---|
-| `k8s/ingress.yaml` | `host` + `tls.hosts` | `junon.univ-tours.fr` (à confirmer) |
+| `k8s/ingress.yaml` | `host` + `tls.hosts` | `junon.univ-tours.fr` (to be confirmed) |
 | `k8s/deployment.yaml` | `DIB_BACKEND` | `10.195.25.16:49514` |
 | `k8s/deployment.yaml` | `image` | `$CI_REGISTRY_IMAGE/frontend:latest` |
 
-## Déployer
+## Deploy
 
 ```bash
 kubectl apply -f deploy/frontend/k8s/
 kubectl get pods,svc,ingress
-kubectl rollout restart deploy/junon-frontend   # forcer une maj d'image
+kubectl rollout restart deploy/junon-frontend   # force an image update
 ```
 
-## ⚠️ Le seul point bloquant côté réseau
+## ⚠️ The only blocking point on the network side
 
-Ouvrir la route **pods du cluster → `10.195.25.16:49514`**. Sans elle, le site s'affiche
-mais `/api/` renvoie 502 (aucune donnée). Le frontend est *stateless* (aucun volume requis).
+Open the route **cluster pods → `10.195.25.16:49514`**. Without it, the site displays
+but `/api/` returns 502 (no data). The frontend is *stateless* (no volume required).
 
-Test local de l'image sans registry : `docker build -f deploy/frontend/Dockerfile -t junon-frontend:test .`
+Local test of the image without a registry: `docker build -f deploy/frontend/Dockerfile -t junon-frontend:test .`

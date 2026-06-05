@@ -1,25 +1,26 @@
-# Déploiement séparé front / back
+# Separate frontend / backend deployment
 
-Architecture cible (Option A — reverse-proxy) : le **frontend** (React + nginx) est
-hébergé à distance (Kubernetes DSI) et constitue le **seul point public**. Il proxie
-`/api/` vers le **backend** (FastAPI + GPU + entrepôt Postgres) qui reste sur
-`dib-2019006065`, accessible uniquement via le **réseau interne universitaire**.
+Target architecture (Option A — reverse proxy): the **frontend** (React + nginx) is
+hosted remotely (Kubernetes, IT department (DSI)) and is the **only public entry
+point**. It proxies `/api/` to the **backend** (FastAPI + GPU + Postgres warehouse),
+which stays on `dib-2019006065`, accessible only via the **university internal
+network**.
 
 ```
-[Navigateur BRGM, externe]
-      │ HTTPS (public, géré par l'Ingress K8s)
+[BRGM browser, external]
+      │ HTTPS (public, handled by the K8s Ingress)
       ▼
-[K8s — DSI]  junon-frontend (nginx : SPA statique + proxy /api/)
-      │ /api/  → réseau interne universitaire (port BACKEND_PORT)
+[K8s — DSI]  junon-frontend (nginx: static SPA + /api/ proxy)
+      │ /api/  → university internal network (port BACKEND_PORT)
       ▼
-[dib-2019006065]  backend FastAPI + Postgres + Redis + MLflow + GPU (RTX A6000)
+[dib-2019006065]  FastAPI backend + Postgres + Redis + MLflow + GPU (RTX A6000)
 ```
 
-Le frontend appelle l'API en chemin relatif (`API_BASE = '/api/v1'`), donc **même
-origine** côté navigateur : pas de CORS, pas de modification du code front, et le
-backend n'est **jamais exposé à Internet**.
+The frontend calls the API using a relative path (`API_BASE = '/api/v1'`), so it is
+the **same origin** from the browser's perspective: no CORS, no changes to the
+frontend code, and the backend is **never exposed to the Internet**.
 
-## 1. Backend sur dib-2019006065
+## 1. Backend on dib-2019006065
 
 ```bash
 cd deploy/dib-backend
@@ -27,26 +28,26 @@ cp .env.example .env          # mots de passe + ALLOWED_ORIGINS (URL publique du
 BACKEND=cuda docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build
 ```
 
-- Expose l'API sur `BACKEND_PORT` (défaut 49514) — **réseau interne uniquement**.
-- Garde le GPU (entraînement + inférence), Postgres, Redis, MLflow co-localisés.
-- `ALLOWED_ORIGINS` doit contenir l'URL publique servie par le front.
+- Exposes the API on `BACKEND_PORT` (default 49514) — **internal network only**.
+- Keeps the GPU (training + inference), Postgres, Redis, and MLflow co-located.
+- `ALLOWED_ORIGINS` must contain the public URL served by the frontend.
 
-## 2. Frontend (Kubernetes DSI)
+## 2. Frontend (Kubernetes, DSI)
 
-Construire et pousser l'image (contexte = racine du dépôt) :
+Build and push the image (context = repository root):
 
 ```bash
 docker build -f deploy/frontend/Dockerfile -t registry.scm.univ-tours.fr/ringuet/junon-frontend:latest .
 docker push registry.scm.univ-tours.fr/ringuet/junon-frontend:latest
 ```
 
-Adapter puis appliquer les manifestes (image, `DIB_BACKEND`, hostname TLS) :
+Adapt and then apply the manifests (image, `DIB_BACKEND`, TLS hostname):
 
 ```bash
 kubectl apply -f deploy/frontend/k8s/
 ```
 
-### Variante hors K8s (serveur/VM dédié)
+### Variant without K8s (dedicated server/VM)
 
 ```bash
 cd deploy/frontend
@@ -54,11 +55,10 @@ cp .env.example .env          # DIB_BACKEND=<ip-ou-dns-dib>:49514
 docker compose up -d --build
 ```
 
-## Pré-requis réseau
+## Network prerequisites
 
-- **Entrant** : accès public au front (Ingress K8s / port 49513 sinon).
-- **Interne** : le front (K8s) doit joindre `dib-2019006065:BACKEND_PORT`.
-  → c'est l'équivalent du port DB déjà ouvert sur le réseau universitaire.
-- **Sortant Internet** : depuis le **backend** (dib) pour Hub'Eau ; depuis le
-  **navigateur** pour les tuiles cartographiques. Le front K8s n'a besoin que de
-  joindre dib.
+- **Inbound**: public access to the frontend (K8s Ingress, or port 49513 otherwise).
+- **Internal**: the frontend (K8s) must be able to reach `dib-2019006065:BACKEND_PORT`.
+  → this is the equivalent of the DB port already opened on the university network.
+- **Outbound Internet**: from the **backend** (dib) for Hub'Eau; from the
+  **browser** for the map tiles. The K8s frontend only needs to be able to reach dib.

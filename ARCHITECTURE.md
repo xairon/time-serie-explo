@@ -1,103 +1,103 @@
 # Architecture
 
-## Vue d'ensemble
+## Overview
 
-L'application est composée de trois couches :
+The application has three layers:
 
-1. **Frontend React/TypeScript** (`frontend/`) — l'interface utilisateur (SPA, build Vite, servie par nginx).
-2. **API FastAPI** (`api/`) — l'API HTTP authentifiée : observatoire, entraînement, prévision, Pastas, explicabilité, détection de pompage, administration.
-3. **Bibliothèque métier** (`dashboard/utils/`) — code Python pur (sans interface graphique) importé par l'API : préparation des données, entraînement, registres de modèles/datasets, Pastas, etc.
+1. **React/TypeScript frontend** (`frontend/`) — the user interface (SPA, Vite build, served by nginx).
+2. **FastAPI backend** (`api/`) — the authenticated HTTP API: observatory, training, forecasting, Pastas, explainability, pumping detection, administration.
+3. **Business library** (`dashboard/utils/`) — pure Python (no GUI) imported by the API: data preparation, training, model/dataset registries, Pastas, etc.
 
-> L'ancienne interface Streamlit a été retirée. `dashboard/utils/` reste la bibliothèque métier partagée.
+> The legacy Streamlit interface has been removed. `dashboard/utils/` remains the shared business library.
 
-## Séparation des responsabilités (entraînement / interface)
+## Separation of concerns (training / interface)
 
-Le code d'entraînement est **indépendant de toute interface** : il écrit sa
-progression dans un fichier JSON, que la couche interface lit séparément.
+Training code is **independent of any interface**: it writes its progress to a
+JSON file, which the interface layer reads separately.
 
-### Composants principaux
+### Main components
 
-#### 1. Callbacks standards (`dashboard/utils/callbacks.py`)
+#### 1. Standard callbacks (`dashboard/utils/callbacks.py`)
 
-- **`MetricsFileCallback`** : écrit les métriques dans un fichier JSON.
-- **`create_training_callbacks()`** : factory de callbacks PyTorch Lightning standards.
+- **`MetricsFileCallback`**: writes metrics to a JSON file.
+- **`create_training_callbacks()`**: factory for standard PyTorch Lightning callbacks.
 
-Aucune dépendance à une interface graphique : utilisable en CLI, backend ou notebook.
+No dependency on any GUI: usable from a CLI, the backend, or notebooks.
 
-#### 2. Lecture des métriques (`dashboard/utils/training_monitor.py`)
+#### 2. Metrics reading (`dashboard/utils/training_monitor.py`)
 
-`TrainingMonitor` lit et parse le fichier JSON. En production, le suivi temps réel
-est exposé au frontend par l'API via **SSE** (`api/routers/training.py`,
-endpoint `/api/v1/training/{task_id}/stream`).
+`TrainingMonitor` reads and parses the JSON file. In production, real-time
+progress is exposed to the frontend by the API via **SSE**
+(`api/routers/training.py`, endpoint `/api/v1/training/{task_id}/stream`).
 
-#### 3. Pipeline d'entraînement (`dashboard/utils/training.py`)
+#### 3. Training pipeline (`dashboard/utils/training.py`)
 
-`run_training_pipeline()` utilise les callbacks standards et le paramètre
-`metrics_file` pour le suivi.
+`run_training_pipeline()` uses the standard callbacks and the `metrics_file`
+parameter for progress tracking.
 
-#### 4. Factory de modèles (`dashboard/utils/model_factory.py`)
+#### 4. Model factory (`dashboard/utils/model_factory.py`)
 
-`ModelFactory` instancie dynamiquement les modèles Darts avec validation des
-hyperparamètres.
+`ModelFactory` dynamically instantiates Darts models with hyperparameter
+validation.
 
-## Structure du projet
+## Project structure
 
 ```
 time-serie-explo/
-├── api/                       # API FastAPI
+├── api/                       # FastAPI backend
 │   ├── main.py                # App + routes + middleware
 │   ├── routers/               # Endpoints (training, forecasting, pastas, admin, …)
 │   ├── auth/                  # Auth (JWT, ownership, audit, rate limit, erasure)
-│   ├── models_db/             # Modèles SQLAlchemy (User, AuthEvent)
-│   └── schemas/               # Schémas Pydantic
+│   ├── models_db/             # SQLAlchemy models (User, AuthEvent)
+│   └── schemas/               # Pydantic schemas
 │
-├── frontend/                  # SPA React/TypeScript (Vite)
+├── frontend/                  # React/TypeScript SPA (Vite)
 │   └── src/
-│       ├── pages/             # Pages (observatoire, AI lab, pastas, admin, …)
-│       ├── components/        # Composants UI
-│       └── lib/, contexts/    # Client API, état auth
+│       ├── pages/             # Pages (observatory, AI lab, pastas, admin, …)
+│       ├── components/        # UI components
+│       └── lib/, contexts/    # API client, auth state
 │
 ├── dashboard/
-│   ├── utils/                 # Bibliothèque métier (code Python pur)
-│   │   ├── callbacks.py       # Callbacks PyTorch Lightning
-│   │   ├── training.py        # Pipeline d'entraînement
-│   │   ├── training_monitor.py# Lecture des métriques JSON
-│   │   ├── model_factory.py   # Factory de modèles
-│   │   ├── model_registry.py  # Registre des modèles
-│   │   ├── dataset_registry.py# Registre des datasets
+│   ├── utils/                 # Business library (pure Python)
+│   │   ├── callbacks.py       # PyTorch Lightning callbacks
+│   │   ├── training.py        # Training pipeline
+│   │   ├── training_monitor.py# JSON metrics reader
+│   │   ├── model_factory.py   # Model factory
+│   │   ├── model_registry.py  # Model registry
+│   │   ├── dataset_registry.py# Dataset registry
 │   │   ├── pastas/, pumping_detection/, counterfactual/, explainability/
 │   │   └── …
-│   └── models_config.py       # Catalogue des architectures
+│   └── models_config.py       # Architecture catalogue
 │
-├── alembic/                   # Migrations de base de données
-├── scripts/                   # Scripts utilitaires (create_admin, purge_expired, …)
-├── tests/                     # Tests pytest
-├── deploy/                    # Déploiement canonique (front K8s + back compose)
-├── pyproject.toml             # Configuration du projet (uv)
+├── alembic/                   # Database migrations
+├── scripts/                   # Utility scripts (create_admin, purge_expired, …)
+├── tests/                     # pytest suite
+├── deploy/                    # Canonical deployment (frontend K8s + backend compose)
+├── pyproject.toml             # Project configuration (uv)
 └── docker-compose.yml
 ```
 
-## Flux de données (entraînement)
+## Data flow (training)
 
 ```
 ┌─────────────────────────────────────────────┐
-│             PROCESSUS D'ENTRAÎNEMENT          │
+│               TRAINING PROCESS                │
 │  PyTorch Lightning Trainer                    │
 │  ├── MetricsFileCallback → metrics.json       │
 │  ├── EarlyStopping (standard)                 │
-│  └── autres callbacks standards               │
-│  Modèle entraîné → sauvegardé (MLflow)        │
+│  └── other standard callbacks                 │
+│  Trained model → saved (MLflow)               │
 └─────────────────────────────────────────────┘
-                    │ (fichier JSON)
+                    │ (JSON file)
                     ▼
 ┌─────────────────────────────────────────────┐
-│        API FastAPI → SSE → Frontend React     │
-│  /training/{task_id}/stream lit metrics.json  │
-│  et pousse la progression au navigateur       │
+│       FastAPI backend → SSE → React frontend  │
+│  /training/{task_id}/stream reads metrics.json│
+│  and pushes progress to the browser           │
 └─────────────────────────────────────────────┘
 ```
 
-## Format du fichier JSON
+## JSON file format
 
 ```json
 {
@@ -114,16 +114,16 @@ time-serie-explo/
 }
 ```
 
-## Bonnes pratiques
+## Best practices
 
-### À faire
+### Do
 
-1. Garder `dashboard/utils/` **sans import d'interface graphique** (code pur).
-2. Utiliser uniquement des callbacks standards dans `run_training_pipeline()`.
-3. Passer `metrics_file` pour le suivi ; exposer la progression via l'API (SSE).
-4. Nettoyer les modèles avant sauvegarde (automatique).
+1. Keep `dashboard/utils/` **free of any GUI import** (pure code).
+2. Use only standard callbacks in `run_training_pipeline()`.
+3. Pass `metrics_file` for progress; expose it to the frontend via the API (SSE).
+4. Clean models before saving (done automatically).
 
-### À éviter
+### Avoid
 
-1. Référencer une interface (UI) dans le code d'entraînement.
-2. Sérialiser des objets d'interface dans les modèles.
+1. Referencing a UI in training code.
+2. Serializing UI objects into models.

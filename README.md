@@ -6,20 +6,20 @@
 
 Full-stack platform for groundwater level forecasting and scenario analysis, integrating physically-based transfer function-noise models ([Pastas](https://pastas.readthedocs.io/)) and deep learning forecasters ([Darts](https://unit8co.github.io/darts/)) under a unified MLflow registry. Built for the [BRGM](https://www.brgm.fr/) (French Geological Survey) data warehouse, exposed through a React frontend and a FastAPI backend.
 
-## 🚀 Déploiement / Deployment (DSI)
+## 🚀 Deployment (split front / back)
 
-L'application est **scindée** pour la production : le **frontend** tourne sur le cluster
-Kubernetes de la DSI, le **backend + GPU + bases** restent sur `dib-2019006065`.
+Production is **split**: the **frontend** runs on the IT department's Kubernetes
+cluster, while the **backend + GPU + databases** stay on `dib-2019006065`.
 
-> 👉 **Guide de déploiement du frontend (DSI) : [`deploy/frontend/README.md`](deploy/frontend/README.md)**
-> — tout est prêt à brancher : CI GitLab, manifests Kubernetes, et configuration.
+> 👉 **Frontend deployment guide: [`deploy/frontend/README.md`](deploy/frontend/README.md)**
+> — everything is ready to wire up: GitLab CI, Kubernetes manifests, and configuration.
 
-En bref :
-- **CI fournie** (`.gitlab-ci.yml`) : push sur `main` → build + push de l'image frontend sur le registry.
-- **Manifests K8s** prêts (`deploy/frontend/k8s/` : Deployment, Service, Ingress, hostname `junon.univ-tours.fr` pré-rempli).
-- Le frontend relaie `/api/` vers le backend de dib (`10.195.25.16:49514`) — **pas de stockage persistant** nécessaire.
-- **Point réseau critique** : ouvrir la route *pods du cluster → `10.195.25.16:49514`*.
-- Backend sur dib : [`deploy/dib-backend/`](deploy/dib-backend/) · Environnements dev/prod : [`docs/dev-environment.md`](docs/dev-environment.md).
+In short:
+- **CI provided** (`.gitlab-ci.yml`): pushing to `main` builds and pushes the frontend image to the registry.
+- **K8s manifests** ready (`deploy/frontend/k8s/`: Deployment, Service, Ingress, hostname `junon.univ-tours.fr` pre-filled).
+- The frontend proxies `/api/` to the dib backend (`10.195.25.16:49514`) — **no persistent storage** required.
+- **Critical network requirement**: open the route *cluster pods → `10.195.25.16:49514`*.
+- Backend on dib: [`deploy/dib-backend/`](deploy/dib-backend/) · dev/prod environments: [`docs/dev-environment.md`](docs/dev-environment.md).
 
 ## Features
 

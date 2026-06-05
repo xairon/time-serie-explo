@@ -1,34 +1,34 @@
-# Environnement de développement isolé (sur dib)
+# Isolated development environment (on dib)
 
-Deux environnements **totalement séparés** tournent sur `dib-2019006065` :
+Two **completely separate** environments run on `dib-2019006065`:
 
 | | **PROD** | **DEV** |
 |---|---|---|
-| Code | branche `main` | branche `dev` |
+| Code | `main` branch | `dev` branch |
 | Compose | `docker-compose.yml` (+ `.cuda.yml`) | `docker-compose.dev.yml` |
-| Projet docker | `time-serie-explo` | `junon-dev` |
-| Front | `:49513` (+ K8s public) | `:49518` |
-| Backend API | `:49514` (← front K8s) | `:49516` |
+| Docker project | `time-serie-explo` | `junon-dev` |
+| Front | `:49513` (+ public K8s) | `:49518` |
+| Backend API | `:49514` (← K8s front) | `:49516` |
 | MLflow | `:49512` | `:49517` |
-| Base PostgreSQL | volume `postgres_data` | volume `postgres_data_dev` |
-| Modèles / artefacts | `mlflow_artifacts`, `data/`, `checkpoints/` | `mlflow_artifacts_dev`, `data-dev/`, `checkpoints-dev/` |
+| PostgreSQL database | `postgres_data` volume | `postgres_data_dev` volume |
+| Models / artifacts | `mlflow_artifacts`, `data/`, `checkpoints/` | `mlflow_artifacts_dev`, `data-dev/`, `checkpoints-dev/` |
 
-→ Un modèle entraîné, une migration ou un compte créé en **dev** n'affecte **jamais** la prod.
+→ A model trained, a migration, or an account created in **dev** **never** affects prod.
 
-## Lancer / arrêter le dev
+## Starting / stopping dev
 
 ```bash
-# Démarrer (GPU inclus dans le fichier → le -f explicite est correct ici)
+# Start (GPU included in the file → the explicit -f is correct here)
 docker compose -p junon-dev -f docker-compose.dev.yml up -d --build
 
-# Arrêter (garde les données dev)
+# Stop (keeps dev data)
 docker compose -p junon-dev -f docker-compose.dev.yml down
 
-# Tout remettre à zéro (supprime aussi les volumes dev)
+# Reset everything (also removes dev volumes)
 docker compose -p junon-dev -f docker-compose.dev.yml down -v
 ```
 
-La base dev est vierge au premier démarrage : appliquer les migrations puis créer un admin.
+The dev database is empty on first start: apply the migrations, then create an admin.
 
 ```bash
 docker exec junon-backend-dev sh -lc 'cd /app && alembic upgrade head'
@@ -37,11 +37,11 @@ docker exec junon-backend-dev sh -lc 'cd /app && python3 scripts/create_admin.py
 
 ## Workflow
 
-1. Bosser sur `dev`, tester sur l'environnement dev (`:49518`).
-2. Quand c'est bon : merge `dev` → `main`.
-3. Le merge sur `main` reconstruit l'image front (CI) → la DSI redéploie ; côté dib,
-   reconstruire la stack prod si le **backend** a changé :
-   `docker compose up -d --build` (utilise le `COMPOSE_FILE` de `.env`, GPU préservé).
+1. Work on `dev`, test on the dev environment (`:49518`).
+2. Once it is good: merge `dev` → `main`.
+3. Merging into `main` rebuilds the front image (CI) → the IT department (DSI) redeploys; on the dib side,
+   rebuild the prod stack if the **backend** changed:
+   `docker compose up -d --build` (uses the `COMPOSE_FILE` from `.env`, GPU preserved).
 
-> ⚠️ Ne reconstruis **pas** la stack prod (`docker compose up`) depuis la branche `dev` :
-> le backend prod `:49514` (utilisé par le front K8s) prendrait alors le code de dev.
+> ⚠️ Do **not** rebuild the prod stack (`docker compose up`) from the `dev` branch:
+> the prod backend `:49514` (used by the K8s front) would then run the dev code.

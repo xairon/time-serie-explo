@@ -1,59 +1,58 @@
-# Guide de déploiement
+# Deployment guide
 
-L'application se compose d'une API FastAPI (`api/`) et d'un frontend React
-(`frontend/`). L'ancienne interface Streamlit a été retirée.
+The application consists of a FastAPI backend (`api/`) and a React frontend
+(`frontend/`). The legacy Streamlit interface has been removed.
 
-## Développement local
+## Local development
 
 ### Backend (API)
 
 ```bash
-# uv (recommandé)
-uv sync --extra cpu --extra api      # ou --extra cuda sur machine GPU
+# uv (recommended)
+uv sync --extra cpu --extra api      # or --extra cuda on a GPU machine
 uv run uvicorn api.main:app --reload
 
-# Variables requises (voir deploy/dib-backend/.env.example) :
+# Required variables (see deploy/dib-backend/.env.example):
 #   JWT_SECRET (openssl rand -hex 32), DB_PASSWORD, ALLOWED_ORIGINS, DEBUG
 ```
 
-En dehors de `DEBUG=true`, l'API refuse de démarrer si `JWT_SECRET` est absent,
-trop court (<32) ou laissé à la valeur par défaut, et si `DB_PASSWORD` est vide.
+Unless `DEBUG=true`, the API refuses to start if `JWT_SECRET` is missing, too
+short (<32), or left at its default value, and if `DB_PASSWORD` is empty.
 
 ### Frontend
 
 ```bash
 cd frontend
 npm ci
-npm run dev          # serveur de dev Vite
-npm run build        # build de production (dist/)
+npm run dev          # Vite dev server
+npm run build        # production build (dist/)
 ```
 
-### Base de données
+### Database
 
 ```bash
 uv run alembic upgrade head
-uv run python -m scripts.create_admin       # créer un compte admin
+uv run python -m scripts.create_admin       # create an admin account
 ```
 
-## Déploiement (production)
+## Production deployment
 
-Le déploiement canonique est décrit dans **`deploy/`** :
+The canonical deployment is described under **`deploy/`**:
 
-- `deploy/dib-backend/` — stack backend (API + Postgres + Redis + MLflow) via
-  Docker Compose. Copier `.env.example` vers `.env` et renseigner les secrets.
-- `deploy/frontend/` — frontend statique (nginx) déployé sur Kubernetes
-  (`deploy/frontend/k8s/`), proxy `/api/` vers le backend.
+- `deploy/dib-backend/` — backend stack (API + Postgres + Redis + MLflow) via
+  Docker Compose. Copy `.env.example` to `.env` and fill in the secrets.
+- `deploy/frontend/` — static frontend (nginx) deployed on Kubernetes
+  (`deploy/frontend/k8s/`), proxying `/api/` to the backend.
 
-Voir `deploy/README.md`, `deploy/frontend/README.md` et le `.env.example`
-correspondant pour les détails à jour.
+See `deploy/README.md`, `deploy/frontend/README.md`, and the matching
+`.env.example` for up-to-date details.
 
-> Note : le `docker-compose.yml` combiné à la racine est conservé pour le
-> développement ; en production, utiliser les stacks séparées de `deploy/`.
+> Note: the combined root `docker-compose.yml` is kept for development; in
+> production, use the separate stacks under `deploy/`.
 
-## RGPD / rétention
+## GDPR / retention
 
-La purge des journaux d'authentification (rétention 365 jours par défaut) se fait
-via cron :
+Authentication log purging (365-day retention by default) runs via cron:
 
 ```bash
 uv run python -m scripts.purge_expired
