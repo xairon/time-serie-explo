@@ -12,6 +12,12 @@ from api.auth.passwords import hash_password
 # Tests run over http://test — disable Secure flag so httpx persists cookies
 settings.cookie_secure = False
 
+# Disable Redis in tests: rate-limit/lockout helpers no-op cleanly and we avoid
+# slow connection timeouts to a non-existent redis host.
+import api.cache as _api_cache  # noqa: E402
+
+_api_cache._client = None
+
 
 @pytest_asyncio.fixture
 async def db_sessionmaker():
@@ -34,6 +40,12 @@ async def client(db_sessionmaker):
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def db_session(db_sessionmaker):
+    async with db_sessionmaker() as session:
+        yield session
 
 
 @pytest_asyncio.fixture
