@@ -2,6 +2,7 @@ import { API_BASE } from './constants'
 
 export interface AuthUser {
   id: string; email: string; display_name: string; role: 'admin' | 'user'; is_active: boolean
+  must_change_password?: boolean
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -19,6 +20,9 @@ export const authApi = {
   login: (email: string, password: string) =>
     req<AuthUser>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => req<void>('/auth/logout', { method: 'POST' }),
+  changePassword: (old_password: string, new_password: string) =>
+    req<void>('/auth/change-password', { method: 'POST', body: JSON.stringify({ old_password, new_password }) }),
+  deleteAccount: () => req<void>('/auth/me', { method: 'DELETE' }),
 }
 
 export const adminApi = {
@@ -27,4 +31,7 @@ export const adminApi = {
     req<AuthUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: { is_active?: boolean; role?: string; new_password?: string }) =>
     req<AuthUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  resetPassword: (id: string) =>
+    req<{ temporary_password: string }>(`/admin/users/${id}/reset-password`, { method: 'POST' }),
+  remove: (id: string) => req<void>(`/admin/users/${id}`, { method: 'DELETE' }),
 }

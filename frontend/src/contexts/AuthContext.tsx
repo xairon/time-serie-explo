@@ -6,6 +6,7 @@ interface AuthState {
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const Ctx = createContext<AuthState | null>(null)
@@ -23,8 +24,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => setUser(await authApi.login(email, password))
   const logout = async () => { await authApi.logout(); setUser(null) }
+  const refresh = async () => { try { setUser(await authApi.me()) } catch { setUser(null) } }
 
-  return <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ user, loading, login, logout, refresh }}>{children}</Ctx.Provider>
 }
 
 export function useAuth() {

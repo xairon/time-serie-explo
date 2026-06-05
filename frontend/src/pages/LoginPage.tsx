@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function LoginPage() {
@@ -83,6 +83,11 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+        <p className="text-center text-xs text-text-muted mt-4">
+          <Link to="/privacy" className="hover:text-text-secondary transition-colors">
+            Politique de confidentialité
+          </Link>
+        </p>
       </div>
     </div>
   )

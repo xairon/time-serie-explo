@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate, useSearchParams } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import { RequireAuth } from './components/auth/RequireAuth'
+import { SessionGate } from './components/auth/SessionGate'
 
 function RedirectWithParams({ to }: { to: string }) {
   const [searchParams] = useSearchParams()
@@ -27,6 +28,8 @@ const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
 const AIModelsPage = lazy(() => import('./pages/ai/AIModelsPage'))
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const AccountPage = lazy(() => import('./pages/AccountPage'))
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'))
 
 function SW({ children }: { children: React.ReactNode }) {
@@ -35,7 +38,7 @@ function SW({ children }: { children: React.ReactNode }) {
 
 export const router = createBrowserRouter([
   {
-    element: <Layout />,
+    element: <SessionGate><Layout /></SessionGate>,
     children: [
       // Observatory (home)
       { path: '/', element: <SW><ObservatoryPage /></SW> },
@@ -85,6 +88,8 @@ export const router = createBrowserRouter([
 
       // Auth
       { path: '/login', element: <SW><LoginPage /></SW> },
+      { path: '/privacy', element: <SW><PrivacyPage /></SW> },
+      { path: '/account', element: <RequireAuth><SW><AccountPage /></SW></RequireAuth> },
 
       // Admin
       { path: '/admin/users', element: <RequireAuth adminOnly><SW><UsersPage /></SW></RequireAuth> },
