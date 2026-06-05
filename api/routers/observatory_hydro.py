@@ -5,7 +5,8 @@ from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from api.database import get_brgm_sync_engine
 from sqlalchemy.exc import ProgrammingError
 
 from api.config import settings
@@ -146,13 +147,13 @@ def list_stations(
             WHERE {where}
             ORDER BY code_station
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
                 rows = [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         for r in rows:
             _convert_qmnj_row(r, _FLOW_COLS_DIM)
@@ -182,7 +183,7 @@ def get_percentiles(code_station: str):
               AND resultat_obs_elab > :min_valid
               AND resultat_obs_elab < :max_valid
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(
@@ -191,7 +192,7 @@ def get_percentiles(code_station: str):
                 )
                 row = result.mappings().first()
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         if not row or row["p10"] is None:
             raise HTTPException(404, f"Aucune donnée pour la station hydrométrique {code_station}")
         return _convert_qmnj_row(dict(row), _FLOW_COLS_PERCENTILES)
@@ -229,7 +230,7 @@ def get_daily(
         query += " ORDER BY date LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -242,7 +243,7 @@ def get_daily(
                     if exists is None:
                         raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         for r in rows:
             if r.get("grandeur_hydro_elab") != "H":
                 _convert_qmnj_row(r, _FLOW_COLS_DAILY)
@@ -284,7 +285,7 @@ def get_monthly(
         query += " ORDER BY mois LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -297,7 +298,7 @@ def get_monthly(
                     if exists is None:
                         raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         for r in rows:
             _convert_qmnj_row(r, _FLOW_COLS_MONTHLY)
         return rows
@@ -337,7 +338,7 @@ def get_yearly(
         query += " ORDER BY annee LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -350,7 +351,7 @@ def get_yearly(
                     if exists is None:
                         raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         for r in rows:
             _convert_qmnj_row(r, _FLOW_COLS_YEARLY)
         return rows
@@ -367,7 +368,7 @@ def get_ssfi(code_station: str):
     """Compute SSFI from fixed reference grid (gold.station_reference_stats)."""
 
     def fetch():
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 # 1. Load monthly flow series (positive only; sentinels already filtered)
@@ -390,12 +391,12 @@ def get_ssfi(code_station: str):
                     return []
 
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # 2. Load fixed reference grid in a separate connection so a missing table
         #    (pre-materialization) doesn't poison the main query connection.
         grid_by_month: dict[int, list[float] | None] = {}
-        engine2 = create_engine(_brgm_url())
+        engine2 = get_brgm_sync_engine()
         try:
             with engine2.connect() as conn2:
                 ref_result = conn2.execute(
@@ -419,7 +420,7 @@ def get_ssfi(code_station: str):
         except ProgrammingError:
             pass  # Table not yet created (pre-materialization)
         finally:
-            engine2.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # If no reference grid exists yet, return empty (table not yet materialized)
         if not grid_by_month:
@@ -462,7 +463,7 @@ def get_spi(code_station: str):
             WHERE code_station = :code AND precipitation_totale IS NOT NULL
             ORDER BY mois
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_station})
@@ -476,7 +477,7 @@ def get_spi(code_station: str):
                         raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
                     return []
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         months = [str(r["mois"]) for r in rows]
         values = [float(r["precipitation_totale"]) if r["precipitation_totale"] is not None else None for r in rows]
@@ -494,7 +495,7 @@ def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|c
     """Other hydro stations at the same hydrometric site or on the same watercourse."""
 
     def fetch():
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 row = conn.execute(
@@ -531,7 +532,7 @@ def get_siblings(code_station: str, level: str = Query("site", pattern="^(site|c
                 result = conn.execute(text(query), {"grp": group_val, "code": code_station})
                 siblings = [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         return {
             "code_site": row["code_site"],
@@ -600,7 +601,7 @@ def get_station(code_station: str):
             ) lm ON true
             WHERE s.code_station = :code
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_station})
@@ -613,7 +614,7 @@ def get_station(code_station: str):
                 )
 
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # Fetch fixed reference grid in a separate connection so a missing table
         # (pre-materialization) doesn't poison the main query connection.
@@ -623,7 +624,7 @@ def get_station(code_station: str):
         ref_month_val = out.get("index_ref_month")
         ref_m = pd.to_datetime(str(ref_month_val)).month if ref_month_val is not None else None
         if ref_m is not None:
-            engine2 = create_engine(_brgm_url())
+            engine2 = get_brgm_sync_engine()
             try:
                 with engine2.connect() as conn2:
                     ref_row = conn2.execute(
@@ -646,7 +647,7 @@ def get_station(code_station: str):
             except ProgrammingError:
                 pass  # Table not yet created (pre-materialization)
             finally:
-                engine2.dispose()
+                pass  # shared pooled engine; do not dispose
 
         out["reference_flag"] = reference_flag
         out["index_class_bounds"] = index_class_bounds

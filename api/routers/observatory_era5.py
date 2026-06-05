@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import date as DateType
 
 from fastapi import APIRouter, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from api.database import get_brgm_sync_engine
 
 from api.config import settings
 from dashboard.utils.cache import get_cached
@@ -32,13 +33,13 @@ def get_era5_grid():
             FROM gold.int_era5_grid_points
             ORDER BY era5_latitude, era5_longitude
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 return [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_grid", {}, GRID_TTL, fetch)
 
@@ -54,13 +55,13 @@ def get_era5_snapshot(
             FROM gold.int_era5_for_stations
             WHERE era5_date = :snapshot_date
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"snapshot_date": snapshot_date})
                 return [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_snapshot", {"date": str(snapshot_date)}, SNAPSHOT_TTL, fetch)
 
@@ -73,13 +74,13 @@ def get_era5_dates():
             FROM gold.int_era5_for_stations
             ORDER BY month
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query))
                 return [str(row["month"]) for row in result.mappings()]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_dates", {}, DATES_TTL, fetch)
 
@@ -103,12 +104,12 @@ def get_era5_monthly(
             WHERE era5_date >= :month_start AND era5_date < :month_end
             GROUP BY latitude, longitude
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"month_start": month_start, "month_end": month_end})
                 return [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_monthly", {"month": str(month)}, MONTHLY_TTL, fetch)

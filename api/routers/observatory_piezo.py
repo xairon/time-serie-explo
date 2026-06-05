@@ -6,7 +6,8 @@ from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from api.database import get_brgm_sync_engine
 from sqlalchemy.exc import ProgrammingError
 
 from api.config import settings
@@ -129,13 +130,13 @@ def list_stations(
             WHERE {where}
             ORDER BY code_bss
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
                 rows = [dict(row._mapping) for row in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         return rows
 
@@ -158,13 +159,13 @@ def get_percentiles(code_bss: str):
             FROM gold.hubeau_daily_chroniques
             WHERE code_bss = :code AND niveau_nappe_eau IS NOT NULL
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_bss})
                 row = result.mappings().first()
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         if not row or row["p10"] is None:
             raise HTTPException(404, f"Aucune donnée pour la station piézométrique {code_bss}")
         return dict(row)
@@ -198,7 +199,7 @@ def get_daily(
         query += " ORDER BY date LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -211,7 +212,7 @@ def get_daily(
                     if exists is None:
                         raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         return rows
 
     return get_cached("obs_piezo_daily", params, DAILY_TTL, fetch)
@@ -246,7 +247,7 @@ def get_monthly(
         query += " ORDER BY mois LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -259,7 +260,7 @@ def get_monthly(
                     if exists is None:
                         raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         return rows
 
     return get_cached("obs_piezo_monthly", params, MONTHLY_TTL, fetch)
@@ -294,7 +295,7 @@ def get_yearly(
         query += " ORDER BY annee LIMIT :limit"
         bind["limit"] = limit
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
@@ -307,7 +308,7 @@ def get_yearly(
                     if exists is None:
                         raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
         return rows
 
     return get_cached("obs_piezo_yearly", params, YEARLY_TTL, fetch)
@@ -318,7 +319,7 @@ def get_spli(code_bss: str):
     """Compute SPLI (IPS) from fixed reference grid (gold.station_reference_stats)."""
 
     def fetch():
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 # 1. Load monthly level series
@@ -340,12 +341,12 @@ def get_spli(code_bss: str):
                     return []
 
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # 2. Load fixed reference grid in a separate connection so a missing table
         #    (pre-materialization) doesn't poison the main query connection.
         grid_by_month: dict[int, list[float] | None] = {}
-        engine2 = create_engine(_brgm_url())
+        engine2 = get_brgm_sync_engine()
         try:
             with engine2.connect() as conn2:
                 ref_result = conn2.execute(
@@ -365,7 +366,7 @@ def get_spli(code_bss: str):
             # Table not yet created (pre-materialization) — return empty series
             pass
         finally:
-            engine2.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # If no reference grid exists yet, return empty (table not yet materialized)
         if not grid_by_month:
@@ -401,7 +402,7 @@ def get_spi(code_bss: str):
             WHERE code_bss = :code AND precipitation_totale IS NOT NULL
             ORDER BY mois
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_bss})
@@ -415,7 +416,7 @@ def get_spi(code_bss: str):
                         raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
                     return []
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         months = [str(r["mois"]) for r in rows]
         values = [float(r["precipitation_totale"]) if r["precipitation_totale"] is not None else None for r in rows]
@@ -429,7 +430,7 @@ def get_siblings(code_bss: str, level: str = Query("nappe", pattern="^(nappe|sys
     """Other piezometers in the same BDLISA entity (nappe) or system (préfixe)."""
 
     def fetch():
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 row = conn.execute(
@@ -472,7 +473,7 @@ def get_siblings(code_bss: str, level: str = Query("nappe", pattern="^(nappe|sys
                 result = conn.execute(text(query), params)
                 siblings = [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         return {
             "level": level,
@@ -534,7 +535,7 @@ def get_station(code_bss: str):
             ) lm ON true
             WHERE s.code_bss = :code
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"code": code_bss})
@@ -544,7 +545,7 @@ def get_station(code_bss: str):
                 out = dict(row)
 
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         # Fetch fixed reference grid for the reference calendar month in a separate
         # connection so a missing table (pre-materialization) doesn't poison the above.
@@ -554,7 +555,7 @@ def get_station(code_bss: str):
         ref_month_val = out.get("index_ref_month")
         ref_m = pd.to_datetime(str(ref_month_val)).month if ref_month_val is not None else None
         if ref_m is not None:
-            engine2 = create_engine(_brgm_url())
+            engine2 = get_brgm_sync_engine()
             try:
                 with engine2.connect() as conn2:
                     ref_row = conn2.execute(
@@ -574,7 +575,7 @@ def get_station(code_bss: str):
             except ProgrammingError:
                 pass  # Table not yet created (pre-materialization)
             finally:
-                engine2.dispose()
+                pass  # shared pooled engine; do not dispose
 
         out["reference_flag"] = reference_flag
         out["index_class_bounds"] = index_class_bounds

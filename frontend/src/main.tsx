@@ -14,3 +14,12 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>,
 )
+
+// Warm the heavy map chunk (vendor-maplibre) during idle time so the observatory
+// map renders without waiting on a separate download after navigation.
+const warmMap = () => { import('maplibre-gl') }
+if ('requestIdleCallback' in window) {
+  ;(window as Window & typeof globalThis).requestIdleCallback(warmMap)
+} else {
+  setTimeout(warmMap, 2000)
+}
