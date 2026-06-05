@@ -8,10 +8,29 @@ from fastapi.testclient import TestClient
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
     import os
+    import uuid
     tmp = tmp_path_factory.mktemp("mlflow")
-    os.environ["MLFLOW_TRACKING_URI"] = f"sqlite:///{tmp / 'mlflow.db'}"
+    uri = f"sqlite:///{tmp / 'mlflow.db'}"
+    os.environ["MLFLOW_TRACKING_URI"] = uri
+    # The endpoints read settings.mlflow_tracking_uri (not the env var), so point
+    # it at the local sqlite store; otherwise they try to reach a real MLflow server.
+    from api.config import settings
+    settings.mlflow_tracking_uri = uri
     from api.main import app
-    return TestClient(app)
+    from api.auth.deps import get_current_user
+    from api.models_db import User, UserRole
+
+    def _fake_user():
+        return User(
+            id=uuid.uuid4(), email="pastas@test.fr", display_name="pastas",
+            password_hash="x", role=UserRole.user, is_active=True,
+        )
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_options_endpoint(client):

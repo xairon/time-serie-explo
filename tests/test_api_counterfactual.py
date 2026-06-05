@@ -8,24 +8,23 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_run_cf_valid_request(client):
-    """POST /api/v1/counterfactual/run with valid body returns 202."""
-    resp = await client.post(
+async def test_run_cf_valid_request(auth_client):
+    """POST /api/v1/counterfactual/run validates model ownership upfront.
+
+    A well-formed request for a nonexistent/unowned model returns 404 (the
+    202 happy path requires a real owned model — see integration fixtures TODO).
+    """
+    resp = await auth_client.post(
         "/api/v1/counterfactual/run",
         json={"model_id": "test-model-abc", "method": "physcf"},
     )
-    # 202 = task accepted (background thread will fail but the endpoint itself succeeds)
-    assert resp.status_code == 202
-    data = resp.json()
-    assert "task_id" in data
-    assert "status" in data
-    assert data["status"].lower() in ("pending", "running")
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_run_cf_missing_model_id(client):
+async def test_run_cf_missing_model_id(auth_client):
     """POST /api/v1/counterfactual/run with missing model_id returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/counterfactual/run",
         json={"method": "physcf"},
     )
@@ -33,65 +32,56 @@ async def test_run_cf_missing_model_id(client):
 
 
 @pytest.mark.asyncio
-async def test_run_cf_defaults(client):
-    """POST /api/v1/counterfactual/run uses default method and params."""
-    resp = await client.post(
+async def test_run_cf_defaults(auth_client):
+    """POST /api/v1/counterfactual/run with default method; nonexistent model -> 404."""
+    resp = await auth_client.post(
         "/api/v1/counterfactual/run",
         json={"model_id": "test-model-defaults"},
     )
-    assert resp.status_code == 202
-    data = resp.json()
-    assert "task_id" in data
-
-
-@pytest.mark.asyncio
-async def test_generate_physcf(client):
-    """POST /api/v1/counterfactual/generate returns 202."""
-    resp = await client.post(
-        "/api/v1/counterfactual/generate",
-        json={"model_id": "test-model-physcf"},
-    )
-    assert resp.status_code == 202
-    data = resp.json()
-    assert "task_id" in data
-    assert "status" in data
-
-
-@pytest.mark.asyncio
-async def test_generate_optuna(client):
-    """POST /api/v1/counterfactual/generate-optuna returns 202."""
-    resp = await client.post(
-        "/api/v1/counterfactual/generate-optuna",
-        json={"model_id": "test-model-optuna", "n_trials": 50},
-    )
-    assert resp.status_code == 202
-    data = resp.json()
-    assert "task_id" in data
-
-
-@pytest.mark.asyncio
-async def test_generate_comet(client):
-    """POST /api/v1/counterfactual/generate-comet returns 202."""
-    resp = await client.post(
-        "/api/v1/counterfactual/generate-comet",
-        json={"model_id": "test-model-comet", "k_sigma": 3.0},
-    )
-    assert resp.status_code == 202
-    data = resp.json()
-    assert "task_id" in data
-
-
-@pytest.mark.asyncio
-async def test_stream_invalid_task_id(client):
-    """GET /api/v1/counterfactual/{invalid_id}/stream returns 404."""
-    resp = await client.get("/api/v1/counterfactual/nonexistent-999/stream")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_ips_reference_nonexistent_model(client):
+async def test_generate_physcf(auth_client):
+    """POST /api/v1/counterfactual/generate; nonexistent model -> 404."""
+    resp = await auth_client.post(
+        "/api/v1/counterfactual/generate",
+        json={"model_id": "test-model-physcf"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_optuna(auth_client):
+    """POST /api/v1/counterfactual/generate-optuna; nonexistent model -> 404."""
+    resp = await auth_client.post(
+        "/api/v1/counterfactual/generate-optuna",
+        json={"model_id": "test-model-optuna", "n_trials": 50},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_comet(auth_client):
+    """POST /api/v1/counterfactual/generate-comet; nonexistent model -> 404."""
+    resp = await auth_client.post(
+        "/api/v1/counterfactual/generate-comet",
+        json={"model_id": "test-model-comet", "k_sigma": 3.0},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stream_invalid_task_id(auth_client):
+    """GET /api/v1/counterfactual/{invalid_id}/stream returns 404."""
+    resp = await auth_client.get("/api/v1/counterfactual/nonexistent-999/stream")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_ips_reference_nonexistent_model(auth_client):
     """GET /api/v1/counterfactual/ips-reference with nonexistent model returns 404."""
-    resp = await client.get(
+    resp = await auth_client.get(
         "/api/v1/counterfactual/ips-reference",
         params={"model_id": "nonexistent-model"},
     )
@@ -99,16 +89,16 @@ async def test_ips_reference_nonexistent_model(client):
 
 
 @pytest.mark.asyncio
-async def test_ips_reference_missing_model_id(client):
+async def test_ips_reference_missing_model_id(auth_client):
     """GET /api/v1/counterfactual/ips-reference without model_id returns 422."""
-    resp = await client.get("/api/v1/counterfactual/ips-reference")
+    resp = await auth_client.get("/api/v1/counterfactual/ips-reference")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_pastas_validate_nonexistent_model(client):
+async def test_pastas_validate_nonexistent_model(auth_client):
     """POST /api/v1/counterfactual/pastas-validate with nonexistent model returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/counterfactual/pastas-validate",
         json={"model_id": "nonexistent", "cf_task_id": "fake-task"},
     )
@@ -116,9 +106,9 @@ async def test_pastas_validate_nonexistent_model(client):
 
 
 @pytest.mark.asyncio
-async def test_pastas_validate_missing_fields(client):
+async def test_pastas_validate_missing_fields(auth_client):
     """POST /api/v1/counterfactual/pastas-validate with missing fields returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/counterfactual/pastas-validate",
         json={"model_id": "some-model"},
     )
@@ -126,16 +116,16 @@ async def test_pastas_validate_missing_fields(client):
 
 
 @pytest.mark.asyncio
-async def test_run_cf_empty_body(client):
+async def test_run_cf_empty_body(auth_client):
     """POST /api/v1/counterfactual/run with empty body returns 422."""
-    resp = await client.post("/api/v1/counterfactual/run", json={})
+    resp = await auth_client.post("/api/v1/counterfactual/run", json={})
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_run_cf_with_modifications(client):
-    """POST /api/v1/counterfactual/run with perturbation modifications accepted."""
-    resp = await client.post(
+async def test_run_cf_with_modifications(auth_client):
+    """POST /api/v1/counterfactual/run with modifications; nonexistent model -> 404."""
+    resp = await auth_client.post(
         "/api/v1/counterfactual/run",
         json={
             "model_id": "test-model-mods",
@@ -143,4 +133,4 @@ async def test_run_cf_with_modifications(client):
             "modifications": {"precip": 1.2, "temp": -0.5},
         },
     )
-    assert resp.status_code == 202
+    assert resp.status_code == 404

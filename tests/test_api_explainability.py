@@ -8,9 +8,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_feature_importance_post_missing_model_id(client):
+async def test_feature_importance_post_missing_model_id(auth_client):
     """POST /api/v1/explainability/feature-importance with missing model_id returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/feature-importance",
         json={"method": "correlation"},
     )
@@ -18,23 +18,23 @@ async def test_feature_importance_post_missing_model_id(client):
 
 
 @pytest.mark.asyncio
-async def test_feature_importance_post_empty_body(client):
+async def test_feature_importance_post_empty_body(auth_client):
     """POST /api/v1/explainability/feature-importance with empty body returns 422."""
-    resp = await client.post("/api/v1/explainability/feature-importance", json={})
+    resp = await auth_client.post("/api/v1/explainability/feature-importance", json={})
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_feature_importance_get_nonexistent(client):
+async def test_feature_importance_get_nonexistent(auth_client):
     """GET /api/v1/explainability/{model_id}/feature-importance returns 404 for nonexistent model."""
-    resp = await client.get("/api/v1/explainability/nonexistent-model/feature-importance")
+    resp = await auth_client.get("/api/v1/explainability/nonexistent-model/feature-importance")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_feature_importance_post_nonexistent(client):
+async def test_feature_importance_post_nonexistent(auth_client):
     """POST /api/v1/explainability/feature-importance with nonexistent model returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/feature-importance",
         json={"model_id": "nonexistent-model", "method": "correlation"},
     )
@@ -42,9 +42,9 @@ async def test_feature_importance_post_nonexistent(client):
 
 
 @pytest.mark.asyncio
-async def test_shap_missing_model_id(client):
+async def test_shap_missing_model_id(auth_client):
     """POST /api/v1/explainability/shap with missing model_id returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/shap",
         json={"method": "shap"},
     )
@@ -52,9 +52,9 @@ async def test_shap_missing_model_id(client):
 
 
 @pytest.mark.asyncio
-async def test_shap_nonexistent_model(client):
+async def test_shap_nonexistent_model(auth_client):
     """POST /api/v1/explainability/shap with nonexistent model returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/shap",
         json={"model_id": "nonexistent-model"},
     )
@@ -62,9 +62,9 @@ async def test_shap_nonexistent_model(client):
 
 
 @pytest.mark.asyncio
-async def test_attention_missing_model_id(client):
+async def test_attention_missing_model_id(auth_client):
     """POST /api/v1/explainability/attention with missing model_id returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/attention",
         json={"method": "attention"},
     )
@@ -72,9 +72,9 @@ async def test_attention_missing_model_id(client):
 
 
 @pytest.mark.asyncio
-async def test_attention_nonexistent_model(client):
+async def test_attention_nonexistent_model(auth_client):
     """POST /api/v1/explainability/attention with nonexistent model returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/attention",
         json={"model_id": "nonexistent-model"},
     )
@@ -82,9 +82,9 @@ async def test_attention_nonexistent_model(client):
 
 
 @pytest.mark.asyncio
-async def test_gradients_missing_model_id(client):
+async def test_gradients_missing_model_id(auth_client):
     """POST /api/v1/explainability/gradients with missing model_id returns 422."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/gradients",
         json={"method": "saliency"},
     )
@@ -92,9 +92,9 @@ async def test_gradients_missing_model_id(client):
 
 
 @pytest.mark.asyncio
-async def test_gradients_nonexistent_model(client):
+async def test_gradients_nonexistent_model(auth_client):
     """POST /api/v1/explainability/gradients with nonexistent model returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/gradients",
         json={"model_id": "nonexistent-model"},
     )
@@ -102,9 +102,9 @@ async def test_gradients_nonexistent_model(client):
 
 
 @pytest.mark.asyncio
-async def test_shap_with_custom_params(client):
+async def test_shap_with_custom_params(auth_client):
     """POST /api/v1/explainability/shap with custom n_samples returns 404 (model not found)."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/shap",
         json={"model_id": "nonexistent-model", "n_samples": 50},
     )
@@ -112,10 +112,10 @@ async def test_shap_with_custom_params(client):
 
 
 @pytest.mark.asyncio
-async def test_gradients_with_method_variants(client):
+async def test_gradients_with_method_variants(auth_client):
     """POST /api/v1/explainability/gradients accepts method variants."""
     for method in ("saliency", "integrated_gradients", "deeplift"):
-        resp = await client.post(
+        resp = await auth_client.post(
             "/api/v1/explainability/gradients",
             json={"model_id": "nonexistent-model", "method": method},
         )
@@ -123,9 +123,9 @@ async def test_gradients_with_method_variants(client):
 
 
 @pytest.mark.asyncio
-async def test_feature_importance_permutation_nonexistent(client):
+async def test_feature_importance_permutation_nonexistent(auth_client):
     """POST /api/v1/explainability/feature-importance with permutation method returns 404."""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/explainability/feature-importance",
         json={"model_id": "nonexistent-model", "method": "permutation", "n_permutations": 3},
     )

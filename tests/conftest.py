@@ -18,6 +18,14 @@ import api.cache as _api_cache  # noqa: E402
 
 _api_cache._client = None
 
+# Point data/checkpoint/result dirs at writable temp locations (the defaults like
+# /app/data are not writable on dev machines and break registry mkdir()).
+import tempfile  # noqa: E402
+
+settings.data_dir = tempfile.mkdtemp(prefix="junon-test-data-")
+settings.checkpoints_dir = tempfile.mkdtemp(prefix="junon-test-ckpt-")
+settings.results_dir = tempfile.mkdtemp(prefix="junon-test-results-")
+
 
 @pytest_asyncio.fixture
 async def db_sessionmaker():
@@ -37,7 +45,9 @@ async def client(db_sessionmaker):
 
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", follow_redirects=True
+    ) as c:
         yield c
     app.dependency_overrides.clear()
 
@@ -46,6 +56,28 @@ async def client(db_sessionmaker):
 async def db_session(db_sessionmaker):
     async with db_sessionmaker() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def auth_client(client, make_user):
+    """An AsyncClient already logged in as a regular user (session cookie set)."""
+    await make_user(email="testuser@test.fr", password="pw-123456", role=UserRole.user)
+    r = await client.post(
+        "/api/v1/auth/login", json={"email": "testuser@test.fr", "password": "pw-123456"}
+    )
+    assert r.status_code == 200, r.text
+    return client
+
+
+@pytest_asyncio.fixture
+async def admin_client(client, make_user):
+    """An AsyncClient already logged in as an admin (session cookie set)."""
+    await make_user(email="testadmin@test.fr", password="pw-123456", role=UserRole.admin)
+    r = await client.post(
+        "/api/v1/auth/login", json={"email": "testadmin@test.fr", "password": "pw-123456"}
+    )
+    assert r.status_code == 200, r.text
+    return client
 
 
 @pytest_asyncio.fixture

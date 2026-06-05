@@ -84,6 +84,7 @@ def test_scenario_pumping_synthetic_zero_rate(synthetic_station, tmp_path, monke
             "end": "2017-12-31",
             "pattern": "constant",
             "rate_m3d": 0.0,
+            "distance_m": 500.0,
         }
     ]
     result = simulate_scenario(run_id=run_id, tmin=None, tmax=None, modifications=mods)
@@ -111,6 +112,7 @@ def test_scenario_pumping_lowers_gwl(synthetic_station, tmp_path, monkeypatch):
             "end": "2019-12-31",
             "pattern": "constant",
             "rate_m3d": 1000.0,
+            "distance_m": 500.0,
         }
     ]
     result = simulate_scenario(run_id=run_id, tmin=None, tmax=None, modifications=mods)

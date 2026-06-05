@@ -39,11 +39,18 @@ def test_registry_values_are_callable():
         assert callable(cls), f"SOLVER_REGISTRY[{name}] is not callable"
 
 
-def test_p1_options():
-    """P1 scope: only these options are returned."""
-    from dashboard.utils.pastas.config import get_p1_options
-    opts = get_p1_options()
-    assert set(opts["recharge"]) == {"Linear", "FlexModel"}
-    assert set(opts["response"]) == {"Gamma", "Exponential", "Hantush"}
-    assert set(opts["noise"]) == {"ArNoiseModel", "none"}
-    assert set(opts["solver"]) == {"LeastSquares", "Lmfit"}
+def test_get_options():
+    """get_options() exposes the four UI option groups, backed by the registries."""
+    from dashboard.utils.pastas.config import (
+        get_options,
+        RECHARGE_REGISTRY,
+        NOISE_REGISTRY,
+        SOLVER_REGISTRY,
+    )
+    opts = get_options()
+    assert set(opts.keys()) == {"recharge", "response", "noise", "solver"}
+    assert set(opts["recharge"]) == set(RECHARGE_REGISTRY.keys())
+    assert set(opts["solver"]) == set(SOLVER_REGISTRY.keys())
+    assert "none" in opts["noise"]
+    assert set(NOISE_REGISTRY.keys()).issubset(set(opts["noise"]))
+    assert "One" not in opts["response"]

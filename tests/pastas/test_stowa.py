@@ -45,13 +45,14 @@ def _make_model(
     step_values = np.where(step_index < t95_value, step_index / t95_value * final, final)
     step_series = pd.Series(step_values, index=step_index)
 
-    # Parameter mock
+    # Parameter mock. Pastas' model.parameters DataFrame uses the column
+    # name "stderr" (verified on pastas 1.10), which assess_stowa reads.
     param = MagicMock()
     param.optimal = gain_optimal
-    param.pstderr = gain_stderr
+    param.stderr = gain_stderr
 
     params_df = pd.DataFrame(
-        {"optimal": [gain_optimal], "pstderr": [gain_stderr]},
+        {"optimal": [gain_optimal], "stderr": [gain_stderr]},
         index=["recharge_A"],
     )
 

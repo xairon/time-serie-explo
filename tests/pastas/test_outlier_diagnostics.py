@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
 import pytest
+from sqlalchemy.engine import Engine
 
 from dashboard.utils.pastas.outlier_diagnostics import (
     _detect_outliers,
@@ -110,7 +111,9 @@ class TestBuildClimateContext:
 class TestClassifyOutlier:
     def test_data_gap_wins_over_climate(self):
         outlier = {"residual": 0.5, "residual_zscore": 3.0}
-        data_quality = {"gap_days": 5, "coverage_pct": 80.0, "nearest_gap_distance_days": 3}
+        # gap_days must clear the DATA_GAP threshold (>=7) so the rule fires; the
+        # point of this test is that DATA_GAP outranks CLIMATE_EXTREME.
+        data_quality = {"gap_days": 7, "coverage_pct": 80.0, "nearest_gap_distance_days": 3}
         climate = {"precip_zscore": 2.5, "temp_zscore": 0.1, "etp_zscore": -0.5,
                    "precip_mm": 140, "temp_c": 10, "etp_mm": 2,
                    "spli": None, "spli_class": None, "spi": None, "spi_class": None}

@@ -267,6 +267,12 @@ def validate_modifications(
                     f"{prefix} : débit {rate} m³/j supérieur au maximum "
                     f"pour un aquifère {family_label.lower()} ({hard_max_rate} m³/j)"
                 )
+            elif usage in _RATES and rate > _RATES[usage][aquifer_family].typical_max:
+                warnings.append(
+                    f"{prefix} : débit {rate} m³/j inhabituel pour un usage {usage} "
+                    f"en aquifère {family_label.lower()} "
+                    f"(valeur typique ≤ {_RATES[usage][aquifer_family].typical_max} m³/j)"
+                )
 
             if distance < dist_range.hard_min:
                 errors.append(
@@ -276,13 +282,20 @@ def validate_modifications(
                 errors.append(
                     f"{prefix} : distance {distance} m supérieure au maximum ({dist_range.hard_max} m)"
                 )
+            elif distance < dist_range.typical_min:
+                warnings.append(
+                    f"{prefix} : Distance {distance} m inhabituellement faible "
+                    f"(valeur typique ≥ {dist_range.typical_min} m)"
+                )
 
             total_pumping_rate += rate
 
             if usage == "irrigation":
                 season = mod.get("season_months", [])
                 if season and not any(m in range(4, 10) for m in season):
-                    warnings.append("Pompage d'irrigation hors saison agricole (avril-septembre)")
+                    warnings.append(
+                        "Pompage d'irrigation hors de la saison végétative (avril-septembre)"
+                    )
 
         elif mod_type == "scale_stress":
             factor = float(mod.get("factor", 1.0))
