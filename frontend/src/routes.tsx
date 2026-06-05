@@ -24,6 +24,7 @@ const AILabLayout = lazy(() => import('./pages/ai/AILabLayout'))
 const DataPage = lazy(() => import('./pages/DataPage'))
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const ForecastingPage = lazy(() => import('./pages/ForecastingPage'))
+const AIModelsPage = lazy(() => import('./pages/ai/AIModelsPage'))
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'))
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
           { path: 'data', element: <SW><DataPage /></SW> },
           { path: 'training', element: <SW><TrainingPage /></SW> },
           { path: 'forecasting', element: <SW><ForecastingPage /></SW> },
+          { path: 'models', element: <SW><AIModelsPage /></SW> },
         ],
       },
 

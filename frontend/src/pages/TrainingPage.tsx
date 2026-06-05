@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { API_BASE } from '@/lib/constants'
 import { api } from '@/lib/api'
@@ -29,6 +30,7 @@ export default function TrainingPage() {
   const stopMutation = useStopTraining()
   const deleteMutation = useDeleteModel()
   const { data: models } = useModels()
+  const qc = useQueryClient()
 
   const sse = useSSE<TrainingMetrics>(sseUrl)
 
@@ -38,12 +40,16 @@ export default function TrainingPage() {
       setPhase('error')
     } else if (sse.status === 'done') {
       setPhase('completed')
+      // Training finished — the new model now exists in MLflow, so refresh the
+      // list (the forecasting page reads the same query). Without this the model
+      // only shows up on the next navigation/refocus.
+      void qc.invalidateQueries({ queryKey: ['models'] })
     } else if (sse.status === 'connected' && sse.data && sse.data.current_epoch > 0) {
       setPhase('training')
     } else if (sse.status === 'connected') {
       setPhase('preparing')
     }
-  }, [sse.status, sse.data])
+  }, [sse.status, sse.data, qc])
 
   // Add log entries from SSE metrics updates
   useEffect(() => {

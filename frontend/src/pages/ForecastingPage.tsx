@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ModelSelector } from '@/components/forecasting/ModelSelector'
@@ -46,6 +47,9 @@ export default function ForecastingPage() {
     Dir_Acc: t('mainPages.forecasting.metricTooltipDirAcc'),
   }
   const [modelId, setModelId] = useState('')
+  const [aiTab, setAiTab] = useState<'forecast' | 'analysis'>('forecast')
+  const [searchParams] = useSearchParams()
+  useEffect(() => { const m = searchParams.get('model'); if (m) setModelId(m) }, [searchParams])
   const [sliderIdx, setSliderIdx] = useState<number | null>(null)
   const [hyperparamsOpen, setHyperparamsOpen] = useState(false)
 
@@ -308,6 +312,21 @@ export default function ForecastingPage() {
         )}
       </div>
 
+      {/* Tabs: forecast vs advanced analysis */}
+      <div className="flex items-center gap-1 border-b border-white/5">
+        {(['forecast', 'analysis'] as const).map((key) => (
+          <button
+            key={key}
+            onClick={() => setAiTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${aiTab === key ? 'border-purple-400 text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'}`}
+          >
+            {key === 'forecast' ? t('mainPages.forecasting.tabForecast', 'Prévision') : t('mainPages.forecasting.tabAnalysis', 'Analyse avancée')}
+          </button>
+        ))}
+      </div>
+
+      {aiTab === 'forecast' && (
+      <>
       {/* Sliding window slider */}
       {testInfo && sliderIdx !== null && (
         <div className="bg-bg-card rounded-xl border border-white/5 p-5 space-y-3">
@@ -466,9 +485,16 @@ export default function ForecastingPage() {
         </div>
       </div>
 
-      {/* Explainability */}
-      {modelId && displayResult && (
-        <ExplainabilityPanel modelId={modelId} />
+      </>
+      )}
+
+      {/* Advanced analysis tab */}
+      {aiTab === 'analysis' && (
+        modelId && displayResult ? (
+          <ExplainabilityPanel modelId={modelId} />
+        ) : (
+          <p className="text-sm text-text-secondary italic">{t('mainPages.forecasting.analysisHint', 'Sélectionnez un modèle et lancez une prévision pour voir l’analyse.')}</p>
+        )
       )}
     </div>
   )

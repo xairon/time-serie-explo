@@ -530,7 +530,7 @@ function GradientsView({ modelId }: { modelId: string }) {
 
 export function ExplainabilityPanel({ modelId, className = '' }: Props) {
   const { t } = useTranslation()
-  const [openSections, setOpenSections] = useState<Set<Section>>(new Set(['drivers', 'quality', 'behavior']))
+  const [openSections, setOpenSections] = useState<Set<Section>>(new Set())
 
   const toggle = (s: Section) => setOpenSections(prev => {
     const next = new Set(prev)

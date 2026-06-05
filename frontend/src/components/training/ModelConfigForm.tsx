@@ -117,6 +117,13 @@ export function ModelConfigForm({ onSubmit, isPending }: ModelConfigFormProps) {
     }
   }, [selectedDataset?.id])
 
+  // Preselect the station when the dataset has exactly one — "toutes les
+  // stations" makes no sense with a single station.
+  useEffect(() => {
+    if (selectedDataset?.stations.length === 1) setStation(selectedDataset.stations[0])
+    else setStation('')
+  }, [selectedDataset?.id])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({
