@@ -21,7 +21,7 @@ services:
     logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-junon}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: ${POSTGRES_DB:-junon_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -93,7 +93,7 @@ services:
       - DB_HOST=junon-postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-junon}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-junon}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       - DB_NAME=${POSTGRES_DB:-junon_db}
       - BRGM_DB_HOST=brgm-postgres
       - BRGM_DB_PORT=5432

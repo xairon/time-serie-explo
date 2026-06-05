@@ -23,6 +23,7 @@ class TaskStatus(str, Enum):
 class TaskInfo:
     task_id: str
     task_type: str
+    owner_id: str | None = None
     status: TaskStatus = TaskStatus.PENDING
     config: dict[str, Any] = field(default_factory=dict)
     result: Any = None
@@ -43,12 +44,18 @@ class TaskManager:
         self._tasks: dict[str, TaskInfo] = {}
         self._lock = threading.Lock()
 
-    def create(self, task_type: str, config: dict[str, Any] | None = None) -> TaskInfo:
+    def create(
+        self,
+        task_type: str,
+        config: dict[str, Any] | None = None,
+        owner_id: str | None = None,
+    ) -> TaskInfo:
         """Create a new task entry and return it."""
         task_id = uuid.uuid4().hex[:12]
         task = TaskInfo(
             task_id=task_id,
             task_type=task_type,
+            owner_id=owner_id,
             config=config or {},
         )
         with self._lock:

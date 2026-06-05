@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth.deps import get_current_user
-from api.auth.ownership import assert_owns_dataset
+from api.auth.ownership import assert_owner_or_admin, assert_owns_dataset
 from api.config import settings
 from api.models_db import User
 from api.serializers import clean_nans
@@ -85,7 +85,9 @@ def _run_pipeline_thread(task_id: str, req: PumpingDetectionRequest) -> None:
 def start_analysis(req: PumpingDetectionRequest, current: User = Depends(get_current_user)):
     """Start a pumping detection analysis."""
     assert_owns_dataset(current, req.dataset_id)
-    task = task_manager.create("pumping_detection", config=req.model_dump())
+    task = task_manager.create(
+        "pumping_detection", config=req.model_dump(), owner_id=str(current.id)
+    )
     thread = threading.Thread(target=_run_pipeline_thread, args=(task.task_id, req), daemon=True)
     task.thread = thread
     thread.start()
@@ -93,11 +95,12 @@ def start_analysis(req: PumpingDetectionRequest, current: User = Depends(get_cur
 
 
 @router.get("/{task_id}/stream")
-async def stream_progress(task_id: str):
+async def stream_progress(task_id: str, current: User = Depends(get_current_user)):
     """SSE stream of analysis progress."""
     task = task_manager.get(task_id)
     if task is None:
         raise HTTPException(404, "Tâche introuvable")
+    assert_owner_or_admin(current, task.owner_id)
 
     from sse_starlette.sse import EventSourceResponse
 
@@ -131,22 +134,26 @@ async def stream_progress(task_id: str):
 
 
 @router.get("/{task_id}/results")
-def get_results(task_id: str):
+def get_results(task_id: str, current: User = Depends(get_current_user)):
     """Get full results after completion."""
     task = task_manager.get(task_id)
     if task is None:
         raise HTTPException(404, "Tâche introuvable")
+    assert_owner_or_admin(current, task.owner_id)
     if task.status != TaskStatus.COMPLETED:
         raise HTTPException(400, f"État de la tâche : {task.status.value}")
     return task.result
 
 
 @router.get("/{task_id}/layer/{layer_name}")
-def get_layer_result(task_id: str, layer_name: str):
+def get_layer_result(
+    task_id: str, layer_name: str, current: User = Depends(get_current_user)
+):
     """Get partial result for a specific layer (enables progressive rendering)."""
     task = task_manager.get(task_id)
     if task is None:
         raise HTTPException(404, "Tâche introuvable")
+    assert_owner_or_admin(current, task.owner_id)
     valid_layers = {"pastas", "changepoints", "clean_periods", "ml_xai", "embeddings", "fusion"}
     if layer_name not in valid_layers:
         raise HTTPException(400, f"Invalid layer: {layer_name}. Valid: {valid_layers}")
@@ -156,8 +163,12 @@ def get_layer_result(task_id: str, layer_name: str):
 
 
 @router.post("/{task_id}/cancel")
-def cancel_analysis(task_id: str):
+def cancel_analysis(task_id: str, current: User = Depends(get_current_user)):
     """Cancel a running analysis."""
+    task = task_manager.get(task_id)
+    if task is None:
+        raise HTTPException(404, "Tâche introuvable ou déjà terminée")
+    assert_owner_or_admin(current, task.owner_id)
     if not task_manager.cancel(task_id):
         raise HTTPException(404, "Tâche introuvable ou déjà terminée")
     task = task_manager.get(task_id)

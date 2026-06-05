@@ -254,11 +254,17 @@ async def start_training(req: TrainingRequest, current: User = Depends(get_curre
         if t.status in (TaskStatus.PENDING, TaskStatus.RUNNING)
     ]
     if active:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Un entraînement est déjà en cours (tâche {active[0].task_id}). "
-                   "Attendez sa fin ou annulez-le avant d'en démarrer un autre.",
-        )
+        from api.auth.ownership import is_owner_or_admin
+        # Single shared GPU: only one training at a time. Avoid disclosing another
+        # user's task id to callers who do not own the running task.
+        if is_owner_or_admin(current, active[0].owner_id):
+            detail = (
+                f"Un entraînement est déjà en cours (tâche {active[0].task_id}). "
+                "Attendez sa fin ou annulez-le avant d'en démarrer un autre."
+            )
+        else:
+            detail = "Un entraînement est déjà en cours sur le serveur. Réessayez plus tard."
+        raise HTTPException(status_code=409, detail=detail)
 
     # Apply preset if requested. Fills model_name + hyperparams + n_epochs
     # unless the user already supplied them on the request.
@@ -274,7 +280,9 @@ async def start_training(req: TrainingRequest, current: User = Depends(get_curre
             400, "model_name est requis (fournir directement ou via preset_id)"
         )
 
-    task = task_manager.create(task_type="training", config=req.model_dump())
+    task = task_manager.create(
+        task_type="training", config=req.model_dump(), owner_id=str(current.id)
+    )
 
     thread = threading.Thread(
         target=_run_training_thread,
@@ -295,13 +303,17 @@ async def start_training(req: TrainingRequest, current: User = Depends(get_curre
 
 
 @router.get("/{task_id}/stream")
-async def stream_training_metrics(task_id: str):
+async def stream_training_metrics(
+    task_id: str, current: User = Depends(get_current_user)
+):
     """SSE stream of training metrics (reads MetricsFileCallback JSON)."""
     from sse_starlette.sse import EventSourceResponse
+    from api.auth.ownership import assert_owner_or_admin
 
     task = task_manager.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Tâche introuvable")
+    assert_owner_or_admin(current, task.owner_id)
 
     async def event_generator():
         metrics_file = Path(task.metrics_file) if task.metrics_file else None
@@ -358,19 +370,28 @@ async def stream_training_metrics(task_id: str):
 
 
 @router.post("/{task_id}/cancel")
-async def cancel_training(task_id: str):
+async def cancel_training(task_id: str, current: User = Depends(get_current_user)):
     """Cancel a running training task."""
+    from api.auth.ownership import assert_owner_or_admin
+
+    task = task_manager.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Tâche introuvable ou déjà terminée")
+    assert_owner_or_admin(current, task.owner_id)
     if not task_manager.cancel(task_id):
         raise HTTPException(status_code=404, detail="Tâche introuvable ou déjà terminée")
     return {"status": "cancelled", "task_id": task_id}
 
 
 @router.get("/{task_id}/status", response_model=TrainingResult)
-async def training_status(task_id: str):
+async def training_status(task_id: str, current: User = Depends(get_current_user)):
     """Get the current status and result of a training task."""
+    from api.auth.ownership import assert_owner_or_admin
+
     task = task_manager.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Tâche introuvable")
+    assert_owner_or_admin(current, task.owner_id)
 
     result = TrainingResult(
         task_id=task.task_id,
@@ -388,9 +409,15 @@ async def training_status(task_id: str):
 
 
 @router.get("/history", response_model=list[TrainingStatus])
-async def training_history():
-    """List all training tasks."""
-    tasks = task_manager.list_tasks(task_type="training")
+async def training_history(current: User = Depends(get_current_user)):
+    """List the caller's training tasks (admins see all)."""
+    from api.auth.ownership import is_owner_or_admin
+
+    tasks = [
+        t
+        for t in task_manager.list_tasks(task_type="training")
+        if is_owner_or_admin(current, t.owner_id)
+    ]
     return [
         TrainingStatus(
             task_id=t.task_id,

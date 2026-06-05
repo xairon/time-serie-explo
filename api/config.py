@@ -1,7 +1,9 @@
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode
+
+INSECURE_JWT_DEFAULT = "dev-insecure-change-me"
 
 
 class Settings(BaseSettings):
@@ -29,7 +31,7 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     debug: bool = False
     # Auth
-    jwt_secret: str = "dev-insecure-change-me"
+    jwt_secret: str = INSECURE_JWT_DEFAULT
     jwt_alg: str = "HS256"
     session_ttl_hours: int = 12
     cookie_name: str = "junon_session"
@@ -43,6 +45,22 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    @model_validator(mode="after")
+    def _require_strong_secrets(self):
+        # Fail closed in production: never sign sessions with the public dev secret.
+        # In debug mode the insecure default is tolerated for local development.
+        if not self.debug:
+            if self.jwt_secret in ("", INSECURE_JWT_DEFAULT) or len(self.jwt_secret) < 32:
+                raise ValueError(
+                    "JWT_SECRET must be set to a strong value (>= 32 chars) when "
+                    "DEBUG is disabled. Generate one with: openssl rand -hex 32"
+                )
+            if not self.db_password:
+                raise ValueError(
+                    "DB_PASSWORD must be set when DEBUG is disabled."
+                )
+        return self
     # Paths
     data_dir: str = "/app/data"
     checkpoints_dir: str = "/app/checkpoints"

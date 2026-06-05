@@ -25,7 +25,7 @@ services:
     logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-junon}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-junon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_DB: ${POSTGRES_DB:-junon_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -98,7 +98,7 @@ services:
       - DB_HOST=junon-postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-junon}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-junon}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       - DB_NAME=${POSTGRES_DB:-junon_db}
       - BRGM_DB_HOST=brgm-postgres
       - BRGM_DB_PORT=5432
@@ -112,7 +112,7 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:49513}
       # Auth : secret JWT (OBLIGATOIRE en prod, >=32 octets) + cookie Secure.
       # COOKIE_SECURE=false uniquement si l'accès est en HTTP (pas de TLS).
-      - JWT_SECRET=${JWT_SECRET:-dev-insecure-change-me}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (openssl rand -hex 32)}
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
       - DATA_DIR=/app/data
       - CHECKPOINTS_DIR=/app/checkpoints
