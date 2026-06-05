@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     jwt_secret: str = INSECURE_JWT_DEFAULT
     jwt_alg: str = "HS256"
     session_ttl_hours: int = 12
+    # Brute-force protection (Redis-backed)
+    login_max_failures: int = 5
+    login_lockout_minutes: int = 15
+    login_fail_window_minutes: int = 15
+    login_rate_limit_per_minute: int = 10
+    # RGPD retention
+    auth_event_retention_days: int = 365
     cookie_name: str = "junon_session"
     cookie_secure: bool = True
     cookie_samesite: Literal["strict", "lax", "none"] = "strict"

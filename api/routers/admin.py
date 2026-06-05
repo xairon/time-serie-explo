@@ -1,13 +1,16 @@
+import secrets
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.models_db import User, UserRole
+from api.auth.audit import record_event
 from api.auth.deps import require_admin
+from api.auth.erasure import erase_user_artifacts
 from api.auth.passwords import hash_password
 from api.auth.schemas import UserOut
 
@@ -42,6 +45,8 @@ async def create_user(req: CreateUserRequest, _: User = Depends(require_admin), 
         password_hash=hash_password(req.initial_password), role=req.role, is_active=True,
     )
     db.add(user)
+    await db.flush()
+    await record_event(db, event_type="admin_user_created", email=user.email, user_id=user.id)
     await db.commit()
     await db.refresh(user)
     return user
@@ -61,6 +66,62 @@ async def update_user(user_id: uuid.UUID, req: UpdateUserRequest, _: User = Depe
     if req.new_password is not None:
         user.password_hash = hash_password(req.new_password)
         user.token_version += 1
+    await record_event(db, event_type="admin_user_updated", email=user.email, user_id=user.id)
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.post("/{user_id}/reset-password")
+async def reset_password(
+    user_id: uuid.UUID,
+    request: Request,
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    temp = secrets.token_urlsafe(12)
+    user.password_hash = hash_password(temp)
+    user.token_version += 1
+    user.must_change_password = True
+    await record_event(
+        db, event_type="password_reset", email=user.email, user_id=user.id,
+        ip=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+    return {"temporary_password": temp}
+
+
+@router.delete("/{user_id}", status_code=204)
+async def delete_user(
+    user_id: uuid.UUID,
+    request: Request,
+    response: Response,
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    if user.role == UserRole.admin:
+        admin_count = (
+            await db.execute(
+                select(func.count()).select_from(User).where(User.role == UserRole.admin)
+            )
+        ).scalar_one()
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=409, detail="Impossible de supprimer le dernier administrateur"
+            )
+    uid = user.id
+    erase_user_artifacts(uid)
+    await db.delete(user)
+    await record_event(
+        db, event_type="admin_user_deleted", email=None, user_id=uid,
+        ip=(request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()

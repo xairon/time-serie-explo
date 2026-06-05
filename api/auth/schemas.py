@@ -20,6 +20,7 @@ class UserOut(BaseModel):
     display_name: str
     role: str
     is_active: bool
+    must_change_password: bool = False
     created_at: datetime
     last_login_at: datetime | None
 
