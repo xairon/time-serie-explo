@@ -34,6 +34,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("Redis ping failed: %s", e)
 
+    # Warm the stations GeoJSON cache so the first map load is fast (best-effort).
+    try:
+        import asyncio
+        from api.routers.observatory_common import get_stations_geojson
+
+        await asyncio.to_thread(get_stations_geojson, "all")
+        logger.info("Stations GeoJSON cache warmed")
+    except Exception as e:
+        logger.warning("GeoJSON cache warm failed: %s", e)
+
     yield
 
     # Shutdown: close connection pools

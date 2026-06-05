@@ -16,6 +16,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-plotly': ['react-plotly.js', 'plotly.js-dist-min'],
+          'vendor-maplibre': ['maplibre-gl'],
           'vendor-query': ['@tanstack/react-query'],
         },
       },

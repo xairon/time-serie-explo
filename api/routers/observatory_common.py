@@ -5,15 +5,18 @@ from datetime import date, timedelta
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from api.config import settings
+from api.database import get_brgm_sync_engine
 from api.schemas.observatory import Alert, NationalStats
 from dashboard.utils.cache import get_cached
 
 router = APIRouter(prefix="/api/v1/observatory", tags=["observatory-common"])
 
-GEOJSON_TTL = 3600
+# Station coordinates/metadata are month-bucketed in the warehouse, so a long TTL
+# is safe. The cache is also warmed at API startup (see lifespan in api/main.py).
+GEOJSON_TTL = 21600
 ALERTS_TTL = 3600
 STATS_TTL = 21600
 TIMELINE_TTL = 86400
@@ -52,7 +55,7 @@ def get_stations_geojson(
         want_piezo = type in (None, "all", "piezo")
         want_hydro = type in (None, "all", "hydro")
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 if want_piezo:
@@ -125,7 +128,7 @@ def get_stations_geojson(
                             },
                         })
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         return {"type": "FeatureCollection", "features": features}
 
@@ -244,13 +247,13 @@ def list_alerts(
         union = " UNION ALL ".join(parts)
         query = f"{union} ORDER BY classification, code"
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), bind)
                 return [dict(r._mapping) for r in result]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_alerts", params, ALERTS_TTL, fetch)
 
@@ -306,13 +309,13 @@ def get_national_stats():
                    h.extremement_haut AS hydro_extremement_haut
             FROM piezo p CROSS JOIN hydro h
         """
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 result = conn.execute(text(query), {"recent_cutoff": recent_cutoff})
                 return dict(result.mappings().fetchone())
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_national_stats", {}, STATS_TTL, fetch)
 
@@ -386,7 +389,7 @@ def get_classification_timeline():
         periods_set: set[str] = set()
         station_periods: dict[str, dict[str, int]] = {}
 
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 for row in conn.execute(text(piezo_query)).mappings():
@@ -397,7 +400,7 @@ def get_classification_timeline():
                     periods_set.add(row["period"])
                     station_periods.setdefault(row["code"], {})[row["period"]] = row["cls"]
         finally:
-            engine.dispose()
+            pass  # shared pooled engine; do not dispose
 
         periods = sorted(periods_set)
 
