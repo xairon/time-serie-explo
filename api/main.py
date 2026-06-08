@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -36,7 +37,6 @@ async def lifespan(app: FastAPI):
 
     # Warm the stations GeoJSON cache so the first map load is fast (best-effort).
     try:
-        import asyncio
         from api.routers.observatory_common import get_stations_geojson
 
         await asyncio.to_thread(get_stations_geojson, "all")
@@ -45,12 +45,10 @@ async def lifespan(app: FastAPI):
         logger.warning("GeoJSON cache warm failed: %s", e)
 
     # Warm the météo-des-nappes situation caches (best-effort).
-    import asyncio as _asyncio
-
     for _t in ("piezo", "hydro"):
         try:
-            await _asyncio.to_thread(observatory_situation.get_national_situation, type=_t)
-            await _asyncio.to_thread(
+            await asyncio.to_thread(observatory_situation.get_national_situation, type=_t)
+            await asyncio.to_thread(
                 observatory_situation.get_territory_situation, level="region", type=_t
             )
         except Exception:

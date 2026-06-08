@@ -155,7 +155,14 @@ def get_national_situation(type: Literal["piezo", "hydro"] = Query("piezo")):
     def fetch():
         station_rows = _fetch_station_rows(type)
         keyed = [("FR", "France", z, dz, flag) for dept, z, dz, flag in station_rows]
-        agg = _eligible_rows_to_territories(keyed, "region", type)[0]
+        aggs = _eligible_rows_to_territories(keyed, "region", type)
+        if not aggs:
+            return {
+                "type": type, "situation_class": None, "trend": None,
+                "pct_below_normal": None, "n_eligible": 0, "n_provisoire": 0,
+                "distribution": {}, "insufficient": True, "outlook": None,
+            }
+        agg = aggs[0]
         return {
             "type": type,
             "situation_class": agg["situation_class"], "trend": agg["trend"],
