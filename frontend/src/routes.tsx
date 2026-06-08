@@ -11,6 +11,7 @@ function RedirectWithParams({ to }: { to: string }) {
 }
 
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
+const MeteoNappesPage = lazy(() => import('./pages/MeteoNappesPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
 const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -43,6 +44,7 @@ export const router = createBrowserRouter([
       // Observatory (home)
       { path: '/', element: <SW><ObservatoryPage /></SW> },
       { path: '/observatory', element: <Navigate to="/" replace /> },
+      { path: '/meteo', element: <SW><MeteoNappesPage /></SW> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
 
       // Cross-station comparison
