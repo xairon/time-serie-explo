@@ -7,6 +7,7 @@ The situation class of a territory is the median station z-score mapped to the
 """
 from __future__ import annotations
 
+import math
 import statistics
 from scipy import stats
 
@@ -25,7 +26,7 @@ TREND_STABLE_BAND = 0.5
 
 
 def zscore_to_class(z) -> str:
-    if z is None:
+    if z is None or (isinstance(z, float) and math.isnan(z)):
         return "UNKNOWN"
     for i, thr in enumerate(_Z_CUTOFFS):
         if z < thr:

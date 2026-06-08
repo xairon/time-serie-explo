@@ -17,6 +17,10 @@ def test_zscore_to_class_none():
     assert zscore_to_class(None) == "UNKNOWN"
 
 
+def test_zscore_to_class_nan():
+    assert zscore_to_class(float("nan")) == "UNKNOWN"
+
+
 def test_aggregate_situation_uses_median_and_distribution():
     res = aggregate_situation([-2.0, -1.0, 0.0, 1.0, 2.0])
     assert res["situation_class"] == "NORMAL"
