@@ -14,7 +14,7 @@ import type {
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
 } from './observatory-types'
 
-async function fetchJson<T>(path: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
+export async function fetchJson<T>(path: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin)
   if (params) {
     Object.entries(params).forEach(([k, v]) => {

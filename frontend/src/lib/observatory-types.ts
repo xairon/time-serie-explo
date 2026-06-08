@@ -324,3 +324,43 @@ export interface ObsPastasCoverage {
   nash: number | null
   tmax_days: number | null
 }
+
+export type SituationClass =
+  | 'EXTREMEMENT_BAS' | 'TRES_BAS' | 'BAS' | 'NORMAL'
+  | 'HAUT' | 'TRES_HAUT' | 'EXTREMEMENT_HAUT'
+export type Trend = 'hausse' | 'stable' | 'baisse'
+
+export interface Outlook {
+  horizon_months: number
+  situation_class: SituationClass | null
+  trend: Trend | null
+  confidence: number | null
+  coverage_pct: number | null
+}
+
+export interface TerritorySituation {
+  level: 'region' | 'department'
+  code: string
+  name: string
+  type: 'piezo' | 'hydro'
+  situation_class: SituationClass | null
+  trend: Trend | null
+  pct_below_normal: number | null
+  n_eligible: number
+  n_provisoire: number
+  distribution: Record<string, number>
+  insufficient: boolean
+  outlook: Outlook | null
+}
+
+export interface NationalSituation {
+  type: 'piezo' | 'hydro'
+  situation_class: SituationClass | null
+  trend: Trend | null
+  pct_below_normal: number | null
+  n_eligible: number
+  n_provisoire: number
+  distribution: Record<string, number>
+  insufficient: boolean
+  outlook: Outlook | null
+}
