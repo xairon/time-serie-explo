@@ -103,6 +103,7 @@ services:
       - REDIS_URL=redis://junon-redis:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - DEBUG=${DEBUG:-false}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (openssl rand -hex 32)}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:49513}
       # http sur le LAN dib (pas de TLS) → cookie de session non-Secure ; repasser à true derrière HTTPS
       - COOKIE_SECURE=${COOKIE_SECURE:-true}
