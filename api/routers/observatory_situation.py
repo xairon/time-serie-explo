@@ -37,13 +37,13 @@ _STATION_SQL = {
           ON sci.type = 'piezo' AND sci.code = s.code_bss
         LEFT JOIN gold.station_reference_stats rs
           ON rs.type = 'piezo' AND rs.code = s.code_bss
-         AND rs.month = EXTRACT(MONTH FROM sci.index_ref_month)::int
+         AND rs.month = EXTRACT(MONTH FROM sci.ref_month)::int
         LEFT JOIN gold.fct_monthly_chroniques lag
           ON lag.code_bss = s.code_bss
-         AND lag.mois = (date_trunc('month', sci.index_ref_month) - INTERVAL '3 months')::date
+         AND lag.mois = (date_trunc('month', sci.ref_month) - INTERVAL '3 months')::date
         LEFT JOIN gold.station_reference_stats glag
           ON glag.type = 'piezo' AND glag.code = s.code_bss
-         AND glag.month = EXTRACT(MONTH FROM (sci.index_ref_month - INTERVAL '3 months'))::int
+         AND glag.month = EXTRACT(MONTH FROM (sci.ref_month - INTERVAL '3 months'))::int
         WHERE s.code_departement IS NOT NULL
           AND s.nb_mois_total >= :min_mois
           AND sci.index_class IS NOT NULL AND sci.index_class <> 'UNKNOWN'
@@ -59,13 +59,13 @@ _STATION_SQL = {
           ON sci.type = 'hydro' AND sci.code = s.code_station
         LEFT JOIN gold.station_reference_stats rs
           ON rs.type = 'hydro' AND rs.code = s.code_station
-         AND rs.month = EXTRACT(MONTH FROM sci.index_ref_month)::int
+         AND rs.month = EXTRACT(MONTH FROM sci.ref_month)::int
         LEFT JOIN gold.fct_monthly_hydro lag
           ON lag.code_station = s.code_station
-         AND lag.mois = (date_trunc('month', sci.index_ref_month) - INTERVAL '3 months')::date
+         AND lag.mois = (date_trunc('month', sci.ref_month) - INTERVAL '3 months')::date
         LEFT JOIN gold.station_reference_stats glag
           ON glag.type = 'hydro' AND glag.code = s.code_station
-         AND glag.month = EXTRACT(MONTH FROM (sci.index_ref_month - INTERVAL '3 months'))::int
+         AND glag.month = EXTRACT(MONTH FROM (sci.ref_month - INTERVAL '3 months'))::int
         WHERE s.code_departement IS NOT NULL
           AND s.nb_mois_total >= :min_mois
           AND sci.index_class IS NOT NULL AND sci.index_class <> 'UNKNOWN'
