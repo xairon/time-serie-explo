@@ -16,3 +16,7 @@ export function trendGlyph(trend: Trend | null): string {
     default: return '—'
   }
 }
+
+export const CLASS_ORDER_DRIEST_FIRST: SituationClass[] = [
+  'EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT',
+]
