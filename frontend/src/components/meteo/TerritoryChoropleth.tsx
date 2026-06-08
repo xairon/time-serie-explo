@@ -57,7 +57,7 @@ export function TerritoryChoropleth({ level, territories, onSelectRegion, onSele
     const apply = () => {
       const src = m.getSource('territories') as maplibregl.GeoJSONSource | undefined
       if (!src) {
-        m.addSource('territories', { type: 'geojson', data: dataUrl })
+        m.addSource('territories', { type: 'geojson', data: dataUrl, attribution: 'Contours © france-geojson (ODbL)' })
         m.addLayer({
           id: 'territories-fill', type: 'fill', source: 'territories',
           paint: { 'fill-color': fillColorExpression(territories), 'fill-opacity': 0.7 },

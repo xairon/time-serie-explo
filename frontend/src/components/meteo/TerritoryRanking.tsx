@@ -18,9 +18,13 @@ export function TerritoryRanking({ territories, onSelect }: { territories: Terri
         {rows.map(tr => (
           <li key={tr.code}>
             <button onClick={() => onSelect(tr.code)}
+              title={tr.insufficient ? t('meteo.insufficientHint') : (tr.n_provisoire > 0 ? t('meteo.provisoireHint', { count: tr.n_provisoire }) : undefined)}
               className="w-full flex items-center gap-3 px-2 py-1.5 rounded hover:bg-bg-hover text-left">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: classColor(tr.situation_class) }} />
               <span className="flex-1 text-sm text-text-primary truncate">{tr.name}</span>
+              {tr.n_provisoire > 0 && (
+                <span className="text-[10px] text-text-secondary/60">+{tr.n_provisoire}</span>
+              )}
               <span className="text-xs text-text-secondary">{tr.insufficient ? t('meteo.insufficient') : `${tr.pct_below_normal ?? 0}%`}</span>
               <span aria-hidden style={{ color: classColor(tr.situation_class) }}>{trendGlyph(tr.trend)}</span>
             </button>
