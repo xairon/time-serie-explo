@@ -287,6 +287,42 @@ class NationalStats(BaseModel):
     hydro_extremement_haut: int = 0
 
 
+class Outlook(BaseModel):
+    """AI anticipation contract. Null in v1 (layer dark)."""
+    horizon_months: int
+    situation_class: str | None = None
+    trend: str | None = None
+    confidence: float | None = None
+    coverage_pct: float | None = None
+
+
+class TerritorySituation(BaseModel):
+    level: Literal["region", "department"]
+    code: str
+    name: str
+    type: Literal["piezo", "hydro"]
+    situation_class: str | None = None
+    trend: str | None = None
+    pct_below_normal: float | None = None
+    n_eligible: int = 0
+    n_provisoire: int = 0
+    distribution: dict[str, int] = {}
+    insufficient: bool = False
+    outlook: Outlook | None = None
+
+
+class NationalSituation(BaseModel):
+    type: Literal["piezo", "hydro"]
+    situation_class: str | None = None
+    trend: str | None = None
+    pct_below_normal: float | None = None
+    n_eligible: int = 0
+    n_provisoire: int = 0
+    distribution: dict[str, int] = {}
+    insufficient: bool = False
+    outlook: Outlook | None = None
+
+
 # ---------------------------------------------------------------------------
 # ERA5
 # ---------------------------------------------------------------------------

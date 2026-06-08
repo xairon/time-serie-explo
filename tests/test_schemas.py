@@ -304,3 +304,25 @@ class TestDatasetCreateRequest:
         assert r.station_column is None
         assert r.stations == []
         assert r.preprocessing == {}
+
+
+def test_territory_situation_schema_defaults():
+    from api.schemas.observatory import TerritorySituation
+    t = TerritorySituation(
+        level="region", code="24", name="Centre-Val de Loire", type="piezo",
+        situation_class="BAS", trend="baisse", pct_below_normal=42.0,
+        n_eligible=18, n_provisoire=3,
+        distribution={"BAS": 10, "NORMAL": 8}, insufficient=False,
+    )
+    assert t.outlook is None
+    assert t.code == "24"
+
+
+def test_national_situation_schema():
+    from api.schemas.observatory import NationalSituation
+    n = NationalSituation(
+        type="hydro", situation_class="NORMAL", trend="stable",
+        pct_below_normal=12.0, n_eligible=900, n_provisoire=120,
+        distribution={"NORMAL": 700}, insufficient=False,
+    )
+    assert n.trend == "stable"
