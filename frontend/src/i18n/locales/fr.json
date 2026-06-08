@@ -69,7 +69,8 @@
     "compare": "Comparer",
     "pastasLab": "Pastas Lab",
     "aiLab": "Lab IA",
-    "stationDetail": "Détail station"
+    "stationDetail": "Détail station",
+    "meteo": "Météo des nappes"
   },
   "language": {
     "fr": "Français",
@@ -1729,5 +1730,29 @@
       "rsqTooltip": "Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.",
       "maeTooltip": "Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE."
     }
+  },
+  "meteo": {
+    "title": "Météo des nappes",
+    "subtitle": "Situation et tendance de la ressource en eau par territoire",
+    "tabPiezo": "Nappes",
+    "tabHydro": "Cours d'eau",
+    "belowNormal": "{{pct}} % sous la normale",
+    "departmentsInAlert": "{{count}} départements en alerte",
+    "trendGeneral": "Tendance générale",
+    "insufficient": "Données insuffisantes",
+    "insufficientHint": "Pas assez de stations fiables pour un verdict",
+    "provisoireHint": "{{count}} stations non classées (référence provisoire)",
+    "rankingTitle": "Territoires les plus critiques",
+    "backToRegions": "← Toutes les régions",
+    "stationsIn": "Stations — {{name}}",
+    "outlookTitle": "Anticipation IA",
+    "outlookSoon": "Bientôt : projection à 1–3 mois par les modèles de l'app",
+    "trend": { "hausse": "en hausse", "stable": "stable", "baisse": "en baisse" },
+    "class": {
+      "EXTREMEMENT_BAS": "Extrêmement bas", "TRES_BAS": "Très bas", "BAS": "Bas",
+      "NORMAL": "Normal", "HAUT": "Haut", "TRES_HAUT": "Très haut",
+      "EXTREMEMENT_HAUT": "Extrêmement haut"
+    },
+    "loadError": "Impossible de charger la météo des nappes"
   }
 }
