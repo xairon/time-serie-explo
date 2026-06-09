@@ -154,6 +154,8 @@ function stationsToGeoJSON(features: StationGeoJSONFeature[]) {
 interface MeteoMapProps {
   sectorColorById: Record<number, string>
   sectorTrendById: Record<number, 'hausse' | 'stable' | 'baisse' | null>
+  alertSectorIds: number[]
+  focusSectorId?: number | null
   visibleLayers: { bsn: boolean; piezo: boolean; rain: boolean; hydro: boolean }
   piezoFeatures: StationGeoJSONFeature[]
   hydroFeatures: StationGeoJSONFeature[]
@@ -164,6 +166,8 @@ interface MeteoMapProps {
 export function MeteoMap({
   sectorColorById,
   sectorTrendById,
+  alertSectorIds,
+  focusSectorId,
   visibleLayers,
   piezoFeatures,
   hydroFeatures,
@@ -272,6 +276,10 @@ export function MeteoMap({
         map.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
         map.addLayer({ id: 'secteurs-fill', type: 'fill', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'fill-color': SECTOR_INSUFFICIENT_COLOR, 'fill-opacity': 0.7 } })
         map.addLayer({ id: 'secteurs-line', type: 'line', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6 } })
+        map.addLayer({ id: 'secteurs-alert-line', type: 'line', source: 'secteurs-bsh',
+          layout: { visibility: 'none', 'line-join': 'round' },
+          paint: { 'line-color': '#7f1d1d', 'line-width': 2.4, 'line-opacity': 0.9 },
+          filter: ['in', ['get', 'sector_id'], ['literal', []]] as unknown as maplibregl.ExpressionSpecification })
         if (!map.hasImage('sector-arrow')) map.addImage('sector-arrow', createRgbaIcon(drawTrendArrow, 40))
         map.addSource('secteurs-arrows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
         map.addLayer({
@@ -323,7 +331,11 @@ export function MeteoMap({
       })
       .filter(Boolean) as GeoJSON.Feature[]
     ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures })
-  }, [sectorColorById, sectorTrendById, mapLoaded, sectorsReady])
+
+    if (m.getLayer('secteurs-alert-line')) {
+      m.setFilter('secteurs-alert-line', ['in', ['get', 'sector_id'], ['literal', alertSectorIds]] as unknown as maplibregl.ExpressionSpecification)
+    }
+  }, [sectorColorById, sectorTrendById, alertSectorIds, mapLoaded, sectorsReady])
 
   // Sync piezo features.
   useEffect(() => {
@@ -347,11 +359,43 @@ export function MeteoMap({
       const vis = visible ? 'visible' : 'none'
       for (const id of layers) { if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', vis) }
     }
-    toggle(['secteurs-fill', 'secteurs-line', 'secteurs-arrows'], visibleLayers.bsn)
+    toggle(['secteurs-fill', 'secteurs-line', 'secteurs-alert-line', 'secteurs-arrows'], visibleLayers.bsn)
     toggle(['piezo-layer', 'piezo-glyph-layer'], visibleLayers.piezo)
     toggle(['rain-layer', 'rain-glyph-layer'], visibleLayers.rain)
     toggle(['hydro-layer', 'hydro-glyph-layer'], visibleLayers.hydro)
   }, [visibleLayers, mapLoaded, sectorsReady])
+
+  // Fly to sector when focusSectorId changes.
+  useEffect(() => {
+    const m = mapRef.current
+    if (!m || !mapLoadedRef.current || focusSectorId == null || !sectorGeoRef.current) return
+    const feature = sectorGeoRef.current.features.find(
+      f => f.properties?.sector_id === focusSectorId
+    )
+    if (!feature || !feature.geometry) return
+
+    const bounds = new maplibregl.LngLatBounds()
+    const addCoords = (coords: number[][]) => {
+      for (const [lng, lat] of coords) {
+        if (typeof lng === 'number' && typeof lat === 'number' && isFinite(lng) && isFinite(lat)) {
+          bounds.extend([lng, lat] as [number, number])
+        }
+      }
+    }
+
+    const geom = feature.geometry
+    if (geom.type === 'Polygon') {
+      for (const ring of geom.coordinates) addCoords(ring as number[][])
+    } else if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) {
+        for (const ring of poly) addCoords(ring as number[][])
+      }
+    }
+
+    if (!bounds.isEmpty()) {
+      m.fitBounds(bounds, { padding: 60, maxZoom: 9, duration: 600 })
+    }
+  }, [focusSectorId, mapLoaded])
 
   return <div ref={containerRef} className="absolute inset-0 w-full h-full" role="application" aria-label="Carte météo des nappes" />
 }
