@@ -161,7 +161,9 @@ export default function ObservatoryPage() {
     if (timelinePeriodIndex == null || !timelineData || !sectorTimelineData) return base
     const period = timelineData.periods[timelinePeriodIndex]
     const sIdx = sectorTimelineData.periods.indexOf(period)
-    if (sIdx < 0) return base
+    // During historical replay a period with no sector data must read as
+    // "insufficient" (grey), never fall back to the current-month colours.
+    if (sIdx < 0) return base.map(s => ({ ...s, situation_class: null, trend: null, insufficient: true }))
     const CLS = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT'] as const
     const TR: Record<number, 'baisse' | 'stable' | 'hausse'> = { [-1]: 'baisse', [0]: 'stable', [1]: 'hausse' }
     return base.map(s => {
