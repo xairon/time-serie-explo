@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
-import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, trendArrowGlyph, sectorClassColor } from '@/lib/sector-arrows'
+import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -165,6 +165,27 @@ function drawHydroGlyph(ctx: CanvasRenderingContext2D, size: number) {
   ctx.fillStyle = '#fff'
   ctx.fill()
 }
+
+// Trend arrow icon (points UP by default; rotated per sector via icon-rotate:
+// hausse=0°, stable=90°, baisse=180°). Dark fill + white outline so it reads on
+// any choropleth colour. Rendered as an image (not a text glyph) because Carto's
+// font PBFs don't ship the Unicode arrow glyphs.
+function drawTrendArrow(ctx: CanvasRenderingContext2D, size: number) {
+  const cx = size / 2
+  ctx.beginPath()
+  ctx.moveTo(cx, size * 0.16)
+  ctx.lineTo(size * 0.80, size * 0.74)
+  ctx.lineTo(size * 0.20, size * 0.74)
+  ctx.closePath()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = size * 0.12
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+  ctx.fillStyle = '#0f172a'
+  ctx.fill()
+}
+
+const TREND_ROTATION: Record<string, number> = { hausse: 0, stable: 90, baisse: 180 }
 
 const CLUSTER_STYLE = {
   piezo: { bg: 'rgba(6,182,212,0.9)', border: 'rgba(255,255,255,0.7)', text: '#ffffff' },
@@ -518,8 +539,9 @@ export function ObservatoryMap({
         m.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
         m.addLayer({ id: 'secteurs-fill', type: 'fill', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'fill-color': SECTOR_INSUFFICIENT_COLOR, 'fill-opacity': 0.55 } })
         m.addLayer({ id: 'secteurs-line', type: 'line', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6 } })
+        if (!m.hasImage('sector-arrow')) m.addImage('sector-arrow', createRgbaIcon(drawTrendArrow, 40))
         m.addSource('secteurs-arrows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-        m.addLayer({ id: 'secteurs-arrows', type: 'symbol', source: 'secteurs-arrows', layout: { visibility: 'none', 'text-field': ['get', 'glyph'], 'text-size': 20, 'text-allow-overlap': true }, paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } })
+        m.addLayer({ id: 'secteurs-arrows', type: 'symbol', source: 'secteurs-arrows', layout: { visibility: 'none', 'icon-image': 'sector-arrow', 'icon-size': 0.7, 'icon-rotate': ['get', 'rot'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } })
         m.on('click', 'secteurs-fill', (e) => { const f = e.features?.[0]; if (!f) return; const codes = stationsInGeometryRef.current?.(f.geometry as any) ?? null; onSectorClickRef.current?.(codes, (f.properties?.nom as string) ?? null) })
         m.on('mouseenter', 'secteurs-fill', () => { m.getCanvas().style.cursor = 'pointer' })
         m.on('mouseleave', 'secteurs-fill', () => { m.getCanvas().style.cursor = '' })
@@ -539,7 +561,7 @@ export function ObservatoryMap({
     const pairs: (string | number)[] = []
     for (const s of sits) { pairs.push(Number(s.code), s.insufficient ? SECTOR_INSUFFICIENT_COLOR : sectorClassColor(s.situation_class)) }
     m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
-    const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const glyph = trendArrowGlyph(s.trend); if (!c || !glyph || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { glyph } } }).filter(Boolean)
+    const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const rot = s.trend != null ? TREND_ROTATION[s.trend] : undefined; if (!c || rot === undefined || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { rot } } }).filter(Boolean)
     ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures as GeoJSON.Feature[] })
   }, [showSectors, sectorSituation, mapLoaded, layersReady])
 
