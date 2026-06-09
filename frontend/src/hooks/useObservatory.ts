@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { observatoryApi } from '@/lib/observatory-api'
+import { situationApi } from '@/lib/situation-api'
 import type {
   SPIDataPoint, SPLIDataPoint, SSFIDataPoint, WfsLayerId,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
@@ -359,4 +360,14 @@ export function useERA5Monthly(month: string | undefined) {
     enabled: !!month,
     staleTime: 24 * 60 * 60 * 1000,
   })
+}
+
+// --- Sector situation hooks ---
+
+export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean) {
+  return useQuery({ queryKey: ['obs-sectors', type], queryFn: () => situationApi.sectors(type), enabled, staleTime: 3_600_000 * 6 })
+}
+
+export function useSectorTimeline(type: 'piezo' | 'hydro', enabled: boolean) {
+  return useQuery({ queryKey: ['obs-sectors-timeline', type], queryFn: () => situationApi.sectorsTimeline(type), enabled, staleTime: 3_600_000 * 24 })
 }
