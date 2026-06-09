@@ -254,7 +254,7 @@ export default function MeteoNappesPage() {
   }, [onSectorClick])
 
   return (
-    <div className="fixed inset-0">
+    <div className="relative h-full">
       <MeteoMap
         sectorColorById={sectorColorById}
         sectorTrendById={sectorTrendById}

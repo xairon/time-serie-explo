@@ -46,6 +46,9 @@ export const router = createBrowserRouter([
       { path: '/observatory', element: <Navigate to="/" replace /> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
 
+      // Météo des nappes (public)
+      { path: '/meteo', element: <SW><MeteoNappesPage /></SW> },
+
       // Cross-station comparison
       { path: '/compare', element: <Navigate to="/compare/piezo" replace /> },
       { path: '/compare/piezo', element: <SW><ComparePage stationType="piezo" /></SW> },
@@ -99,7 +102,4 @@ export const router = createBrowserRouter([
       { path: '*', element: <div className="flex flex-col items-center justify-center h-full gap-4"><h1 className="text-4xl font-bold text-text-primary">404</h1><p className="text-text-secondary">Page introuvable</p></div> },
     ],
   },
-  // Standalone full-screen route — no Layout navbar. Public, same accessibility as
-  // the Observatory home (SessionGate only redirects must-change-password users).
-  { path: '/meteo', element: <SessionGate><SW><MeteoNappesPage /></SW></SessionGate> },
 ])
