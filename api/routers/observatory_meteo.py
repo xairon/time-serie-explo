@@ -72,10 +72,10 @@ def parse_brgm_sectors(features: list[dict]) -> list[dict]:
     return result
 
 
-def _fetch_brgm_sectors() -> list[dict]:
-    """Fetch BRGM WFS (all communicated parent windows, attributes only) and parse
-    the latest published window. No date filter (today is often past the last
-    window). `propertyName` drops the heavy geometry (~788 KB vs ~100 MB)."""
+def _fetch_brgm_features() -> list[dict]:
+    """Fetch BRGM WFS (all communicated parent windows, attributes only) and return
+    raw GeoJSON feature dicts. No date filter (today is often past the last window).
+    `propertyName` drops the heavy geometry (~788 KB vs ~100 MB)."""
     xml_filter = (
         '<Filter xmlns:gml="http://www.opengis.net/gml"><And>'
         "<PropertyIsEqualTo><PropertyName>communicate</PropertyName>"
@@ -97,8 +97,54 @@ def _fetch_brgm_sectors() -> list[dict]:
     }
     resp = httpx.get(_BRGM_WFS_URL, params=params, timeout=120)
     resp.raise_for_status()
-    features = resp.json()["features"]
-    return parse_brgm_sectors(features)
+    return resp.json()["features"]
+
+
+def _fetch_brgm_sectors() -> list[dict]:
+    """Fetch BRGM WFS features and parse the latest published window."""
+    return parse_brgm_sectors(_fetch_brgm_features())
+
+
+def parse_brgm_timeline(features: list[dict]) -> dict:
+    """Group BRGM parent-sector features into MONTHLY periods (one window per month:
+    the latest end_period within that calendar month).
+
+    Returns {"periods": ["YYYY-MM", ...] sorted asc,
+             "windows": { "YYYY-MM": { "<sector_id>": {"color","brgm_class","trend","tendancy_coord"} } }}
+    """
+    # best[month][sector_id] = (end_period_str, props)
+    best: dict[str, dict[str, tuple[str, dict]]] = {}
+
+    for feat in features:
+        props = (feat.get("properties") or {})
+        if not props.get("is_parent"):
+            continue
+        end_period = props.get("end_period")
+        if not end_period:
+            continue
+        sector_id = str(props.get("sector_id"))
+        month = end_period[:7]  # "YYYY-MM"
+
+        month_map = best.setdefault(month, {})
+        existing = month_map.get(sector_id)
+        if existing is None or end_period > existing[0]:
+            month_map[sector_id] = (end_period, props)
+
+    windows: dict[str, dict[str, dict]] = {}
+    for month, sector_map in best.items():
+        windows[month] = {}
+        for sector_id, (_ep, props) in sector_map.items():
+            tendency_raw = props.get("tendency")
+            trend: Optional[str] = _TENDENCY_MAP.get(tendency_raw)
+            windows[month][sector_id] = {
+                "color": props.get("color"),
+                "brgm_class": props.get("class"),
+                "trend": trend,
+                "tendancy_coord": props.get("tendancy_coord"),
+            }
+
+    periods = sorted(windows.keys())
+    return {"periods": periods, "windows": windows}
 
 
 @router.get("/brgm-sectors")
@@ -117,3 +163,20 @@ def get_brgm_sectors() -> list:
     except Exception as exc:
         logger.warning("BRGM WFS fetch/parse failed, returning []: %s", exc)
         return []
+
+
+@router.get("/brgm-timeline")
+def get_brgm_timeline() -> dict:
+    """Return all BRGM windows collapsed to monthly periods, cached 24 h.
+
+    Returns {"periods": [...], "windows": {...}} suitable for a time slider.
+    On any network or parse error, returns empty periods/windows.
+    """
+    def fetch():
+        return parse_brgm_timeline(_fetch_brgm_features())
+
+    try:
+        return get_cached("meteo_brgm_timeline", {"v": 1}, _TTL, fetch)
+    except Exception as exc:
+        logger.warning("BRGM timeline fetch/parse failed, returning empty: %s", exc)
+        return {"periods": [], "windows": {}}

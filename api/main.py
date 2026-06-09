@@ -69,6 +69,11 @@ async def lifespan(app: FastAPI):
             logger.info("BRGM sectors cache warmed")
         except Exception:
             logger.warning("BRGM sectors warm-up failed", exc_info=True)
+        try:
+            await asyncio.to_thread(observatory_meteo.get_brgm_timeline)
+            logger.info("BRGM timeline cache warmed")
+        except Exception:
+            logger.warning("BRGM timeline warm-up failed", exc_info=True)
 
     asyncio.create_task(_warm_sectors())
 
