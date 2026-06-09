@@ -28,6 +28,8 @@ from dashboard.utils.geo_sectors import point_in_geometry, dominant_label
 # reads the api/data/ one, because the backend image ships api/ but not frontend/.
 OUT = Path("frontend/public/geo/secteurs-bsh.geojson")
 OUT_BACKEND = Path("api/data/secteurs-bsh.geojson")
+# Precomputed station->sector map so the API never does point-in-polygon at runtime.
+OUT_MAP = Path("api/data/station_sectors.json")
 WFS = "https://app.meteeaunappes.brgm.fr/wfs/indicateur_bsn/ows"
 # Restrict to a SINGLE published snapshot (one 15-day window) so the WFS returns one
 # polygon per sector, not the same sector repeated for every period since 2025.
@@ -62,44 +64,81 @@ def fetch_sectors() -> list[dict]:
         return json.load(resp)["features"]
 
 
-def station_points() -> list[tuple]:
-    """(lon, lat, libelle_eh) for piezo stations that have an EH label."""
+def piezo_stations() -> list[tuple]:
+    """(code, lon, lat, libelle_eh) for piezo stations (EH label used for naming)."""
     engine = get_brgm_sync_engine()
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT s.longitude AS lon, s.latitude AS lat, m.libelle_eh
+            SELECT s.code_bss AS code, s.longitude AS lon, s.latitude AS lat, m.libelle_eh
             FROM gold.dim_piezo_stations s
-            JOIN gold.int_station_era5_mapping m ON m.code_bss = s.code_bss
+            LEFT JOIN gold.int_station_era5_mapping m ON m.code_bss = s.code_bss
             WHERE s.longitude IS NOT NULL AND s.latitude IS NOT NULL
         """)).mappings().all()
-    return [(float(r["lon"]), float(r["lat"]), r["libelle_eh"]) for r in rows]
+    return [(r["code"], float(r["lon"]), float(r["lat"]), r["libelle_eh"]) for r in rows]
+
+
+def hydro_stations() -> list[tuple]:
+    """(code, lon, lat) for hydro stations."""
+    engine = get_brgm_sync_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT s.code_station AS code, s.longitude_station AS lon, s.latitude_station AS lat
+            FROM gold.dim_hydro_stations s
+            WHERE s.longitude_station IS NOT NULL AND s.latitude_station IS NOT NULL
+        """)).mappings().all()
+    return [(r["code"], float(r["lon"]), float(r["lat"]) ) for r in rows]
 
 
 def main() -> int:
     feats = fetch_sectors()
-    pts = station_points()
-    out_features = []
+    # Dedup to one polygon per sector.
+    sectors: list[tuple] = []  # (sid, tendancy_coord, geom)
     seen: set = set()
     for f in feats:
         sid = f["properties"]["sector_id"]
-        if sid in seen:  # one polygon per sector (guard against multi-period leakage)
+        if sid in seen:
             continue
         seen.add(sid)
-        coord = f["properties"].get("tendancy_coord")  # "lat lon"
-        geom = f["geometry"]
-        labels = [eh for (lon, lat, eh) in pts if point_in_geometry(lon, lat, geom)]
-        nom = dominant_label(labels) or f"Secteur {sid}"
-        out_features.append({
-            "type": "Feature",
-            "geometry": geom,
-            "properties": {"sector_id": sid, "tendancy_coord": coord, "nom": nom},
-        })
+        sectors.append((sid, f["properties"].get("tendancy_coord"), f["geometry"]))
+
+    # Piezo: map each station to its sector + collect EH labels per sector for naming.
+    piezo_map: dict[str, int] = {}
+    labels_by_sid: dict[int, list] = {}
+    for code, lon, lat, eh in piezo_stations():
+        for sid, _coord, geom in sectors:
+            if point_in_geometry(lon, lat, geom):
+                piezo_map[code] = sid
+                if eh:
+                    labels_by_sid.setdefault(sid, []).append(eh)
+                break
+
+    # Hydro: map each station to its sector.
+    hydro_map: dict[str, int] = {}
+    for code, lon, lat in hydro_stations():
+        for sid, _coord, geom in sectors:
+            if point_in_geometry(lon, lat, geom):
+                hydro_map[code] = sid
+                break
+
+    out_features = [{
+        "type": "Feature",
+        "geometry": geom,
+        "properties": {
+            "sector_id": sid,
+            "tendancy_coord": coord,
+            "nom": dominant_label(labels_by_sid.get(sid, [])) or f"Secteur {sid}",
+        },
+    } for sid, coord, geom in sectors]
+
     payload = json.dumps({"type": "FeatureCollection", "features": out_features})
     for dest in (OUT, OUT_BACKEND):
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(payload)
+    OUT_MAP.write_text(json.dumps({"piezo": piezo_map, "hydro": hydro_map}))
+
     named = sum(1 for f in out_features if not f["properties"]["nom"].startswith("Secteur "))
     print(f"wrote {len(out_features)} sectors to {OUT} ({named} with an EH name)")
+    print(f"mapped piezo: {len(piezo_map)}, hydro: {len(hydro_map)} stations -> {OUT_MAP}")
     assert len(out_features) >= 50, "expected ~66 parent sectors"
     return 0
 

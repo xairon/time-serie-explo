@@ -54,6 +54,19 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("situation warm-up failed for %s", _t, exc_info=True)
 
+    # Warm the by-sector layer (situation + slider timeline) in the BACKGROUND so it
+    # never blocks startup/healthcheck; the precomputed station→sector map keeps each
+    # call fast, so even a pre-warm request finishes within the client timeout.
+    async def _warm_sectors():
+        for _t in ("piezo", "hydro"):
+            try:
+                await asyncio.to_thread(observatory_situation.get_sector_situation, type=_t)
+                await asyncio.to_thread(observatory_situation.get_sector_timeline, type=_t)
+            except Exception:
+                logger.warning("sector warm-up failed for %s", _t, exc_info=True)
+
+    asyncio.create_task(_warm_sectors())
+
     yield
 
     # Shutdown: close connection pools
