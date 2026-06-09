@@ -11,6 +11,7 @@ function RedirectWithParams({ to }: { to: string }) {
 }
 
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
+const MeteoNappesPage = lazy(() => import('./pages/MeteoNappesPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
 const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -43,7 +44,6 @@ export const router = createBrowserRouter([
       // Observatory (home)
       { path: '/', element: <SW><ObservatoryPage /></SW> },
       { path: '/observatory', element: <Navigate to="/" replace /> },
-      { path: '/meteo', element: <Navigate to="/" replace /> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
 
       // Cross-station comparison
@@ -99,4 +99,7 @@ export const router = createBrowserRouter([
       { path: '*', element: <div className="flex flex-col items-center justify-center h-full gap-4"><h1 className="text-4xl font-bold text-text-primary">404</h1><p className="text-text-secondary">Page introuvable</p></div> },
     ],
   },
+  // Standalone full-screen route — no Layout navbar. Public, same accessibility as
+  // the Observatory home (SessionGate only redirects must-change-password users).
+  { path: '/meteo', element: <SessionGate><SW><MeteoNappesPage /></SW></SessionGate> },
 ])
