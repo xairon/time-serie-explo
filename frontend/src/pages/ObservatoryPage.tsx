@@ -8,8 +8,8 @@ import { SearchBar } from '@/components/observatory/SearchBar'
 import type { SearchAction } from '@/components/observatory/SearchBar'
 import { TimelineSlider } from '@/components/observatory/TimelineSlider'
 import { RightDrawer } from '@/components/observatory/RightDrawer'
-import { useStationsGeoJSON, useWfsLayer, useObsFilters } from '@/hooks/useObservatory'
-import type { StationGeoJSONFeature, WfsLayerId, ClassificationTimeline } from '@/lib/observatory-types'
+import { useStationsGeoJSON, useWfsLayer, useObsFilters, useSectorSituation, useSectorTimeline } from '@/hooks/useObservatory'
+import type { StationGeoJSONFeature, WfsLayerId, ClassificationTimeline, SituationClass } from '@/lib/observatory-types'
 import { TIMELINE_CLASSIFICATIONS } from '@/lib/observatory-types'
 import { isStationActive, ACTIVE_FILTER_DAYS } from '@/lib/observatory-utils'
 
@@ -102,6 +102,10 @@ export default function ObservatoryPage() {
   const [flyToBbox, setFlyToBbox] = useState<Bbox | null>(null)
 
   const showRegions = activeZoneLayer === 'regions'; const showDepts = activeZoneLayer === 'depts'; const showSandre = activeZoneLayer === 'bassins'; const showHER = activeZoneLayer === 'her'
+  const showSectors = activeZoneLayer === 'secteurs'
+  const sectorType: 'piezo' | 'hydro' = showHydro && !showPiezo ? 'hydro' : 'piezo'
+  const { data: sectorSituationData } = useSectorSituation(sectorType, showSectors)
+  const { data: sectorTimelineData } = useSectorTimeline(sectorType, showSectors)
   const activeWfsLayers = useMemo(() => { const s = new Set<WfsLayerId>(); const wfsZones: WfsLayerId[] = ['region-hydro', 'secteur-hydro', 'sous-secteur-hydro', 'zone-hydro']; if (activeZoneLayer && wfsZones.includes(activeZoneLayer as WfsLayerId)) s.add(activeZoneLayer as WfsLayerId); overlayLayers.forEach(id => s.add(id as WfsLayerId)); return s }, [activeZoneLayer, overlayLayers])
 
   useEffect(() => {
@@ -134,6 +138,7 @@ export default function ObservatoryPage() {
   const handleDeptClick = useCallback((code: string | null) => { setSelectedStation(null); setSpatialStationCodes(null); setFilter('dept', code ?? undefined); if (!code) setActiveBbox(null) }, [setFilter])
   const handleBassinClick = useCallback((code: string | null) => { setSelectedStation(null); setSpatialStationCodes(null); setFilter('bassin', code ?? undefined); if (!code) setActiveBbox(null) }, [setFilter])
   const handleSpatialFilter = useCallback((codes: string[] | null) => { setSelectedStation(null); setSpatialStationCodes(codes); if (!codes) setActiveBbox(null) }, [])
+  const handleSectorClick = useCallback((codes: string[] | null, _name: string | null) => { setSelectedStation(null); setSpatialStationCodes(codes); if (!codes) setActiveBbox(null) }, [])
   const handleBboxChange = useCallback((bbox: Bbox | null) => { setActiveBbox(bbox) }, [])
   const handleTimelinePeriodChange = useCallback((periodIndex: number | null, timeline: ClassificationTimeline | null) => { setTimelinePeriodIndex(periodIndex); setTimelineData(timeline) }, [])
 
@@ -150,6 +155,22 @@ export default function ObservatoryPage() {
       return true
     }).map(f => { const cls = TIMELINE_CLASSIFICATIONS[timelineData.stations[f.properties.code][timelinePeriodIndex]]; return { ...f, properties: { ...f.properties, classification: cls === 'UNKNOWN' ? null : cls } } })
   }, [filteredFeatures, timelinePeriodIndex, timelineData, geojsonData, showPiezo, showHydro, filters, spatialStationCodes])
+
+  const displaySectorSituation = useMemo(() => {
+    const base = sectorSituationData ?? []
+    if (timelinePeriodIndex == null || !timelineData || !sectorTimelineData) return base
+    const period = timelineData.periods[timelinePeriodIndex]
+    const sIdx = sectorTimelineData.periods.indexOf(period)
+    if (sIdx < 0) return base
+    const CLS = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT'] as const
+    const TR: Record<number, 'baisse' | 'stable' | 'hausse'> = { [-1]: 'baisse', [0]: 'stable', [1]: 'hausse' }
+    return base.map(s => {
+      const ci = sectorTimelineData.sectors[s.code]?.[sIdx]
+      const ti = sectorTimelineData.trends[s.code]?.[sIdx]
+      const insufficient = ci == null || ci === 7
+      return { ...s, situation_class: insufficient ? null : (CLS[ci] as SituationClass), trend: (ti != null ? TR[ti] : null), insufficient }
+    })
+  }, [sectorSituationData, sectorTimelineData, timelinePeriodIndex, timelineData])
 
   const excludedFeatures = useMemo<StationGeoJSONFeature[]>(() => {
     const activeSet = new Set(displayFeatures.map(f => f.properties.code)); const all = geojsonData?.features ?? []
@@ -184,7 +205,7 @@ export default function ObservatoryPage() {
   return (
     <div className="relative h-full">
       {geojsonError && (<div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-900/90 text-red-200 px-4 py-2 rounded-lg text-sm">{t('mainPages.observatory.loadError')} <button onClick={() => window.location.reload()} className="underline ml-2">{t('mainPages.observatory.retry')}</button></div>)}
-      <ObservatoryMap features={displayFeatures} excludedFeatures={showExcluded ? excludedFeatures : []} allFeatures={geojsonData?.features} showPiezo={showPiezo} showHydro={showHydro} onStationClick={handleStationClick} onEmptyClick={handleEmptyClick} onDeptClick={handleDeptClick} activeCodeDepartement={filters.codeDepartement} showRegions={showRegions} showDepts={showDepts} showHER={showHER} showSandre={showSandre} onBassinClick={handleBassinClick} activeCodeBassin={filters.codeBassin} onSpatialFilter={handleSpatialFilter} onBboxChange={handleBboxChange} activeWfsLayers={activeWfsLayers} wfsData={wfsData} selectedStationCode={selectedStation?.code ?? null} showTerrain={showTerrain} flyToBbox={flyToBbox} onFlyToComplete={() => setFlyToBbox(null)} />
+      <ObservatoryMap features={displayFeatures} excludedFeatures={showExcluded ? excludedFeatures : []} allFeatures={geojsonData?.features} showPiezo={showPiezo} showHydro={showHydro} onStationClick={handleStationClick} onEmptyClick={handleEmptyClick} onDeptClick={handleDeptClick} activeCodeDepartement={filters.codeDepartement} showRegions={showRegions} showDepts={showDepts} showHER={showHER} showSandre={showSandre} onBassinClick={handleBassinClick} activeCodeBassin={filters.codeBassin} onSpatialFilter={handleSpatialFilter} onBboxChange={handleBboxChange} activeWfsLayers={activeWfsLayers} wfsData={wfsData} selectedStationCode={selectedStation?.code ?? null} showTerrain={showTerrain} flyToBbox={flyToBbox} onFlyToComplete={() => setFlyToBbox(null)} showSectors={showSectors} sectorSituation={displaySectorSituation} onSectorClick={handleSectorClick} stationsInGeometry={(geom) => stationsInGeometry(geojsonData?.features ?? [], geom)} />
       <SearchBar features={geojsonData?.features} wfsData={wfsDataAll} onSearchAction={handleSearchAction} />
       <RightDrawer showPiezo={showPiezo} setShowPiezo={setShowPiezo} showHydro={showHydro} setShowHydro={setShowHydro} showExcluded={showExcluded} setShowExcluded={setShowExcluded} showTerrain={showTerrain} setShowTerrain={setShowTerrain} filters={filters} setFilter={setFilter} filteredPiezo={stationCounts.filteredPiezo} totalPiezo={stationCounts.totalPiezo} filteredHydro={stationCounts.filteredHydro} totalHydro={stationCounts.totalHydro} activeZoneLayer={activeZoneLayer} onZoneLayerChange={setActiveZoneLayer} overlayLayers={overlayLayers} onOverlayToggle={handleOverlayToggle} onResetSpatial={() => { setSpatialStationCodes(null); setActiveBbox(null) }} hasSpatialFilter={spatialStationCodes != null && spatialStationCodes.length > 0} />
       {selectedStation && <StationDrawer code={selectedStation.code} type={selectedStation.type} onClose={() => setSelectedStation(null)} />}
