@@ -364,3 +364,23 @@ export interface NationalSituation {
   insufficient: boolean
   outlook: Outlook | null
 }
+
+export interface SectorSituation {
+  level: 'sector'
+  code: string
+  name: string
+  type: 'piezo' | 'hydro'
+  situation_class: SituationClass | null
+  trend: Trend | null
+  pct_below_normal: number | null
+  n_eligible: number
+  n_provisoire: number
+  insufficient: boolean
+  tendancy_coord: string | null
+}
+
+export interface SectorTimeline {
+  periods: string[]
+  sectors: Record<string, number[]>
+  trends: Record<string, number[]>
+}

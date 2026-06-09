@@ -4,6 +4,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
+import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, trendArrowGlyph, sectorClassColor } from '@/lib/sector-arrows'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -57,6 +58,10 @@ interface Props {
   showTerrain?: boolean
   flyToBbox?: [number, number, number, number] | null
   onFlyToComplete?: () => void
+  showSectors?: boolean
+  sectorSituation?: import('@/lib/observatory-types').SectorSituation[]
+  onSectorClick?: (codes: string[] | null, name: string | null) => void
+  stationsInGeometry?: (geometry: any) => string[]
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -251,6 +256,7 @@ export function ObservatoryMap({
   wfsData,
   selectedStationCode = null, showTerrain = false,
   flyToBbox = null, onFlyToComplete,
+  showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -275,6 +281,8 @@ export function ObservatoryMap({
   const onHERClickRef = useRef(onHERClick); onHERClickRef.current = onHERClick
   const onSpatialFilterRef = useRef(onSpatialFilter); onSpatialFilterRef.current = onSpatialFilter
   const onBboxChangeRef = useRef(onBboxChange); onBboxChangeRef.current = onBboxChange
+  const onSectorClickRef = useRef(onSectorClick); onSectorClickRef.current = onSectorClick
+  const stationsInGeometryRef = useRef(stationsInGeometryProp); stationsInGeometryRef.current = stationsInGeometryProp
 
   const [tooltip, setTooltip] = useState<{ name: string; x: number; y: number } | null>(null)
 
@@ -458,7 +466,7 @@ export function ObservatoryMap({
         const stationLayers = ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id))
         const stationHits = map.queryRenderedFeatures(e.point, { layers: stationLayers })
         if (stationHits.length > 0) return
-        const visibleSpatialLayers = ['depts-fill', 'regions-fill', 'her-fill', 'bassins-fill', ...Object.entries(WFS_LAYER_MAP).filter(([, cfg]) => cfg.geometryType === 'polygon').map(([id]) => `wfs-${id}-fill`)].filter(id => { if (!map.getLayer(id)) return false; return map.getLayoutProperty(id, 'visibility') === 'visible' })
+        const visibleSpatialLayers = ['depts-fill', 'regions-fill', 'her-fill', 'bassins-fill', 'secteurs-fill', ...Object.entries(WFS_LAYER_MAP).filter(([, cfg]) => cfg.geometryType === 'polygon').map(([id]) => `wfs-${id}-fill`)].filter(id => { if (!map.getLayer(id)) return false; return map.getLayoutProperty(id, 'visibility') === 'visible' })
         const spatialHits = map.queryRenderedFeatures(e.point, { layers: visibleSpatialLayers })
         if (spatialHits.length > 0) return
         onEmptyClickRef.current?.(); onDeptClickRef.current?.(null); onBassinClickRef.current?.(null); onSpatialFilterRef.current?.(null); onBboxChangeRef.current?.(null)
@@ -498,6 +506,42 @@ export function ObservatoryMap({
     const toggle = (fillId: string, lineId: string, visible: boolean) => { const vis = visible ? 'visible' : 'none'; if (map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', vis); if (map.getLayer(lineId)) map.setLayoutProperty(lineId, 'visibility', vis) }
     toggle('regions-fill', 'regions-line', showRegions); toggle('depts-fill', 'depts-line', showDepts); toggle('her-fill', 'her-line', showHER); toggle('bassins-fill', 'bassins-line', showSandre)
   }, [showRegions, showDepts, showHER, showSandre, mapLoaded, layersReady])
+
+  // Fetch sector geometry once + register layers/handlers (mirrors HER/bassins setup)
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return
+    let cancelled = false
+    fetch('/geo/secteurs-bsh.geojson').then(r => r.json()).then((gj) => {
+      if (cancelled || !mapRef.current) return
+      const add = () => {
+        if (m.getSource('secteurs-bsh')) return
+        m.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
+        m.addLayer({ id: 'secteurs-fill', type: 'fill', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'fill-color': SECTOR_INSUFFICIENT_COLOR, 'fill-opacity': 0.55 } })
+        m.addLayer({ id: 'secteurs-line', type: 'line', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6 } })
+        m.addSource('secteurs-arrows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        m.addLayer({ id: 'secteurs-arrows', type: 'symbol', source: 'secteurs-arrows', layout: { visibility: 'none', 'text-field': ['get', 'glyph'], 'text-size': 20, 'text-allow-overlap': true }, paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } })
+        m.on('click', 'secteurs-fill', (e) => { const f = e.features?.[0]; if (!f) return; const codes = stationsInGeometryRef.current?.(f.geometry as any) ?? null; onSectorClickRef.current?.(codes, (f.properties?.nom as string) ?? null) })
+        m.on('mouseenter', 'secteurs-fill', () => { m.getCanvas().style.cursor = 'pointer' })
+        m.on('mouseleave', 'secteurs-fill', () => { m.getCanvas().style.cursor = '' })
+      }
+      if (m.isStyleLoaded()) add(); else m.once('load', add)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [mapLoaded])
+
+  // Toggle + recolor sector choropleth and trend arrows
+  useEffect(() => {
+    const m = mapRef.current; if (!m || !m.getLayer('secteurs-fill')) return
+    const vis = showSectors ? 'visible' : 'none'
+    for (const id of ['secteurs-fill', 'secteurs-line', 'secteurs-arrows']) { if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', vis) }
+    if (!showSectors) return
+    const sits = sectorSituation ?? []
+    const pairs: (string | number)[] = []
+    for (const s of sits) { pairs.push(Number(s.code), s.insufficient ? SECTOR_INSUFFICIENT_COLOR : sectorClassColor(s.situation_class)) }
+    m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
+    const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const glyph = trendArrowGlyph(s.trend); if (!c || !glyph || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { glyph } } }).filter(Boolean)
+    ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures as GeoJSON.Feature[] })
+  }, [showSectors, sectorSituation, mapLoaded, layersReady])
 
   // Sync active dept
   useEffect(() => {

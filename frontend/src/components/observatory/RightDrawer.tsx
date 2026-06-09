@@ -7,6 +7,7 @@ import type { ObsFilters } from '@/hooks/useObservatory'
 function useZoneLayers() {
   const { t } = useTranslation()
   const ZONE_LAYERS: { id: string; label: string; group: string; color?: string }[] = [
+    { id: 'secteurs', label: t('observatory.drawer.sectorsMeteo'), group: t('observatory.drawer.groupMeteo'), color: '#3b82f6' },
     { id: 'regions', label: t('observatory.drawer.regions'), group: t('observatory.drawer.groupAdministrative') },
     { id: 'depts', label: t('observatory.drawer.departments'), group: t('observatory.drawer.groupAdministrative') },
     { id: 'bassins', label: t('observatory.drawer.basinsSandre'), group: t('observatory.drawer.groupAdministrative') },
@@ -127,6 +128,16 @@ export function RightDrawer(props: Props) {
         <AccordionSection id="layers" title={t('observatory.drawer.layers')}>
           {zoneGroups.map(group => (<div key={group.label} className="mb-3"><span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1">{group.label}</span>{group.layers.map(layer => { const active = props.activeZoneLayer === layer.id; return (<label key={layer.id} className="flex items-center gap-2 py-1 cursor-pointer group"><input type="checkbox" checked={active} onChange={() => props.onZoneLayerChange(active ? null : layer.id)} className="w-3.5 h-3.5 accent-accent-cyan rounded" />{layer.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: layer.color }} />}<span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{layer.label}</span></label>) })}</div>))}
           {overlayGroups.map(group => (<div key={group.label} className="mb-3"><span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1">{group.label}</span>{group.layers.map(layer => (<label key={layer.id} className="flex items-center gap-2 py-1 cursor-pointer group"><input type="checkbox" checked={props.overlayLayers.has(layer.id)} onChange={() => props.onOverlayToggle(layer.id)} className="w-3.5 h-3.5 accent-accent-cyan rounded" /><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: layer.color }} /><span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{layer.label}</span></label>))}</div>))}
+          {props.activeZoneLayer === 'secteurs' && (
+            <div className="px-1 pt-2 text-[11px] text-text-secondary space-y-1 border-t border-white/5 mt-2">
+              <div className="font-semibold text-text-primary">{t('observatory.drawer.sectorLegendTitle')}</div>
+              {CLASSIFICATION_ORDER.map(cls => (
+                <div key={cls} className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: CLASSIFICATION_COLORS[cls] }} />{CLASSIFICATION_LABELS[cls]}</div>
+              ))}
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#d9d9d9' }} />{t('observatory.drawer.sectorNoData')}</div>
+              <div className="pt-1">↑ {t('meteo.trend.hausse')} · → {t('meteo.trend.stable')} · ↓ {t('meteo.trend.baisse')}</div>
+            </div>
+          )}
         </AccordionSection>
       </div>
     </>

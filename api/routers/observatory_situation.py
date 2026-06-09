@@ -92,6 +92,45 @@ def _fetch_station_rows(type_: str) -> list[tuple]:
     return out
 
 
+_STATION_SQL_WITH_CODE = {
+    "piezo": _STATION_SQL["piezo"].replace(
+        "SELECT s.code_departement AS dept,",
+        "SELECT s.code_bss AS code, s.code_departement AS dept,", 1),
+    "hydro": _STATION_SQL["hydro"].replace(
+        "SELECT s.code_departement AS dept,",
+        "SELECT s.code_station AS code, s.code_departement AS dept,", 1),
+}
+
+
+def _fetch_station_rows_with_code(type_: str) -> list[tuple]:
+    """-> list of (code, z_latest, delta_z, flag)."""
+    from dashboard.utils.reference import value_to_zscore
+    engine = get_brgm_sync_engine()
+    out: list[tuple] = []
+    with engine.connect() as conn:
+        result = conn.execute(text(_STATION_SQL_WITH_CODE[type_]), {"min_mois": RELIABLE_MIN_MOIS})
+        for r in result.mappings():
+            z_latest = r["z_latest"]
+            delta_z = None
+            if z_latest is not None and r["lag_value"] is not None and r["lag_grid"]:
+                z_lag = value_to_zscore(float(r["lag_value"]), list(r["lag_grid"]))
+                if z_lag is not None:
+                    delta_z = float(z_latest) - z_lag
+            out.append((r["code"], z_latest, delta_z, r["flag"]))
+    return out
+
+
+def _key_rows_by_sector(rows, code_to_sector, meta):
+    """rows: (code, z, dz, flag) -> keyed rows (sector_id, nom, z, dz, flag)."""
+    keyed = []
+    for code, z, dz, flag in rows:
+        sid = code_to_sector.get(code)
+        if sid is None:
+            continue
+        keyed.append((sid, meta.get(sid, {}).get("nom") or f"Secteur {sid}", z, dz, flag))
+    return keyed
+
+
 def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
     """rows: iterable of (territory_code, territory_name, z, delta_z, flag).
 
@@ -123,6 +162,123 @@ def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
             "outlook": None,
         })
     return territories
+
+
+def _fetch_month_rows_with_code(type_: str, month: str) -> list[tuple]:
+    """Past-month rows (code, z, delta_z, flag) from gold.fct_monthly_index.
+
+    z = index at `month`; delta_z = z(month) - z(month-3) read from the same table.
+    """
+    sql = text("""
+        WITH cur AS (
+            SELECT code, z, flag FROM gold.fct_monthly_index
+            WHERE type = :t AND month = date_trunc('month', :m::date)
+              AND index_class <> 'UNKNOWN'
+        ),
+        prev AS (
+            SELECT code, z FROM gold.fct_monthly_index
+            WHERE type = :t AND month = (date_trunc('month', :m::date) - INTERVAL '3 months')
+        )
+        SELECT cur.code, cur.z AS z, cur.flag,
+               (cur.z - prev.z) AS delta_z
+        FROM cur LEFT JOIN prev ON prev.code = cur.code
+    """)
+    engine = get_brgm_sync_engine()
+    out = []
+    with engine.connect() as conn:
+        for r in conn.execute(sql, {"t": type_, "m": f"{month}-01"}).mappings():
+            out.append((r["code"], r["z"], r["delta_z"], r["flag"]))
+    return out
+
+
+_CLASS_TO_IDX = {c: i for i, c in enumerate([
+    "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"])}
+_TREND_CODE = {"baisse": -1, "stable": 0, "hausse": 1}
+
+
+@router.get("/situation/sectors/timeline")
+def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
+    from api.services.sector_mapping import get_mapping
+    from dashboard.utils.territory_situation import MIN_ELIGIBLE
+
+    def fetch():
+        code_to_sector, meta = get_mapping(type)
+        sql = text("""
+            SELECT code, TO_CHAR(month, 'YYYY-MM') AS period, z, index_class, flag
+            FROM gold.fct_monthly_index
+            WHERE type = :t AND month >= '2000-01-01'
+            ORDER BY code, month
+        """)
+        engine = get_brgm_sync_engine()
+        per: dict[tuple, dict] = {}
+        prev_z: dict[str, dict] = {}
+        periods_set: set[str] = set()
+        with engine.connect() as conn:
+            for r in conn.execute(sql, {"t": type}).mappings():
+                sid = code_to_sector.get(r["code"])
+                if sid is None:
+                    continue
+                p = r["period"]
+                periods_set.add(p)
+                slot = per.setdefault((sid, p), {"z": [], "dz": []})
+                if r["flag"] in ("normale", "adaptee") and r["z"] is not None and r["index_class"] != "UNKNOWN":
+                    slot["z"].append(float(r["z"]))
+                    hist = prev_z.setdefault(r["code"], {})
+                    y, m = int(p[:4]), int(p[5:7])
+                    pm = m - 3
+                    py = y
+                    if pm <= 0:
+                        pm += 12
+                        py -= 1
+                    prior = hist.get(f"{py:04d}-{pm:02d}")
+                    if prior is not None:
+                        slot["dz"].append(float(r["z"]) - prior)
+                    hist[p] = float(r["z"])
+
+        periods = sorted(periods_set)
+        sectors: dict[str, list[int]] = {}
+        trends: dict[str, list[int]] = {}
+        sids = {sid for (sid, _p) in per.keys()}
+        for sid in sids:
+            cls_arr, trd_arr = [], []
+            for p in periods:
+                slot = per.get((sid, p))
+                if not slot or len(slot["z"]) < MIN_ELIGIBLE:
+                    cls_arr.append(7)
+                    trd_arr.append(0)
+                    continue
+                sit = aggregate_situation(slot["z"])
+                cls = sit["situation_class"]
+                cls_arr.append(_CLASS_TO_IDX.get(cls, 7) if cls else 7)
+                trd_arr.append(_TREND_CODE.get(aggregate_trend(slot["dz"]) or "stable", 0))
+            sectors[str(sid)] = cls_arr
+            trends[str(sid)] = trd_arr
+        return {"periods": periods, "sectors": sectors, "trends": trends}
+
+    return get_cached("obs_sectors_timeline", {"type": type}, 86400, fetch)
+
+
+@router.get("/situation/sectors")
+def get_sector_situation(
+    type: Literal["piezo", "hydro"] = Query("piezo"),
+    month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+):
+    from api.services.sector_mapping import get_mapping
+
+    def fetch():
+        code_to_sector, meta = get_mapping(type)
+        rows = (_fetch_month_rows_with_code(type, month) if month
+                else _fetch_station_rows_with_code(type))
+        keyed = _key_rows_by_sector(rows, code_to_sector, meta)
+        out = _eligible_rows_to_territories(keyed, "sector", type)
+        for t in out:
+            sid = t["code"]
+            t["code"] = str(sid)
+            t["tendancy_coord"] = meta.get(sid, {}).get("tendancy_coord")
+        out.sort(key=lambda t: t["name"])
+        return out
+
+    return get_cached("obs_situation_sectors", {"type": type, "month": month}, SITUATION_TTL, fetch)
 
 
 @router.get("/situation/territories", response_model=list[TerritorySituation])
