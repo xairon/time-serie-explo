@@ -164,6 +164,56 @@ def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
     return territories
 
 
+def _fetch_month_rows_with_code(type_: str, month: str) -> list[tuple]:
+    """Past-month rows (code, z, delta_z, flag) from gold.fct_monthly_index.
+
+    z = index at `month`; delta_z = z(month) - z(month-3) read from the same table.
+    """
+    sql = text("""
+        WITH cur AS (
+            SELECT code, z, flag FROM gold.fct_monthly_index
+            WHERE type = :t AND month = date_trunc('month', :m::date)
+              AND index_class <> 'UNKNOWN'
+        ),
+        prev AS (
+            SELECT code, z FROM gold.fct_monthly_index
+            WHERE type = :t AND month = (date_trunc('month', :m::date) - INTERVAL '3 months')
+        )
+        SELECT cur.code, cur.z AS z, cur.flag,
+               (cur.z - prev.z) AS delta_z
+        FROM cur LEFT JOIN prev ON prev.code = cur.code
+    """)
+    engine = get_brgm_sync_engine()
+    out = []
+    with engine.connect() as conn:
+        for r in conn.execute(sql, {"t": type_, "m": f"{month}-01"}).mappings():
+            out.append((r["code"], r["z"], r["delta_z"], r["flag"]))
+    return out
+
+
+@router.get("/situation/sectors")
+def get_sector_situation(
+    type: Literal["piezo", "hydro"] = Query("piezo"),
+    month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+):
+    from api.services.sector_mapping import get_mapping
+
+    def fetch():
+        code_to_sector, meta = get_mapping(type)
+        rows = (_fetch_month_rows_with_code(type, month) if month
+                else _fetch_station_rows_with_code(type))
+        keyed = _key_rows_by_sector(rows, code_to_sector, meta)
+        out = _eligible_rows_to_territories(keyed, "sector", type)
+        for t in out:
+            sid = t["code"]
+            t["code"] = str(sid)
+            t["tendancy_coord"] = meta.get(sid, {}).get("tendancy_coord")
+        out.sort(key=lambda t: t["name"])
+        return out
+
+    return get_cached("obs_situation_sectors", {"type": type, "month": month}, SITUATION_TTL, fetch)
+
+
 @router.get("/situation/territories", response_model=list[TerritorySituation])
 def get_territory_situation(
     level: Literal["region", "department"] = Query("region"),
