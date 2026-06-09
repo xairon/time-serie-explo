@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Optional
 
 import httpx
@@ -33,10 +32,19 @@ def parse_brgm_sectors(features: list[dict]) -> list[dict]:
         List of dicts with keys: sector_id, color, brgm_class, trend, ips,
         status, tendancy_coord.
     """
+    # The WFS returns every published 15-day window; keep only the most recent one
+    # (max end_period). Today's literal date is often past the last published window,
+    # so we never filter by "today" — we always take the latest available situation.
+    parents = [f for f in features if (f.get("properties") or {}).get("is_parent")]
+    end_periods = [(f["properties"].get("end_period")) for f in parents if f["properties"].get("end_period")]
+    if end_periods:
+        latest = max(end_periods)
+        parents = [f for f in parents if f["properties"].get("end_period") == latest]
+
     seen: set[int] = set()
     result: list[dict] = []
 
-    for feat in features:
+    for feat in parents:
         props = feat.get("properties") or {}
         if not props.get("is_parent"):
             continue
@@ -65,14 +73,11 @@ def parse_brgm_sectors(features: list[dict]) -> list[dict]:
 
 
 def _fetch_brgm_sectors() -> list[dict]:
-    """Fetch BRGM WFS and parse into sector attribute dicts (sync, ~60-120s)."""
-    today = date.today().isoformat()
+    """Fetch BRGM WFS (all communicated parent windows, attributes only) and parse
+    the latest published window. No date filter (today is often past the last
+    window). `propertyName` drops the heavy geometry (~788 KB vs ~100 MB)."""
     xml_filter = (
         '<Filter xmlns:gml="http://www.opengis.net/gml"><And>'
-        "<PropertyIsLessThanOrEqualTo><PropertyName>start_period</PropertyName>"
-        f"<Literal>{today}</Literal></PropertyIsLessThanOrEqualTo>"
-        "<PropertyIsGreaterThanOrEqualTo><PropertyName>end_period</PropertyName>"
-        f"<Literal>{today}</Literal></PropertyIsGreaterThanOrEqualTo>"
         "<PropertyIsEqualTo><PropertyName>communicate</PropertyName>"
         "<Literal>true</Literal></PropertyIsEqualTo>"
         "<PropertyIsEqualTo><PropertyName>is_parent</PropertyName>"
@@ -88,6 +93,7 @@ def _fetch_brgm_sectors() -> list[dict]:
         "outputFormat": "application/json",
         "typeName": "indicateur_bsn:view_global_indicator_details",
         "filter": xml_filter,
+        "propertyName": "sector_id,class,color,tendency,ips,status,tendancy_coord,end_period,is_parent",
     }
     resp = httpx.get(_BRGM_WFS_URL, params=params, timeout=120)
     resp.raise_for_status()
@@ -102,13 +108,12 @@ def get_brgm_sectors() -> list:
     On any network or parse error, returns an empty list so the frontend
     can fall back to our own IPS data without showing a hard error.
     """
-    today = date.today().isoformat()
-
     def fetch():
         return _fetch_brgm_sectors()
 
     try:
-        return get_cached("meteo_brgm_sectors", {"date": today}, _TTL, fetch)
+        # Cache key v2 (latest-window strategy); busts the stale empty v1 cache.
+        return get_cached("meteo_brgm_sectors", {"v": 2}, _TTL, fetch)
     except Exception as exc:
         logger.warning("BRGM WFS fetch/parse failed, returning []: %s", exc)
         return []
