@@ -92,6 +92,45 @@ def _fetch_station_rows(type_: str) -> list[tuple]:
     return out
 
 
+_STATION_SQL_WITH_CODE = {
+    "piezo": _STATION_SQL["piezo"].replace(
+        "SELECT s.code_departement AS dept,",
+        "SELECT s.code_bss AS code, s.code_departement AS dept,", 1),
+    "hydro": _STATION_SQL["hydro"].replace(
+        "SELECT s.code_departement AS dept,",
+        "SELECT s.code_station AS code, s.code_departement AS dept,", 1),
+}
+
+
+def _fetch_station_rows_with_code(type_: str) -> list[tuple]:
+    """-> list of (code, z_latest, delta_z, flag)."""
+    from dashboard.utils.reference import value_to_zscore
+    engine = get_brgm_sync_engine()
+    out: list[tuple] = []
+    with engine.connect() as conn:
+        result = conn.execute(text(_STATION_SQL_WITH_CODE[type_]), {"min_mois": RELIABLE_MIN_MOIS})
+        for r in result.mappings():
+            z_latest = r["z_latest"]
+            delta_z = None
+            if z_latest is not None and r["lag_value"] is not None and r["lag_grid"]:
+                z_lag = value_to_zscore(float(r["lag_value"]), list(r["lag_grid"]))
+                if z_lag is not None:
+                    delta_z = float(z_latest) - z_lag
+            out.append((r["code"], z_latest, delta_z, r["flag"]))
+    return out
+
+
+def _key_rows_by_sector(rows, code_to_sector, meta):
+    """rows: (code, z, dz, flag) -> keyed rows (sector_id, nom, z, dz, flag)."""
+    keyed = []
+    for code, z, dz, flag in rows:
+        sid = code_to_sector.get(code)
+        if sid is None:
+            continue
+        keyed.append((sid, meta.get(sid, {}).get("nom") or f"Secteur {sid}", z, dz, flag))
+    return keyed
+
+
 def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
     """rows: iterable of (territory_code, territory_name, z, delta_z, flag).
 
