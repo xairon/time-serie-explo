@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { SectorSituation, StationGeoJSONFeature } from '@/lib/observatory-types'
-import { METEO_CLASS_COLORS, meteoSectorColorPairs } from '@/lib/meteo-colors'
+import type { StationGeoJSONFeature } from '@/lib/observatory-types'
+import { METEO_CLASS_COLORS } from '@/lib/meteo-colors'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord } from '@/lib/sector-arrows'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
@@ -152,7 +152,8 @@ function stationsToGeoJSON(features: StationGeoJSONFeature[]) {
 }
 
 interface MeteoMapProps {
-  sectorSituation: SectorSituation[]
+  sectorColorById: Record<number, string>
+  sectorTrendById: Record<number, 'hausse' | 'stable' | 'baisse' | null>
   visibleLayers: { bsn: boolean; piezo: boolean; rain: boolean; hydro: boolean }
   piezoFeatures: StationGeoJSONFeature[]
   hydroFeatures: StationGeoJSONFeature[]
@@ -161,7 +162,8 @@ interface MeteoMapProps {
 }
 
 export function MeteoMap({
-  sectorSituation,
+  sectorColorById,
+  sectorTrendById,
   visibleLayers,
   piezoFeatures,
   hydroFeatures,
@@ -181,6 +183,10 @@ export function MeteoMap({
   // Feature refs so the init effect can seed sources without re-running.
   const piezoFeaturesRef = useRef<StationGeoJSONFeature[]>(piezoFeatures); piezoFeaturesRef.current = piezoFeatures
   const hydroFeaturesRef = useRef<StationGeoJSONFeature[]>(hydroFeatures); hydroFeaturesRef.current = hydroFeatures
+
+  // Loaded sector geometry — kept so arrows can be rebuilt from each feature's
+  // own sector_id + tendancy_coord against the active trend map.
+  const sectorGeoRef = useRef<GeoJSON.FeatureCollection | null>(null)
 
   // Init map (once)
   useEffect(() => {
@@ -262,6 +268,7 @@ export function MeteoMap({
       // Sector layers (added once after fetch).
       fetch('/geo/secteurs-bsh.geojson').then(r => r.json()).then((gj) => {
         if (!mapRef.current || map.getSource('secteurs-bsh')) return
+        sectorGeoRef.current = gj
         map.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
         map.addLayer({ id: 'secteurs-fill', type: 'fill', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'fill-color': SECTOR_INSUFFICIENT_COLOR, 'fill-opacity': 0.7 } })
         map.addLayer({ id: 'secteurs-line', type: 'line', source: 'secteurs-bsh', layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 0.6 } })
@@ -287,26 +294,36 @@ export function MeteoMap({
     return () => { map.remove(); mapRef.current = null; mapLoadedRef.current = false }
   }, [])
 
-  // Recolor sector choropleth + rebuild arrows when situation changes.
+  // Recolor sector choropleth + rebuild arrows when the active source's
+  // color/trend maps change. Fill is driven by an explicit sector_id → hex map
+  // (source-agnostic); arrows come from each geometry feature's own
+  // sector_id + tendancy_coord against the trend map.
   useEffect(() => {
     const m = mapRef.current
     if (!m || !mapLoadedRef.current || !m.getLayer('secteurs-fill')) return
-    const sits = sectorSituation ?? []
-    const pairs = meteoSectorColorPairs(sits)
+
+    const pairs: (number | string)[] = []
+    for (const [sid, hex] of Object.entries(sectorColorById)) {
+      pairs.push(Number(sid), hex)
+    }
     m.setPaintProperty('secteurs-fill', 'fill-color',
       pairs.length
         ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification)
         : SECTOR_INSUFFICIENT_COLOR)
-    const arrowFeatures = sits
-      .map((s) => {
-        const c = parseTendancyCoord(s.tendancy_coord)
-        const rot = s.trend != null ? TREND_ROTATION[s.trend] : undefined
-        if (!c || rot === undefined || s.insufficient) return null
+
+    const arrowFeatures = (sectorGeoRef.current?.features ?? [])
+      .map((f) => {
+        const sid = f.properties?.sector_id as number | undefined
+        if (sid == null) return null
+        const trend = sectorTrendById[sid]
+        const rot = trend != null ? TREND_ROTATION[trend] : undefined
+        const c = parseTendancyCoord(f.properties?.tendancy_coord as string | null | undefined)
+        if (!c || rot === undefined) return null
         return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { rot } }
       })
       .filter(Boolean) as GeoJSON.Feature[]
     ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures })
-  }, [sectorSituation, mapLoaded, sectorsReady])
+  }, [sectorColorById, sectorTrendById, mapLoaded, sectorsReady])
 
   // Sync piezo features.
   useEffect(() => {

@@ -384,3 +384,13 @@ export interface SectorTimeline {
   sectors: Record<string, number[]>
   trends: Record<string, number[]>
 }
+
+export interface BrgmSector {
+  sector_id: number
+  color: string
+  brgm_class: number
+  trend: 'hausse' | 'stable' | 'baisse' | null
+  ips: number | null
+  status: string | null
+  tendancy_coord: string | null
+}

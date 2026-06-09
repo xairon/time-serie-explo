@@ -371,3 +371,7 @@ export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean) {
 export function useSectorTimeline(type: 'piezo' | 'hydro', enabled: boolean) {
   return useQuery({ queryKey: ['obs-sectors-timeline', type], queryFn: () => situationApi.sectorsTimeline(type), enabled, staleTime: 3_600_000 * 24 })
 }
+
+export function useBrgmSectors(enabled: boolean) {
+  return useQuery({ queryKey: ['meteo-brgm-sectors'], queryFn: situationApi.brgmSectors, enabled, staleTime: 3_600_000 * 6 })
+}

@@ -1,8 +1,19 @@
-import { METEO_CLASS_COLORS, METEO_CLASS_LABELS, METEO_TREND_LABELS, meteoClassColor } from '@/lib/meteo-colors'
-import type { SectorSituation } from '@/lib/observatory-types'
+import { METEO_TREND_LABELS } from '@/lib/meteo-colors'
+
+interface SectorMetrics {
+  pctBelowNormal?: number | null
+  nEligible?: number
+  nProvisoire?: number
+  ips?: number | null
+}
 
 interface Props {
-  sector: SectorSituation
+  name: string
+  code: string
+  classLabel: string
+  trend: 'hausse' | 'stable' | 'baisse' | null
+  colorHex: string
+  metrics?: SectorMetrics
   onClose: () => void
 }
 
@@ -31,18 +42,8 @@ function TrendArrow({ trend }: { trend: string | null }) {
   )
 }
 
-function capitalize(s: string): string {
-  if (!s) return s
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-export function SectorPopup({ sector, onClose }: Props) {
-  const classKey = sector.situation_class ?? 'UNKNOWN'
-  const classColor = meteoClassColor(sector.situation_class)
-  const classLabel = capitalize(METEO_CLASS_LABELS[classKey] ?? METEO_CLASS_LABELS.UNKNOWN)
-  const trendLabel = sector.trend != null
-    ? (METEO_TREND_LABELS[sector.trend] ?? 'Inconnu')
-    : 'Inconnu'
+export function SectorPopup({ name, code, classLabel, trend, colorHex, metrics, onClose }: Props) {
+  const trendLabel = trend != null ? (METEO_TREND_LABELS[trend] ?? 'Inconnu') : 'Inconnu'
 
   return (
     <div className="bg-white rounded-lg shadow-lg border border-slate-200 w-64 text-slate-800">
@@ -51,11 +52,11 @@ export function SectorPopup({ sector, onClose }: Props) {
         <div className="min-w-0">
           <p
             className="text-sm font-semibold text-slate-800 truncate"
-            title={sector.name}
+            title={name}
           >
-            {sector.name}
+            {name}
           </p>
-          <p className="text-[11px] text-slate-400 font-mono">{sector.code}</p>
+          <p className="text-[11px] text-slate-400 font-mono">{code}</p>
         </div>
         <button
           onClick={onClose}
@@ -75,7 +76,7 @@ export function SectorPopup({ sector, onClose }: Props) {
         <div className="flex items-center gap-2">
           <span
             className="w-3 h-3 rounded-full flex-shrink-0"
-            style={{ backgroundColor: classColor }}
+            style={{ backgroundColor: colorHex }}
             aria-hidden="true"
           />
           <span className="text-xs text-slate-700">{classLabel}</span>
@@ -83,31 +84,37 @@ export function SectorPopup({ sector, onClose }: Props) {
 
         {/* Trend */}
         <div className="flex items-center gap-2">
-          <TrendArrow trend={sector.trend ?? null} />
+          <TrendArrow trend={trend} />
           <span className="text-xs text-slate-700">{trendLabel}</span>
         </div>
 
-        {/* % sous la normale */}
-        {sector.pct_below_normal != null && (
+        {/* IPS (BRGM source) */}
+        {metrics?.ips != null && (
           <div className="text-xs text-slate-600">
-            <span className="font-semibold">{sector.pct_below_normal.toFixed(0)} %</span>{' '}
+            <span className="font-semibold">IPS {metrics.ips}</span>
+          </div>
+        )}
+
+        {/* % sous la normale (IPS source) */}
+        {metrics?.pctBelowNormal != null && (
+          <div className="text-xs text-slate-600">
+            <span className="font-semibold">{metrics.pctBelowNormal.toFixed(0)} %</span>{' '}
             sous la normale
           </div>
         )}
 
-        {/* Station counts */}
-        <div className="text-xs text-slate-500">
-          <span className="font-medium text-slate-700">{sector.n_eligible}</span> station
-          {sector.n_eligible !== 1 ? 's' : ''} fiable{sector.n_eligible !== 1 ? 's' : ''}
-          {sector.n_provisoire > 0 && (
-            <span className="text-slate-400"> (+{sector.n_provisoire} provisoire{sector.n_provisoire !== 1 ? 's' : ''})</span>
-          )}
-        </div>
+        {/* Station counts (IPS source) */}
+        {metrics?.nEligible != null && (
+          <div className="text-xs text-slate-500">
+            <span className="font-medium text-slate-700">{metrics.nEligible}</span> station
+            {metrics.nEligible !== 1 ? 's' : ''} fiable{metrics.nEligible !== 1 ? 's' : ''}
+            {(metrics.nProvisoire ?? 0) > 0 && (
+              <span className="text-slate-400"> (+{metrics.nProvisoire} provisoire{metrics.nProvisoire !== 1 ? 's' : ''})</span>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
   )
 }
-
-// Suppress unused-import warning — METEO_CLASS_COLORS is used indirectly via meteoClassColor
-void METEO_CLASS_COLORS
