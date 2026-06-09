@@ -10,7 +10,10 @@ from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 from dashboard.utils.geo_sectors import point_in_geometry
 
-GEOJSON = Path(__file__).resolve().parents[2] / "frontend" / "public" / "geo" / "secteurs-bsh.geojson"
+# Backend copy of the sectors geojson. The frontend serves its own copy from
+# frontend/public/geo/; the backend Docker image ships api/data/ but NOT frontend/,
+# so the loader must read the api/data/ copy (both written by build_secteurs_bsh_geojson).
+GEOJSON = Path(__file__).resolve().parents[1] / "data" / "secteurs-bsh.geojson"
 
 
 def build_mapping(geojson: dict, stations: list[tuple]):

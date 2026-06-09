@@ -24,7 +24,10 @@ from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 from dashboard.utils.geo_sectors import point_in_geometry, dominant_label
 
+# Two copies: the frontend serves the public/ one; the backend (sector_mapping.py)
+# reads the api/data/ one, because the backend image ships api/ but not frontend/.
 OUT = Path("frontend/public/geo/secteurs-bsh.geojson")
+OUT_BACKEND = Path("api/data/secteurs-bsh.geojson")
 WFS = "https://app.meteeaunappes.brgm.fr/wfs/indicateur_bsn/ows"
 # Restrict to a SINGLE published snapshot (one 15-day window) so the WFS returns one
 # polygon per sector, not the same sector repeated for every period since 2025.
@@ -91,8 +94,10 @@ def main() -> int:
             "geometry": geom,
             "properties": {"sector_id": sid, "tendancy_coord": coord, "nom": nom},
         })
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({"type": "FeatureCollection", "features": out_features}))
+    payload = json.dumps({"type": "FeatureCollection", "features": out_features})
+    for dest in (OUT, OUT_BACKEND):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(payload)
     named = sum(1 for f in out_features if not f["properties"]["nom"].startswith("Secteur "))
     print(f"wrote {len(out_features)} sectors to {OUT} ({named} with an EH name)")
     assert len(out_features) >= 50, "expected ~66 parent sectors"
