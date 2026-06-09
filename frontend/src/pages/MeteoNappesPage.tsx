@@ -13,7 +13,7 @@ import {
   useSectorSituation,
   useSectorTimeline,
   useStationsGeoJSON,
-  useBrgmSectors,
+  useBrgmTimeline,
   useNationalSituation,
 } from '@/hooks/useObservatory'
 import {
@@ -25,7 +25,7 @@ import {
   summarizeAlert,
 } from '@/lib/meteo-colors'
 import { SECTOR_INSUFFICIENT_COLOR } from '@/lib/sector-arrows'
-import type { SectorSituation, SituationClass, StationGeoJSONFeature, BrgmSector } from '@/lib/observatory-types'
+import type { SectorSituation, SituationClass, StationGeoJSONFeature } from '@/lib/observatory-types'
 
 // 7-class index → enum (index 7 = no data / insufficient).
 const CLS = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT'] as const
@@ -57,8 +57,8 @@ export default function MeteoNappesPage() {
   const [selectedStation, setSelectedStation] = useState<{ code: string; type: 'piezo' | 'hydro' } | null>(null)
   const [focusSectorId, setFocusSectorId] = useState<number | null>(null)
 
-  // BRGM exact published per-sector colors/trend (default source).
-  const { data: brgmSectors } = useBrgmSectors(source === 'brgm')
+  // BRGM exact published per-sector colors/trend across monthly windows.
+  const { data: brgmTimeline } = useBrgmTimeline(source === 'brgm')
 
   // Our fixed-reference IPS (only fetched when that source is active).
   // BRGM météo des nappes is groundwater → 'piezo' sectors.
@@ -87,8 +87,8 @@ export default function MeteoNappesPage() {
     [geojsonData],
   )
 
-  // Latest published period; the slider defaults to it internally too.
-  const periods = timeline?.periods ?? []
+  // Periods for the active source; effective = explicit selection or latest.
+  const periods = source === 'brgm' ? (brgmTimeline?.periods ?? []) : (timeline?.periods ?? [])
   const effectivePeriod = selectedPeriod ?? (periods.length ? periods[periods.length - 1] : null)
 
   // Recolor the choropleth for the selected period (mirror ObservatoryPage).
@@ -116,12 +116,13 @@ export default function MeteoNappesPage() {
   // for the choropleth fill, the alert highlight and the critical list.
   const views = useMemo<SectorView[]>(() => {
     if (source === 'brgm') {
-      return (brgmSectors ?? []).map((b) => ({
-        sectorId: b.sector_id,
-        classEnum: BRGM_CLASS_TO_ENUM[b.brgm_class] ?? 'UNKNOWN',
-        trend: b.trend,
-        colorHex: b.color,
-        name: nameById[b.sector_id] ?? `Secteur ${b.sector_id}`,
+      const window = (effectivePeriod && brgmTimeline?.windows[effectivePeriod]) || {}
+      return Object.entries(window).map(([sidStr, w]) => ({
+        sectorId: Number(sidStr),
+        classEnum: BRGM_CLASS_TO_ENUM[w.brgm_class] ?? 'UNKNOWN',
+        trend: w.trend,
+        colorHex: w.color,
+        name: nameById[Number(sidStr)] ?? `Secteur ${sidStr}`,
       }))
     }
     return displaySectorSituation.map((s) => {
@@ -134,7 +135,7 @@ export default function MeteoNappesPage() {
         name: nameById[sid] ?? s.name,
       }
     })
-  }, [source, brgmSectors, displaySectorSituation, nameById])
+  }, [source, brgmTimeline, effectivePeriod, displaySectorSituation, nameById])
 
   // Derive everything the map/alert UI needs from the normalized views.
   const { sectorColorById, sectorTrendById, alertSectorIds, criticalList, alertSummary } = useMemo(() => {
@@ -187,7 +188,7 @@ export default function MeteoNappesPage() {
     setSelectedSectorId(null)
     setSelectedStation(null)
     setFocusSectorId(null)
-    if (next === 'brgm') setSelectedPeriod(null)
+    setSelectedPeriod(null)
   }, [])
 
   // Select + fly-to a sector from the critical list.
@@ -199,11 +200,13 @@ export default function MeteoNappesPage() {
     setSelectedStation(null)
   }, [nameById])
 
-  // Sector geometry carries `nom`; the click handler passes it through.
-  const selectedBrgm = useMemo<BrgmSector | null>(() => {
+  // Selected BRGM sector for the active period (from the timeline window).
+  const selectedBrgm = useMemo(() => {
     if (selectedSectorId == null || source !== 'brgm') return null
-    return (brgmSectors ?? []).find((b) => b.sector_id === selectedSectorId) ?? null
-  }, [brgmSectors, selectedSectorId, source])
+    const w = (effectivePeriod && brgmTimeline?.windows[effectivePeriod]?.[String(selectedSectorId)]) || null
+    if (!w) return null
+    return { sector_id: selectedSectorId, brgm_class: w.brgm_class, trend: w.trend, color: w.color, ips: null as number | null }
+  }, [brgmTimeline, effectivePeriod, selectedSectorId, source])
 
   const selectedIps = useMemo<SectorSituation | null>(() => {
     if (selectedSectorId == null || source !== 'ips') return null
@@ -305,8 +308,8 @@ export default function MeteoNappesPage() {
         <MeteoCriticalList sectors={criticalList} onSelect={handleSelectSector} />
       </div>
 
-      {/* Slider only for our IPS source (BRGM = current published snapshot). */}
-      {source === 'ips' && (
+      {/* Monthly window slider — both sources are period-aware. */}
+      {periods.length > 0 && (
         <SituationTimelineSlider periods={periods} selectedPeriod={effectivePeriod} onChange={setSelectedPeriod} />
       )}
 

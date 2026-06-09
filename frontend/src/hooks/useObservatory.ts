@@ -376,6 +376,10 @@ export function useBrgmSectors(enabled: boolean) {
   return useQuery({ queryKey: ['meteo-brgm-sectors'], queryFn: situationApi.brgmSectors, enabled, staleTime: 3_600_000 * 6 })
 }
 
+export function useBrgmTimeline(enabled: boolean) {
+  return useQuery({ queryKey: ['meteo-brgm-timeline'], queryFn: situationApi.brgmTimeline, enabled, staleTime: 3_600_000 * 6 })
+}
+
 export function useNationalSituation(type: 'piezo' | 'hydro', enabled: boolean) {
   return useQuery({ queryKey: ['obs-national', type], queryFn: () => situationApi.national(type), enabled, staleTime: 3_600_000 * 6 })
 }

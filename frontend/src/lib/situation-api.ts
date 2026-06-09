@@ -1,5 +1,5 @@
 import { fetchJson } from './observatory-api'
-import type { NationalSituation, TerritorySituation, SectorSituation, SectorTimeline, BrgmSector } from './observatory-types'
+import type { NationalSituation, TerritorySituation, SectorSituation, SectorTimeline, BrgmSector, BrgmTimeline } from './observatory-types'
 
 export const situationApi = {
   national: (type: 'piezo' | 'hydro') =>
@@ -12,4 +12,6 @@ export const situationApi = {
     fetchJson<SectorTimeline>('/observatory/situation/sectors/timeline', { type }),
   brgmSectors: () =>
     fetchJson<BrgmSector[]>('/observatory/meteo/brgm-sectors'),
+  brgmTimeline: () =>
+    fetchJson<BrgmTimeline>('/observatory/meteo/brgm-timeline'),
 }

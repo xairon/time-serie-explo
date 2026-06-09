@@ -394,3 +394,14 @@ export interface BrgmSector {
   status: string | null
   tendancy_coord: string | null
 }
+
+export interface BrgmTimeline {
+  periods: string[]
+  windows: Record<
+    string,
+    Record<
+      string,
+      { color: string; brgm_class: number; trend: 'hausse' | 'stable' | 'baisse' | null; tendancy_coord: string | null }
+    >
+  >
+}
