@@ -1,13 +1,29 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { MeteoMap } from '@/components/meteo/MeteoMap'
 import { MeteoLayersPanel } from '@/components/meteo/MeteoLayersPanel'
 import type { LayerKey } from '@/components/meteo/MeteoLayersPanel'
 import { MeteoLegend } from '@/components/meteo/MeteoLegend'
+import { MeteoNationalBanner } from '@/components/meteo/MeteoNationalBanner'
+import { MeteoCriticalList } from '@/components/meteo/MeteoCriticalList'
 import { SituationTimelineSlider } from '@/components/meteo/SituationTimelineSlider'
 import { SectorPopup } from '@/components/meteo/SectorPopup'
 import { StationPopup } from '@/components/meteo/StationPopup'
-import { useSectorSituation, useSectorTimeline, useStationsGeoJSON, useBrgmSectors } from '@/hooks/useObservatory'
-import { meteoClassColor, METEO_CLASS_LABELS } from '@/lib/meteo-colors'
+import {
+  useSectorSituation,
+  useSectorTimeline,
+  useStationsGeoJSON,
+  useBrgmSectors,
+  useNationalSituation,
+} from '@/hooks/useObservatory'
+import {
+  meteoClassColor,
+  METEO_CLASS_LABELS,
+  BRGM_CLASS_TO_ENUM,
+  isCriticalClass,
+  classSeverityRank,
+  summarizeAlert,
+} from '@/lib/meteo-colors'
 import { SECTOR_INSUFFICIENT_COLOR } from '@/lib/sector-arrows'
 import type { SectorSituation, SituationClass, StationGeoJSONFeature, BrgmSector } from '@/lib/observatory-types'
 
@@ -15,32 +31,31 @@ import type { SectorSituation, SituationClass, StationGeoJSONFeature, BrgmSector
 const CLS = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT'] as const
 const TR: Record<number, 'baisse' | 'stable' | 'hausse'> = { [-1]: 'baisse', [0]: 'stable', [1]: 'hausse' }
 
-// BRGM published class index (0=no aquifer / grey) → our 7-enum + UNKNOWN.
-const brgmClassToEnum: Record<number, string> = {
-  0: 'UNKNOWN',
-  1: 'EXTREMEMENT_BAS',
-  2: 'TRES_BAS',
-  3: 'BAS',
-  4: 'NORMAL',
-  5: 'HAUT',
-  6: 'TRES_HAUT',
-  7: 'EXTREMEMENT_HAUT',
-}
-
 function capitalize(s: string): string {
   if (!s) return s
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 type Source = 'brgm' | 'ips'
+type Trend = 'hausse' | 'stable' | 'baisse' | null
+
+interface SectorView {
+  sectorId: number
+  classEnum: string | null
+  trend: Trend
+  colorHex: string
+  name: string
+}
 
 export default function MeteoNappesPage() {
   const [source, setSource] = useState<Source>('brgm')
-  const [visible, setVisible] = useState<Record<LayerKey, boolean>>({ bsn: true, piezo: true, rain: false, hydro: false })
+  // Stations OFF by default — only the sector choropleth shows initially.
+  const [visible, setVisible] = useState<Record<LayerKey, boolean>>({ bsn: true, piezo: false, rain: false, hydro: false })
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
   const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null)
   const [selectedSectorName, setSelectedSectorName] = useState<string | null>(null)
   const [selectedStation, setSelectedStation] = useState<{ code: string; type: 'piezo' | 'hydro' } | null>(null)
+  const [focusSectorId, setFocusSectorId] = useState<number | null>(null)
 
   // BRGM exact published per-sector colors/trend (default source).
   const { data: brgmSectors } = useBrgmSectors(source === 'brgm')
@@ -49,7 +64,19 @@ export default function MeteoNappesPage() {
   // BRGM météo des nappes is groundwater → 'piezo' sectors.
   const { data: sectorSituationData } = useSectorSituation('piezo', source === 'ips')
   const { data: timeline } = useSectorTimeline('piezo', source === 'ips')
+  const { data: national } = useNationalSituation('piezo', source === 'ips')
   const { data: geojsonData } = useStationsGeoJSON()
+
+  // BRGM records carry no sector name — fetch the geojson once to map id → nom.
+  const { data: sectorGeo } = useQuery({
+    queryKey: ['secteurs-bsh-geo'],
+    queryFn: () => fetch('/geo/secteurs-bsh.geojson').then((r) => r.json()),
+    staleTime: Infinity,
+  })
+  const nameById: Record<number, string> = useMemo(
+    () => Object.fromEntries((sectorGeo?.features ?? []).map((f: any) => [f.properties.sector_id, f.properties.nom])),
+    [sectorGeo],
+  )
 
   const piezoFeatures = useMemo<StationGeoJSONFeature[]>(
     () => (geojsonData?.features ?? []).filter((f) => f.properties.type === 'piezo'),
@@ -85,24 +112,61 @@ export default function MeteoNappesPage() {
     })
   }, [sectorSituationData, timeline, effectivePeriod, periods])
 
-  // Source-agnostic explicit fill + trend maps consumed by MeteoMap.
-  const { sectorColorById, sectorTrendById } = useMemo(() => {
-    const colorById: Record<number, string> = {}
-    const trendById: Record<number, 'hausse' | 'stable' | 'baisse' | null> = {}
+  // Normalized per-sector views for the active source — single source of truth
+  // for the choropleth fill, the alert highlight and the critical list.
+  const views = useMemo<SectorView[]>(() => {
     if (source === 'brgm') {
-      for (const b of brgmSectors ?? []) {
-        colorById[b.sector_id] = b.color
-        trendById[b.sector_id] = b.trend
-      }
-    } else {
-      for (const s of displaySectorSituation) {
-        const sid = Number(s.code)
-        colorById[sid] = s.insufficient ? SECTOR_INSUFFICIENT_COLOR : meteoClassColor(s.situation_class)
-        trendById[sid] = s.trend
-      }
+      return (brgmSectors ?? []).map((b) => ({
+        sectorId: b.sector_id,
+        classEnum: BRGM_CLASS_TO_ENUM[b.brgm_class] ?? 'UNKNOWN',
+        trend: b.trend,
+        colorHex: b.color,
+        name: nameById[b.sector_id] ?? `Secteur ${b.sector_id}`,
+      }))
     }
-    return { sectorColorById: colorById, sectorTrendById: trendById }
-  }, [source, brgmSectors, displaySectorSituation])
+    return displaySectorSituation.map((s) => {
+      const sid = Number(s.code)
+      return {
+        sectorId: sid,
+        classEnum: s.insufficient ? 'UNKNOWN' : s.situation_class,
+        trend: s.trend,
+        colorHex: s.insufficient ? SECTOR_INSUFFICIENT_COLOR : meteoClassColor(s.situation_class),
+        name: nameById[sid] ?? s.name,
+      }
+    })
+  }, [source, brgmSectors, displaySectorSituation, nameById])
+
+  // Derive everything the map/alert UI needs from the normalized views.
+  const { sectorColorById, sectorTrendById, alertSectorIds, criticalList, alertSummary } = useMemo(() => {
+    const colorById: Record<number, string> = {}
+    const trendById: Record<number, Trend> = {}
+    for (const v of views) {
+      colorById[v.sectorId] = v.colorHex
+      trendById[v.sectorId] = v.trend
+    }
+    const alertIds = views.filter((v) => isCriticalClass(v.classEnum)).map((v) => v.sectorId)
+    const list = views
+      .filter((v) => isCriticalClass(v.classEnum))
+      .sort(
+        (a, b) =>
+          classSeverityRank(a.classEnum) - classSeverityRank(b.classEnum) || a.name.localeCompare(b.name),
+      )
+      .map((v) => ({
+        code: String(v.sectorId),
+        name: v.name,
+        classLabel: METEO_CLASS_LABELS[v.classEnum ?? 'UNKNOWN'] ?? '',
+        colorHex: v.colorHex,
+        trend: v.trend,
+      }))
+    const summary = summarizeAlert(views.map((v) => ({ classEnum: v.classEnum, trend: v.trend })))
+    return {
+      sectorColorById: colorById,
+      sectorTrendById: trendById,
+      alertSectorIds: alertIds,
+      criticalList: list,
+      alertSummary: summary,
+    }
+  }, [views])
 
   const onSectorClick = useCallback((id: number, _name: string) => {
     setSelectedSectorId(id)
@@ -122,8 +186,18 @@ export default function MeteoNappesPage() {
     setSource(next)
     setSelectedSectorId(null)
     setSelectedStation(null)
+    setFocusSectorId(null)
     if (next === 'brgm') setSelectedPeriod(null)
   }, [])
+
+  // Select + fly-to a sector from the critical list.
+  const handleSelectSector = useCallback((code: string) => {
+    const id = Number(code)
+    setFocusSectorId(id)
+    setSelectedSectorId(id)
+    setSelectedSectorName(nameById[id] ?? null)
+    setSelectedStation(null)
+  }, [nameById])
 
   // Sector geometry carries `nom`; the click handler passes it through.
   const selectedBrgm = useMemo<BrgmSector | null>(() => {
@@ -145,9 +219,9 @@ export default function MeteoNappesPage() {
   // Build SectorPopup props for whichever source is active.
   const sectorPopupProps = useMemo(() => {
     if (selectedBrgm) {
-      const classKey = brgmClassToEnum[selectedBrgm.brgm_class] ?? 'UNKNOWN'
+      const classKey = BRGM_CLASS_TO_ENUM[selectedBrgm.brgm_class] ?? 'UNKNOWN'
       return {
-        name: selectedSectorName ?? '',
+        name: selectedSectorName ?? nameById[selectedBrgm.sector_id] ?? '',
         code: String(selectedBrgm.sector_id),
         classLabel: capitalize(METEO_CLASS_LABELS[classKey] ?? METEO_CLASS_LABELS.UNKNOWN),
         trend: selectedBrgm.trend,
@@ -171,7 +245,7 @@ export default function MeteoNappesPage() {
       }
     }
     return null
-  }, [selectedBrgm, selectedIps, selectedSectorName])
+  }, [selectedBrgm, selectedIps, selectedSectorName, nameById])
 
   // Capture the clicked sector's display name (BRGM record has no name).
   const onSectorClickWithName = useCallback((id: number, name: string) => {
@@ -184,17 +258,29 @@ export default function MeteoNappesPage() {
       <MeteoMap
         sectorColorById={sectorColorById}
         sectorTrendById={sectorTrendById}
+        alertSectorIds={alertSectorIds}
+        focusSectorId={focusSectorId}
         visibleLayers={visible}
         piezoFeatures={piezoFeatures}
         hydroFeatures={hydroFeatures}
         onSectorClick={onSectorClickWithName}
         onStationClick={onStationClick}
       />
-      <MeteoLayersPanel visible={visible} onToggle={onToggle} />
-      <MeteoLegend />
 
-      {/* Data-source toggle */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex rounded-lg bg-white shadow-md border border-slate-200 overflow-hidden text-xs font-medium">
+      {/* National summary banner — top, full-width. */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[min(96vw,900px)] z-20">
+        <MeteoNationalBanner
+          dominantClassLabel={alertSummary.dominantClassLabel}
+          dominantColorHex={meteoClassColor(alertSummary.dominantClass as any)}
+          trendSummary={alertSummary.trendSummary}
+          criticalCount={alertSummary.criticalCount}
+          totalSectors={views.length}
+          pctBelowNormal={source === 'ips' ? (national?.pct_below_normal ?? null) : null}
+        />
+      </div>
+
+      {/* Data-source toggle — just below the banner, right-aligned. */}
+      <div className="absolute top-[72px] left-1/2 translate-x-[calc(min(48vw,450px)-100%)] z-20 flex rounded-lg bg-white shadow-md border border-slate-200 overflow-hidden text-xs font-medium">
         <button
           onClick={() => onSourceChange('brgm')}
           className={`px-3 py-2 transition-colors ${source === 'brgm' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -209,6 +295,14 @@ export default function MeteoNappesPage() {
         >
           Notre IPS (réf. fixe)
         </button>
+      </div>
+
+      <MeteoLayersPanel visible={visible} onToggle={onToggle} />
+      <MeteoLegend />
+
+      {/* Critical-sectors list — left panel, stacked below the layers panel. */}
+      <div className="absolute top-[290px] left-3 z-10 w-64">
+        <MeteoCriticalList sectors={criticalList} onSelect={handleSelectSector} />
       </div>
 
       {/* Slider only for our IPS source (BRGM = current published snapshot). */}
