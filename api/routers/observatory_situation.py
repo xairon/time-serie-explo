@@ -191,6 +191,73 @@ def _fetch_month_rows_with_code(type_: str, month: str) -> list[tuple]:
     return out
 
 
+_CLASS_TO_IDX = {c: i for i, c in enumerate([
+    "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"])}
+_TREND_CODE = {"baisse": -1, "stable": 0, "hausse": 1}
+
+
+@router.get("/situation/sectors/timeline")
+def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
+    from api.services.sector_mapping import get_mapping
+    from dashboard.utils.territory_situation import MIN_ELIGIBLE
+
+    def fetch():
+        code_to_sector, meta = get_mapping(type)
+        sql = text("""
+            SELECT code, TO_CHAR(month, 'YYYY-MM') AS period, z, index_class, flag
+            FROM gold.fct_monthly_index
+            WHERE type = :t AND month >= '2000-01-01'
+            ORDER BY code, month
+        """)
+        engine = get_brgm_sync_engine()
+        per: dict[tuple, dict] = {}
+        prev_z: dict[str, dict] = {}
+        periods_set: set[str] = set()
+        with engine.connect() as conn:
+            for r in conn.execute(sql, {"t": type}).mappings():
+                sid = code_to_sector.get(r["code"])
+                if sid is None:
+                    continue
+                p = r["period"]
+                periods_set.add(p)
+                slot = per.setdefault((sid, p), {"z": [], "dz": []})
+                if r["flag"] in ("normale", "adaptee") and r["z"] is not None and r["index_class"] != "UNKNOWN":
+                    slot["z"].append(float(r["z"]))
+                    hist = prev_z.setdefault(r["code"], {})
+                    y, m = int(p[:4]), int(p[5:7])
+                    pm = m - 3
+                    py = y
+                    if pm <= 0:
+                        pm += 12
+                        py -= 1
+                    prior = hist.get(f"{py:04d}-{pm:02d}")
+                    if prior is not None:
+                        slot["dz"].append(float(r["z"]) - prior)
+                    hist[p] = float(r["z"])
+
+        periods = sorted(periods_set)
+        sectors: dict[str, list[int]] = {}
+        trends: dict[str, list[int]] = {}
+        sids = {sid for (sid, _p) in per.keys()}
+        for sid in sids:
+            cls_arr, trd_arr = [], []
+            for p in periods:
+                slot = per.get((sid, p))
+                if not slot or len(slot["z"]) < MIN_ELIGIBLE:
+                    cls_arr.append(7)
+                    trd_arr.append(0)
+                    continue
+                sit = aggregate_situation(slot["z"])
+                cls = sit["situation_class"]
+                cls_arr.append(_CLASS_TO_IDX.get(cls, 7) if cls else 7)
+                trd_arr.append(_TREND_CODE.get(aggregate_trend(slot["dz"]) or "stable", 0))
+            sectors[str(sid)] = cls_arr
+            trends[str(sid)] = trd_arr
+        return {"periods": periods, "sectors": sectors, "trends": trends}
+
+    return get_cached("obs_sectors_timeline", {"type": type}, 86400, fetch)
+
+
 @router.get("/situation/sectors")
 def get_sector_situation(
     type: Literal["piezo", "hydro"] = Query("piezo"),
