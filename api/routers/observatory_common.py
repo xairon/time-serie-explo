@@ -326,10 +326,8 @@ def get_national_stats():
 
 @router.get("/classifications/timeline")
 def get_classification_timeline():
-    """Monthly classification timeline for all stations.
-
-    Uses calendar-month percentile ranking: each month's value is compared
-    against all values for the *same calendar month* across all years.
+    """Monthly classification timeline for all stations, read from the
+    fixed-reference index gold.fct_monthly_index.
 
     Returns compact format: periods[] + stations dict with integer arrays.
     Classification codes: 0=EXTREMEMENT_BAS, 1=TRES_BAS, 2=BAS, 3=NORMAL,
@@ -337,78 +335,25 @@ def get_classification_timeline():
     """
 
     def fetch():
-        piezo_query = """
-            WITH ranked AS (
-                SELECT code_bss AS code,
-                       TO_CHAR(mois, 'YYYY-MM') AS period,
-                       PERCENT_RANK() OVER (
-                           PARTITION BY code_bss, EXTRACT(MONTH FROM mois)
-                           ORDER BY niveau_moyen
-                       ) AS pctile
-                FROM gold.fct_monthly_chroniques
-                WHERE niveau_moyen IS NOT NULL AND mois >= '2000-01-01'
-            )
-            SELECT code, period,
-                CASE
-                    WHEN pctile < 0.05 THEN 0
-                    WHEN pctile < 0.10 THEN 1
-                    WHEN pctile < 0.25 THEN 2
-                    WHEN pctile < 0.75 THEN 3
-                    WHEN pctile < 0.90 THEN 4
-                    WHEN pctile < 0.95 THEN 5
-                    ELSE 6
-                END AS cls
-            FROM ranked
-            ORDER BY code, period
-        """
-        hydro_query = """
-            WITH ranked AS (
-                SELECT code_station AS code,
-                       TO_CHAR(mois, 'YYYY-MM') AS period,
-                       PERCENT_RANK() OVER (
-                           PARTITION BY code_station, EXTRACT(MONTH FROM mois)
-                           ORDER BY resultat_moyen
-                       ) AS pctile
-                FROM gold.fct_monthly_hydro
-                WHERE resultat_moyen IS NOT NULL AND mois >= '2000-01-01'
-            )
-            SELECT code, period,
-                CASE
-                    WHEN pctile < 0.05 THEN 0
-                    WHEN pctile < 0.10 THEN 1
-                    WHEN pctile < 0.25 THEN 2
-                    WHEN pctile < 0.75 THEN 3
-                    WHEN pctile < 0.90 THEN 4
-                    WHEN pctile < 0.95 THEN 5
-                    ELSE 6
-                END AS cls
-            FROM ranked
-            ORDER BY code, period
-        """
-
+        query = text("""
+            SELECT code, TO_CHAR(month, 'YYYY-MM') AS period, index_class
+            FROM gold.fct_monthly_index
+            WHERE month >= '2000-01-01'
+            ORDER BY code, month
+        """)
+        cls_to_idx = {
+            "EXTREMEMENT_BAS": 0, "TRES_BAS": 1, "BAS": 2, "NORMAL": 3,
+            "HAUT": 4, "TRES_HAUT": 5, "EXTREMEMENT_HAUT": 6,
+        }
         periods_set: set[str] = set()
         station_periods: dict[str, dict[str, int]] = {}
-
         engine = get_brgm_sync_engine()
-        try:
-            with engine.connect() as conn:
-                for row in conn.execute(text(piezo_query)).mappings():
-                    periods_set.add(row["period"])
-                    station_periods.setdefault(row["code"], {})[row["period"]] = row["cls"]
-
-                for row in conn.execute(text(hydro_query)).mappings():
-                    periods_set.add(row["period"])
-                    station_periods.setdefault(row["code"], {})[row["period"]] = row["cls"]
-        finally:
-            pass  # shared pooled engine; do not dispose
-
+        with engine.connect() as conn:
+            for row in conn.execute(query).mappings():
+                periods_set.add(row["period"])
+                station_periods.setdefault(row["code"], {})[row["period"]] = cls_to_idx.get(row["index_class"], 7)
         periods = sorted(periods_set)
-
-        stations = {
-            code: [vals.get(p, 7) for p in periods]
-            for code, vals in station_periods.items()
-        }
-
+        stations = {code: [vals.get(p, 7) for p in periods] for code, vals in station_periods.items()}
         return {"periods": periods, "stations": stations}
 
     return get_cached("obs_timeline", {}, TIMELINE_TTL, fetch)
