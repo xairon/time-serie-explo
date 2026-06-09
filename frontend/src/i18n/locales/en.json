@@ -227,7 +227,11 @@
       "lakes": "Lakes",
       "waterBodiesDce": "Water bodies (WFD)",
       "piezo": "Piezo",
-      "hydro": "Hydro"
+      "hydro": "Hydro",
+      "sectorsMeteo": "Groundwater weather (sectors)",
+      "groupMeteo": "Synthesis",
+      "sectorLegendTitle": "Situation by sector",
+      "sectorNoData": "Insufficient data"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",
@@ -1732,27 +1736,6 @@
     }
   },
   "meteo": {
-    "title": "Groundwater weather",
-    "subtitle": "Water-resource situation and trend by territory",
-    "tabPiezo": "Aquifers",
-    "tabHydro": "Rivers",
-    "belowNormal": "{{pct}}% below normal",
-    "departmentsInAlert": "{{count}} departments in alert",
-    "trendGeneral": "Overall trend",
-    "insufficient": "Insufficient data",
-    "insufficientHint": "Not enough reliable stations for a verdict",
-    "provisoireHint": "{{count}} unclassified stations (provisional reference)",
-    "rankingTitle": "Most critical territories",
-    "backToRegions": "← All regions",
-    "stationsIn": "Stations — {{name}}",
-    "outlookTitle": "AI anticipation",
-    "outlookSoon": "Coming soon: 1–3 month projection from the app's models",
-    "trend": { "hausse": "rising", "stable": "stable", "baisse": "falling" },
-    "class": {
-      "EXTREMEMENT_BAS": "Extremely low", "TRES_BAS": "Very low", "BAS": "Low",
-      "NORMAL": "Normal", "HAUT": "High", "TRES_HAUT": "Very high",
-      "EXTREMEMENT_HAUT": "Extremely high"
-    },
-    "loadError": "Could not load groundwater weather"
+    "trend": { "hausse": "rising", "stable": "stable", "baisse": "falling" }
   }
 }
