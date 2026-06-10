@@ -46,6 +46,32 @@ export function AboutModal({ onClose }: Props) {
             Situation Hydrologique (BSH), © BRGM / Eaufrance. Les mesures piézométriques
             proviennent du réseau ADES (Hub'Eau).
           </p>
+          <div>
+            <p className="font-semibold text-slate-700 mb-1">
+              Pourquoi la carte peut différer du bulletin MétéEAU Nappes officiel ?
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-[13px]">
+              <li>
+                <strong>Période de référence</strong> : nos indicateurs sont calculés sur la
+                normale fixe 1991-2020 ; le BRGM situe chaque mois par rapport à
+                l'ensemble de la chronique disponible de chaque piézomètre.
+              </li>
+              <li>
+                <strong>Jeu de stations</strong> : le bulletin officiel repose sur un réseau
+                restreint de piézomètres sélectionnés et qualifiés par des hydrogéologues ;
+                nous utilisons l'ensemble des stations ADES disposant d'un historique suffisant.
+              </li>
+              <li>
+                <strong>Agrégation</strong> : la classe d'un secteur est ici la médiane
+                automatique des stations qui le composent ; le bulletin BRGM est validé et
+                ajusté par des experts régionaux avant publication.
+              </li>
+              <li>
+                <strong>Date de calcul</strong> : le bulletin décrit la situation au 1er du
+                mois ; notre carte agrège les mesures de l'ensemble du mois.
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
