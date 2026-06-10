@@ -1,20 +1,28 @@
 // frontend/src/components/meteo/MeteoDatePicker.tsx
 // Month/year picker over the full data history (our edge over the original).
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FR_MONTHS_SHORT } from '@/lib/meteo-timeline'
 
 interface Props {
-  periods: string[]          // all available 'YYYY-MM', ascending
+  periods: string[]          // all available 'YYYY-MM', ascending — must be non-empty
   selected: string
   onSelect: (p: string) => void
   onClose: () => void
 }
 
 export function MeteoDatePicker({ periods, selected, onSelect, onClose }: Props) {
+  const [year, setYear] = useState(Number(selected.split('-')[0]))
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (periods.length === 0) return null
   const available = new Set(periods)
   const firstYear = Number(periods[0].split('-')[0])
   const lastYear = Number(periods[periods.length - 1].split('-')[0])
-  const [year, setYear] = useState(Number(selected.split('-')[0]))
 
   return (
     <div className="absolute bottom-12 left-0 z-30 bg-white rounded-lg shadow-lg border border-slate-200 p-3 w-60">
