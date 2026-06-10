@@ -47,6 +47,7 @@ export function formatPeriodLongFR(period: string): string {
 
 /**
  * Build the rolling window of timeline cells.
+ * @param allPeriods 'YYYY-MM' strings sorted ascending (as served by the timeline API).
  * - Default: `size` months ending at the latest data month, plus `futureSlots`
  *   greyed calendar months after it (the original's forecast slots).
  * - If `selected` falls before that window, the window is re-centered on it.
