@@ -25,7 +25,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:8000',
+      // Override with e.g. VITE_PROXY_TARGET=http://localhost:49514 to hit a deployed API.
+      '/api': process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
     },
   },
 })
