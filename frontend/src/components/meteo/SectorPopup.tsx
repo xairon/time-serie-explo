@@ -1,10 +1,10 @@
 import { METEO_TREND_LABELS } from '@/lib/meteo-colors'
+import { TrendBadge } from './TrendBadge'
 
 interface SectorMetrics {
   pctBelowNormal?: number | null
   nEligible?: number
   nProvisoire?: number
-  ips?: number | null
 }
 
 interface Props {
@@ -15,31 +15,6 @@ interface Props {
   colorHex: string
   metrics?: SectorMetrics
   onClose: () => void
-}
-
-// Trend arrow SVG (14×14), rotated per trend value
-function TrendArrow({ trend }: { trend: string | null }) {
-  const rotation = trend === 'hausse' ? 0 : trend === 'stable' ? 90 : trend === 'baisse' ? 180 : null
-  if (rotation === null) {
-    return <span className="inline-block w-3.5 text-center text-slate-400 font-bold text-xs">–</span>
-  }
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      aria-hidden="true"
-      style={{ transform: `rotate(${rotation}deg)`, flexShrink: 0 }}
-    >
-      <path
-        d="M7 2.5 L12 11 L2 11 Z"
-        fill="#0f172a"
-        stroke="#fff"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
 }
 
 export function SectorPopup({ name, code, classLabel, trend, colorHex, metrics, onClose }: Props) {
@@ -84,16 +59,9 @@ export function SectorPopup({ name, code, classLabel, trend, colorHex, metrics, 
 
         {/* Trend */}
         <div className="flex items-center gap-2">
-          <TrendArrow trend={trend} />
+          <TrendBadge kind={trend ?? 'inconnu'} size={16} />
           <span className="text-xs text-slate-700">{trendLabel}</span>
         </div>
-
-        {/* IPS (BRGM source) */}
-        {metrics?.ips != null && (
-          <div className="text-xs text-slate-600">
-            <span className="font-semibold">IPS {metrics.ips}</span>
-          </div>
-        )}
 
         {/* % sous la normale (IPS source) */}
         {metrics?.pctBelowNormal != null && (
