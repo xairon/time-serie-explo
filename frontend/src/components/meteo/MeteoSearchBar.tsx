@@ -60,12 +60,15 @@ export function MeteoSearchBar({ stations, onSelect }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [open, setOpen] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const fetchIdRef = useRef(0)
 
   useEffect(() => {
     clearTimeout(debounceRef.current)
     if (q.trim().length < 3) { setSuggestions([]); return }
     debounceRef.current = setTimeout(async () => {
+      const id = ++fetchIdRef.current
       const [ban, sta] = [await searchBan(q), searchStations(stations, q)]
+      if (fetchIdRef.current !== id) return // a newer query landed first
       setSuggestions([...sta, ...ban])
       setOpen(true)
     }, 300)

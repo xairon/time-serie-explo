@@ -1,12 +1,26 @@
 // frontend/src/components/meteo/AboutModal.tsx
+import { useEffect } from 'react'
+
 interface Props {
   onClose: () => void
 }
 
 export function AboutModal({ onClose }: Props) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose} role="dialog" aria-modal="true" aria-label="À propos">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-[min(92vw,520px)] p-6" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-xl max-w-lg w-[min(92vw,520px)] p-6"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="À propos"
+      >
         <div className="flex items-start justify-between mb-3">
           <h2 className="text-lg font-bold text-slate-800">À propos</h2>
           <button onClick={onClose} aria-label="Fermer" className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
