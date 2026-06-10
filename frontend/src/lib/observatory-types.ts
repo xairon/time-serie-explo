@@ -353,18 +353,6 @@ export interface TerritorySituation {
   outlook: Outlook | null
 }
 
-export interface NationalSituation {
-  type: 'piezo' | 'hydro'
-  situation_class: SituationClass | null
-  trend: Trend | null
-  pct_below_normal: number | null
-  n_eligible: number
-  n_provisoire: number
-  distribution: Record<string, number>
-  insufficient: boolean
-  outlook: Outlook | null
-}
-
 export interface SectorSituation {
   level: 'sector'
   code: string
@@ -385,23 +373,3 @@ export interface SectorTimeline {
   trends: Record<string, number[]>
 }
 
-export interface BrgmSector {
-  sector_id: number
-  color: string
-  brgm_class: number
-  trend: 'hausse' | 'stable' | 'baisse' | null
-  ips: number | null
-  status: string | null
-  tendancy_coord: string | null
-}
-
-export interface BrgmTimeline {
-  periods: string[]
-  windows: Record<
-    string,
-    Record<
-      string,
-      { color: string; brgm_class: number; trend: 'hausse' | 'stable' | 'baisse' | null; tendancy_coord: string | null }
-    >
-  >
-}
