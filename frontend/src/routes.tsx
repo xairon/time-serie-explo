@@ -38,6 +38,11 @@ function SW({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
+  // Météo des nappes — standalone full-screen clone (no TopNav)
+  {
+    path: '/meteo',
+    element: <SessionGate><SW><MeteoNappesPage /></SW></SessionGate>,
+  },
   {
     element: <SessionGate><Layout /></SessionGate>,
     children: [
@@ -45,9 +50,6 @@ export const router = createBrowserRouter([
       { path: '/', element: <SW><ObservatoryPage /></SW> },
       { path: '/observatory', element: <Navigate to="/" replace /> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
-
-      // Météo des nappes (public)
-      { path: '/meteo', element: <SW><MeteoNappesPage /></SW> },
 
       // Cross-station comparison
       { path: '/compare', element: <Navigate to="/compare/piezo" replace /> },
