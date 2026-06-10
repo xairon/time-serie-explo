@@ -3,7 +3,7 @@
 import maplibregl from 'maplibre-gl'
 import type { StationGeoJSONFeature } from '@/lib/observatory-types'
 import { METEO_CLASS_COLORS } from '@/lib/meteo-colors'
-import { createSdfIcon, createRgbaIcon, drawStationBadge, drawPiezoGlyph, drawHydroGlyph } from '@/lib/meteo-icons'
+import { createIcon, drawStationBadge, drawPiezoGlyph, drawHydroGlyph } from '@/lib/meteo-icons'
 
 export type StationType = 'piezo' | 'hydro'
 
@@ -28,7 +28,7 @@ function classificationColorExpr(): maplibregl.ExpressionSpecification {
   ]
 }
 
-function toGeoJSON(features: StationGeoJSONFeature[]) {
+function toGeoJSON(features: StationGeoJSONFeature[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection' as const,
     features: features
@@ -51,9 +51,11 @@ export function addStationLayers(
   map: maplibregl.Map,
   onStationClick: (code: string, type: StationType) => void,
 ): void {
-  map.addImage('station-badge', createSdfIcon(drawStationBadge, 44), { sdf: true })
-  map.addImage('piezo-glyph', createRgbaIcon(drawPiezoGlyph, 44))
-  map.addImage('hydro-glyph', createRgbaIcon(drawHydroGlyph, 44))
+  if (map.getSource('piezo-stations')) return
+
+  map.addImage('station-badge', createIcon(drawStationBadge, 44), { sdf: true })
+  map.addImage('piezo-glyph', createIcon(drawPiezoGlyph, 44))
+  map.addImage('hydro-glyph', createIcon(drawHydroGlyph, 44))
 
   const colorExpr = classificationColorExpr()
   for (const type of ['piezo', 'hydro'] as StationType[]) {
@@ -78,7 +80,7 @@ export function addStationLayers(
 
 export function setStationData(map: maplibregl.Map, type: StationType, features: StationGeoJSONFeature[]): void {
   ;(map.getSource(`${type}-stations`) as maplibregl.GeoJSONSource | undefined)
-    ?.setData(toGeoJSON(features) as never)
+    ?.setData(toGeoJSON(features))
 }
 
 export function setStationVisibility(map: maplibregl.Map, type: StationType, visible: boolean): void {

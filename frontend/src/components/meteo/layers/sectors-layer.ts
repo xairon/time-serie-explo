@@ -2,7 +2,7 @@
 // BSH sector choropleth + circular trend badges. Pure MapLibre, no React.
 import maplibregl from 'maplibre-gl'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord } from '@/lib/sector-arrows'
-import { createRgbaIcon, drawTrendBadge, type TrendKind } from '@/lib/meteo-icons'
+import { createIcon, drawTrendBadge, type TrendKind } from '@/lib/meteo-icons'
 
 export type Trend = 'hausse' | 'stable' | 'baisse' | null
 
@@ -22,7 +22,7 @@ export function addSectorLayers(
 
   for (const kind of Object.keys(BADGE_IMAGE) as TrendKind[]) {
     if (!map.hasImage(BADGE_IMAGE[kind])) {
-      map.addImage(BADGE_IMAGE[kind], createRgbaIcon(drawTrendBadge(kind), 54))
+      map.addImage(BADGE_IMAGE[kind], createIcon(drawTrendBadge(kind), 54))
     }
   }
 
@@ -50,7 +50,7 @@ export function addSectorLayers(
   map.on('click', 'secteurs-fill', (e) => {
     const f = e.features?.[0]
     if (!f) return
-    onSectorClick(f.properties?.sector_id as number, (f.properties?.nom as string) ?? '')
+    onSectorClick(Number(f.properties?.sector_id), (f.properties?.nom as string) ?? '')
   })
   map.on('mouseenter', 'secteurs-fill', () => { map.getCanvas().style.cursor = 'pointer' })
   map.on('mouseleave', 'secteurs-fill', () => { map.getCanvas().style.cursor = '' })

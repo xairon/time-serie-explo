@@ -16,17 +16,14 @@ function render(draw: DrawFn, size: number): ImageData {
   return ctx.getImageData(0, 0, size, size)
 }
 
-/** SDF icon — recolored at runtime via icon-color. */
-export function createSdfIcon(draw: DrawFn, size = 44): ImageData {
+/** Render a draw function to ImageData for map.addImage().
+ *  Pass { sdf: true } to addImage when the icon must be recolored via icon-color. */
+export function createIcon(draw: DrawFn, size = 44): ImageData {
   return render(draw, size)
 }
 
-/** RGBA icon — keeps its own colors. */
-export function createRgbaIcon(draw: DrawFn, size = 44): ImageData {
-  return render(draw, size)
-}
-
-/** Station badge: plain circle (tinted by classification color via icon-color). */
+/** Station badge: plain circle (tinted by classification color via icon-color).
+ *  Intentionally a circle — the original MétéEAU app uses dot markers (clone spec). */
 export function drawStationBadge(ctx: CanvasRenderingContext2D, size: number) {
   ctx.beginPath()
   ctx.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2)
