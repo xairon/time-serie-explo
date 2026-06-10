@@ -61,6 +61,10 @@ export default function MeteoNappesPage() {
     () => (geojsonData?.features ?? []).filter((f) => f.properties.type === 'hydro'),
     [geojsonData],
   )
+  const allStations = useMemo(
+    () => piezoFeatures.concat(hydroFeatures),
+    [piezoFeatures, hydroFeatures],
+  )
 
   // Selected month: ?month= param, else latest available.
   const periods = timeline?.periods ?? []
@@ -158,7 +162,7 @@ export default function MeteoNappesPage() {
 
       {/* Search — top-left */}
       <div className="absolute top-3 left-3 z-20">
-        <MeteoSearchBar stations={piezoFeatures.concat(hydroFeatures)} onSelect={onSearchSelect} />
+        <MeteoSearchBar stations={allStations} onSelect={onSearchSelect} />
       </div>
 
       {/* Reset chip — top-center, after a search */}
@@ -213,7 +217,11 @@ export default function MeteoNappesPage() {
           <SectorPopup
             name={selectedSectorName ?? nameById[Number(selectedIps.code)] ?? selectedIps.name}
             code={selectedIps.code}
-            classLabel={capitalize(METEO_CLASS_LABELS[selectedIps.situation_class ?? 'UNKNOWN'] ?? METEO_CLASS_LABELS.UNKNOWN)}
+            classLabel={
+              selectedIps.insufficient || !selectedIps.situation_class
+                ? 'Données insuffisantes'
+                : capitalize(METEO_CLASS_LABELS[selectedIps.situation_class] ?? '')
+            }
             trend={selectedIps.trend}
             colorHex={selectedIps.insufficient ? SECTOR_INSUFFICIENT_COLOR : meteoClassColor(selectedIps.situation_class)}
             metrics={{
@@ -221,7 +229,7 @@ export default function MeteoNappesPage() {
               nEligible: selectedIps.n_eligible,
               nProvisoire: selectedIps.n_provisoire,
             }}
-            onClose={() => setSelectedSectorId(null)}
+            onClose={() => { setSelectedSectorId(null); setSelectedSectorName(null) }}
           />
         </div>
       )}
