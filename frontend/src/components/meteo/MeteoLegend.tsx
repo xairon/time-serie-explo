@@ -6,7 +6,7 @@ const TREND_ROWS: { kind: TrendBadgeKind; label: string }[] = [
   { kind: 'hausse', label: METEO_TREND_LABELS.hausse },
   { kind: 'stable', label: METEO_TREND_LABELS.stable },
   { kind: 'baisse', label: METEO_TREND_LABELS.baisse },
-  { kind: 'inconnu', label: 'Inconnu' },
+  { kind: 'inconnu', label: METEO_TREND_LABELS.inconnu },
 ]
 
 // Wet-first vertical scale, like the original's "Level" card.

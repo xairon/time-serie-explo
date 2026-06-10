@@ -29,6 +29,7 @@ export const METEO_TREND_LABELS: Record<string, string> = {
   hausse: 'en hausse',
   stable: 'stable',
   baisse: 'en baisse',
+  inconnu: 'Inconnu',
 }
 
 export function meteoClassColor(cls: SituationClass | null | undefined): string {
