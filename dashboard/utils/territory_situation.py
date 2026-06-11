@@ -34,9 +34,9 @@ def zscore_to_class(z) -> str:
     return CLASS_ORDER[-1]
 
 
-def aggregate_situation(index_values: list[float]) -> dict:
+def aggregate_situation(index_values: list[float], min_eligible: int = MIN_ELIGIBLE) -> dict:
     vals = [v for v in index_values if v is not None]
-    if len(vals) < MIN_ELIGIBLE:
+    if len(vals) < min_eligible:
         return {
             "situation_class": None, "insufficient": True,
             "n_eligible": len(vals), "pct_below_normal": None,

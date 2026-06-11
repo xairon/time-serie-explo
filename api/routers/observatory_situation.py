@@ -5,6 +5,7 @@ Aggregates per-station fixed-reference indices (IPS/SSFI) into a situation class
 """
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Query
@@ -19,6 +20,8 @@ from dashboard.utils.cache import get_cached
 from dashboard.utils.territory_situation import (
     aggregate_situation, aggregate_trend,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/observatory", tags=["observatory-situation"])
 
@@ -131,11 +134,13 @@ def _key_rows_by_sector(rows, code_to_sector, meta):
     return keyed
 
 
-def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
+def _eligible_rows_to_territories(rows, level, type_, min_eligible: int | None = None) -> list[dict]:
     """rows: iterable of (territory_code, territory_name, z, delta_z, flag).
 
     Groups by territory_code, excludes provisoire/UNKNOWN from the verdict but
     counts them, and produces a TerritorySituation-shaped dict per territory.
+    min_eligible: seuil de stations pour rendre un verdict (défaut MIN_ELIGIBLE=3 ;
+    2 pour le réseau officiel MétéEAU, aligné sur les indicateurs globaux BRGM à 2-20 stations).
     """
     groups: dict[str, dict] = {}
     for code, name, z, delta_z, flag in rows:
@@ -147,9 +152,13 @@ def _eligible_rows_to_territories(rows, level, type_) -> list[dict]:
         else:
             g["prov"] += 1
 
+    from dashboard.utils.territory_situation import MIN_ELIGIBLE
+    if min_eligible is None:
+        min_eligible = MIN_ELIGIBLE
+
     territories = []
     for code, g in groups.items():
-        sit = aggregate_situation(g["z"])
+        sit = aggregate_situation(g["z"], min_eligible=min_eligible)
         territories.append({
             "level": level, "code": code, "name": g["name"], "type": type_,
             "situation_class": sit["situation_class"],
@@ -195,13 +204,50 @@ _CLASS_TO_IDX = {c: i for i, c in enumerate([
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT"])}
 _TREND_CODE = {"baisse": -1, "stable": 0, "hausse": 1}
 
+# Réseau officiel MétéEAU Nappes (450 indicateurs ponctuels du bulletin BRGM,
+# seed gold.ref_stations_meteeau_bsn) : 431 piézomètres (codes BSS ancien/nouveau)
+# + 19 sources karstiques suivies en débit (codes hydro). network=meteeau
+# restreint l'agrégation des secteurs à ce réseau pour coller aux cartes BRGM.
+_official_codes_cache: set[str] | None = None
+
+
+def _official_codes() -> set[str] | None:
+    """Codes (tous formats) du réseau officiel MétéEAU ; None si le seed est absent."""
+    global _official_codes_cache
+    if _official_codes_cache is not None:
+        return _official_codes_cache
+    engine = get_brgm_sync_engine()
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT code_bss, code_bss_nouveau FROM gold.ref_stations_meteeau_bsn"
+            )).fetchall()
+        _official_codes_cache = {c for row in rows for c in row if c}
+    except Exception:
+        logger.warning("Seed gold.ref_stations_meteeau_bsn indisponible, filtre réseau ignoré")
+        return None
+    return _official_codes_cache
+
+
+def _restrict_to_official(rows: list[tuple]) -> list[tuple]:
+    """Filtre des lignes (code, ...) sur le réseau officiel ; identité si seed absent."""
+    codes = _official_codes()
+    if codes is None:
+        return rows
+    return [r for r in rows if r[0] in codes]
+
 
 @router.get("/situation/sectors/timeline")
-def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
+def get_sector_timeline(
+    type: Literal["piezo", "hydro"] = Query("piezo"),
+    network: Literal["all", "meteeau"] = Query("all"),
+):
     from api.services.sector_mapping import get_mapping
     from dashboard.utils.territory_situation import MIN_ELIGIBLE
 
     def fetch():
+        official = _official_codes() if network == "meteeau" else None
+        min_eligible = 2 if network == "meteeau" else MIN_ELIGIBLE
         code_to_sector, meta = get_mapping(type)
         sql = text("""
             SELECT code, TO_CHAR(month, 'YYYY-MM') AS period, z, index_class, flag
@@ -215,6 +261,8 @@ def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
         periods_set: set[str] = set()
         with engine.connect() as conn:
             for r in conn.execute(sql, {"t": type}).mappings():
+                if official is not None and r["code"] not in official:
+                    continue
                 sid = code_to_sector.get(r["code"])
                 if sid is None:
                     continue
@@ -243,11 +291,11 @@ def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
             cls_arr, trd_arr = [], []
             for p in periods:
                 slot = per.get((sid, p))
-                if not slot or len(slot["z"]) < MIN_ELIGIBLE:
+                if not slot or len(slot["z"]) < min_eligible:
                     cls_arr.append(7)
                     trd_arr.append(0)
                     continue
-                sit = aggregate_situation(slot["z"])
+                sit = aggregate_situation(slot["z"], min_eligible=min_eligible)
                 cls = sit["situation_class"]
                 cls_arr.append(_CLASS_TO_IDX.get(cls, 7) if cls else 7)
                 trd_arr.append(_TREND_CODE.get(aggregate_trend(slot["dz"]) or "stable", 0))
@@ -255,13 +303,14 @@ def get_sector_timeline(type: Literal["piezo", "hydro"] = Query("piezo")):
             trends[str(sid)] = trd_arr
         return {"periods": periods, "sectors": sectors, "trends": trends}
 
-    return get_cached("obs_sectors_timeline", {"type": type}, 86400, fetch)
+    return get_cached("obs_sectors_timeline", {"type": type, "network": network}, 86400, fetch)
 
 
 @router.get("/situation/sectors")
 def get_sector_situation(
     type: Literal["piezo", "hydro"] = Query("piezo"),
     month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    network: Literal["all", "meteeau"] = Query("all"),
 ):
     from api.services.sector_mapping import get_mapping
 
@@ -269,8 +318,12 @@ def get_sector_situation(
         code_to_sector, meta = get_mapping(type)
         rows = (_fetch_month_rows_with_code(type, month) if month
                 else _fetch_station_rows_with_code(type))
+        if network == "meteeau":
+            rows = _restrict_to_official(rows)
         keyed = _key_rows_by_sector(rows, code_to_sector, meta)
-        out = _eligible_rows_to_territories(keyed, "sector", type)
+        out = _eligible_rows_to_territories(
+            keyed, "sector", type,
+            min_eligible=2 if network == "meteeau" else None)
         for t in out:
             sid = t["code"]
             t["code"] = str(sid)
@@ -278,7 +331,7 @@ def get_sector_situation(
         out.sort(key=lambda t: t["name"])
         return out
 
-    return get_cached("obs_situation_sectors", {"type": type, "month": month}, SITUATION_TTL, fetch)
+    return get_cached("obs_situation_sectors", {"type": type, "month": month, "network": network}, SITUATION_TTL, fetch)
 
 
 @router.get("/situation/territories", response_model=list[TerritorySituation])

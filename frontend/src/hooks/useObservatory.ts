@@ -364,11 +364,11 @@ export function useERA5Monthly(month: string | undefined) {
 
 // --- Sector situation hooks ---
 
-export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean) {
-  return useQuery({ queryKey: ['obs-sectors', type], queryFn: () => situationApi.sectors(type), enabled, staleTime: 3_600_000 * 6 })
+export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean, network: 'all' | 'meteeau' = 'all') {
+  return useQuery({ queryKey: ['obs-sectors', type, network], queryFn: () => situationApi.sectors(type, undefined, network), enabled, staleTime: 3_600_000 * 6 })
 }
 
-export function useSectorTimeline(type: 'piezo' | 'hydro', enabled: boolean) {
-  return useQuery({ queryKey: ['obs-sectors-timeline', type], queryFn: () => situationApi.sectorsTimeline(type), enabled, staleTime: 3_600_000 * 24 })
+export function useSectorTimeline(type: 'piezo' | 'hydro', enabled: boolean, network: 'all' | 'meteeau' = 'all') {
+  return useQuery({ queryKey: ['obs-sectors-timeline', type, network], queryFn: () => situationApi.sectorsTimeline(type, network), enabled, staleTime: 3_600_000 * 24 })
 }
 

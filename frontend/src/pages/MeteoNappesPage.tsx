@@ -38,8 +38,9 @@ export default function MeteoNappesPage() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [map, setMap] = useState<maplibregl.Map | null>(null)
 
-  const { data: sectorSituationData } = useSectorSituation('piezo', true)
-  const { data: timeline } = useSectorTimeline('piezo', true)
+  // Réseau officiel MétéEAU Nappes (450 stations du bulletin BRGM) pour coller aux cartes officielles
+  const { data: sectorSituationData } = useSectorSituation('piezo', true, 'meteeau')
+  const { data: timeline } = useSectorTimeline('piezo', true, 'meteeau')
   const { data: geojsonData } = useStationsGeoJSON()
 
   // Sector names come from the static geometry.
