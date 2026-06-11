@@ -172,12 +172,12 @@ def _fetch_month_rows_with_code(type_: str, month: str) -> list[tuple]:
     sql = text("""
         WITH cur AS (
             SELECT code, z, flag FROM gold.fct_monthly_index
-            WHERE type = :t AND month = date_trunc('month', :m::date)
+            WHERE type = :t AND month = date_trunc('month', CAST(:m AS date))
               AND index_class <> 'UNKNOWN'
         ),
         prev AS (
             SELECT code, z FROM gold.fct_monthly_index
-            WHERE type = :t AND month = (date_trunc('month', :m::date) - INTERVAL '3 months')
+            WHERE type = :t AND month = (date_trunc('month', CAST(:m AS date)) - INTERVAL '3 months')
         )
         SELECT cur.code, cur.z AS z, cur.flag,
                (cur.z - prev.z) AS delta_z
