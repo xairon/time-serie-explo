@@ -1050,6 +1050,8 @@
       "hydrometry": "Hydrometry",
       "analyzeInPastas": "Analyze in Pastas",
       "exportCsv": "Export (CSV)",
+      "exportStartDate": "Export start date",
+      "exportEndDate": "Export end date",
       "trainAIModel": "Train an AI model",
       "technicalSheet": "Technical sheet",
       "dataPeriod": "Data period",
