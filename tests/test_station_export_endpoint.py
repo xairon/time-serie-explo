@@ -28,6 +28,19 @@ def test_hydro_export_endpoint_converts_flow_and_is_resilient():
     assert "_FLOW_COLS_DAILY" in src
 
 
+def test_export_endpoints_accept_and_apply_date_range():
+    import inspect as _inspect
+
+    for mod in (observatory_piezo, observatory_hydro):
+        sig = _inspect.signature(mod.export_csv)
+        assert "start_date" in sig.parameters, f"{mod.__name__}.export_csv missing start_date"
+        assert "end_date" in sig.parameters, f"{mod.__name__}.export_csv missing end_date"
+        src = _inspect.getsource(mod.export_csv)
+        # the daily chronique query is bounded by the optional range
+        assert "date >= :start_date" in src
+        assert "date <= :end_date" in src
+
+
 def test_piezo_export_route_registered_before_greedy_detail_route():
     from api.routers.observatory_piezo import router
     paths = [r.path for r in router.routes]

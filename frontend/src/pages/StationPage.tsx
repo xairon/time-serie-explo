@@ -47,6 +47,8 @@ export default function StationPage() {
   const defaultStart = useMemo(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 5); return d.toISOString().slice(0, 10) }, [])
   const [dailyStart, setDailyStart] = useState<string | undefined>(defaultStart)
   const [dailyEnd, setDailyEnd] = useState(defaultEnd)
+  const [exportStart, setExportStart] = useState('')
+  const [exportEnd, setExportEnd] = useState('')
   const dailyLimit = dailyStart === undefined ? 36500 : undefined
 
   const handleDailyPeriodChange = useCallback((months: number) => {
@@ -105,8 +107,11 @@ export default function StationPage() {
             <p className="text-sm text-text-secondary">{station.nom_departement ?? ''} - {code}{!isPiezo && station.nom_cours_eau && ` - ${station.nom_cours_eau}`}</p>
           </div>
           <div className="flex items-center gap-2">
+            <input type="date" aria-label={t('mainPages.station.exportStartDate')} value={exportStart} onChange={(e) => setExportStart(e.target.value)} className="bg-bg-card border border-white/10 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent-cyan/50" />
+            <span className="text-xs text-text-secondary">-</span>
+            <input type="date" aria-label={t('mainPages.station.exportEndDate')} value={exportEnd} onChange={(e) => setExportEnd(e.target.value)} className="bg-bg-card border border-white/10 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent-cyan/50" />
             <a
-              href={isPiezo ? observatoryApi.piezo.exportUrl(code) : observatoryApi.hydro.exportUrl(code)}
+              href={(isPiezo ? observatoryApi.piezo : observatoryApi.hydro).exportUrl(code, { start_date: exportStart, end_date: exportEnd })}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />{t('mainPages.station.exportCsv')}

@@ -44,6 +44,20 @@ export async function fetchJson<T>(path: string, params?: Record<string, string 
   }
 }
 
+export interface ExportRange {
+  start_date?: string
+  end_date?: string
+}
+
+function exportQuery(range?: ExportRange): string {
+  if (!range) return ''
+  const qs = new URLSearchParams()
+  if (range.start_date) qs.set('start_date', range.start_date)
+  if (range.end_date) qs.set('end_date', range.end_date)
+  const s = qs.toString()
+  return s ? `?${s}` : ''
+}
+
 export const observatoryApi = {
   piezo: {
     stations: (params?: Record<string, string | string[] | undefined>) =>
@@ -59,8 +73,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`),
     siblings: (code: string, level: 'nappe' | 'systeme' = 'nappe') =>
       fetchJson<PiezoBdlisaSiblings>(`/observatory/piezo/stations/${encodeURIComponent(code)}/siblings`, { level }),
-    exportUrl: (code: string) =>
-      `${API_BASE}/observatory/piezo/stations/${encodeURIComponent(code)}/export.csv`,
+    exportUrl: (code: string, range?: ExportRange) =>
+      `${API_BASE}/observatory/piezo/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range)}`,
   },
   hydro: {
     stations: (params?: Record<string, string | string[] | undefined>) =>
@@ -76,8 +90,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`),
     siblings: (code: string, level: 'site' | 'cours_eau' = 'site') =>
       fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${encodeURIComponent(code)}/siblings`, { level }),
-    exportUrl: (code: string) =>
-      `${API_BASE}/observatory/hydro/stations/${encodeURIComponent(code)}/export.csv`,
+    exportUrl: (code: string, range?: ExportRange) =>
+      `${API_BASE}/observatory/hydro/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range)}`,
   },
   common: {
     geojson: (stationType?: 'piezo' | 'hydro' | 'all') =>
