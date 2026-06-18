@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 from sqlalchemy.exc import ProgrammingError
@@ -21,6 +21,7 @@ from api.schemas.observatory import (
     HydroYearly,
 )
 from dashboard.utils.cache import get_cached
+from dashboard.utils.station_export import build_station_csv
 from dashboard.utils.drought import compute_spi, _classify
 from dashboard.utils.reference import value_to_zscore, class_bounds_ngf
 
@@ -658,3 +659,56 @@ def get_station(code_station: str):
     return get_cached("obs_hydro_detail", {"code_station": code_station}, DETAIL_TTL, fetch)
 
 
+@router.get("/stations/{code_station}/export.csv")
+def export_csv(code_station: str):
+    """Export station metadata + daily chronique + monthly SSFI as a CSV file."""
+    engine = get_brgm_sync_engine()
+    with engine.connect() as conn:
+        meta = conn.execute(
+            text(
+                "SELECT code_station AS code, code_departement,"
+                " nom_departement, latitude_station AS latitude,"
+                " longitude_station AS longitude"
+                " FROM gold.dim_hydro_stations WHERE code_station = :code"
+            ),
+            {"code": code_station},
+        ).mappings().first()
+        if meta is None:
+            raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
+        daily = [
+            dict(r) for r in conn.execute(
+                text(
+                    "SELECT date, resultat_obs_elab, grandeur_hydro_elab, temperature_2m,"
+                    " total_precipitation, potential_evaporation"
+                    " FROM gold.hydro_daily_chroniques WHERE code_station = :code ORDER BY date"
+                ),
+                {"code": code_station},
+            ).mappings()
+        ]
+    for r in daily:
+        if r.get("grandeur_hydro_elab") != "H":
+            _convert_qmnj_row(r, _FLOW_COLS_DAILY)
+
+    index_rows: list[dict] = []
+    engine2 = get_brgm_sync_engine()
+    try:
+        with engine2.connect() as conn2:
+            index_rows = [
+                dict(r) for r in conn2.execute(
+                    text(
+                        "SELECT month, z, index_class, flag FROM gold.fct_monthly_index"
+                        " WHERE type = 'hydro' AND code = :code ORDER BY month"
+                    ),
+                    {"code": code_station},
+                ).mappings()
+            ]
+    except ProgrammingError:
+        index_rows = []
+
+    body = build_station_csv("hydro", dict(meta), daily, index_rows)
+    fname = f"{code_station.replace('/', '_')}_{date.today().isoformat()}.csv"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
