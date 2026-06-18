@@ -1049,6 +1049,7 @@
       "piezometry": "Piézométrie",
       "hydrometry": "Hydrométrie",
       "analyzeInPastas": "Analyser dans Pastas",
+      "exportCsv": "Exporter (CSV)",
       "trainAIModel": "Entraîner un modèle IA",
       "technicalSheet": "Fiche technique",
       "dataPeriod": "Période des données",

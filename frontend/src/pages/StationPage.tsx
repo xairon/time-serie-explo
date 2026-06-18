@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, Info, Waves, Brain } from 'lucide-react'
+import { ArrowLeft, Download, Info, Waves, Brain } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { usePiezoStationDetail, useHydroStationDetail, usePiezoMonthly, useHydroMonthly, usePiezoDaily, useHydroDaily, usePiezoYearly, useHydroYearly, usePiezoSPLI, useHydroSSFI, useSPI } from '@/hooks/useObservatory'
 import { SituationPanel } from '@/components/observatory/SituationPanel'
@@ -10,6 +10,7 @@ import { StationPeriodsPanel } from '@/components/observatory/StationPeriodsPane
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
+import { observatoryApi } from '../lib/observatory-api'
 import { SiblingStationsPanel } from '@/components/observatory/SiblingStationsPanel'
 
 type Resolution = 'daily' | 'monthly' | 'yearly'
@@ -104,6 +105,12 @@ export default function StationPage() {
             <p className="text-sm text-text-secondary">{station.nom_departement ?? ''} - {code}{!isPiezo && station.nom_cours_eau && ` - ${station.nom_cours_eau}`}</p>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href={isPiezo ? observatoryApi.piezo.exportUrl(code) : observatoryApi.hydro.exportUrl(code)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />{t('mainPages.station.exportCsv')}
+            </a>
             <AddToCompareButton code={code} type={type} />
             {isPiezo && <Link to={`/pastas/calibrate?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-cyan/10 text-accent-cyan hover:bg-accent-cyan/20 transition-colors"><Waves className="w-3.5 h-3.5" />{t('mainPages.station.analyzeInPastas')}</Link>}
             {isPiezo && <Link to={`/ai/data?station=${encodeURIComponent(code)}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"><Brain className="w-3.5 h-3.5" />{t('mainPages.station.trainAIModel')}</Link>}
