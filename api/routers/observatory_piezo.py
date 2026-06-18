@@ -501,8 +501,15 @@ def get_siblings(code_bss: str, level: str = Query("nappe", pattern="^(nappe|sys
 
 
 @router.get("/stations/{code_bss:path}/export.csv")
-def export_csv(code_bss: str):
-    """Export station metadata + daily chronique + monthly IPS as a CSV file."""
+def export_csv(
+    code_bss: str,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+):
+    """Export station metadata + daily chronique + monthly IPS as a CSV file.
+
+    Optional start_date / end_date bound the daily chronique (empty = full history).
+    """
     engine = get_brgm_sync_engine()
     with engine.connect() as conn:
         meta = conn.execute(
@@ -515,16 +522,20 @@ def export_csv(code_bss: str):
         ).mappings().first()
         if meta is None:
             raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
-        daily = [
-            dict(r) for r in conn.execute(
-                text(
-                    "SELECT date, niveau_nappe_eau, profondeur_nappe, temperature_2m,"
-                    " total_precipitation, potential_evaporation"
-                    " FROM gold.hubeau_daily_chroniques WHERE code_bss = :code ORDER BY date"
-                ),
-                {"code": code_bss},
-            ).mappings()
-        ]
+        daily_query = (
+            "SELECT date, niveau_nappe_eau, profondeur_nappe, temperature_2m,"
+            " total_precipitation, potential_evaporation"
+            " FROM gold.hubeau_daily_chroniques WHERE code_bss = :code"
+        )
+        daily_bind: dict = {"code": code_bss}
+        if start_date is not None:
+            daily_query += " AND date >= :start_date"
+            daily_bind["start_date"] = start_date
+        if end_date is not None:
+            daily_query += " AND date <= :end_date"
+            daily_bind["end_date"] = end_date
+        daily_query += " ORDER BY date"
+        daily = [dict(r) for r in conn.execute(text(daily_query), daily_bind).mappings()]
 
     index_rows: list[dict] = []
     engine2 = get_brgm_sync_engine()

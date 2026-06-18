@@ -660,8 +660,15 @@ def get_station(code_station: str):
 
 
 @router.get("/stations/{code_station}/export.csv")
-def export_csv(code_station: str):
-    """Export station metadata + daily chronique + monthly SSFI as a CSV file."""
+def export_csv(
+    code_station: str,
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+):
+    """Export station metadata + daily chronique + monthly SSFI as a CSV file.
+
+    Optional start_date / end_date bound the daily chronique (empty = full history).
+    """
     engine = get_brgm_sync_engine()
     with engine.connect() as conn:
         meta = conn.execute(
@@ -676,16 +683,20 @@ def export_csv(code_station: str):
         ).mappings().first()
         if meta is None:
             raise HTTPException(404, f"Station hydrométrique {code_station} introuvable")
-        daily = [
-            dict(r) for r in conn.execute(
-                text(
-                    "SELECT date, resultat_obs_elab, grandeur_hydro_elab, temperature_2m,"
-                    " total_precipitation, potential_evaporation"
-                    " FROM gold.hydro_daily_chroniques WHERE code_station = :code ORDER BY date"
-                ),
-                {"code": code_station},
-            ).mappings()
-        ]
+        daily_query = (
+            "SELECT date, resultat_obs_elab, grandeur_hydro_elab, temperature_2m,"
+            " total_precipitation, potential_evaporation"
+            " FROM gold.hydro_daily_chroniques WHERE code_station = :code"
+        )
+        daily_bind: dict = {"code": code_station}
+        if start_date is not None:
+            daily_query += " AND date >= :start_date"
+            daily_bind["start_date"] = start_date
+        if end_date is not None:
+            daily_query += " AND date <= :end_date"
+            daily_bind["end_date"] = end_date
+        daily_query += " ORDER BY date"
+        daily = [dict(r) for r in conn.execute(text(daily_query), daily_bind).mappings()]
     for r in daily:
         if r.get("grandeur_hydro_elab") != "H":
             _convert_qmnj_row(r, _FLOW_COLS_DAILY)
