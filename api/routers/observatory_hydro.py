@@ -666,7 +666,8 @@ def export_csv(code_station: str):
     with engine.connect() as conn:
         meta = conn.execute(
             text(
-                "SELECT code_station AS code, code_departement,"
+                "SELECT code_station AS code, libelle_station AS nom_commune,"
+                " code_departement,"
                 " nom_departement, latitude_station AS latitude,"
                 " longitude_station AS longitude"
                 " FROM gold.dim_hydro_stations WHERE code_station = :code"
