@@ -59,6 +59,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`),
     siblings: (code: string, level: 'nappe' | 'systeme' = 'nappe') =>
       fetchJson<PiezoBdlisaSiblings>(`/observatory/piezo/stations/${encodeURIComponent(code)}/siblings`, { level }),
+    exportUrl: (code: string) =>
+      `${API_BASE}/observatory/piezo/stations/${encodeURIComponent(code)}/export.csv`,
   },
   hydro: {
     stations: (params?: Record<string, string | string[] | undefined>) =>
@@ -74,6 +76,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`),
     siblings: (code: string, level: 'site' | 'cours_eau' = 'site') =>
       fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${encodeURIComponent(code)}/siblings`, { level }),
+    exportUrl: (code: string) =>
+      `${API_BASE}/observatory/hydro/stations/${encodeURIComponent(code)}/export.csv`,
   },
   common: {
     geojson: (stationType?: 'piezo' | 'hydro' | 'all') =>
