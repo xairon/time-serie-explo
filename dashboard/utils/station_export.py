@@ -64,15 +64,23 @@ def _header_lines(domain: str, meta: dict, daily_rows, idx) -> list[str]:
         flag = idx[max(idx.keys())].get("flag") or ""
     dmin = _fmt(daily_rows[0]["date"]) if daily_rows else ""
     dmax = _fmt(daily_rows[-1]["date"]) if daily_rows else ""
-    return [
+    source = "Source: Junon / Hub'Eau + BRGM"
+    if meta.get("generated_on"):
+        source += f" — généré le {_fmt(meta.get('generated_on'))}"
+    lines = [
         f"Station: {meta.get('nom_commune') or ''} ({meta.get('code') or ''})",
         f"Département: {meta.get('nom_departement') or ''} ({meta.get('code_departement') or ''})",
+    ]
+    if meta.get("codes_bdlisa"):
+        lines.append(f"Entité hydrogéo (BDLISA): {meta.get('codes_bdlisa')}")
+    lines += [
         f"Coordonnées: {_fmt(meta.get('latitude'))}, {_fmt(meta.get('longitude'))}",
         f"Période exportée: {dmin} → {dmax}",
         f"Index: {_INDEX_LABEL[domain]} (réf. fixe 1991-2020, flag={flag})",
         f"Unités: {_UNIT[domain]} ; z-score sans unité",
-        "Source: Junon / Hub'Eau + BRGM",
+        source,
     ]
+    return lines
 
 
 def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:

@@ -61,6 +61,26 @@ def test_header_block_contains_station_metadata():
     assert "flag=normale" in head
 
 
+def test_header_includes_generation_date_and_bdlisa_when_provided():
+    meta = {**_meta(), "codes_bdlisa": "121AB01", "generated_on": "2026-06-18"}
+    head = "\n".join(
+        l for l in build_station_csv("piezo", meta, _piezo_daily(), _piezo_index()).splitlines()
+        if l.startswith("#")
+    )
+    assert "généré le 2026-06-18" in head
+    assert "BDLISA" in head and "121AB01" in head
+
+
+def test_header_omits_optional_fields_when_absent():
+    # _meta() has neither codes_bdlisa nor generated_on
+    head = "\n".join(
+        l for l in build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index()).splitlines()
+        if l.startswith("#")
+    )
+    assert "BDLISA" not in head
+    assert "généré le" not in head
+
+
 def test_hydro_columns_and_unknown_domain():
     daily = [{"date": date(2020, 1, 10), "resultat_obs_elab": 1.7, "grandeur_hydro_elab": "Q",
               "temperature_2m": 5.0, "total_precipitation": 2.0, "potential_evaporation": 0.5}]

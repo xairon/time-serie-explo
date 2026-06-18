@@ -706,7 +706,9 @@ def export_csv(code_station: str):
     except ProgrammingError:
         index_rows = []
 
-    body = build_station_csv("hydro", dict(meta), daily, index_rows)
+    body = build_station_csv(
+        "hydro", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows
+    )
     fname = f"{code_station.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(
         content=body,

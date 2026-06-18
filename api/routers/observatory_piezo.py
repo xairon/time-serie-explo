@@ -508,7 +508,7 @@ def export_csv(code_bss: str):
         meta = conn.execute(
             text(
                 "SELECT code_bss AS code, nom_commune, code_departement,"
-                " nom_departement, latitude, longitude"
+                " nom_departement, codes_bdlisa, latitude, longitude"
                 " FROM gold.dim_piezo_stations WHERE code_bss = :code"
             ),
             {"code": code_bss},
@@ -542,7 +542,9 @@ def export_csv(code_bss: str):
     except ProgrammingError:
         index_rows = []  # table not yet materialized
 
-    body = build_station_csv("piezo", dict(meta), daily, index_rows)
+    body = build_station_csv(
+        "piezo", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows
+    )
     fname = f"{code_bss.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(
         content=body,
