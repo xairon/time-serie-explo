@@ -5,10 +5,12 @@ import re
 from datetime import date
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from datetime import date as _date
+from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 from sqlalchemy.exc import ProgrammingError
+from dashboard.utils.station_export import build_station_csv
 
 from api.config import settings
 from api.schemas.observatory import (
@@ -586,3 +588,52 @@ def get_station(code_bss: str):
     return get_cached("obs_piezo_detail", {"code_bss": code_bss}, DETAIL_TTL, fetch)
 
 
+@router.get("/stations/{code_bss:path}/export.csv")
+def export_csv(code_bss: str):
+    """Export station metadata + daily chronique + monthly IPS as a CSV file."""
+    engine = get_brgm_sync_engine()
+    with engine.connect() as conn:
+        meta = conn.execute(
+            text(
+                "SELECT code_bss AS code, nom_commune, code_departement,"
+                " nom_departement, latitude, longitude"
+                " FROM gold.dim_piezo_stations WHERE code_bss = :code"
+            ),
+            {"code": code_bss},
+        ).mappings().first()
+        if meta is None:
+            raise HTTPException(404, f"Station piézométrique {code_bss} introuvable")
+        daily = [
+            dict(r) for r in conn.execute(
+                text(
+                    "SELECT date, niveau_nappe_eau, profondeur_nappe, temperature_2m,"
+                    " total_precipitation, potential_evaporation"
+                    " FROM gold.hubeau_daily_chroniques WHERE code_bss = :code ORDER BY date"
+                ),
+                {"code": code_bss},
+            ).mappings()
+        ]
+
+    index_rows: list[dict] = []
+    engine2 = get_brgm_sync_engine()
+    try:
+        with engine2.connect() as conn2:
+            index_rows = [
+                dict(r) for r in conn2.execute(
+                    text(
+                        "SELECT month, z, index_class, flag FROM gold.fct_monthly_index"
+                        " WHERE type = 'piezo' AND code = :code ORDER BY month"
+                    ),
+                    {"code": code_bss},
+                ).mappings()
+            ]
+    except ProgrammingError:
+        index_rows = []  # table not yet materialized
+
+    body = build_station_csv("piezo", dict(meta), daily, index_rows)
+    fname = f"{code_bss.replace('/', '_')}_{_date.today().isoformat()}.csv"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
