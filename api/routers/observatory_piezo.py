@@ -5,7 +5,6 @@ import re
 from datetime import date
 from typing import Literal, Optional
 
-from datetime import date as _date
 from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 from api.database import get_brgm_sync_engine
@@ -631,7 +630,7 @@ def export_csv(code_bss: str):
         index_rows = []  # table not yet materialized
 
     body = build_station_csv("piezo", dict(meta), daily, index_rows)
-    fname = f"{code_bss.replace('/', '_')}_{_date.today().isoformat()}.csv"
+    fname = f"{code_bss.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(
         content=body,
         media_type="text/csv; charset=utf-8",
