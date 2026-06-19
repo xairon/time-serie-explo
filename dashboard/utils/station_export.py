@@ -47,6 +47,10 @@ _IDENTITY_COLS = [
 # Constant provenance columns appended at the end.
 _PROVENANCE_HEADERS = ["index_ref", "unites", "source", "genere_le"]
 
+# Canonical group keys, in CSV column order. `date` is always emitted and is
+# not part of any group.
+GROUP_KEYS = ("identity", "values", "meteo", "index", "provenance")
+
 
 def _as_date(d) -> date:
     if isinstance(d, datetime):
@@ -86,9 +90,10 @@ def index_by_month(index_rows) -> dict[tuple[int, int], dict]:
     return out
 
 
-def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:
+def build_station_csv(domain: str, meta: dict, daily_rows, index_rows, groups=None) -> str:
     if domain not in _INDEX_PREFIX:
         raise ValueError(f"unknown domain {domain!r}")
+    active = set(GROUP_KEYS) if groups is None else (set(groups) & set(GROUP_KEYS))
     idx = index_by_month(index_rows)
     prefix = _INDEX_PREFIX[domain]
     value_cols = _VALUE_COLS[domain]
@@ -96,30 +101,42 @@ def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:
     identity_cells = [_fmt(meta.get(key)) for _, key in _IDENTITY_COLS]
     provenance_cells = [_INDEX_REF, _UNIT[domain], _SOURCE, _fmt(meta.get("generated_on"))]
 
+    header = []
+    if "identity" in active:
+        header += [h for h, _ in _IDENTITY_COLS]
+    header += ["date"]
+    if "values" in active:
+        header += [h for h, _ in value_cols]
+    if "meteo" in active:
+        header += [h for h, _ in _METEO_COLS]
+    if "index" in active:
+        header += ["mois_ref", f"{prefix}_z", f"{prefix}_classe", f"{prefix}_flag"]
+    if "provenance" in active:
+        header += _PROVENANCE_HEADERS
+
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(
-        [h for h, _ in _IDENTITY_COLS]
-        + ["date"]
-        + [h for h, _ in value_cols]
-        + [h for h, _ in _METEO_COLS]
-        + ["mois_ref", f"{prefix}_z", f"{prefix}_classe", f"{prefix}_flag"]
-        + _PROVENANCE_HEADERS
-    )
+    writer.writerow(header)
 
     for row in daily_rows:
         mk = _month_key(row["date"])
         ix = idx.get(mk)
-        rec = list(identity_cells)
+        rec = []
+        if "identity" in active:
+            rec += identity_cells
         rec.append(_fmt(row.get("date")))
-        rec += [_fmt(row.get(k)) for _, k in value_cols]
-        rec += [_fmt(row.get(k)) for _, k in _METEO_COLS]
-        if ix:
-            rec += [f"{mk[0]:04d}-{mk[1]:02d}", _fmt(ix["z"]),
-                    _fmt(ix["index_class"]), _fmt(ix["flag"])]
-        else:
-            rec += ["", "", "", ""]
-        rec += provenance_cells
+        if "values" in active:
+            rec += [_fmt(row.get(k)) for _, k in value_cols]
+        if "meteo" in active:
+            rec += [_fmt(row.get(k)) for _, k in _METEO_COLS]
+        if "index" in active:
+            if ix:
+                rec += [f"{mk[0]:04d}-{mk[1]:02d}", _fmt(ix["z"]),
+                        _fmt(ix["index_class"]), _fmt(ix["flag"])]
+            else:
+                rec += ["", "", "", ""]
+        if "provenance" in active:
+            rec += provenance_cells
         writer.writerow(rec)
 
     return out.getvalue()

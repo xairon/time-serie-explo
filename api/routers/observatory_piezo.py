@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 from sqlalchemy.exc import ProgrammingError
-from dashboard.utils.station_export import build_station_csv
+from dashboard.utils.station_export import build_station_csv, GROUP_KEYS
 
 from api.config import settings
 from api.schemas.observatory import (
@@ -505,6 +505,7 @@ def export_csv(
     code_bss: str,
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    groups: Optional[str] = Query(None),
 ):
     """Export station metadata + daily chronique + monthly IPS as a CSV file.
 
@@ -553,8 +554,13 @@ def export_csv(
     except ProgrammingError:
         index_rows = []  # table not yet materialized
 
+    selected = None
+    if groups is not None:
+        selected = {g.strip() for g in groups.split(",") if g.strip()} & set(GROUP_KEYS)
+
     body = build_station_csv(
-        "piezo", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows
+        "piezo", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows,
+        groups=selected,
     )
     fname = f"{code_bss.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(

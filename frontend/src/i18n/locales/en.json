@@ -1052,6 +1052,14 @@
       "exportCsv": "Export (CSV)",
       "exportStartDate": "Export start date",
       "exportEndDate": "Export end date",
+      "exportColumnsButton": "Columns",
+      "exportColumns": {
+        "identity": "Identity",
+        "values": "Measurements",
+        "meteo": "Weather",
+        "index": "Index",
+        "provenance": "Provenance"
+      },
       "trainAIModel": "Train an AI model",
       "technicalSheet": "Technical sheet",
       "dataPeriod": "Data period",

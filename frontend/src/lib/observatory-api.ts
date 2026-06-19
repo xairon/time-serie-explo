@@ -14,6 +14,9 @@ import type {
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
 } from './observatory-types'
 
+export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
+export type ExportColumnGroup = (typeof EXPORT_COLUMN_GROUPS)[number]
+
 export async function fetchJson<T>(path: string, params?: Record<string, string | string[] | undefined>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin)
   if (params) {
@@ -49,11 +52,13 @@ export interface ExportRange {
   end_date?: string
 }
 
-function exportQuery(range?: ExportRange): string {
-  if (!range) return ''
+function exportQuery(range?: ExportRange, groups?: string[]): string {
   const qs = new URLSearchParams()
-  if (range.start_date) qs.set('start_date', range.start_date)
-  if (range.end_date) qs.set('end_date', range.end_date)
+  if (range?.start_date) qs.set('start_date', range.start_date)
+  if (range?.end_date) qs.set('end_date', range.end_date)
+  if (groups && groups.length > 0 && groups.length < EXPORT_COLUMN_GROUPS.length) {
+    qs.set('groups', groups.join(','))
+  }
   const s = qs.toString()
   return s ? `?${s}` : ''
 }
@@ -73,8 +78,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`),
     siblings: (code: string, level: 'nappe' | 'systeme' = 'nappe') =>
       fetchJson<PiezoBdlisaSiblings>(`/observatory/piezo/stations/${encodeURIComponent(code)}/siblings`, { level }),
-    exportUrl: (code: string, range?: ExportRange) =>
-      `${API_BASE}/observatory/piezo/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range)}`,
+    exportUrl: (code: string, range?: ExportRange, groups?: string[]) =>
+      `${API_BASE}/observatory/piezo/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range, groups)}`,
   },
   hydro: {
     stations: (params?: Record<string, string | string[] | undefined>) =>
@@ -90,8 +95,8 @@ export const observatoryApi = {
     spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`),
     siblings: (code: string, level: 'site' | 'cours_eau' = 'site') =>
       fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${encodeURIComponent(code)}/siblings`, { level }),
-    exportUrl: (code: string, range?: ExportRange) =>
-      `${API_BASE}/observatory/hydro/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range)}`,
+    exportUrl: (code: string, range?: ExportRange, groups?: string[]) =>
+      `${API_BASE}/observatory/hydro/stations/${encodeURIComponent(code)}/export.csv${exportQuery(range, groups)}`,
   },
   common: {
     geojson: (stationType?: 'piezo' | 'hydro' | 'all') =>

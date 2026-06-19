@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from dashboard.utils.station_export import build_station_csv, index_by_month
+from dashboard.utils.station_export import GROUP_KEYS, build_station_csv, index_by_month
 
 # Identity columns repeated on every row, in order.
 _IDENTITY = ["code", "nom_station", "code_departement", "nom_departement",
@@ -130,3 +130,37 @@ def test_hydro_columns_and_unknown_domain():
     import pytest
     with pytest.raises(ValueError):
         build_station_csv("nope", _meta(), [], [])
+
+
+def test_group_keys_canonical_order():
+    assert GROUP_KEYS == ("identity", "values", "meteo", "index", "provenance")
+
+
+def test_groups_subset_keeps_only_date_values_and_index():
+    csv_text = build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index(),
+                                 groups={"values", "index"})
+    header = _rows(csv_text)[0].split(",")
+    assert header == ["date", "niveau_nappe_eau", "profondeur_nappe",
+                      "mois_ref", "ips_z", "ips_classe", "ips_flag"]
+    # a January data row carries date + values + index, nothing else
+    jan10 = _rows(csv_text)[1].split(",")
+    assert jan10 == ["2020-01-10", "12.5", "3.1", "2020-01", "-0.95", "BAS", "normale"]
+
+
+def test_groups_none_is_unchanged_full_output():
+    full = build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index())
+    explicit = build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index(),
+                                 groups=set(GROUP_KEYS))
+    assert full == explicit
+
+
+def test_groups_empty_emits_only_date():
+    csv_text = build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index(), groups=set())
+    assert _rows(csv_text)[0].split(",") == ["date"]
+    assert _rows(csv_text)[1].split(",") == ["2020-01-10"]
+
+
+def test_groups_ignores_unknown_keys():
+    csv_text = build_station_csv("piezo", _meta(), _piezo_daily(), _piezo_index(),
+                                 groups={"values", "bogus"})
+    assert _rows(csv_text)[0].split(",") == ["date", "niveau_nappe_eau", "profondeur_nappe"]

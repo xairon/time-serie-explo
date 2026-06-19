@@ -21,7 +21,7 @@ from api.schemas.observatory import (
     HydroYearly,
 )
 from dashboard.utils.cache import get_cached
-from dashboard.utils.station_export import build_station_csv
+from dashboard.utils.station_export import build_station_csv, GROUP_KEYS
 from dashboard.utils.drought import compute_spi, _classify
 from dashboard.utils.reference import value_to_zscore, class_bounds_ngf
 
@@ -664,6 +664,7 @@ def export_csv(
     code_station: str,
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    groups: Optional[str] = Query(None),
 ):
     """Export station metadata + daily chronique + monthly SSFI as a CSV file.
 
@@ -717,8 +718,13 @@ def export_csv(
     except ProgrammingError:
         index_rows = []
 
+    selected = None
+    if groups is not None:
+        selected = {g.strip() for g in groups.split(",") if g.strip()} & set(GROUP_KEYS)
+
     body = build_station_csv(
-        "hydro", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows
+        "hydro", {**dict(meta), "generated_on": date.today().isoformat()}, daily, index_rows,
+        groups=selected,
     )
     fname = f"{code_station.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(

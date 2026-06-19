@@ -11,6 +11,8 @@ import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
 import { observatoryApi } from '../lib/observatory-api'
+import { EXPORT_COLUMN_GROUPS, type ExportColumnGroup } from '../lib/observatory-api'
+import ColumnPicker from '@/components/observatory/ColumnPicker'
 import { SiblingStationsPanel } from '@/components/observatory/SiblingStationsPanel'
 
 type Resolution = 'daily' | 'monthly' | 'yearly'
@@ -49,6 +51,7 @@ export default function StationPage() {
   const [dailyEnd, setDailyEnd] = useState(defaultEnd)
   const [exportStart, setExportStart] = useState('')
   const [exportEnd, setExportEnd] = useState('')
+  const [exportGroups, setExportGroups] = useState<ExportColumnGroup[]>([...EXPORT_COLUMN_GROUPS])
   const dailyLimit = dailyStart === undefined ? 36500 : undefined
 
   const handleDailyPeriodChange = useCallback((months: number) => {
@@ -110,8 +113,9 @@ export default function StationPage() {
             <input type="date" aria-label={t('mainPages.station.exportStartDate')} value={exportStart} onChange={(e) => setExportStart(e.target.value)} className="bg-bg-card border border-white/10 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent-cyan/50" />
             <span className="text-xs text-text-secondary">-</span>
             <input type="date" aria-label={t('mainPages.station.exportEndDate')} value={exportEnd} onChange={(e) => setExportEnd(e.target.value)} className="bg-bg-card border border-white/10 rounded-lg px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent-cyan/50" />
+            <ColumnPicker selected={exportGroups} onChange={setExportGroups} />
             <a
-              href={(isPiezo ? observatoryApi.piezo : observatoryApi.hydro).exportUrl(code, { start_date: exportStart, end_date: exportEnd })}
+              href={(isPiezo ? observatoryApi.piezo : observatoryApi.hydro).exportUrl(code, { start_date: exportStart, end_date: exportEnd }, exportGroups)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />{t('mainPages.station.exportCsv')}
