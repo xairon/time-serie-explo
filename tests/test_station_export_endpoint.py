@@ -49,6 +49,17 @@ def test_export_endpoints_accept_and_apply_date_range():
         assert "date <= :end_date" in src
 
 
+def test_export_endpoints_wire_groups_param():
+    import inspect as _inspect
+    for mod in (observatory_piezo, observatory_hydro):
+        sig = _inspect.signature(mod.export_csv)
+        assert "groups" in sig.parameters, f"{mod.__name__}.export_csv missing groups"
+        src = _inspect.getsource(mod.export_csv)
+        # intersect against the canonical group set and pass through to the builder
+        assert "GROUP_KEYS" in src
+        assert "groups=" in src
+
+
 def test_piezo_export_route_registered_before_greedy_detail_route():
     from api.routers.observatory_piezo import router
     paths = [r.path for r in router.routes]
