@@ -28,6 +28,14 @@ def test_hydro_export_endpoint_converts_flow_and_is_resilient():
     assert "_FLOW_COLS_DAILY" in src
 
 
+def test_export_endpoints_emit_utf8_bom_for_excel():
+    # utf-8-sig prepends a BOM so Excel stops decoding the file as Windows-1252
+    # (which turned "Département" into "DÃ©partement").
+    for mod in (observatory_piezo, observatory_hydro):
+        src = inspect.getsource(mod.export_csv)
+        assert "utf-8-sig" in src, f"{mod.__name__}.export_csv should encode body as utf-8-sig"
+
+
 def test_export_endpoints_accept_and_apply_date_range():
     import inspect as _inspect
 

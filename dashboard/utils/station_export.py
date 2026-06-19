@@ -1,14 +1,22 @@
 """Pure CSV builder for single-station export (chronique + monthly index).
 
 No FastAPI / no DB here — routers fetch the rows and call build_station_csv.
-One CSV row per day; the monthly standardized index (IPS for piezo, SSFI for
-hydro) of a row's month is carried forward onto every day of that month.
+
+Format: tidy RFC-4180 CSV. Header on line 1, no comment block. Station identity
+and provenance are denormalized into columns repeated on every row, so the file
+is self-contained and machine-readable without out-of-band metadata. One CSV row
+per day; the monthly standardized index (IPS for piezo, SSFI for hydro) of a
+row's month is carried forward onto every day of that month.
+
+Routers should encode the returned text as ``utf-8-sig`` (UTF-8 + BOM) so Excel
+opens it without mojibake.
 """
 from __future__ import annotations
 
 import csv
 import io
 from datetime import date, datetime
+from decimal import Decimal
 
 # Per-domain value columns: (csv_header, daily_row_key)
 _VALUE_COLS = {
@@ -21,8 +29,23 @@ _METEO_COLS = [("temperature_2m", "temperature_2m"),
                ("total_precipitation", "total_precipitation"),
                ("potential_evaporation", "potential_evaporation")]
 _INDEX_PREFIX = {"piezo": "ips", "hydro": "ssfi"}
-_INDEX_LABEL = {"piezo": "IPS", "hydro": "SSFI"}
-_UNIT = {"piezo": "niveau en m NGF", "hydro": "débit en m³/s"}
+_UNIT = {"piezo": "niveau en m NGF ; z-score sans unité",
+         "hydro": "débit en m³/s ; z-score sans unité"}
+_INDEX_REF = "1991-2020"
+_SOURCE = "Junon / Hub'Eau + BRGM"
+
+# Station identity columns, repeated on every row: (csv_header, meta_key)
+_IDENTITY_COLS = [
+    ("code", "code"),
+    ("nom_station", "nom_commune"),
+    ("code_departement", "code_departement"),
+    ("nom_departement", "nom_departement"),
+    ("codes_bdlisa", "codes_bdlisa"),
+    ("latitude", "latitude"),
+    ("longitude", "longitude"),
+]
+# Constant provenance columns appended at the end.
+_PROVENANCE_HEADERS = ["index_ref", "unites", "source", "genere_le"]
 
 
 def _as_date(d) -> date:
@@ -43,6 +66,11 @@ def _fmt(v) -> str:
         return ""
     if isinstance(v, (date, datetime)):
         return _as_date(v).isoformat()
+    if isinstance(v, Decimal):
+        # Round to 6 dp, drop trailing zeros, avoid scientific notation.
+        return format(round(v, 6).normalize(), "f")
+    if isinstance(v, float):
+        return repr(round(v, 6))
     return str(v)
 
 
@@ -58,31 +86,6 @@ def index_by_month(index_rows) -> dict[tuple[int, int], dict]:
     return out
 
 
-def _header_lines(domain: str, meta: dict, daily_rows, idx) -> list[str]:
-    flag = ""
-    if idx:
-        flag = idx[max(idx.keys())].get("flag") or ""
-    dmin = _fmt(daily_rows[0]["date"]) if daily_rows else ""
-    dmax = _fmt(daily_rows[-1]["date"]) if daily_rows else ""
-    source = "Source: Junon / Hub'Eau + BRGM"
-    if meta.get("generated_on"):
-        source += f" — généré le {_fmt(meta.get('generated_on'))}"
-    lines = [
-        f"Station: {meta.get('nom_commune') or ''} ({meta.get('code') or ''})",
-        f"Département: {meta.get('nom_departement') or ''} ({meta.get('code_departement') or ''})",
-    ]
-    if meta.get("codes_bdlisa"):
-        lines.append(f"Entité hydrogéo (BDLISA): {meta.get('codes_bdlisa')}")
-    lines += [
-        f"Coordonnées: {_fmt(meta.get('latitude'))}, {_fmt(meta.get('longitude'))}",
-        f"Période exportée: {dmin} → {dmax}",
-        f"Index: {_INDEX_LABEL[domain]} (réf. fixe 1991-2020, flag={flag})",
-        f"Unités: {_UNIT[domain]} ; z-score sans unité",
-        source,
-    ]
-    return lines
-
-
 def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:
     if domain not in _INDEX_PREFIX:
         raise ValueError(f"unknown domain {domain!r}")
@@ -90,22 +93,25 @@ def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:
     prefix = _INDEX_PREFIX[domain]
     value_cols = _VALUE_COLS[domain]
 
-    out = io.StringIO()
-    for line in _header_lines(domain, meta, daily_rows, idx):
-        out.write(f"# {line}\n")
+    identity_cells = [_fmt(meta.get(key)) for _, key in _IDENTITY_COLS]
+    provenance_cells = [_INDEX_REF, _UNIT[domain], _SOURCE, _fmt(meta.get("generated_on"))]
 
+    out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(
-        ["date"]
+        [h for h, _ in _IDENTITY_COLS]
+        + ["date"]
         + [h for h, _ in value_cols]
         + [h for h, _ in _METEO_COLS]
         + ["mois_ref", f"{prefix}_z", f"{prefix}_classe", f"{prefix}_flag"]
+        + _PROVENANCE_HEADERS
     )
 
     for row in daily_rows:
         mk = _month_key(row["date"])
         ix = idx.get(mk)
-        rec = [_fmt(row.get("date"))]
+        rec = list(identity_cells)
+        rec.append(_fmt(row.get("date")))
         rec += [_fmt(row.get(k)) for _, k in value_cols]
         rec += [_fmt(row.get(k)) for _, k in _METEO_COLS]
         if ix:
@@ -113,6 +119,7 @@ def build_station_csv(domain: str, meta: dict, daily_rows, index_rows) -> str:
                     _fmt(ix["index_class"]), _fmt(ix["flag"])]
         else:
             rec += ["", "", "", ""]
+        rec += provenance_cells
         writer.writerow(rec)
 
     return out.getvalue()

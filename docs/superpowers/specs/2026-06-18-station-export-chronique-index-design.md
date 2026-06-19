@@ -62,25 +62,23 @@ existing `daily` / `monthly` / `spli` / `ssfi` endpoints.
 
 ### CSV layout
 
-**Header block** — comment lines prefixed with `#` (parseable with pandas
-`comment='#'`, readable as-is in Excel). This is the "station" part:
+> **Revised 2026-06-19** — the original design used a `#`-prefixed comment block before
+> the header. That broke strict CSV parsers and, lacking a BOM, rendered as mojibake in
+> Excel (`Département` → `DÃ©partement`). The shipped format is **tidy RFC-4180**: header on
+> line 1, no comment block, station identity + provenance denormalized into columns repeated
+> on every row, and the body encoded as **`utf-8-sig`** (UTF-8 + BOM) so Excel decodes
+> accents correctly. Numeric values are rounded to 6 dp with trailing zeros stripped
+> (`172.8800000000000000` → `172.88`).
 
-```
-# Station: <nom> (<code>)
-# Commune: <nom_commune> (<code_departement>)
-# Entité hydrogéo: <libelle_eh>          # piezo only
-# Coordonnées: <lat>, <lon>
-# Période exportée: <date_min> → <date_max>
-# Index: <IPS|SSFI> (réf. fixe 1991-2020, flag=<normale|adaptee|provisoire>)
-# Unités: niveau en m NGF / débit en m³/s ; z-score sans unité
-# Source: Junon / Hub'Eau + BRGM — généré le <YYYY-MM-DD>
-```
+**Identity columns** (repeated on every row, leading): `code`, `nom_station`,
+`code_departement`, `nom_departement`, `codes_bdlisa` (piezo only — empty for hydro),
+`latitude`, `longitude`.
 
-The `flag` shown in the header is the station's reference flag (same value carried in the
-per-row `*_flag` column; taken from the index rows — if they vary, the header reflects the
-most recent month's flag).
+**Provenance columns** (constant, trailing): `index_ref` (`1991-2020`), `unites`
+(`niveau en m NGF ; z-score sans unité` / `débit en m³/s ; z-score sans unité`),
+`source` (`Junon / Hub'Eau + BRGM`), `genere_le` (`<YYYY-MM-DD>`).
 
-**Data table** — one row per day.
+**Data table** — one row per day, between the identity and provenance blocks.
 
 Piezo columns:
 
@@ -103,7 +101,7 @@ replacing the level columns, and `ssfi_z` / `ssfi_classe` / `ssfi_flag` replacin
 
 ### Edge cases
 
-- Empty chronique → CSV with header block and zero data rows (HTTP 200, not an error).
+- Empty chronique → CSV with the header row and zero data rows (HTTP 200, not an error).
 - `gold.fct_monthly_index` missing (pre-materialization) → catch `ProgrammingError`,
   export the chronique with empty index columns (same resilience pattern as the existing
   `/spli` endpoint).

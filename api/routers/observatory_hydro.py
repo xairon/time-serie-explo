@@ -722,7 +722,8 @@ def export_csv(
     )
     fname = f"{code_station.replace('/', '_')}_{date.today().isoformat()}.csv"
     return Response(
-        content=body,
+        # utf-8-sig adds a BOM so Excel decodes accents correctly (not Windows-1252).
+        content=body.encode("utf-8-sig"),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
