@@ -603,7 +603,7 @@ export function ObservatoryMap({
     // Skip fill-color while the by-zone choropleth owns secteurs-fill; by-zone
     // will repaint choropleth, and this effect re-runs (era5ByZone is a dep) to
     // restore situation colours when by-zone is released.
-    if (!(showSectors && era5Active && era5ByZone)) {
+    if (!(era5Active && era5ByZone)) {
       m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
     }
     const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const rot = s.trend != null ? TREND_ROTATION[s.trend] : undefined; if (!c || rot === undefined || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { rot } } }).filter(Boolean)
@@ -762,7 +762,7 @@ export function ObservatoryMap({
       restore()
       // show squares again if era5 active and not by-zone
       if (map.getLayer('era5-grid-fill')) {
-        map.setLayoutProperty('era5-grid-fill', 'visibility', era5Active && !era5ByZone ? 'visible' : 'none')
+        map.setLayoutProperty('era5-grid-fill', 'visibility', era5Active && (!era5ByZone || !cfg) ? 'visible' : 'none')
       }
       return
     }
