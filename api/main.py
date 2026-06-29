@@ -77,6 +77,18 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_warm_sectors())
 
+    # Warm the ERA5 temperature-climatology cache in the BACKGROUND (~71s full-table
+    # scan) so the first /temp-anomaly request after a restart or 7-day TTL expiry
+    # doesn't hit the scan and exceed the frontend's 30s timeout.
+    async def _warm_era5_climatology():
+        try:
+            await asyncio.to_thread(observatory_era5._era5_temp_climatology)
+            logger.info("ERA5 climatology cache warmed")
+        except Exception:
+            logger.warning("ERA5 climatology warm-up failed", exc_info=True)
+
+    asyncio.create_task(_warm_era5_climatology())
+
     yield
 
     # Shutdown: close connection pools
