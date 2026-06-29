@@ -665,7 +665,7 @@ export function ObservatoryMap({
         const f = e.features?.[0]
         if (!f) return
         const pr = f.properties as Record<string, string>
-        const num = (k: string) => (pr[k] === undefined || pr[k] === null || pr[k] === '' ? null : Number(pr[k]))
+        const num = (k: string) => { const v = Number(pr[k]); return Number.isFinite(v) ? v : null }
         const html = `<div style="font-size:12px;line-height:1.5">
             <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
             <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
