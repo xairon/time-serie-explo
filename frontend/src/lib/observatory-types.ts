@@ -203,6 +203,12 @@ export interface ERA5Range {
   max_date: string
 }
 
+export interface ERA5AnomalyPoint {
+  latitude: number
+  longitude: number
+  anomaly_c: number | null
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

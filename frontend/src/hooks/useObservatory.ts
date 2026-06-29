@@ -5,7 +5,7 @@ import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { observatoryApi } from '@/lib/observatory-api'
 import { situationApi } from '@/lib/situation-api'
 import type {
-  SPIDataPoint, SPLIDataPoint, SSFIDataPoint, WfsLayerId,
+  SPIDataPoint, SPLIDataPoint, SSFIDataPoint, WfsLayerId, ERA5AnomalyPoint,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
 } from '@/lib/observatory-types'
 
@@ -366,6 +366,15 @@ export function useERA5Range() {
   return useQuery({
     queryKey: ['obs-era5', 'range'],
     queryFn: () => observatoryApi.era5.range(),
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
+
+export function useERA5TempAnomaly(date: string | undefined, window: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['obs-era5', 'temp-anomaly', date, window],
+    queryFn: () => observatoryApi.era5.tempAnomaly(date!, window),
+    enabled: enabled && !!date,
     staleTime: 24 * 60 * 60 * 1000,
   })
 }
