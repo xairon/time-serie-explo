@@ -10,7 +10,7 @@ export interface ERA5CellProps {
 
 export function era5AnomalyPointsToSquares(
   points: ERA5AnomalyPoint[],
-): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly_c: number | null }> {
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly_c: number }> {
   const h = ERA5_CELL_HALF
   return {
     type: 'FeatureCollection',
@@ -19,6 +19,7 @@ export function era5AnomalyPointsToSquares(
       .map((p) => {
         const lon = Number(p.longitude)
         const lat = Number(p.latitude)
+        const v = p.anomaly_c as number
         return {
           type: 'Feature',
           geometry: {
@@ -31,7 +32,7 @@ export function era5AnomalyPointsToSquares(
               [lon - h, lat - h],
             ]],
           },
-          properties: { anomaly_c: p.anomaly_c },
+          properties: { anomaly_c: v },
         }
       }),
   }

@@ -664,7 +664,8 @@ export function ObservatoryMap({
       const pts = (era5Points ?? []).filter((p) => p[cfg.prop as 'temperature_2m' | 'total_precipitation' | 'potential_evaporation'] != null)
       data = era5PointsToSquares(pts)
     }
-    setEra5NoData(data.features.length === 0)
+    const loading = era5Variable === 'anomaly' ? era5AnomalyPoints === undefined : era5Points === undefined
+    setEra5NoData(!loading && data.features.length === 0)
 
     if (!map.getSource(SRC)) {
       map.addSource(SRC, { type: 'geojson', data })
