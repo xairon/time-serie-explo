@@ -9,6 +9,7 @@ import { era5PointsToSquares, era5AnomalyPointsToSquares } from '@/lib/era5-grid
 import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES } from '@/lib/era5-colors'
 import type { Era5Variable } from '@/lib/era5-colors'
 import type { ERA5GridPoint, ERA5AnomalyPoint } from '@/lib/observatory-types'
+import { aggregateEra5ByZone, era5ZoneColorExpression } from '@/lib/era5-zones'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -71,6 +72,7 @@ interface Props {
   era5Variable?: Era5Variable
   era5AnomalyPoints?: ERA5AnomalyPoint[]
   era5Window?: number
+  era5ByZone?: boolean
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -274,6 +276,14 @@ function computeBbox(geometry: any): [number, number, number, number] {
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
+const ERA5_ZONE_CFG: Record<string, { fillId: string; idProp: string; geoKey: string }> = {
+  depts:    { fillId: 'depts-fill',    idProp: 'code',      geoKey: 'depts' },
+  regions:  { fillId: 'regions-fill',  idProp: 'code',      geoKey: 'regions' },
+  her:      { fillId: 'her-fill',      idProp: 'code',      geoKey: 'her' },
+  bassins:  { fillId: 'bassins-fill',  idProp: 'CdBH',      geoKey: 'bassins' },
+  secteurs: { fillId: 'secteurs-fill', idProp: 'sector_id', geoKey: 'secteurs' },
+}
+
 export function ObservatoryMap({
   features, excludedFeatures, allFeatures,
   showPiezo = true, showHydro = true,
@@ -289,6 +299,7 @@ export function ObservatoryMap({
   showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
   era5Active = false, era5Points, era5Variable = 'temperature',
   era5AnomalyPoints, era5Window = 3,
+  era5ByZone = false,
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -318,6 +329,10 @@ export function ObservatoryMap({
   const era5VariableRef = useRef(era5Variable); era5VariableRef.current = era5Variable
   const era5WindowRef = useRef(era5Window); era5WindowRef.current = era5Window
   const era5ActiveRef = useRef(era5Active); era5ActiveRef.current = era5Active
+
+  const zoneGeoRef = useRef<Record<string, any>>({})
+  const era5OverriddenRef = useRef<string | null>(null)
+  const savedPaintRef = useRef<Record<string, any>>({})
 
   const [era5NoData, setEra5NoData] = useState(false)
 
@@ -392,6 +407,10 @@ export function ObservatoryMap({
         fetch('/geo/bassins.geojson').then(r => r.json()),
       ]).then(([regionsData, deptsData, herData, bassinsData]) => {
         if (!mapRef.current) return
+        zoneGeoRef.current['regions'] = regionsData
+        zoneGeoRef.current['depts'] = deptsData
+        zoneGeoRef.current['her'] = herData
+        zoneGeoRef.current['bassins'] = bassinsData
         const addLayer = (sourceId: string, data: any, fillId: string, lineId: string, vis: string, fillPaint: any, linePaint: any) => {
           map.addSource(sourceId, { type: 'geojson', data, generateId: true })
           map.addLayer({ id: fillId, type: 'fill', source: sourceId, paint: fillPaint, layout: { visibility: vis as any } }, 'piezo-clusters')
@@ -554,6 +573,7 @@ export function ObservatoryMap({
     let cancelled = false
     fetch('/geo/secteurs-bsh.geojson').then(r => r.json()).then((gj) => {
       if (cancelled || !mapRef.current) return
+      zoneGeoRef.current['secteurs'] = gj
       const add = () => {
         if (m.getSource('secteurs-bsh')) return
         m.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
@@ -707,8 +727,60 @@ export function ObservatoryMap({
       ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data)
       map.setPaintProperty(FILL, 'fill-color', era5ColorExpression(era5Variable) as any)
     }
-    map.setLayoutProperty(FILL, 'visibility', 'visible')
-  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, t])
+    if (!era5ByZone) map.setLayoutProperty(FILL, 'visibility', 'visible')
+  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, era5ByZone, t])
+
+  // --- ERA5 by-zone choropleth ---
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const overriddenRef = era5OverriddenRef
+
+    const restore = () => {
+      const prev = overriddenRef.current
+      if (prev && map.getLayer(prev) && savedPaintRef.current[prev] !== undefined) {
+        map.setPaintProperty(prev, 'fill-color', savedPaintRef.current[prev])
+      }
+      overriddenRef.current = null
+    }
+
+    const activeZone: string | null =
+      showDepts ? 'depts' :
+      showRegions ? 'regions' :
+      showHER ? 'her' :
+      showSandre ? 'bassins' :
+      showSectors ? 'secteurs' :
+      null
+    const cfg = activeZone ? ERA5_ZONE_CFG[activeZone] : undefined
+
+    if (!era5Active || !era5ByZone || !cfg || !map.getLayer(cfg.fillId)) {
+      restore()
+      // show squares again if era5 active and not by-zone
+      if (map.getLayer('era5-grid-fill')) {
+        map.setLayoutProperty('era5-grid-fill', 'visibility', era5Active && !era5ByZone ? 'visible' : 'none')
+      }
+      return
+    }
+
+    // by-zone ON: hide squares
+    if (map.getLayer('era5-grid-fill')) map.setLayoutProperty('era5-grid-fill', 'visibility', 'none')
+
+    const features = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
+    const isAnom = era5Variable === 'anomaly'
+    const valueKey = isAnom ? 'anomaly_c' : ERA5_VARIABLES[era5Variable].prop
+    const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
+    const zoneValues = aggregateEra5ByZone(points as any, valueKey, features, cfg.idProp)
+
+    // save original paint once per layer before first override
+    if (overriddenRef.current !== cfg.fillId) {
+      restore() // restore any previously overridden (different) layer first
+      if (savedPaintRef.current[cfg.fillId] === undefined) {
+        savedPaintRef.current[cfg.fillId] = map.getPaintProperty(cfg.fillId, 'fill-color')
+      }
+      overriddenRef.current = cfg.fillId
+    }
+    map.setPaintProperty(cfg.fillId, 'fill-color', era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable) as any)
+  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
