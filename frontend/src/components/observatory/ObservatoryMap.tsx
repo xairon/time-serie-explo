@@ -649,7 +649,7 @@ export function ObservatoryMap({
     }
 
     const cfg = ERA5_VARIABLES[era5Variable]
-    let data: GeoJSON.FeatureCollection<GeoJSON.Polygon, Record<string, number | null>>
+    let data: GeoJSON.FeatureCollection<GeoJSON.Polygon>
     if (era5Variable === 'anomaly') {
       const pts = (era5AnomalyPoints ?? []).filter((p) => p.anomaly_c != null)
       data = {

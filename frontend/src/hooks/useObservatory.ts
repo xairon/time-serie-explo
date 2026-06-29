@@ -5,7 +5,7 @@ import { useMemo, useCallback, useEffect, useRef } from 'react'
 import { observatoryApi } from '@/lib/observatory-api'
 import { situationApi } from '@/lib/situation-api'
 import type {
-  SPIDataPoint, SPLIDataPoint, SSFIDataPoint, WfsLayerId, ERA5AnomalyPoint,
+  SPIDataPoint, SPLIDataPoint, SSFIDataPoint, WfsLayerId,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
 } from '@/lib/observatory-types'
 
