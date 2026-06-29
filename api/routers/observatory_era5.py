@@ -9,7 +9,7 @@ from api.database import get_brgm_sync_engine
 
 from api.config import settings
 from dashboard.utils.cache import get_cached
-from api.era5_anomaly import window_end_months, add_months
+from api.era5_anomaly import window_end_months, add_months, latest_complete_month
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
 
@@ -185,6 +185,12 @@ def get_era5_temp_anomaly(
     if window not in (1, 3, 6, 12):
         window = 3
 
+    # M2: build cache key at month granularity before touching the DB
+    if anomaly_date is None:
+        cache_month_key = "latest"
+    else:
+        cache_month_key = str(DateType(anomaly_date.year, anomaly_date.month, 1))
+
     def fetch():
         engine = get_brgm_sync_engine()
         try:
@@ -194,7 +200,11 @@ def get_era5_temp_anomaly(
                     d = conn.execute(
                         text("SELECT max(era5_date) FROM gold.int_era5_for_all_stations")
                     ).scalar()
-                month_start = DateType(d.year, d.month, 1)
+                    if d is None:  # M1: empty table guard
+                        return []
+                    month_start = latest_complete_month(d)  # I1: use latest complete month
+                else:
+                    month_start = DateType(d.year, d.month, 1)
                 win_start = add_months(month_start, -(window - 1))
                 win_end = add_months(month_start, 1)
                 rows = conn.execute(
@@ -247,7 +257,7 @@ def get_era5_temp_anomaly(
 
     return get_cached(
         "obs_era5_temp_anomaly",
-        {"date": str(anomaly_date) if anomaly_date else "latest", "window": window},
+        {"month": cache_month_key, "window": window},
         ANOMALY_TTL,
         fetch,
     )
