@@ -21,4 +21,20 @@ describe('era5-colors', () => {
     expect(era5FormatValue('temperature', 12.34)).toBe('12.3 °C')
     expect(era5FormatValue('precipitation', null)).toBe('—')
   })
+
+  it('includes the anomaly variable with a divergent scale', () => {
+    expect(ERA5_VARIABLES.anomaly.prop).toBe('anomaly_c')
+    const expr = era5ColorExpression('anomaly') as any[]
+    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly_c']])
+    // divergent scale includes a 0 midpoint stop
+    const stopValues = expr.slice(3).filter((_, i) => i % 2 === 0)
+    expect(stopValues).toContain(0)
+  })
+
+  it('formats anomaly with an explicit sign', () => {
+    expect(era5FormatValue('anomaly', 2.3)).toBe('+2.3 °C')
+    expect(era5FormatValue('anomaly', -1.1)).toBe('−1.1 °C')
+    expect(era5FormatValue('anomaly', 0)).toBe('+0.0 °C')
+    expect(era5FormatValue('anomaly', null)).toBe('—')
+  })
 })
