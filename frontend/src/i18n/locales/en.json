@@ -248,7 +248,8 @@
       "era5Window12": "12 months",
       "era5ByZone": "Aggregate by zone (active layer)",
       "era5ByZoneHint": "Enable a zone layer (departments, regions…)",
-      "era5TimelineDriven": "Driven by the timeline"
+      "era5TimelineDriven": "Driven by the timeline",
+      "era5EvaporationMore": "more evapotranspiration"
     },
     "era5": {
       "popupTemperature": "Temperature",

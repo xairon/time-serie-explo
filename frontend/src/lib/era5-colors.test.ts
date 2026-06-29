@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ERA5_VARIABLES, era5ColorExpression, era5FormatValue } from './era5-colors'
+import { ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss } from './era5-colors'
 
 describe('era5-colors', () => {
   it('maps each variable to its data property', () => {
@@ -36,6 +36,23 @@ describe('era5-colors', () => {
     expect(era5FormatValue('anomaly', -1.1)).toBe('−1.1 °C')
     expect(era5FormatValue('anomaly', 0)).toBe('+0.0 °C')
     expect(era5FormatValue('anomaly', null)).toBe('—')
+  })
+
+  it('era5GradientCss returns a linear-gradient string containing the first and last stop colours', () => {
+    const css = era5GradientCss('temperature')
+    expect(css).toMatch(/^linear-gradient\(to right,/)
+    const stops = ERA5_VARIABLES.temperature.stops
+    expect(css).toContain(stops[0][1])                     // first colour
+    expect(css).toContain(stops[stops.length - 1][1])      // last colour
+    // first stop should be positioned at 0.0%, last at 100.0%
+    expect(css).toContain('0.0%')
+    expect(css).toContain('100.0%')
+  })
+
+  it('era5GradientCss positions anomaly 0-stop at exactly 50%', () => {
+    const css = era5GradientCss('anomaly')
+    // anomaly stops: -5 … 0 … +5 → 0 is at (0 - (-5)) / (5 - (-5)) * 100 = 50%
+    expect(css).toContain('#f7f7f7 50.0%')
   })
 
   it('has strictly increasing stop values for every ERA5 variable (MapLibre requires monotonic stops)', () => {

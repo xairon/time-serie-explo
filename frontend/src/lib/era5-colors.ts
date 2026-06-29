@@ -41,6 +41,21 @@ export function era5ColorExpression(v: Era5Variable): unknown[] {
   return expr
 }
 
+/** Returns a CSS linear-gradient string built from the variable's colour stops,
+ *  with each stop positioned proportionally across [min, max]. */
+export function era5GradientCss(variable: Era5Variable): string {
+  const stops = ERA5_VARIABLES[variable].stops
+  const values = stops.map(([v]) => v)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min
+  const parts = stops.map(([v, c]) => {
+    const pct = range === 0 ? 0 : ((v - min) / range) * 100
+    return `${c} ${pct.toFixed(1)}%`
+  })
+  return `linear-gradient(to right, ${parts.join(', ')})`
+}
+
 export function era5FormatValue(v: Era5Variable, value: number | null): string {
   if (value == null || Number.isNaN(value)) return '—'
   const cfg = ERA5_VARIABLES[v]

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Layers, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import { CLASSIFICATION_ORDER, CLASSIFICATION_LABELS, CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import type { ObsFilters } from '@/hooks/useObservatory'
-import { ERA5_VARIABLES } from '@/lib/era5-colors'
+import { ERA5_VARIABLES, era5GradientCss } from '@/lib/era5-colors'
 import type { Era5Variable } from '@/lib/era5-colors'
 
 function useZoneLayers() {
@@ -197,15 +197,24 @@ export function RightDrawer(props: Props) {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">{t(ERA5_VARIABLES[props.era5Variable].labelKey)} ({ERA5_VARIABLES[props.era5Variable].unit})</span>
-                <div className="flex items-center gap-1">
-                  {ERA5_VARIABLES[props.era5Variable].stops.map(([v, c]) => (
-                    <div key={v} className="flex flex-col items-center">
-                      <span className="w-6 h-3 rounded-sm" style={{ backgroundColor: c }} />
-                      <span className="text-[9px] text-text-secondary">{props.era5Variable === 'evaporation' ? Math.abs(v) : v}</span>
-                    </div>
-                  ))}
+                {/* Title + unit */}
+                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">
+                  {t(ERA5_VARIABLES[props.era5Variable].labelKey)} ({ERA5_VARIABLES[props.era5Variable].unit})
+                </span>
+                {/* Continuous gradient bar */}
+                <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
+                {/* Scale labels: min left, optional 0 centre for anomaly, max right */}
+                <div className="relative flex justify-between text-[9px] text-text-secondary">
+                  <span>{ERA5_VARIABLES[props.era5Variable].stops[0][0]}</span>
+                  {props.era5Variable === 'anomaly' && (
+                    <span className="absolute left-1/2 -translate-x-1/2">0</span>
+                  )}
+                  <span>{ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]}</span>
                 </div>
+                {/* Evaporation: left end = most evapotranspiration */}
+                {props.era5Variable === 'evaporation' && (
+                  <p className="text-[9px] text-text-secondary/60">← {t('observatory.drawer.era5EvaporationMore')}</p>
+                )}
               </div>
             </div>
           )}
