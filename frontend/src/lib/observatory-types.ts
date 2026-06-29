@@ -198,6 +198,11 @@ export interface ERA5GridPoint {
   potential_evaporation: number | null
 }
 
+export interface ERA5Range {
+  min_date: string
+  max_date: string
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

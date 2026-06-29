@@ -362,6 +362,14 @@ export function useERA5Monthly(month: string | undefined) {
   })
 }
 
+export function useERA5Range() {
+  return useQuery({
+    queryKey: ['obs-era5', 'range'],
+    queryFn: () => observatoryApi.era5.range(),
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
+
 // --- Sector situation hooks ---
 
 export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean, network: 'all' | 'meteeau' = 'all') {
