@@ -231,7 +231,21 @@
       "sectorsMeteo": "Groundwater weather (sectors)",
       "groupMeteo": "Synthesis",
       "sectorLegendTitle": "Situation by sector",
-      "sectorNoData": "Insufficient data"
+      "sectorNoData": "Insufficient data",
+      "groupWeatherEra5": "Weather (ERA5)",
+      "era5Layer": "ERA5 grid",
+      "era5ColorBy": "Color by",
+      "era5VarTemperature": "Temperature",
+      "era5VarPrecipitation": "Precipitation",
+      "era5VarEvaporation": "Evapotranspiration",
+      "era5Date": "Date",
+      "era5NoData": "No data for this date",
+      "era5VarAnomaly": "Thermal anomaly",
+      "era5Window": "Window",
+      "era5Window1": "1 month",
+      "era5Window3": "3 months",
+      "era5Window6": "6 months",
+      "era5Window12": "12 months"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",
