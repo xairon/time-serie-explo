@@ -47,38 +47,63 @@ a divergent scale, and the cells are coloured by the anomaly returned by a new
 endpoint. All other Phase 0 behaviour (squares under the stations, click popup,
 opt-in toggle, independent date) is unchanged.
 
-## Backend
+## Backend — computed on the fly in the API, cached in Redis (no dbt, no warehouse schema change)
 
-### Warehouse (dbt, cross-repo) — precomputed so requests stay fast
+Everything is computed in SQL against `gold.int_era5_for_all_stations` (daily
+values) inside the existing router, wrapped in `get_cached(...)`. To avoid
+re-scanning the 126M-row table on every request, the work is split into a cheap
+per-request part and an expensive-but-reused climatology part:
 
-1. **`gold.int_era5_temp_monthly`** — cell × `year_month` × `mean_temp_c`
-   (monthly mean of `temperature_2m` from `gold.int_era5_for_all_stations`).
-   One row per (latitude, longitude, month). ~4,500 cells × ~900 months.
-2. **`gold.int_era5_temp_window_normals`** — cell × `window_months` (1,3,6,12) ×
-   `end_calendar_month` (1..12) × `normal_mean_c`. Computed from
-   `int_era5_temp_monthly`: build the N-month rolling mean per cell per
-   year-month, then average those rolling means across all years grouped by the
-   window's ending calendar month.
+1. **Climatology (reused across all requests).** A helper
+   `_era5_temp_climatology()` returns, per cell, the long-term mean temperature
+   for each calendar month (cell × `month` 1..12 × `mean_c`), over the full
+   record (1950+):
+   ```sql
+   SELECT latitude, longitude,
+          EXTRACT(MONTH FROM era5_date)::int AS mo,
+          AVG(temperature_2m) AS mean_c
+   FROM gold.int_era5_for_all_stations
+   GROUP BY latitude, longitude, EXTRACT(MONTH FROM era5_date)
+   ```
+   This is the only full-table scan; it is cached in Redis under a stable key
+   (`obs_era5_temp_climatology`, TTL 7 days — climatology is effectively
+   static). ~4,500 cells × 12 rows. First-ever call is a one-time cold cost
+   (one sequential scan); every later request reuses the cached result.
+   The N-month-window **normal** for a window ending at calendar month `m` is
+   the mean of the climatology values for the `N` ending calendar months
+   (computed in Python from the cached climatology — wrapping the year boundary
+   as needed, e.g. N=3 ending in Jan → months {11,12,1}).
 
-> Cross-repo note: these two models live in the dbt warehouse repo and are
-> materialised by the existing dagster/dbt pipeline (consistent with the IPS
-> fixed-reference precedent). The app only reads them. If warehouse changes must
-> be deferred, the same numbers can be computed on the fly in the endpoint SQL
-> and cached 24h — slower first hit, identical result — but the dbt models are
-> the intended path.
+2. **Window mean (per request, cheap).** For the selected date `D` (month `M`)
+   and window `N`, average the daily temperatures over the N-month window
+   `[M-(N-1) months, M+1 month)` per cell — a small scan (N months of one
+   period):
+   ```sql
+   SELECT latitude, longitude, AVG(temperature_2m) AS window_mean
+   FROM gold.int_era5_for_all_stations
+   WHERE era5_date >= :win_start AND era5_date < :win_end
+   GROUP BY latitude, longitude
+   ```
+
+3. **Anomaly** = `window_mean − normal` per cell (joined on lat/lon in Python).
 
 ### Endpoint (`api/routers/observatory_era5.py`)
 
 - `GET /observatory/era5/temp-anomaly?date=YYYY-MM-DD&window=N`
   (`window` ∈ {1,3,6,12}; `date` optional → latest available month) →
-  `[{latitude, longitude, anomaly_c}]`, one row per cell that has a full
-  N-month window of data ending at `date`'s month.
-  Query: window mean from `int_era5_temp_monthly` over the N months ending at
-  `month(date)`, minus `int_era5_temp_window_normals` for
-  `(window=N, end_calendar_month=month(date))`. Wrapped in `get_cached(...)`,
-  TTL 86400; `get_brgm_sync_engine()` with `finally: pass`.
-- Cells lacking a complete N-month window (early in the record, or sparse cells)
-  are omitted.
+  `[{latitude, longitude, anomaly_c}]`, one row per cell that has both a
+  window mean and a climatology normal. Wrapped in `get_cached(...)` keyed by
+  `{date, window}`, TTL 86400; uses `get_brgm_sync_engine()` with
+  `finally: pass`.
+- The expensive climatology is fetched via its own `get_cached(...)` (longer
+  TTL) so it is computed at most once per 7 days regardless of date/window.
+- Cells lacking a complete N-month window or any climatology are omitted.
+
+> Latency note: the very first `/temp-anomaly` call after a cache flush triggers
+> the one full-table climatology scan; subsequent calls (any date/window) are
+> cheap. If the cold scan ever exceeds the frontend's 30 s fetch timeout, the
+> mitigation is a one-time pre-warm of `obs_era5_temp_climatology` (a startup
+> ping), not a schema change.
 
 ## Frontend
 
@@ -132,11 +157,14 @@ opt-in toggle, independent date) is unchanged.
 
 ## Testing
 
-- **Warehouse:** dbt tests — `int_era5_temp_monthly` non-null `mean_temp_c`, one
-  row per cell-month; `int_era5_temp_window_normals` has all 4 windows × 12
-  ending months per cell; spot-check one cell's N=3 normal by hand.
-- **Backend:** verify `/temp-anomaly` via curl for a known date+window (non-empty
-  array, plausible anomaly range); confirm default-latest-month.
+- **Backend (pure helper, pytest):** the window-end → calendar-month-set logic
+  (e.g. `window_end_months(end_month, N)` → wraps the year boundary: (1,3) →
+  {11,12,1}) and the climatology→normal averaging are pure functions — unit-test
+  them (the existing test suite favours pure-helper tests; these queries
+  themselves are verified by curl, not unit tests).
+- **Backend (integration curl):** `/temp-anomaly` for a known date+window returns
+  a non-empty array with a plausible anomaly range; default-latest-month works;
+  the climatology cache is reused (second call fast).
 - **Frontend (vitest):** extend `era5-colors.test.ts` — anomaly is in the
   variable model, divergent expression reads `['to-number', ['get','anomaly_c']]`,
   `era5FormatValue('anomaly', 2.3) === '+2.3 °C'` and `(-1.1) === '−1.1 °C'`,
