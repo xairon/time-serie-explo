@@ -37,4 +37,19 @@ describe('era5-colors', () => {
     expect(era5FormatValue('anomaly', 0)).toBe('+0.0 °C')
     expect(era5FormatValue('anomaly', null)).toBe('—')
   })
+
+  it('has strictly increasing stop values for every ERA5 variable (MapLibre requires monotonic stops)', () => {
+    for (const key of Object.keys(ERA5_VARIABLES) as (keyof typeof ERA5_VARIABLES)[]) {
+      const expr = era5ColorExpression(key) as unknown[]
+      // expr = ['interpolate', ['linear'], ['to-number', ['get', prop]], stop0, color0, stop1, color1, ...]
+      // numeric stops start at index 3 (every other entry)
+      const stops: number[] = []
+      for (let i = 3; i < expr.length; i += 2) {
+        stops.push(expr[i] as number)
+      }
+      for (let i = 1; i < stops.length; i++) {
+        expect(stops[i]).toBeGreaterThan(stops[i - 1])
+      }
+    }
+  })
 })

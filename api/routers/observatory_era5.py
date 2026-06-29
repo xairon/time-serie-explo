@@ -10,7 +10,7 @@ from api.database import get_brgm_sync_engine
 
 from api.config import settings
 from dashboard.utils.cache import get_cached, read_cached
-from api.era5_anomaly import window_end_months, add_months, latest_complete_month
+from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
 
@@ -245,27 +245,7 @@ def get_era5_temp_anomaly(
 
             # climatology (separately cached) → normal for the N ending months
             clim = _era5_temp_climatology()
-            months = set(window_end_months(month_start.month, window))
-            norm: dict[tuple, list] = {}
-            for c in clim:
-                if c["mo"] in months:
-                    norm.setdefault((float(c["latitude"]), float(c["longitude"])), []).append(float(c["mean_c"]))
-
-            out = []
-            for r in rows:
-                key = (float(r["latitude"]), float(r["longitude"]))
-                vals = norm.get(key)
-                if not vals or len(vals) < len(months) or r["window_mean"] is None or int(r["n_months"]) < window:
-                    continue
-                normal = sum(vals) / len(vals)
-                out.append(
-                    {
-                        "latitude": float(r["latitude"]),
-                        "longitude": float(r["longitude"]),
-                        "anomaly_c": float(r["window_mean"]) - normal,
-                    }
-                )
-            return out
+            return compute_anomalies(rows, clim, window_end_months(month_start.month, window), window)
         finally:
             pass  # shared pooled engine; do not dispose
 
