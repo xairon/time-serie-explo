@@ -174,7 +174,7 @@ export function RightDrawer(props: Props) {
                   {ERA5_VARIABLES[props.era5Variable].stops.map(([v, c]) => (
                     <div key={v} className="flex flex-col items-center">
                       <span className="w-6 h-3 rounded-sm" style={{ backgroundColor: c }} />
-                      <span className="text-[9px] text-text-secondary">{Math.abs(v)}</span>
+                      <span className="text-[9px] text-text-secondary">{props.era5Variable === 'evaporation' ? Math.abs(v) : v}</span>
                     </div>
                   ))}
                 </div>
