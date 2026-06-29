@@ -41,6 +41,7 @@ interface Props {
   era5Active: boolean; setEra5Active: (v: boolean) => void
   era5Variable: Era5Variable; setEra5Variable: (v: Era5Variable) => void
   era5Date: string; setEra5Date: (v: string) => void
+  era5EffectiveDate?: string
   era5MinDate?: string; era5MaxDate?: string
   era5Window: number; setEra5Window: (n: number) => void
   era5ByZone: boolean; setEra5ByZone: (v: boolean) => void
@@ -187,9 +188,9 @@ export function RightDrawer(props: Props) {
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
                 {props.era5Variable === 'anomaly' ? (
-                  <input type="month" value={props.era5Date ? props.era5Date.slice(0, 7) : ''} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
+                  <input type="month" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '').slice(0, 7) : (props.era5Date ? props.era5Date.slice(0, 7) : '')} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
                 ) : (
-                  <input type="date" value={props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
+                  <input type="date" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '') : props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
                 )}
                 {props.era5TimelineDriven && (
                   <p className="text-[10px] text-text-secondary/60 mt-1">{t('observatory.drawer.era5TimelineDriven')}</p>
