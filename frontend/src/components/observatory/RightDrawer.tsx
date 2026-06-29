@@ -43,6 +43,7 @@ interface Props {
   era5Date: string; setEra5Date: (v: string) => void
   era5MinDate?: string; era5MaxDate?: string
   era5Window: number; setEra5Window: (n: number) => void
+  era5ByZone: boolean; setEra5ByZone: (v: boolean) => void
 }
 
 function AccordionSection({ id, title, badge, defaultOpen, children }: { id: string; title: string; badge?: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -174,6 +175,13 @@ export function RightDrawer(props: Props) {
                     ))}
                   </div>
                 </div>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input type="checkbox" checked={props.era5ByZone} onChange={() => props.setEra5ByZone(!props.era5ByZone)} className="w-3.5 h-3.5 accent-accent-cyan rounded" />
+                <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t('observatory.drawer.era5ByZone')}</span>
+              </label>
+              {props.era5ByZone && !['depts', 'regions', 'her', 'bassins', 'secteurs'].includes(props.activeZoneLayer ?? '') && (
+                <p className="text-xs text-text-secondary/60">{t('observatory.drawer.era5ByZoneHint')}</p>
               )}
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>

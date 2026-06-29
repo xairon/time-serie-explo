@@ -245,7 +245,9 @@
       "era5Window1": "1 mois",
       "era5Window3": "3 mois",
       "era5Window6": "6 mois",
-      "era5Window12": "12 mois"
+      "era5Window12": "12 mois",
+      "era5ByZone": "Agréger par zone (calque actif)",
+      "era5ByZoneHint": "Active un calque de zones (départements, régions…)"
     },
     "era5": {
       "popupTemperature": "Température",
