@@ -8,7 +8,7 @@ import { SearchBar } from '@/components/observatory/SearchBar'
 import type { SearchAction } from '@/components/observatory/SearchBar'
 import { TimelineSlider } from '@/components/observatory/TimelineSlider'
 import { RightDrawer } from '@/components/observatory/RightDrawer'
-import { useStationsGeoJSON, useWfsLayer, useObsFilters, useSectorSituation, useSectorTimeline, useERA5Range, useERA5Snapshot, useERA5TempAnomaly } from '@/hooks/useObservatory'
+import { useStationsGeoJSON, useWfsLayer, useObsFilters, useSectorSituation, useSectorTimeline, useERA5Range, useERA5Snapshot, useERA5TempAnomaly, useERA5Monthly } from '@/hooks/useObservatory'
 import type { Era5Variable } from '@/lib/era5-colors'
 import type { StationGeoJSONFeature, WfsLayerId, ClassificationTimeline, SituationClass } from '@/lib/observatory-types'
 import { TIMELINE_CLASSIFICATIONS } from '@/lib/observatory-types'
@@ -86,9 +86,6 @@ export default function ObservatoryPage() {
   const [era5Window, setEra5Window] = useState(3)
   const { data: era5Range } = useERA5Range(era5Active)
   useEffect(() => { if (era5Range?.max_date && !era5Date) setEra5Date(era5Range.max_date) }, [era5Range, era5Date])
-  const { data: era5Points } = useERA5Snapshot(era5Active && era5Date && era5Variable !== 'anomaly' ? era5Date : undefined)
-  const era5Month = era5Date ? era5Date.slice(0, 7) + '-01' : era5Date
-  const { data: era5AnomalyPoints } = useERA5TempAnomaly(era5Month, era5Window, era5Active && era5Variable === 'anomaly')
 
   const filteredFeatures = useMemo<StationGeoJSONFeature[]>(() => {
     const all = geojsonData?.features ?? []
@@ -132,6 +129,25 @@ export default function ObservatoryPage() {
 
   const [timelinePeriodIndex, setTimelinePeriodIndex] = useState<number | null>(null)
   const [timelineData, setTimelineData] = useState<ClassificationTimeline | null>(null)
+
+  const timelineMonth = (timelinePeriodIndex != null && timelineData)
+    ? timelineData.periods[timelinePeriodIndex] + '-01'
+    : null
+  // daily snapshot ONLY when independent (timeline closed) and not anomaly
+  const { data: era5SnapshotPoints } = useERA5Snapshot(
+    era5Active && !timelineMonth && era5Date && era5Variable !== 'anomaly' ? era5Date : undefined
+  )
+  // monthly aggregate when timeline-driven and not anomaly
+  const { data: era5MonthlyPoints } = useERA5Monthly(
+    era5Active && timelineMonth && era5Variable !== 'anomaly' ? timelineMonth : undefined
+  )
+  const era5Points = timelineMonth ? era5MonthlyPoints : era5SnapshotPoints
+  // anomaly: month from timeline if present, else the independent month picker
+  const anomalyMonth = timelineMonth ?? (era5Date ? era5Date.slice(0, 7) + '-01' : era5Date)
+  const { data: era5AnomalyPoints } = useERA5TempAnomaly(
+    anomalyMonth, era5Window, era5Active && era5Variable === 'anomaly'
+  )
+
   const handleOverlayToggle = useCallback((id: string) => { setOverlayLayers(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next }) }, [])
 
   const regionHydro = useWfsLayer('region-hydro', activeWfsLayers.has('region-hydro')); const secteurHydro = useWfsLayer('secteur-hydro', activeWfsLayers.has('secteur-hydro'))
@@ -228,9 +244,9 @@ export default function ObservatoryPage() {
         era5Active={era5Active} era5Points={era5Points} era5Variable={era5Variable} era5AnomalyPoints={era5AnomalyPoints} era5Window={era5Window} era5ByZone={era5ByZone} />
       <SearchBar features={geojsonData?.features} wfsData={wfsDataAll} onSearchAction={handleSearchAction} />
       <RightDrawer showPiezo={showPiezo} setShowPiezo={setShowPiezo} showHydro={showHydro} setShowHydro={setShowHydro} showExcluded={showExcluded} setShowExcluded={setShowExcluded} showTerrain={showTerrain} setShowTerrain={setShowTerrain} filters={filters} setFilter={setFilter} filteredPiezo={stationCounts.filteredPiezo} totalPiezo={stationCounts.totalPiezo} filteredHydro={stationCounts.filteredHydro} totalHydro={stationCounts.totalHydro} activeZoneLayer={activeZoneLayer} onZoneLayerChange={setActiveZoneLayer} overlayLayers={overlayLayers} onOverlayToggle={handleOverlayToggle} onResetSpatial={() => { setSpatialStationCodes(null); setActiveBbox(null) }} hasSpatialFilter={spatialStationCodes != null && spatialStationCodes.length > 0}
-        era5Active={era5Active} setEra5Active={setEra5Active} era5Variable={era5Variable} setEra5Variable={setEra5Variable} era5Date={era5Date} setEra5Date={setEra5Date} era5MinDate={era5Range?.min_date} era5MaxDate={era5Range?.max_date} era5Window={era5Window} setEra5Window={setEra5Window} era5ByZone={era5ByZone} setEra5ByZone={setEra5ByZone} />
+        era5Active={era5Active} setEra5Active={setEra5Active} era5Variable={era5Variable} setEra5Variable={setEra5Variable} era5Date={era5Date} setEra5Date={setEra5Date} era5MinDate={era5Range?.min_date} era5MaxDate={era5Range?.max_date} era5Window={era5Window} setEra5Window={setEra5Window} era5ByZone={era5ByZone} setEra5ByZone={setEra5ByZone} era5TimelineDriven={timelineMonth != null} />
       {selectedStation && <StationDrawer code={selectedStation.code} type={selectedStation.type} onClose={() => setSelectedStation(null)} />}
-      <TimelineSlider onPeriodChange={handleTimelinePeriodChange} />
+      <TimelineSlider onPeriodChange={handleTimelinePeriodChange} showMeteo={era5Active} onMeteoChange={setEra5Active} showHydro={showHydro} onHydroChange={setShowHydro} showPiezo={showPiezo} onPiezoChange={setShowPiezo} />
       <KPIBar filteredPiezo={stationCounts.filteredPiezo} filteredHydro={stationCounts.filteredHydro} totalPiezo={stationCounts.totalPiezo} totalHydro={stationCounts.totalHydro} />
     </div>
   )

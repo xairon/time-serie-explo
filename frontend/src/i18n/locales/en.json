@@ -247,7 +247,8 @@
       "era5Window6": "6 months",
       "era5Window12": "12 months",
       "era5ByZone": "Aggregate by zone (active layer)",
-      "era5ByZoneHint": "Enable a zone layer (departments, regions…)"
+      "era5ByZoneHint": "Enable a zone layer (departments, regions…)",
+      "era5TimelineDriven": "Driven by the timeline"
     },
     "era5": {
       "popupTemperature": "Temperature",
@@ -323,7 +324,10 @@
       "months": "{{count}} months",
       "start": "Start",
       "end": "End",
-      "closeTimeline": "Close timeline"
+      "closeTimeline": "Close timeline",
+      "layerMeteo": "Weather",
+      "layerHydro": "Hydro",
+      "layerPiezo": "Piezo"
     },
     "timeseries": {
       "noData": "No data",

@@ -247,7 +247,8 @@
       "era5Window6": "6 mois",
       "era5Window12": "12 mois",
       "era5ByZone": "Agréger par zone (calque actif)",
-      "era5ByZoneHint": "Active un calque de zones (départements, régions…)"
+      "era5ByZoneHint": "Active un calque de zones (départements, régions…)",
+      "era5TimelineDriven": "Piloté par la barre chronologique"
     },
     "era5": {
       "popupTemperature": "Température",
@@ -323,7 +324,10 @@
       "months": "{{count}} mois",
       "start": "Début",
       "end": "Fin",
-      "closeTimeline": "Fermer la chronologie"
+      "closeTimeline": "Fermer la chronologie",
+      "layerMeteo": "Météo",
+      "layerHydro": "Hydro",
+      "layerPiezo": "Piézo"
     },
     "timeseries": {
       "noData": "Aucune donnée",
