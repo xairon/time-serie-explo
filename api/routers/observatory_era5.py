@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import date as DateType
+from datetime import date as DateType, timedelta
 
 from fastapi import APIRouter, Query
 from sqlalchemy import text
@@ -66,18 +66,18 @@ def get_era5_snapshot(
                 d = snapshot_date
                 if d is None:
                     d = conn.execute(
-                        text("SELECT max(era5_date) FROM gold.int_era5_for_all_stations")
+                        text('SELECT max("time")::date FROM gold.era5_grid')
                     ).scalar()
                 query = """
                     SELECT latitude, longitude,
                            temperature_2m, total_precipitation, potential_evaporation
-                    FROM gold.int_era5_for_all_stations
-                    WHERE era5_date = :d
+                    FROM gold.era5_grid
+                    WHERE "time" >= :d AND "time" < :d_next
                       AND (temperature_2m IS NOT NULL
                            OR total_precipitation IS NOT NULL
                            OR potential_evaporation IS NOT NULL)
                 """
-                result = conn.execute(text(query), {"d": d})
+                result = conn.execute(text(query), {"d": d, "d_next": d + timedelta(days=1)})
                 return [dict(r._mapping) for r in result]
         finally:
             pass  # shared pooled engine; do not dispose
@@ -94,8 +94,8 @@ def get_era5_snapshot(
 def get_era5_dates():
     def fetch():
         query = """
-            SELECT DISTINCT date_trunc('month', era5_date)::date AS month
-            FROM gold.int_era5_for_all_stations
+            SELECT DISTINCT date_trunc('month', "time")::date AS month
+            FROM gold.era5_grid
             ORDER BY month
         """
         engine = get_brgm_sync_engine()
@@ -124,8 +124,8 @@ def get_era5_monthly(
                    AVG(temperature_2m) AS temperature_2m,
                    SUM(total_precipitation) AS total_precipitation,
                    AVG(potential_evaporation) AS potential_evaporation
-            FROM gold.int_era5_for_all_stations
-            WHERE era5_date >= :month_start AND era5_date < :month_end
+            FROM gold.era5_grid
+            WHERE "time" >= :month_start AND "time" < :month_end
             GROUP BY latitude, longitude
         """
         engine = get_brgm_sync_engine()
@@ -147,8 +147,8 @@ def get_era5_range():
             with engine.connect() as conn:
                 row = conn.execute(
                     text(
-                        "SELECT min(era5_date) AS min_date, max(era5_date) AS max_date "
-                        "FROM gold.int_era5_for_all_stations"
+                        'SELECT min("time")::date AS min_date, max("time")::date AS max_date '
+                        "FROM gold.era5_grid"
                     )
                 ).mappings().first()
                 return {"min_date": str(row["min_date"]), "max_date": str(row["max_date"])}
@@ -172,11 +172,11 @@ def _era5_temp_climatology():
             # We hold the lock and the cache is empty — run the expensive scan.
             query = """
                 SELECT latitude, longitude,
-                       EXTRACT(MONTH FROM era5_date)::int AS mo,
+                       EXTRACT(MONTH FROM "time")::int AS mo,
                        AVG(temperature_2m) AS mean_c
-                FROM gold.int_era5_for_all_stations
+                FROM gold.era5_grid
                 WHERE temperature_2m IS NOT NULL
-                GROUP BY latitude, longitude, EXTRACT(MONTH FROM era5_date)
+                GROUP BY latitude, longitude, EXTRACT(MONTH FROM "time")
             """
             engine = get_brgm_sync_engine()
             try:
@@ -212,7 +212,7 @@ def get_era5_temp_anomaly(
                 d = anomaly_date
                 if d is None:
                     d = conn.execute(
-                        text("SELECT max(era5_date) FROM gold.int_era5_for_all_stations")
+                        text('SELECT max("time")::date FROM gold.era5_grid')
                     ).scalar()
                     if d is None:  # M1: empty table guard
                         return []
@@ -226,12 +226,12 @@ def get_era5_temp_anomaly(
                         """
                         WITH monthly AS (
                             SELECT latitude, longitude,
-                                   date_trunc('month', era5_date) AS ym,
+                                   date_trunc('month', "time") AS ym,
                                    AVG(temperature_2m) AS m_mean
-                            FROM gold.int_era5_for_all_stations
-                            WHERE era5_date >= :win_start AND era5_date < :win_end
+                            FROM gold.era5_grid
+                            WHERE "time" >= :win_start AND "time" < :win_end
                               AND temperature_2m IS NOT NULL
-                            GROUP BY latitude, longitude, date_trunc('month', era5_date)
+                            GROUP BY latitude, longitude, date_trunc('month', "time")
                         )
                         SELECT latitude, longitude,
                                AVG(m_mean) AS window_mean,
