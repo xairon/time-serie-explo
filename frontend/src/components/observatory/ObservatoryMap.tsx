@@ -8,7 +8,7 @@ import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from 
 import { era5PointsToSquares } from '@/lib/era5-grid'
 import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES } from '@/lib/era5-colors'
 import type { Era5Variable } from '@/lib/era5-colors'
-import type { ERA5GridPoint } from '@/lib/observatory-types'
+import type { ERA5GridPoint, ERA5AnomalyPoint } from '@/lib/observatory-types'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -69,6 +69,8 @@ interface Props {
   era5Active?: boolean
   era5Points?: ERA5GridPoint[]
   era5Variable?: Era5Variable
+  era5AnomalyPoints?: ERA5AnomalyPoint[]
+  era5Window?: number
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -286,6 +288,7 @@ export function ObservatoryMap({
   flyToBbox = null, onFlyToComplete,
   showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
   era5Active = false, era5Points, era5Variable = 'temperature',
+  era5AnomalyPoints, era5Window = 3,
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -312,6 +315,8 @@ export function ObservatoryMap({
   const onBboxChangeRef = useRef(onBboxChange); onBboxChangeRef.current = onBboxChange
   const onSectorClickRef = useRef(onSectorClick); onSectorClickRef.current = onSectorClick
   const stationsInGeometryRef = useRef(stationsInGeometryProp); stationsInGeometryRef.current = stationsInGeometryProp
+  const era5VariableRef = useRef(era5Variable); era5VariableRef.current = era5Variable
+  const era5WindowRef = useRef(era5Window); era5WindowRef.current = era5Window
 
   const [tooltip, setTooltip] = useState<{ name: string; x: number; y: number } | null>(null)
 
@@ -644,8 +649,27 @@ export function ObservatoryMap({
     }
 
     const cfg = ERA5_VARIABLES[era5Variable]
-    const pts = (era5Points ?? []).filter((p) => p[cfg.prop] != null)
-    const data = era5PointsToSquares(pts)
+    let data: GeoJSON.FeatureCollection<GeoJSON.Polygon, Record<string, number | null>>
+    if (era5Variable === 'anomaly') {
+      const pts = (era5AnomalyPoints ?? []).filter((p) => p.anomaly_c != null)
+      data = {
+        type: 'FeatureCollection',
+        features: pts.map((p) => {
+          const h = 0.05
+          const lon = Number(p.longitude), lat = Number(p.latitude)
+          return {
+            type: 'Feature' as const,
+            geometry: { type: 'Polygon' as const, coordinates: [[
+              [lon - h, lat - h], [lon + h, lat - h], [lon + h, lat + h], [lon - h, lat + h], [lon - h, lat - h],
+            ]] },
+            properties: { anomaly_c: p.anomaly_c },
+          }
+        }),
+      }
+    } else {
+      const pts = (era5Points ?? []).filter((p) => p[cfg.prop as 'temperature_2m' | 'total_precipitation' | 'potential_evaporation'] != null)
+      data = era5PointsToSquares(pts)
+    }
 
     if (!map.getSource(SRC)) {
       map.addSource(SRC, { type: 'geojson', data })
@@ -666,11 +690,16 @@ export function ObservatoryMap({
         if (!f) return
         const pr = f.properties as Record<string, string>
         const num = (k: string) => { const raw = pr[k]; if (raw == null || raw === '') return null; const v = Number(raw); return Number.isFinite(v) ? v : null }
-        const html = `<div style="font-size:12px;line-height:1.5">
-            <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
-            <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
-            <div>${t('observatory.era5.popupEvaporation')}: ${era5FormatValue('evaporation', num('potential_evaporation'))}</div>
-          </div>`
+        let html: string
+        if (era5VariableRef.current === 'anomaly') {
+          html = `<div style="font-size:12px;line-height:1.5"><div>${t('observatory.era5.popupAnomaly', { n: era5WindowRef.current })}: ${era5FormatValue('anomaly', num('anomaly_c'))}</div></div>`
+        } else {
+          html = `<div style="font-size:12px;line-height:1.5">
+              <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
+              <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
+              <div>${t('observatory.era5.popupEvaporation')}: ${era5FormatValue('evaporation', num('potential_evaporation'))}</div>
+            </div>`
+        }
         new maplibregl.Popup({ closeButton: true })
           .setLngLat(e.lngLat)
           .setHTML(html)
@@ -683,7 +712,7 @@ export function ObservatoryMap({
       map.setPaintProperty(FILL, 'fill-color', era5ColorExpression(era5Variable) as any)
     }
     map.setLayoutProperty(FILL, 'visibility', 'visible')
-  }, [mapLoaded, era5Active, era5Points, era5Variable, t])
+  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, t])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
