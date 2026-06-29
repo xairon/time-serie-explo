@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Layers, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import { CLASSIFICATION_ORDER, CLASSIFICATION_LABELS, CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import type { ObsFilters } from '@/hooks/useObservatory'
+import { ERA5_VARIABLES } from '@/lib/era5-colors'
+import type { Era5Variable } from '@/lib/era5-colors'
 
 function useZoneLayers() {
   const { t } = useTranslation()
@@ -36,6 +38,10 @@ interface Props {
   activeZoneLayer: string | null; onZoneLayerChange: (id: string | null) => void
   overlayLayers: Set<string>; onOverlayToggle: (id: string) => void
   onResetSpatial?: () => void; hasSpatialFilter?: boolean
+  era5Active: boolean; setEra5Active: (v: boolean) => void
+  era5Variable: Era5Variable; setEra5Variable: (v: Era5Variable) => void
+  era5Date: string; setEra5Date: (v: string) => void
+  era5MinDate?: string; era5MaxDate?: string
 }
 
 function AccordionSection({ id, title, badge, defaultOpen, children }: { id: string; title: string; badge?: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -136,6 +142,43 @@ export function RightDrawer(props: Props) {
               ))}
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#d9d9d9' }} />{t('observatory.drawer.sectorNoData')}</div>
               <div className="pt-1">↑ {t('meteo.trend.hausse')} · → {t('meteo.trend.stable')} · ↓ {t('meteo.trend.baisse')}</div>
+            </div>
+          )}
+        </AccordionSection>
+
+        <AccordionSection id="era5" title={t('observatory.drawer.groupWeatherEra5')}>
+          <label className="flex items-center gap-2 py-1 cursor-pointer group mb-2">
+            <input type="checkbox" checked={props.era5Active} onChange={() => props.setEra5Active(!props.era5Active)} className="w-3.5 h-3.5 accent-accent-cyan rounded" />
+            <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t('observatory.drawer.era5Layer')}</span>
+          </label>
+          {props.era5Active && (
+            <div className="space-y-3 border-t border-white/5 pt-2">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5ColorBy')}</label>
+                <div className="space-y-1">
+                  {(Object.values(ERA5_VARIABLES)).map((cfg) => (
+                    <label key={cfg.key} className="flex items-center gap-2 cursor-pointer group">
+                      <input type="radio" name="era5-variable" checked={props.era5Variable === cfg.key} onChange={() => props.setEra5Variable(cfg.key)} className="w-3.5 h-3.5 accent-accent-cyan" />
+                      <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(cfg.labelKey)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
+                <input type="date" value={props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} className="w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">{t(ERA5_VARIABLES[props.era5Variable].labelKey)} ({ERA5_VARIABLES[props.era5Variable].unit})</span>
+                <div className="flex items-center gap-1">
+                  {ERA5_VARIABLES[props.era5Variable].stops.map(([v, c]) => (
+                    <div key={v} className="flex flex-col items-center">
+                      <span className="w-6 h-3 rounded-sm" style={{ backgroundColor: c }} />
+                      <span className="text-[9px] text-text-secondary">{Math.abs(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </AccordionSection>

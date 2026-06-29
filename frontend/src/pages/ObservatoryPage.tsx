@@ -8,7 +8,8 @@ import { SearchBar } from '@/components/observatory/SearchBar'
 import type { SearchAction } from '@/components/observatory/SearchBar'
 import { TimelineSlider } from '@/components/observatory/TimelineSlider'
 import { RightDrawer } from '@/components/observatory/RightDrawer'
-import { useStationsGeoJSON, useWfsLayer, useObsFilters, useSectorSituation, useSectorTimeline } from '@/hooks/useObservatory'
+import { useStationsGeoJSON, useWfsLayer, useObsFilters, useSectorSituation, useSectorTimeline, useERA5Range, useERA5Snapshot } from '@/hooks/useObservatory'
+import type { Era5Variable } from '@/lib/era5-colors'
 import type { StationGeoJSONFeature, WfsLayerId, ClassificationTimeline, SituationClass } from '@/lib/observatory-types'
 import { TIMELINE_CLASSIFICATIONS } from '@/lib/observatory-types'
 import { isStationActive, ACTIVE_FILTER_DAYS } from '@/lib/observatory-utils'
@@ -78,6 +79,13 @@ export default function ObservatoryPage() {
   const [selectedStation, setSelectedStation] = useState<{ code: string; type: 'piezo' | 'hydro' } | null>(null)
   const [showPiezo, setShowPiezo] = useState(true); const [showHydro, setShowHydro] = useState(true)
   const [showExcluded, setShowExcluded] = useState(false); const [showTerrain, setShowTerrain] = useState(false)
+
+  const [era5Active, setEra5Active] = useState(false)
+  const [era5Variable, setEra5Variable] = useState<Era5Variable>('temperature')
+  const [era5Date, setEra5Date] = useState<string>('')
+  const { data: era5Range } = useERA5Range()
+  useEffect(() => { if (era5Range?.max_date && !era5Date) setEra5Date(era5Range.max_date) }, [era5Range, era5Date])
+  const { data: era5Points } = useERA5Snapshot(era5Active && era5Date ? era5Date : undefined)
 
   const filteredFeatures = useMemo<StationGeoJSONFeature[]>(() => {
     const all = geojsonData?.features ?? []
@@ -207,9 +215,11 @@ export default function ObservatoryPage() {
   return (
     <div className="relative h-full">
       {geojsonError && (<div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-red-900/90 text-red-200 px-4 py-2 rounded-lg text-sm">{t('mainPages.observatory.loadError')} <button onClick={() => window.location.reload()} className="underline ml-2">{t('mainPages.observatory.retry')}</button></div>)}
-      <ObservatoryMap features={displayFeatures} excludedFeatures={showExcluded ? excludedFeatures : []} allFeatures={geojsonData?.features} showPiezo={showPiezo} showHydro={showHydro} onStationClick={handleStationClick} onEmptyClick={handleEmptyClick} onDeptClick={handleDeptClick} activeCodeDepartement={filters.codeDepartement} showRegions={showRegions} showDepts={showDepts} showHER={showHER} showSandre={showSandre} onBassinClick={handleBassinClick} activeCodeBassin={filters.codeBassin} onSpatialFilter={handleSpatialFilter} onBboxChange={handleBboxChange} activeWfsLayers={activeWfsLayers} wfsData={wfsData} selectedStationCode={selectedStation?.code ?? null} showTerrain={showTerrain} flyToBbox={flyToBbox} onFlyToComplete={() => setFlyToBbox(null)} showSectors={showSectors} sectorSituation={displaySectorSituation} onSectorClick={handleSectorClick} stationsInGeometry={(geom) => stationsInGeometry(geojsonData?.features ?? [], geom)} />
+      <ObservatoryMap features={displayFeatures} excludedFeatures={showExcluded ? excludedFeatures : []} allFeatures={geojsonData?.features} showPiezo={showPiezo} showHydro={showHydro} onStationClick={handleStationClick} onEmptyClick={handleEmptyClick} onDeptClick={handleDeptClick} activeCodeDepartement={filters.codeDepartement} showRegions={showRegions} showDepts={showDepts} showHER={showHER} showSandre={showSandre} onBassinClick={handleBassinClick} activeCodeBassin={filters.codeBassin} onSpatialFilter={handleSpatialFilter} onBboxChange={handleBboxChange} activeWfsLayers={activeWfsLayers} wfsData={wfsData} selectedStationCode={selectedStation?.code ?? null} showTerrain={showTerrain} flyToBbox={flyToBbox} onFlyToComplete={() => setFlyToBbox(null)} showSectors={showSectors} sectorSituation={displaySectorSituation} onSectorClick={handleSectorClick} stationsInGeometry={(geom) => stationsInGeometry(geojsonData?.features ?? [], geom)}
+        era5Active={era5Active} era5Points={era5Points} era5Variable={era5Variable} />
       <SearchBar features={geojsonData?.features} wfsData={wfsDataAll} onSearchAction={handleSearchAction} />
-      <RightDrawer showPiezo={showPiezo} setShowPiezo={setShowPiezo} showHydro={showHydro} setShowHydro={setShowHydro} showExcluded={showExcluded} setShowExcluded={setShowExcluded} showTerrain={showTerrain} setShowTerrain={setShowTerrain} filters={filters} setFilter={setFilter} filteredPiezo={stationCounts.filteredPiezo} totalPiezo={stationCounts.totalPiezo} filteredHydro={stationCounts.filteredHydro} totalHydro={stationCounts.totalHydro} activeZoneLayer={activeZoneLayer} onZoneLayerChange={setActiveZoneLayer} overlayLayers={overlayLayers} onOverlayToggle={handleOverlayToggle} onResetSpatial={() => { setSpatialStationCodes(null); setActiveBbox(null) }} hasSpatialFilter={spatialStationCodes != null && spatialStationCodes.length > 0} />
+      <RightDrawer showPiezo={showPiezo} setShowPiezo={setShowPiezo} showHydro={showHydro} setShowHydro={setShowHydro} showExcluded={showExcluded} setShowExcluded={setShowExcluded} showTerrain={showTerrain} setShowTerrain={setShowTerrain} filters={filters} setFilter={setFilter} filteredPiezo={stationCounts.filteredPiezo} totalPiezo={stationCounts.totalPiezo} filteredHydro={stationCounts.filteredHydro} totalHydro={stationCounts.totalHydro} activeZoneLayer={activeZoneLayer} onZoneLayerChange={setActiveZoneLayer} overlayLayers={overlayLayers} onOverlayToggle={handleOverlayToggle} onResetSpatial={() => { setSpatialStationCodes(null); setActiveBbox(null) }} hasSpatialFilter={spatialStationCodes != null && spatialStationCodes.length > 0}
+        era5Active={era5Active} setEra5Active={setEra5Active} era5Variable={era5Variable} setEra5Variable={setEra5Variable} era5Date={era5Date} setEra5Date={setEra5Date} era5MinDate={era5Range?.min_date} era5MaxDate={era5Range?.max_date} />
       {selectedStation && <StationDrawer code={selectedStation.code} type={selectedStation.type} onClose={() => setSelectedStation(null)} />}
       <TimelineSlider onPeriodChange={handleTimelinePeriodChange} />
       <KPIBar filteredPiezo={stationCounts.filteredPiezo} filteredHydro={stationCounts.filteredHydro} totalPiezo={stationCounts.totalPiezo} totalHydro={stationCounts.totalHydro} />
