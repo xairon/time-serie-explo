@@ -16,6 +16,7 @@ GRID_TTL = 86400
 SNAPSHOT_TTL = 86400
 DATES_TTL = 86400
 MONTHLY_TTL = 86400
+RANGE_TTL = 86400
 
 
 def _brgm_url() -> str:
@@ -46,24 +47,39 @@ def get_era5_grid():
 
 @router.get("/snapshot")
 def get_era5_snapshot(
-    snapshot_date: DateType = Query(..., alias="date", description="Date for the ERA5 snapshot"),
+    snapshot_date: DateType | None = Query(
+        None, alias="date", description="ERA5 snapshot date; latest available day if omitted"
+    ),
 ):
     def fetch():
-        query = """
-            SELECT latitude, longitude,
-                   temperature_2m, total_precipitation, potential_evaporation
-            FROM gold.int_era5_for_stations
-            WHERE era5_date = :snapshot_date
-        """
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"snapshot_date": snapshot_date})
+                d = snapshot_date
+                if d is None:
+                    d = conn.execute(
+                        text("SELECT max(era5_date) FROM gold.int_era5_for_all_stations")
+                    ).scalar()
+                query = """
+                    SELECT latitude, longitude,
+                           temperature_2m, total_precipitation, potential_evaporation
+                    FROM gold.int_era5_for_all_stations
+                    WHERE era5_date = :d
+                      AND (temperature_2m IS NOT NULL
+                           OR total_precipitation IS NOT NULL
+                           OR potential_evaporation IS NOT NULL)
+                """
+                result = conn.execute(text(query), {"d": d})
                 return [dict(r._mapping) for r in result]
         finally:
             pass  # shared pooled engine; do not dispose
 
-    return get_cached("obs_era5_snapshot", {"date": str(snapshot_date)}, SNAPSHOT_TTL, fetch)
+    return get_cached(
+        "obs_era5_snapshot",
+        {"date": str(snapshot_date) if snapshot_date else "latest"},
+        SNAPSHOT_TTL,
+        fetch,
+    )
 
 
 @router.get("/dates")
@@ -71,7 +87,7 @@ def get_era5_dates():
     def fetch():
         query = """
             SELECT DISTINCT date_trunc('month', era5_date)::date AS month
-            FROM gold.int_era5_for_stations
+            FROM gold.int_era5_for_all_stations
             ORDER BY month
         """
         engine = get_brgm_sync_engine()
@@ -100,7 +116,7 @@ def get_era5_monthly(
                    AVG(temperature_2m) AS temperature_2m,
                    SUM(total_precipitation) AS total_precipitation,
                    AVG(potential_evaporation) AS potential_evaporation
-            FROM gold.int_era5_for_stations
+            FROM gold.int_era5_for_all_stations
             WHERE era5_date >= :month_start AND era5_date < :month_end
             GROUP BY latitude, longitude
         """
@@ -113,3 +129,22 @@ def get_era5_monthly(
             pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_monthly", {"month": str(month)}, MONTHLY_TTL, fetch)
+
+
+@router.get("/range")
+def get_era5_range():
+    def fetch():
+        engine = get_brgm_sync_engine()
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        "SELECT min(era5_date) AS min_date, max(era5_date) AS max_date "
+                        "FROM gold.int_era5_for_all_stations"
+                    )
+                ).mappings().first()
+                return {"min_date": str(row["min_date"]), "max_date": str(row["max_date"])}
+        finally:
+            pass  # shared pooled engine; do not dispose
+
+    return get_cached("obs_era5_range", {}, RANGE_TTL, fetch)
