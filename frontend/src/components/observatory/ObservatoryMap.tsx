@@ -600,10 +600,15 @@ export function ObservatoryMap({
     const sits = sectorSituation ?? []
     const pairs: (string | number)[] = []
     for (const s of sits) { pairs.push(Number(s.code), s.insufficient ? SECTOR_INSUFFICIENT_COLOR : sectorClassColor(s.situation_class)) }
-    m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
+    // Skip fill-color while the by-zone choropleth owns secteurs-fill; by-zone
+    // will repaint choropleth, and this effect re-runs (era5ByZone is a dep) to
+    // restore situation colours when by-zone is released.
+    if (!(showSectors && era5Active && era5ByZone)) {
+      m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
+    }
     const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const rot = s.trend != null ? TREND_ROTATION[s.trend] : undefined; if (!c || rot === undefined || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { rot } } }).filter(Boolean)
     ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures as GeoJSON.Feature[] })
-  }, [showSectors, sectorSituation, mapLoaded, layersReady])
+  }, [showSectors, sectorSituation, mapLoaded, layersReady, era5Active, era5ByZone])
 
   // Sync active dept
   useEffect(() => {
@@ -771,13 +776,20 @@ export function ObservatoryMap({
     const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
     const zoneValues = aggregateEra5ByZone(points as any, valueKey, features, cfg.idProp)
 
+    // secteurs-fill paint is owned by the sector-situation effect; by-zone only
+    // temporarily overrides it and never saves/restores (the situation effect
+    // repaints on release because era5ByZone is now in its dep array).
+    const isSecteurs = cfg.fillId === 'secteurs-fill'
+
     // save original paint once per layer before first override
     if (overriddenRef.current !== cfg.fillId) {
       restore() // restore any previously overridden (different) layer first
-      if (savedPaintRef.current[cfg.fillId] === undefined) {
-        savedPaintRef.current[cfg.fillId] = map.getPaintProperty(cfg.fillId, 'fill-color')
+      if (!isSecteurs) {
+        if (savedPaintRef.current[cfg.fillId] === undefined) {
+          savedPaintRef.current[cfg.fillId] = map.getPaintProperty(cfg.fillId, 'fill-color')
+        }
+        overriddenRef.current = cfg.fillId
       }
-      overriddenRef.current = cfg.fillId
     }
     map.setPaintProperty(cfg.fillId, 'fill-color', era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable) as any)
   }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady])
