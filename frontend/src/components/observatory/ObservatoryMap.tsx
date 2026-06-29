@@ -745,6 +745,9 @@ export function ObservatoryMap({
       const prev = overriddenRef.current
       if (prev && map.getLayer(prev) && savedPaintRef.current[prev] !== undefined) {
         map.setPaintProperty(prev, 'fill-color', savedPaintRef.current[prev])
+        if (savedPaintRef.current[prev + ':opacity'] !== undefined) {
+          map.setPaintProperty(prev, 'fill-opacity', savedPaintRef.current[prev + ':opacity'])
+        }
         overriddenRef.current = null
       }
     }
@@ -787,11 +790,13 @@ export function ObservatoryMap({
       if (!isSecteurs) {
         if (savedPaintRef.current[cfg.fillId] === undefined) {
           savedPaintRef.current[cfg.fillId] = map.getPaintProperty(cfg.fillId, 'fill-color')
+          savedPaintRef.current[cfg.fillId + ':opacity'] = map.getPaintProperty(cfg.fillId, 'fill-opacity')
         }
         overriddenRef.current = cfg.fillId
       }
     }
     map.setPaintProperty(cfg.fillId, 'fill-color', era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable) as any)
+    if (!isSecteurs) map.setPaintProperty(cfg.fillId, 'fill-opacity', 0.72)
   }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady])
 
   // Fly to bbox
