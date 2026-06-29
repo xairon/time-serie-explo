@@ -740,8 +740,8 @@ export function ObservatoryMap({
       const prev = overriddenRef.current
       if (prev && map.getLayer(prev) && savedPaintRef.current[prev] !== undefined) {
         map.setPaintProperty(prev, 'fill-color', savedPaintRef.current[prev])
+        overriddenRef.current = null
       }
-      overriddenRef.current = null
     }
 
     const activeZone: string | null =
@@ -780,7 +780,7 @@ export function ObservatoryMap({
       overriddenRef.current = cfg.fillId
     }
     map.setPaintProperty(cfg.fillId, 'fill-color', era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable) as any)
-  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors])
+  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
