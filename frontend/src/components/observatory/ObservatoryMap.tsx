@@ -5,6 +5,10 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
+import { era5PointsToSquares } from '@/lib/era5-grid'
+import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES } from '@/lib/era5-colors'
+import type { Era5Variable } from '@/lib/era5-colors'
+import type { ERA5GridPoint } from '@/lib/observatory-types'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -62,6 +66,9 @@ interface Props {
   sectorSituation?: import('@/lib/observatory-types').SectorSituation[]
   onSectorClick?: (codes: string[] | null, name: string | null) => void
   stationsInGeometry?: (geometry: any) => string[]
+  era5Active?: boolean
+  era5Points?: ERA5GridPoint[]
+  era5Variable?: Era5Variable
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -278,6 +285,7 @@ export function ObservatoryMap({
   selectedStationCode = null, showTerrain = false,
   flyToBbox = null, onFlyToComplete,
   showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
+  era5Active = false, era5Points, era5Variable = 'temperature',
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -622,6 +630,60 @@ export function ObservatoryMap({
     const adminLayers = ['regions-fill', 'regions-line', 'depts-fill', 'depts-line', 'her-fill', 'her-line', 'bassins-fill', 'bassins-line']
     adminLayers.forEach(id => { if (map.getLayer(id)) map.moveLayer(id, 'piezo-clusters') })
   }, [activeWfsLayers, wfsData])
+
+  // --- ERA5 weather grid (Phase 0: daily squares) ---
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const SRC = 'era5-grid'
+    const FILL = 'era5-grid-fill'
+
+    if (!era5Active) {
+      if (map.getLayer(FILL)) map.setLayoutProperty(FILL, 'visibility', 'none')
+      return
+    }
+
+    const cfg = ERA5_VARIABLES[era5Variable]
+    const pts = (era5Points ?? []).filter((p) => p[cfg.prop] != null)
+    const data = era5PointsToSquares(pts)
+
+    if (!map.getSource(SRC)) {
+      map.addSource(SRC, { type: 'geojson', data })
+      map.addLayer(
+        {
+          id: FILL,
+          type: 'fill',
+          source: SRC,
+          paint: {
+            'fill-color': era5ColorExpression(era5Variable) as any,
+            'fill-opacity': 0.6,
+          },
+        },
+        map.getLayer('piezo-clusters') ? 'piezo-clusters' : undefined,
+      )
+      map.on('click', FILL, (e) => {
+        const f = e.features?.[0]
+        if (!f) return
+        const pr = f.properties as Record<string, string>
+        const num = (k: string) => (pr[k] === undefined || pr[k] === null || pr[k] === '' ? null : Number(pr[k]))
+        const html = `<div style="font-size:12px;line-height:1.5">
+            <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
+            <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
+            <div>${t('observatory.era5.popupEvaporation')}: ${era5FormatValue('evaporation', num('potential_evaporation'))}</div>
+          </div>`
+        new maplibregl.Popup({ closeButton: true })
+          .setLngLat(e.lngLat)
+          .setHTML(html)
+          .addTo(map)
+      })
+      map.on('mouseenter', FILL, () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', FILL, () => { map.getCanvas().style.cursor = '' })
+    } else {
+      ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data)
+      map.setPaintProperty(FILL, 'fill-color', era5ColorExpression(era5Variable) as any)
+    }
+    map.setLayoutProperty(FILL, 'visibility', 'visible')
+  }, [mapLoaded, era5Active, era5Points, era5Variable, t])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
