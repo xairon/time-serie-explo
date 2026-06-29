@@ -239,12 +239,19 @@
       "era5VarPrecipitation": "Précipitations",
       "era5VarEvaporation": "Évapotranspiration",
       "era5Date": "Date",
-      "era5NoData": "Pas de données pour cette date"
+      "era5NoData": "Pas de données pour cette date",
+      "era5VarAnomaly": "Anomalie thermique",
+      "era5Window": "Fenêtre",
+      "era5Window1": "1 mois",
+      "era5Window3": "3 mois",
+      "era5Window6": "6 mois",
+      "era5Window12": "12 mois"
     },
     "era5": {
       "popupTemperature": "Température",
       "popupPrecipitation": "Précipitations",
-      "popupEvaporation": "ETP"
+      "popupEvaporation": "ETP",
+      "popupAnomaly": "Anomalie {{n}} mois"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",

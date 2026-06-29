@@ -42,6 +42,7 @@ interface Props {
   era5Variable: Era5Variable; setEra5Variable: (v: Era5Variable) => void
   era5Date: string; setEra5Date: (v: string) => void
   era5MinDate?: string; era5MaxDate?: string
+  era5Window: number; setEra5Window: (n: number) => void
 }
 
 function AccordionSection({ id, title, badge, defaultOpen, children }: { id: string; title: string; badge?: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -164,6 +165,16 @@ export function RightDrawer(props: Props) {
                   ))}
                 </div>
               </div>
+              {props.era5Variable === 'anomaly' && (
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Window')}</label>
+                  <div className="flex gap-1">
+                    {[1, 3, 6, 12].map((w) => (
+                      <button key={w} onClick={() => props.setEra5Window(w)} aria-pressed={props.era5Window === w} className={`flex-1 px-2 py-1 rounded text-xs border ${props.era5Window === w ? 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/30' : 'bg-bg-primary text-text-secondary border-white/10'}`}>{t(`observatory.drawer.era5Window${w}`)}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
                 <input type="date" value={props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} className="w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50" />
