@@ -237,7 +237,7 @@
       "era5ColorBy": "Colorer par",
       "era5VarTemperature": "Température",
       "era5VarPrecipitation": "Précipitations",
-      "era5VarEvaporation": "Évapotranspiration",
+      "era5VarEvaporation": "Évapotranspiration (ETP)",
       "era5Date": "Date",
       "era5NoData": "Pas de données pour cette date",
       "era5VarAnomaly": "Anomalie thermique",
@@ -250,7 +250,7 @@
     "era5": {
       "popupTemperature": "Température",
       "popupPrecipitation": "Précipitations",
-      "popupEvaporation": "ETP",
+      "popupEvaporation": "Évapotranspiration (ETP)",
       "popupAnomaly": "Anomalie {{n}} mois"
     },
     "stationDrawer": {

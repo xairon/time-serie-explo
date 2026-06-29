@@ -237,7 +237,7 @@
       "era5ColorBy": "Color by",
       "era5VarTemperature": "Temperature",
       "era5VarPrecipitation": "Precipitation",
-      "era5VarEvaporation": "Evapotranspiration",
+      "era5VarEvaporation": "Evapotranspiration (PET)",
       "era5Date": "Date",
       "era5NoData": "No data for this date",
       "era5VarAnomaly": "Thermal anomaly",
@@ -246,6 +246,12 @@
       "era5Window3": "3 months",
       "era5Window6": "6 months",
       "era5Window12": "12 months"
+    },
+    "era5": {
+      "popupTemperature": "Temperature",
+      "popupPrecipitation": "Precipitation",
+      "popupEvaporation": "Evapotranspiration (PET)",
+      "popupAnomaly": "Anomaly {{n}} months"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",

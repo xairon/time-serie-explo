@@ -84,10 +84,11 @@ export default function ObservatoryPage() {
   const [era5Variable, setEra5Variable] = useState<Era5Variable>('temperature')
   const [era5Date, setEra5Date] = useState<string>('')
   const [era5Window, setEra5Window] = useState(3)
-  const { data: era5Range } = useERA5Range()
+  const { data: era5Range } = useERA5Range(era5Active)
   useEffect(() => { if (era5Range?.max_date && !era5Date) setEra5Date(era5Range.max_date) }, [era5Range, era5Date])
   const { data: era5Points } = useERA5Snapshot(era5Active && era5Date && era5Variable !== 'anomaly' ? era5Date : undefined)
-  const { data: era5AnomalyPoints } = useERA5TempAnomaly(era5Date, era5Window, era5Active && era5Variable === 'anomaly')
+  const era5Month = era5Date ? era5Date.slice(0, 7) + '-01' : era5Date
+  const { data: era5AnomalyPoints } = useERA5TempAnomaly(era5Month, era5Window, era5Active && era5Variable === 'anomaly')
 
   const filteredFeatures = useMemo<StationGeoJSONFeature[]>(() => {
     const all = geojsonData?.features ?? []

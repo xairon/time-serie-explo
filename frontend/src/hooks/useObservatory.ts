@@ -362,10 +362,11 @@ export function useERA5Monthly(month: string | undefined) {
   })
 }
 
-export function useERA5Range() {
+export function useERA5Range(enabled = true) {
   return useQuery({
     queryKey: ['obs-era5', 'range'],
     queryFn: () => observatoryApi.era5.range(),
+    enabled,
     staleTime: 24 * 60 * 60 * 1000,
   })
 }
