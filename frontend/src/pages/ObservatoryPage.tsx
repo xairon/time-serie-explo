@@ -113,7 +113,7 @@ export default function ObservatoryPage() {
     if (era5ByZone && !['depts', 'regions', 'her', 'bassins', 'secteurs'].includes(activeZoneLayer ?? '')) {
       setActiveZoneLayer('depts')
     }
-  }, [era5ByZone, activeZoneLayer]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [era5ByZone]) // eslint-disable-line react-hooks/exhaustive-deps
   const [overlayLayers, setOverlayLayers] = useState<Set<string>>(new Set())
   const [activeBbox, setActiveBbox] = useState<Bbox | null>(null)
   const [flyToBbox, setFlyToBbox] = useState<Bbox | null>(null)
