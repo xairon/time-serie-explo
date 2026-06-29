@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.cache import get_redis, pool as redis_pool
+from dashboard.utils.cache import delete_cached
 from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
@@ -20,6 +21,9 @@ from api.routers import admin_audit as admin_audit_router
 from api.auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
+
+# Re-warm the climatology one day before its 7-day TTL so the cold window never hits.
+CLIMATOLOGY_REWARM_SECONDS = 6 * 24 * 3600
 
 
 @asynccontextmanager
@@ -80,12 +84,24 @@ async def lifespan(app: FastAPI):
     # Warm the ERA5 temperature-climatology cache in the BACKGROUND (~71s full-table
     # scan) so the first /temp-anomaly request after a restart or 7-day TTL expiry
     # doesn't hit the scan and exceed the frontend's 30s timeout.
+    # After the initial warm, re-warm periodically (every 6 days) so the 7-day TTL
+    # cold window never occurs in production: delete the key first so the re-warm
+    # actually recomputes rather than no-oping on a still-live entry.
     async def _warm_era5_climatology():
         try:
             await asyncio.to_thread(observatory_era5._era5_temp_climatology)
             logger.info("ERA5 climatology cache warmed")
         except Exception:
             logger.warning("ERA5 climatology warm-up failed", exc_info=True)
+
+        while True:
+            await asyncio.sleep(CLIMATOLOGY_REWARM_SECONDS)
+            try:
+                delete_cached("obs_era5_temp_climatology", {})
+                await asyncio.to_thread(observatory_era5._era5_temp_climatology)
+                logger.info("ERA5 climatology cache re-warmed")
+            except Exception:
+                logger.warning("ERA5 climatology re-warm failed", exc_info=True)
 
     asyncio.create_task(_warm_era5_climatology())
 

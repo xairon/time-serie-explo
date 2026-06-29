@@ -1,6 +1,7 @@
 """Observatory ERA5 router — sync SQLAlchemy against BRGM data warehouse."""
 from __future__ import annotations
 
+import threading
 from datetime import date as DateType
 
 from fastapi import APIRouter, Query
@@ -8,7 +9,7 @@ from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 
 from api.config import settings
-from dashboard.utils.cache import get_cached
+from dashboard.utils.cache import get_cached, read_cached
 from api.era5_anomaly import window_end_months, add_months, latest_complete_month
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
@@ -20,6 +21,10 @@ MONTHLY_TTL = 86400
 RANGE_TTL = 86400
 CLIMATOLOGY_TTL = 604800  # 7 days — climatology is effectively static
 ANOMALY_TTL = 86400
+
+# Single-flight guard: only one thread runs the ~71s climatology scan at a time.
+# Concurrent cache misses acquire this lock and double-check before scanning.
+_climatology_lock = threading.Lock()
 
 
 def _brgm_url() -> str:
@@ -156,21 +161,30 @@ def get_era5_range():
 def _era5_temp_climatology():
     """Per-cell long-term mean temperature for each calendar month (1950+)."""
     def fetch():
-        query = """
-            SELECT latitude, longitude,
-                   EXTRACT(MONTH FROM era5_date)::int AS mo,
-                   AVG(temperature_2m) AS mean_c
-            FROM gold.int_era5_for_all_stations
-            WHERE temperature_2m IS NOT NULL
-            GROUP BY latitude, longitude, EXTRACT(MONTH FROM era5_date)
-        """
-        engine = get_brgm_sync_engine()
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text(query))
-                return [dict(r._mapping) for r in result]
-        finally:
-            pass  # shared pooled engine; do not dispose
+        # Single-flight: acquire the lock before running the ~71s full-table scan.
+        # All concurrent cache misses serialize here; the first to enter runs the
+        # scan, the rest double-check via read_cached and return immediately.
+        with _climatology_lock:
+            cached = read_cached("obs_era5_temp_climatology", {})
+            if cached is not None:
+                return cached
+
+            # We hold the lock and the cache is empty — run the expensive scan.
+            query = """
+                SELECT latitude, longitude,
+                       EXTRACT(MONTH FROM era5_date)::int AS mo,
+                       AVG(temperature_2m) AS mean_c
+                FROM gold.int_era5_for_all_stations
+                WHERE temperature_2m IS NOT NULL
+                GROUP BY latitude, longitude, EXTRACT(MONTH FROM era5_date)
+            """
+            engine = get_brgm_sync_engine()
+            try:
+                with engine.connect() as conn:
+                    result = conn.execute(text(query))
+                    return [dict(r._mapping) for r in result]
+            finally:
+                pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_temp_climatology", {}, CLIMATOLOGY_TTL, fetch)
 
