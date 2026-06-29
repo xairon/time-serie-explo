@@ -200,10 +200,19 @@ def get_era5_temp_anomaly(
                 rows = conn.execute(
                     text(
                         """
-                        SELECT latitude, longitude, AVG(temperature_2m) AS window_mean
-                        FROM gold.int_era5_for_all_stations
-                        WHERE era5_date >= :win_start AND era5_date < :win_end
-                          AND temperature_2m IS NOT NULL
+                        WITH monthly AS (
+                            SELECT latitude, longitude,
+                                   date_trunc('month', era5_date) AS ym,
+                                   AVG(temperature_2m) AS m_mean
+                            FROM gold.int_era5_for_all_stations
+                            WHERE era5_date >= :win_start AND era5_date < :win_end
+                              AND temperature_2m IS NOT NULL
+                            GROUP BY latitude, longitude, date_trunc('month', era5_date)
+                        )
+                        SELECT latitude, longitude,
+                               AVG(m_mean) AS window_mean,
+                               COUNT(*) AS n_months
+                        FROM monthly
                         GROUP BY latitude, longitude
                         """
                     ),
@@ -222,7 +231,7 @@ def get_era5_temp_anomaly(
             for r in rows:
                 key = (float(r["latitude"]), float(r["longitude"]))
                 vals = norm.get(key)
-                if not vals or len(vals) < len(months) or r["window_mean"] is None:
+                if not vals or len(vals) < len(months) or r["window_mean"] is None or int(r["n_months"]) < window:
                     continue
                 normal = sum(vals) / len(vals)
                 out.append(
