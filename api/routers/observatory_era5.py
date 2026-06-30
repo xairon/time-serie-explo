@@ -71,13 +71,17 @@ def get_era5_snapshot(
                         text('SELECT max("time")::date FROM gold.era5_grid')
                     ).scalar()
                 query = """
-                    SELECT latitude, longitude,
-                           temperature_2m, total_precipitation, potential_evaporation
+                    SELECT round(latitude::numeric, 1) AS latitude,
+                           round(longitude::numeric, 1) AS longitude,
+                           AVG(temperature_2m) AS temperature_2m,
+                           AVG(total_precipitation) AS total_precipitation,
+                           AVG(potential_evaporation) AS potential_evaporation
                     FROM gold.era5_grid
                     WHERE "time" >= :d AND "time" < :d_next
                       AND (temperature_2m IS NOT NULL
                            OR total_precipitation IS NOT NULL
                            OR potential_evaporation IS NOT NULL)
+                    GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
                 """
                 result = conn.execute(text(query), {"d": d, "d_next": d + timedelta(days=1)})
                 return [dict(r._mapping) for r in result]
@@ -122,13 +126,14 @@ def get_era5_monthly(
         else:
             month_end = DateType(month.year, month.month + 1, 1)
         query = """
-            SELECT latitude, longitude,
+            SELECT round(latitude::numeric, 1) AS latitude,
+                   round(longitude::numeric, 1) AS longitude,
                    AVG(temperature_2m) AS temperature_2m,
                    SUM(total_precipitation) AS total_precipitation,
                    AVG(potential_evaporation) AS potential_evaporation
             FROM gold.era5_grid
             WHERE "time" >= :month_start AND "time" < :month_end
-            GROUP BY latitude, longitude
+            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
         """
         engine = get_brgm_sync_engine()
         try:
@@ -173,12 +178,14 @@ def _era5_temp_climatology():
 
             # We hold the lock and the cache is empty — run the expensive scan.
             query = """
-                SELECT latitude, longitude,
+                SELECT round(latitude::numeric, 1) AS latitude,
+                       round(longitude::numeric, 1) AS longitude,
                        EXTRACT(MONTH FROM "time")::int AS mo,
                        AVG(temperature_2m) AS mean_c
                 FROM gold.era5_grid
                 WHERE temperature_2m IS NOT NULL
-                GROUP BY latitude, longitude, EXTRACT(MONTH FROM "time")
+                GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
+                         EXTRACT(MONTH FROM "time")
             """
             engine = get_brgm_sync_engine()
             try:
@@ -206,13 +213,14 @@ def _era5_precip_climatology():
             # We hold the lock and the cache is empty — run the expensive scan.
             query = """
                 WITH monthly AS (
-                    SELECT latitude, longitude,
+                    SELECT round(latitude::numeric, 1) AS latitude,
+                           round(longitude::numeric, 1) AS longitude,
                            date_trunc('month', "time") AS ym,
                            EXTRACT(MONTH FROM "time")::int AS mo,
                            SUM(total_precipitation) AS msum
                     FROM gold.era5_grid
                     WHERE total_precipitation IS NOT NULL
-                    GROUP BY latitude, longitude,
+                    GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
                              date_trunc('month', "time"),
                              EXTRACT(MONTH FROM "time")
                 )
@@ -249,13 +257,15 @@ def _compute_temp_anomaly(conn, anomaly_date, window):
         text(
             """
             WITH monthly AS (
-                SELECT latitude, longitude,
+                SELECT round(latitude::numeric, 1) AS latitude,
+                       round(longitude::numeric, 1) AS longitude,
                        date_trunc('month', "time") AS ym,
                        AVG(temperature_2m) AS m_mean
                 FROM gold.era5_grid
                 WHERE "time" >= :win_start AND "time" < :win_end
                   AND temperature_2m IS NOT NULL
-                GROUP BY latitude, longitude, date_trunc('month', "time")
+                GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
+                         date_trunc('month', "time")
             )
             SELECT latitude, longitude,
                    AVG(m_mean) AS window_mean,
@@ -317,13 +327,14 @@ def get_era5_anomaly(
                 rows = conn.execute(
                     text(
                         """
-                        SELECT latitude, longitude,
+                        SELECT round(latitude::numeric, 1) AS latitude,
+                               round(longitude::numeric, 1) AS longitude,
                                SUM(total_precipitation) AS precip_sum,
                                COUNT(DISTINCT date_trunc('month', "time")) AS n_months
                         FROM gold.era5_grid
                         WHERE "time" >= :win_start AND "time" < :win_end
                           AND total_precipitation IS NOT NULL
-                        GROUP BY latitude, longitude
+                        GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
                         """
                     ),
                     {"win_start": win_start, "win_end": win_end},
@@ -379,13 +390,15 @@ def get_era5_temp_anomaly(
                     text(
                         """
                         WITH monthly AS (
-                            SELECT latitude, longitude,
+                            SELECT round(latitude::numeric, 1) AS latitude,
+                                   round(longitude::numeric, 1) AS longitude,
                                    date_trunc('month', "time") AS ym,
                                    AVG(temperature_2m) AS m_mean
                             FROM gold.era5_grid
                             WHERE "time" >= :win_start AND "time" < :win_end
                               AND temperature_2m IS NOT NULL
-                            GROUP BY latitude, longitude, date_trunc('month', "time")
+                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
+                                     date_trunc('month', "time")
                         )
                         SELECT latitude, longitude,
                                AVG(m_mean) AS window_mean,
