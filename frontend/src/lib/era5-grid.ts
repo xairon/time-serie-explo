@@ -43,35 +43,6 @@ export function era5GenericAnomalyToSquares(
   }
 }
 
-export function era5AnomalyPointsToSquares(
-  points: ERA5AnomalyPoint[],
-): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly_c: number }> {
-  const h = ERA5_CELL_HALF
-  return {
-    type: 'FeatureCollection',
-    features: points
-      .filter((p) => p.anomaly_c != null)
-      .map((p) => {
-        const lon = Number(p.longitude)
-        const lat = Number(p.latitude)
-        const v = p.anomaly_c as number
-        return {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [lon - h, lat - h],
-              [lon + h, lat - h],
-              [lon + h, lat + h],
-              [lon - h, lat + h],
-              [lon - h, lat - h],
-            ]],
-          },
-          properties: { anomaly_c: v },
-        }
-      }),
-  }
-}
 
 export function era5PointsToSquares(
   points: ERA5GridPoint[],

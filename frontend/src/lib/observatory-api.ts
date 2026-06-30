@@ -112,8 +112,6 @@ export const observatoryApi = {
     dates: () => fetchJson<string[]>('/observatory/era5/dates'),
     monthly: (month: string) => fetchJson<ERA5GridPoint[]>('/observatory/era5/monthly', { month }),
     range: () => fetchJson<ERA5Range>('/observatory/era5/range'),
-    tempAnomaly: (date: string, window: number) =>
-      fetchJson<ERA5AnomalyPoint[]>('/observatory/era5/temp-anomaly', { date, window: String(window) }),
     anomaly: (variable: string, date: string, window: number) =>
       fetchJson<ERA5AnomalyPoint[]>('/observatory/era5/anomaly', { variable, date, window: String(window) }),
   },

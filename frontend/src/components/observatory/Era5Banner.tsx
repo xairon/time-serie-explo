@@ -12,23 +12,10 @@ interface Props {
   era5Granularity?: Era5Granularity
 }
 
-function formatPeriodLabel(period: string): string {
-  if (!period) return ''
-  // If it looks like YYYY-MM (month-only from timeline), display as-is
-  const m = period.match(/^(\d{4})-(\d{2})/)
-  if (!m) return period
-  const months: Record<string, string> = {
-    '01': 'janv.', '02': 'févr.', '03': 'mars', '04': 'avr.',
-    '05': 'mai', '06': 'juin', '07': 'juil.', '08': 'août',
-    '09': 'sept.', '10': 'oct.', '11': 'nov.', '12': 'déc.',
-  }
-  return `${months[m[2]] ?? m[2]} ${m[1]}`
-}
-
 const ANOMALY_VARIABLES: Era5Variable[] = ['anomaly', 'precipAnomaly']
 
 export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, era5Granularity = 'daily' }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   if (!era5Active) return null
 
@@ -45,7 +32,17 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
   } else {
     ;[minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
   }
-  const periodLabel = formatPeriodLabel(era5Period)
+
+  let periodLabel = ''
+  if (era5Period) {
+    const m = era5Period.match(/^(\d{4})-(\d{2})/)
+    if (m) {
+      const date = new Date(Number(m[1]), Number(m[2]) - 1, 1)
+      periodLabel = new Intl.DateTimeFormat(i18n.language, { month: 'short', year: 'numeric' }).format(date)
+    } else {
+      periodLabel = era5Period
+    }
+  }
 
   return (
     <div

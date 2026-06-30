@@ -371,14 +371,6 @@ export function useERA5Range(enabled = true) {
   })
 }
 
-export function useERA5TempAnomaly(date: string | undefined, window: number, enabled: boolean) {
-  return useQuery({
-    queryKey: ['obs-era5', 'temp-anomaly', date, window],
-    queryFn: () => observatoryApi.era5.tempAnomaly(date!, window),
-    enabled: enabled && !!date,
-    staleTime: 24 * 60 * 60 * 1000,
-  })
-}
 
 export function useERA5Anomaly(variable: string, date: string | undefined, window: number, enabled: boolean) {
   return useQuery({
