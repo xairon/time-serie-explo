@@ -6,8 +6,8 @@ import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
 import { era5PointsToSquares, era5AnomalyPointsToSquares } from '@/lib/era5-grid'
-import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES } from '@/lib/era5-colors'
-import type { Era5Variable } from '@/lib/era5-colors'
+import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain } from '@/lib/era5-colors'
+import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 import type { ERA5GridPoint, ERA5AnomalyPoint } from '@/lib/observatory-types'
 import { aggregateEra5ByZone, era5ZoneColorExpression } from '@/lib/era5-zones'
 
@@ -73,6 +73,7 @@ interface Props {
   era5AnomalyPoints?: ERA5AnomalyPoint[]
   era5Window?: number
   era5ByZone?: boolean
+  era5Granularity?: Era5Granularity
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -276,6 +277,31 @@ function computeBbox(geometry: any): [number, number, number, number] {
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
+/**
+ * Build an interpolate fill-color expression for the ERA5 grid layer.
+ * For anomaly variables, returns the expression built from the configured stops unchanged.
+ * For raw variables, scales the stops proportionally to the granularity-aware domain
+ * returned by era5RawDomain, so monthly maps don't saturate.
+ */
+function buildRawGridColorExpression(variable: Era5Variable, granularity: Era5Granularity): unknown[] {
+  if (variable === 'anomaly' || variable === 'precipAnomaly') {
+    return era5ColorExpression(variable)
+  }
+  const rawVar = variable as 'temperature' | 'precipitation' | 'evaporation'
+  const [dMin, dMax] = era5RawDomain(rawVar, granularity)
+  const cfg = ERA5_VARIABLES[variable]
+  const stops = cfg.stops
+  const sMin = stops[0][0]
+  const sMax = stops[stops.length - 1][0]
+  const sRange = sMax - sMin
+  const dRange = dMax - dMin
+  const expr: unknown[] = ['interpolate', ['linear'], ['to-number', ['get', cfg.prop]]]
+  for (const [v, c] of stops) {
+    expr.push(sRange === 0 ? dMin : dMin + ((v - sMin) / sRange) * dRange, c)
+  }
+  return expr
+}
+
 const ERA5_ZONE_CFG: Record<string, { fillId: string; idProp: string; geoKey: string }> = {
   depts:    { fillId: 'depts-fill',    idProp: 'code',      geoKey: 'depts' },
   regions:  { fillId: 'regions-fill',  idProp: 'code',      geoKey: 'regions' },
@@ -300,6 +326,7 @@ export function ObservatoryMap({
   era5Active = false, era5Points, era5Variable = 'temperature',
   era5AnomalyPoints, era5Window = 3,
   era5ByZone = false,
+  era5Granularity = 'daily',
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -331,8 +358,10 @@ export function ObservatoryMap({
   const era5ActiveRef = useRef(era5Active); era5ActiveRef.current = era5Active
 
   const zoneGeoRef = useRef<Record<string, any>>({})
-  const era5OverriddenRef = useRef<string | null>(null)
-  const savedPaintRef = useRef<Record<string, any>>({})
+  // Dedicated weather-by-zone layer state (V3: no admin fill-color hijack)
+  const era5DimmedFillIdRef = useRef<string | null>(null)         // which admin layer is currently dimmed
+  const savedAdminOpacityRef = useRef<unknown>(null)              // its saved fill-opacity expression
+  const era5ActiveZoneGeoKeyRef = useRef<string | null>(null)     // which zone geo is loaded in era5-zone source
 
   const [era5NoData, setEra5NoData] = useState(false)
 
@@ -700,7 +729,7 @@ export function ObservatoryMap({
           type: 'fill',
           source: SRC,
           paint: {
-            'fill-color': era5ColorExpression(era5Variable) as any,
+            'fill-color': buildRawGridColorExpression(era5Variable, era5Granularity) as any,
             'fill-opacity': 0.6,
           },
         },
@@ -730,26 +759,32 @@ export function ObservatoryMap({
       map.on('mouseleave', FILL, () => { map.getCanvas().style.cursor = '' })
     } else {
       ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data)
-      map.setPaintProperty(FILL, 'fill-color', era5ColorExpression(era5Variable) as any)
+      map.setPaintProperty(FILL, 'fill-color', buildRawGridColorExpression(era5Variable, era5Granularity) as any)
     }
     if (!era5ByZone) map.setLayoutProperty(FILL, 'visibility', 'visible')
-  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, era5ByZone, t])
+  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, era5ByZone, era5Granularity, t])
 
-  // --- ERA5 by-zone choropleth ---
+  // --- ERA5 by-zone choropleth (V3: dedicated era5-zone-fill layer, no admin fill-color hijack) ---
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapLoaded) return
-    const overriddenRef = era5OverriddenRef
 
-    const restore = () => {
-      const prev = overriddenRef.current
-      if (prev && map.getLayer(prev) && savedPaintRef.current[prev] !== undefined) {
-        map.setPaintProperty(prev, 'fill-color', savedPaintRef.current[prev])
-        if (savedPaintRef.current[prev + ':opacity'] !== undefined) {
-          map.setPaintProperty(prev, 'fill-opacity', savedPaintRef.current[prev + ':opacity'])
-        }
-        overriddenRef.current = null
+    // Restore the admin layer's original fill-opacity (called on release or zone-switch)
+    const restoreAdminOpacity = () => {
+      const prev = era5DimmedFillIdRef.current
+      if (prev && map.getLayer(prev) && savedAdminOpacityRef.current !== null) {
+        map.setPaintProperty(prev, 'fill-opacity', savedAdminOpacityRef.current as any)
       }
+      era5DimmedFillIdRef.current = null
+      savedAdminOpacityRef.current = null
+    }
+
+    // Hide the dedicated zone layer without removing it (so the source persists for reuse)
+    const hideZoneLayer = () => {
+      if (map.getLayer('era5-zone-fill')) {
+        map.setLayoutProperty('era5-zone-fill', 'visibility', 'none')
+      }
+      era5ActiveZoneGeoKeyRef.current = null
     }
 
     const activeZone: string | null =
@@ -762,41 +797,85 @@ export function ObservatoryMap({
     const cfg = activeZone ? ERA5_ZONE_CFG[activeZone] : undefined
 
     if (!era5Active || !era5ByZone || !cfg || !map.getLayer(cfg.fillId)) {
-      restore()
-      // show squares again if era5 active and not by-zone
+      restoreAdminOpacity()
+      hideZoneLayer()
+      // show the raw grid if ERA5 active but by-zone is off or no compatible zone
       if (map.getLayer('era5-grid-fill')) {
         map.setLayoutProperty('era5-grid-fill', 'visibility', era5Active && (!era5ByZone || !cfg) ? 'visible' : 'none')
       }
       return
     }
 
-    // by-zone ON: hide squares
+    // by-zone ON: hide raw grid squares (mutual exclusivity)
     if (map.getLayer('era5-grid-fill')) map.setLayoutProperty('era5-grid-fill', 'visibility', 'none')
 
-    const features = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
-    const isAnom = era5Variable === 'anomaly'
-    const valueKey = isAnom ? 'anomaly_c' : ERA5_VARIABLES[era5Variable].prop
+    // Dim the admin fill layer so it doesn't compete visually with the choropleth.
+    // Save the original opacity once and restore on release / zone-switch.
+    if (era5DimmedFillIdRef.current !== cfg.fillId) {
+      restoreAdminOpacity()  // restore the previously dimmed (different) layer
+      savedAdminOpacityRef.current = map.getPaintProperty(cfg.fillId, 'fill-opacity')
+      era5DimmedFillIdRef.current = cfg.fillId
+      map.setPaintProperty(cfg.fillId, 'fill-opacity', 0.05 as any)
+    }
+
+    // Aggregate ERA5 values per zone
+    const zoneFeatures = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
+    const isAnom = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
+    const valueKey = era5Variable === 'precipAnomaly' ? 'anomaly' : (era5Variable === 'anomaly' ? 'anomaly_c' : ERA5_VARIABLES[era5Variable].prop)
     const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
-    const zoneValues = aggregateEra5ByZone(points as any, valueKey, features, cfg.idProp)
+    const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
+    const colorExpr = era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable)
 
-    // secteurs-fill paint is owned by the sector-situation effect; by-zone only
-    // temporarily overrides it and never saves/restores (the situation effect
-    // repaints on release because era5ByZone is now in its dep array).
-    const isSecteurs = cfg.fillId === 'secteurs-fill'
+    // Build / update the dedicated era5-zone GeoJSON source and fill layer.
+    // The source stores lightweight features (geometry + idProp only); colour is applied
+    // via the paint expression so only the expression needs to be updated when values change.
+    const geoKey = cfg.geoKey
+    const needSourceRebuild = era5ActiveZoneGeoKeyRef.current !== geoKey
 
-    // save original paint once per layer before first override
-    if (overriddenRef.current !== cfg.fillId) {
-      restore() // restore any previously overridden (different) layer first
-      if (!isSecteurs) {
-        if (savedPaintRef.current[cfg.fillId] === undefined) {
-          savedPaintRef.current[cfg.fillId] = map.getPaintProperty(cfg.fillId, 'fill-color')
-          savedPaintRef.current[cfg.fillId + ':opacity'] = map.getPaintProperty(cfg.fillId, 'fill-opacity')
+    if (!map.getSource('era5-zone') || needSourceRebuild) {
+      const geoData: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: zoneFeatures.map((f: any) => ({
+          type: 'Feature',
+          geometry: f.geometry,
+          // keep only the id property that the colour expression reads
+          properties: { [cfg.idProp]: String(f.properties?.[cfg.idProp] ?? '') },
+        })),
+      }
+      if (!map.getSource('era5-zone')) {
+        // First activation: create source + layer below piezo-clusters
+        map.addSource('era5-zone', { type: 'geojson', data: geoData })
+        map.addLayer(
+          {
+            id: 'era5-zone-fill',
+            type: 'fill',
+            source: 'era5-zone',
+            paint: {
+              'fill-color': colorExpr as any,
+              'fill-opacity': 0.7,
+            },
+          },
+          map.getLayer('piezo-clusters') ? 'piezo-clusters' : undefined,
+        )
+      } else {
+        // Zone switched: update source data and colour expression
+        ;(map.getSource('era5-zone') as maplibregl.GeoJSONSource).setData(geoData)
+        if (map.getLayer('era5-zone-fill')) {
+          map.setPaintProperty('era5-zone-fill', 'fill-color', colorExpr as any)
         }
-        overriddenRef.current = cfg.fillId
+      }
+      era5ActiveZoneGeoKeyRef.current = geoKey
+    } else {
+      // Same zone, data or variable changed: just update the colour expression
+      if (map.getLayer('era5-zone-fill')) {
+        map.setPaintProperty('era5-zone-fill', 'fill-color', colorExpr as any)
       }
     }
-    map.setPaintProperty(cfg.fillId, 'fill-color', era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable) as any)
-    if (!isSecteurs) map.setPaintProperty(cfg.fillId, 'fill-opacity', 0.72)
+
+    // Ensure the dedicated layer is visible
+    if (map.getLayer('era5-zone-fill')) {
+      map.setLayoutProperty('era5-zone-fill', 'visibility', 'visible')
+    }
   }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady])
 
   // Fly to bbox
