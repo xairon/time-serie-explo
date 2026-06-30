@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss } from './era5-colors'
+import { ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain } from './era5-colors'
 
 describe('era5-colors', () => {
   it('maps each variable to its data property', () => {
@@ -53,6 +53,44 @@ describe('era5-colors', () => {
     const css = era5GradientCss('anomaly')
     // anomaly stops: -5 … 0 … +5 → 0 is at (0 - (-5)) / (5 - (-5)) * 100 = 50%
     expect(css).toContain('#f7f7f7 50.0%')
+  })
+
+  it('precipAnomaly is in the model with prop=anomaly and a 0-centred divergent scale', () => {
+    expect(ERA5_VARIABLES.precipAnomaly.prop).toBe('anomaly')
+    expect(ERA5_VARIABLES.precipAnomaly.unit).toBe('%')
+    const expr = era5ColorExpression('precipAnomaly') as any[]
+    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly']])
+    // divergent scale must include a 0 midpoint stop
+    const stopValues = expr.slice(3).filter((_: unknown, i: number) => i % 2 === 0)
+    expect(stopValues).toContain(0)
+  })
+
+  it('formats precipAnomaly as a signed integer percent with Unicode minus', () => {
+    expect(era5FormatValue('precipAnomaly', 50)).toBe('+50 %')
+    expect(era5FormatValue('precipAnomaly', -40)).toBe('−40 %')
+    expect(era5FormatValue('precipAnomaly', 0)).toBe('+0 %')
+    expect(era5FormatValue('precipAnomaly', null)).toBe('—')
+  })
+
+  it('era5GradientCss works for precipAnomaly and places 0-stop at 50%', () => {
+    const css = era5GradientCss('precipAnomaly')
+    expect(css).toMatch(/^linear-gradient\(to right,/)
+    // precipAnomaly stops: -80..0..+80 → 0 is at (0-(-80))/(80-(-80))*100 = 50%
+    expect(css).toContain('#f5f5f5 50.0%')
+    // extreme colours present
+    expect(css).toContain('#8c510a')
+    expect(css).toContain('#01665e')
+  })
+
+  it('era5RawDomain returns granularity-aware domains for raw variables', () => {
+    expect(era5RawDomain('precipitation', 'daily')).toEqual([0, 50])
+    expect(era5RawDomain('precipitation', 'monthly')).toEqual([0, 200])
+    // temperature same for both granularities
+    expect(era5RawDomain('temperature', 'daily')).toEqual(era5RawDomain('temperature', 'monthly'))
+    // evaporation monthly has wider range than daily
+    const [evapDailyMin] = era5RawDomain('evaporation', 'daily')
+    const [evapMonthlyMin] = era5RawDomain('evaporation', 'monthly')
+    expect(evapMonthlyMin).toBeLessThan(evapDailyMin)
   })
 
   it('has strictly increasing stop values for every ERA5 variable (MapLibre requires monotonic stops)', () => {

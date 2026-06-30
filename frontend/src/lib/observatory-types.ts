@@ -206,7 +206,10 @@ export interface ERA5Range {
 export interface ERA5AnomalyPoint {
   latitude: number
   longitude: number
+  /** Legacy temperature-anomaly field (°C). Used by the /temp-anomaly path. */
   anomaly_c: number | null
+  /** Generic anomaly field returned by /anomaly?variable=... (°C for temperature, % for precipitation). */
+  anomaly?: number | null
 }
 
 export interface StationPercentiles {

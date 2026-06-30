@@ -1,8 +1,9 @@
-export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly'
+export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'precipAnomaly'
+export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly_c'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly_c' | 'anomaly'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -29,6 +30,12 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     key: 'anomaly', prop: 'anomaly_c', unit: '°C',
     labelKey: 'observatory.drawer.era5VarAnomaly',
     stops: [[-5, '#2166ac'], [-2.5, '#67a9cf'], [-0.5, '#d1e5f0'], [0, '#f7f7f7'], [0.5, '#fddbc7'], [2.5, '#ef8a62'], [5, '#b2182b']],
+  },
+  precipAnomaly: {
+    key: 'precipAnomaly', prop: 'anomaly', unit: '%',
+    labelKey: 'observatory.drawer.era5VarPrecipAnomaly',
+    // Divergent scale centred on 0: dry = brown/red, wet = teal/blue
+    stops: [[-80, '#8c510a'], [-40, '#d8b365'], [-10, '#f6e8c3'], [0, '#f5f5f5'], [10, '#c7eae5'], [40, '#5ab4ac'], [80, '#01665e']],
   },
 }
 
@@ -63,6 +70,32 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
     const s = value.toFixed(1)
     return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
   }
+  if (v === 'precipAnomaly') {
+    const s = Math.round(value).toString()
+    return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
+  }
   const shown = v === 'evaporation' ? Math.abs(value) : value
   return `${shown.toFixed(1)} ${cfg.unit}`
+}
+
+/**
+ * Returns a suitable [min, max] display domain for a raw ERA5 variable,
+ * adapted to the temporal granularity (daily vs monthly aggregates).
+ *
+ * Use this for legend bounds and colour expressions where granularity is known.
+ * TODO(V3): wire the returned domain into the MapLibre interpolate expression
+ * for the era5-grid-fill layer so monthly raw maps don't saturate.
+ */
+export function era5RawDomain(
+  variable: 'temperature' | 'precipitation' | 'evaporation',
+  granularity: Era5Granularity,
+): [number, number] {
+  if (variable === 'precipitation') {
+    return granularity === 'monthly' ? [0, 200] : [0, 50]
+  }
+  if (variable === 'evaporation') {
+    return granularity === 'monthly' ? [-100, 0] : [-10, 0]
+  }
+  // temperature: same scale covers both daily and monthly means
+  return [-10, 35]
 }
