@@ -242,6 +242,7 @@
       "era5NoData": "No data for this date",
       "era5VarAnomaly": "Thermal anomaly",
       "era5VarPrecipAnomaly": "Precipitation anomaly",
+      "era5VarStdIndex": "Temperature index (STI)",
       "era5RawContext": "Raw context",
       "era5Window": "Window",
       "era5Window1": "1 month",
@@ -257,7 +258,18 @@
       "popupTemperature": "Temperature",
       "popupPrecipitation": "Precipitation",
       "popupEvaporation": "Evapotranspiration (PET)",
-      "popupAnomaly": "Anomaly {{n}} months"
+      "popupAnomaly": "Anomaly {{n}} months",
+      "popupStiLabel": "Temperature index {{n}} months"
+    },
+    "sti": {
+      "EXTREMEMENT_BAS": "Very cold",
+      "TRES_BAS": "Cold",
+      "BAS": "Cool",
+      "NORMAL": "Normal",
+      "HAUT": "Mild",
+      "TRES_HAUT": "Warm",
+      "EXTREMEMENT_HAUT": "Very warm",
+      "UNKNOWN": "—"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",

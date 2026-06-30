@@ -242,6 +242,7 @@
       "era5NoData": "Pas de données pour cette date",
       "era5VarAnomaly": "Anomalie thermique",
       "era5VarPrecipAnomaly": "Anomalie de précipitations",
+      "era5VarStdIndex": "Indice thermique (STI)",
       "era5RawContext": "Contexte brut",
       "era5Window": "Fenêtre",
       "era5Window1": "1 mois",
@@ -257,7 +258,18 @@
       "popupTemperature": "Température",
       "popupPrecipitation": "Précipitations",
       "popupEvaporation": "Évapotranspiration (ETP)",
-      "popupAnomaly": "Anomalie {{n}} mois"
+      "popupAnomaly": "Anomalie {{n}} mois",
+      "popupStiLabel": "Indice thermique {{n}} mois"
+    },
+    "sti": {
+      "EXTREMEMENT_BAS": "Très froid",
+      "TRES_BAS": "Froid",
+      "BAS": "Frais",
+      "NORMAL": "Normal",
+      "HAUT": "Doux",
+      "TRES_HAUT": "Chaud",
+      "EXTREMEMENT_HAUT": "Très chaud",
+      "UNKNOWN": "—"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",

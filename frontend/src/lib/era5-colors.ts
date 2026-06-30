@@ -142,6 +142,36 @@ export function era5FormatSti(z: number | null, cls: string | null): string {
 }
 
 /**
+ * Classifies a z-score into one of the 7 McKee STI classes.
+ * Mirrors the backend thresholds in api/era5_anomaly.py.
+ * null/NaN → 'UNKNOWN'.
+ */
+export function classifyIndex(z: number | null | undefined): string {
+  if (z == null || Number.isNaN(z)) return 'UNKNOWN'
+  if (z < -1.75) return 'EXTREMEMENT_BAS'
+  if (z < -1.28) return 'TRES_BAS'
+  if (z < -0.84) return 'BAS'
+  if (z <= 0.84) return 'NORMAL'
+  if (z <= 1.28) return 'HAUT'
+  if (z <= 1.75) return 'TRES_HAUT'
+  return 'EXTREMEMENT_HAUT'
+}
+
+/**
+ * Build a MapLibre 'match' fill-color expression that maps the 'index_class'
+ * feature property (a McKee class string) to its STI colour.
+ * Unknown/missing classes fall back to grey.
+ */
+export function era5StiClassMatchExpr(): unknown[] {
+  const expr: unknown[] = ['match', ['get', 'index_class']]
+  for (const cls of STI_CLASS_ORDER) {
+    expr.push(cls, STI_CLASS_COLORS[cls])
+  }
+  expr.push(STI_CLASS_COLORS['UNKNOWN']) // fallback
+  return expr
+}
+
+/**
  * Returns a suitable [min, max] display domain for a raw ERA5 variable,
  * adapted to the temporal granularity (daily vs monthly aggregates).
  *

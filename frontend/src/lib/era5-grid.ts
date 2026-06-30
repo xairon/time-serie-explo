@@ -1,4 +1,4 @@
-import type { ERA5GridPoint, ERA5AnomalyPoint } from './observatory-types'
+import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint } from './observatory-types'
 
 export const ERA5_CELL_HALF = 0.05
 
@@ -43,6 +43,40 @@ export function era5GenericAnomalyToSquares(
   }
 }
 
+
+/**
+ * Convert STI points to GeoJSON squares.
+ * Filters points where index_class is null/'UNKNOWN'.
+ * Feature properties: index_class (string), sti (number|null).
+ */
+export function era5StiToSquares(
+  points: ERA5StiPoint[],
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { index_class: string; sti: number | null }> {
+  const h = ERA5_CELL_HALF
+  return {
+    type: 'FeatureCollection',
+    features: points
+      .filter((p) => p.index_class != null && p.index_class !== 'UNKNOWN')
+      .map((p) => {
+        const lon = Number(p.longitude)
+        const lat = Number(p.latitude)
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [lon - h, lat - h],
+              [lon + h, lat - h],
+              [lon + h, lat + h],
+              [lon - h, lat + h],
+              [lon - h, lat - h],
+            ]],
+          },
+          properties: { index_class: p.index_class as string, sti: p.sti },
+        }
+      }),
+  }
+}
 
 export function era5PointsToSquares(
   points: ERA5GridPoint[],

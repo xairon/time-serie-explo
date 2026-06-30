@@ -190,7 +190,7 @@ export function RightDrawer(props: Props) {
             <div className="space-y-3 border-t border-white/5 pt-2">
               {/* Primary anomaly variables */}
               <div className="space-y-1">
-                {(['precipAnomaly', 'anomaly'] as const).map((key) => (
+                {(['precipAnomaly', 'tempStdIndex'] as const).map((key) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer group">
                     <input type="radio" name="era5-variable" checked={props.era5Variable === key} onChange={() => props.setEra5Variable(key)} className="w-3.5 h-3.5 accent-accent-cyan" />
                     <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(ERA5_VARIABLES[key].labelKey)}</span>
@@ -200,7 +200,7 @@ export function RightDrawer(props: Props) {
               {/* Collapsible raw context */}
               <Era5RawContextSection era5Variable={props.era5Variable} setEra5Variable={props.setEra5Variable} />
               {/* Window selector (anomaly variables only) */}
-              {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') && (
+              {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly' || props.era5Variable === 'tempStdIndex') && (
                 <div>
                   <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Window')}</label>
                   <div className="flex gap-1">
@@ -219,7 +219,7 @@ export function RightDrawer(props: Props) {
               )}
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
-                {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') ? (
+                {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly' || props.era5Variable === 'tempStdIndex') ? (
                   <input type="month" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '').slice(0, 7) : (props.era5Date ? props.era5Date.slice(0, 7) : '')} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
                 ) : (
                   <input type="date" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '') : props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />

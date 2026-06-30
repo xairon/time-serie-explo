@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain,
-  STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, era5FormatSti,
+  STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, era5FormatSti, classifyIndex, era5StiClassMatchExpr,
 } from './era5-colors'
 
 describe('era5-colors', () => {
@@ -153,6 +153,41 @@ describe('era5-colors', () => {
     expect(era5FormatValue('tempStdIndex', -1.5)).toBe('−1.5 σ')
     expect(era5FormatValue('tempStdIndex', 0.0)).toBe('+0.0 σ')
     expect(era5FormatValue('tempStdIndex', null)).toBe('—')
+  })
+
+  it('classifyIndex maps z-score to McKee class (boundary values)', () => {
+    expect(classifyIndex(null)).toBe('UNKNOWN')
+    expect(classifyIndex(NaN)).toBe('UNKNOWN')
+    // Boundaries: -1.75, -1.28, -0.84, 0.84, 1.28, 1.75
+    expect(classifyIndex(-2.0)).toBe('EXTREMEMENT_BAS')
+    expect(classifyIndex(-1.75)).toBe('TRES_BAS')   // -1.75 is NOT < -1.75 → TRES_BAS
+    expect(classifyIndex(-1.5)).toBe('TRES_BAS')
+    expect(classifyIndex(-1.28)).toBe('BAS')          // -1.28 is NOT < -1.28 → BAS
+    expect(classifyIndex(-1.0)).toBe('BAS')
+    expect(classifyIndex(-0.84)).toBe('NORMAL')       // -0.84 is NOT < -0.84 → NORMAL
+    expect(classifyIndex(0)).toBe('NORMAL')
+    expect(classifyIndex(0.84)).toBe('NORMAL')        // 0.84 <= 0.84 → NORMAL
+    expect(classifyIndex(0.85)).toBe('HAUT')
+    expect(classifyIndex(1.28)).toBe('HAUT')          // 1.28 <= 1.28 → HAUT
+    expect(classifyIndex(1.29)).toBe('TRES_HAUT')
+    expect(classifyIndex(1.75)).toBe('TRES_HAUT')     // 1.75 <= 1.75 → TRES_HAUT
+    expect(classifyIndex(1.76)).toBe('EXTREMEMENT_HAUT')
+    expect(classifyIndex(2.5)).toBe('EXTREMEMENT_HAUT')
+  })
+
+  it('era5StiClassMatchExpr builds a match expression for index_class', () => {
+    const expr = era5StiClassMatchExpr() as any[]
+    expect(expr[0]).toBe('match')
+    expect(expr[1]).toEqual(['get', 'index_class'])
+    // Should contain all 7 classes as pairs of [class, color]
+    const classes = STI_CLASS_ORDER.slice()
+    for (const cls of classes) {
+      const idx = expr.indexOf(cls)
+      expect(idx).toBeGreaterThan(1)
+      expect(expr[idx + 1]).toBe(STI_CLASS_COLORS[cls])
+    }
+    // Last element is the fallback (grey for UNKNOWN)
+    expect(expr[expr.length - 1]).toBe(STI_CLASS_COLORS['UNKNOWN'])
   })
 
   it('has strictly increasing stop values for every ERA5 variable (MapLibre requires monotonic stops)', () => {

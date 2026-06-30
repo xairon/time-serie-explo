@@ -1,4 +1,4 @@
-import { ERA5_VARIABLES, type Era5Variable } from './era5-colors'
+import { ERA5_VARIABLES, type Era5Variable, classifyIndex, era5StiClassColor } from './era5-colors'
 
 function pointInRing(x: number, y: number, ring: number[][]): boolean {
   let inside = false
@@ -49,6 +49,24 @@ export function aggregateEra5ByZone(
   const out: Record<string, number> = {}
   for (const [id, { sum, n }] of Object.entries(sums)) if (n > 0) out[id] = sum / n
   return out
+}
+
+/**
+ * Build a MapLibre 'match' colour expression for a by-zone STI choropleth.
+ * Takes mean z-score per zone (from aggregateEra5ByZone), classifies each to a McKee class,
+ * then maps zone id → class colour.
+ */
+export function era5StiZoneColorExpression(
+  idProp: string,
+  zoneValues: Record<string, number>,
+): unknown[] {
+  const expr: unknown[] = ['match', ['get', idProp]]
+  for (const [id, z] of Object.entries(zoneValues)) {
+    const cls = classifyIndex(z)
+    expr.push(id, era5StiClassColor(cls))
+  }
+  expr.push('rgba(0,0,0,0)') // fallback for zones with no data
+  return expr
 }
 
 function interpColor(value: number, stops: Array<[number, string]>): string {
