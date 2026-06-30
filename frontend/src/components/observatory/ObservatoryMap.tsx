@@ -456,7 +456,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'regions-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'regions', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'regions', id: hovId }, { hover: true }); setTooltip({ name: e.features[0].properties?.nom ?? '', x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'regions-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'regions', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'regions-fill', (e) => {
-            if (era5ActiveRef.current && map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0) return
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -479,7 +482,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'depts-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'departments', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'departments', id: hovId }, { hover: true }); setTooltip({ name: `${e.features[0].properties?.nom ?? ''} (${e.features[0].properties?.code ?? ''})`, x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'depts-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'departments', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'depts-fill', (e) => {
-            if (era5ActiveRef.current && map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0) return
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -501,7 +507,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'her-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'her', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'her', id: hovId }, { hover: true }); const nom = e.features[0].properties?.nom ?? ''; const her1 = e.features[0].properties?.nom_her1 ?? ''; setTooltip({ name: `${nom}${her1 ? ` - ${her1}` : ''}`, x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'her-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'her', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'her-fill', (e) => {
-            if (era5ActiveRef.current && map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0) return
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -523,7 +532,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'bassins-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'bassins', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'bassins', id: hovId }, { hover: true }); setTooltip({ name: e.features[0].properties?.LbBH ?? e.features[0].properties?.CdBH ?? '', x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'bassins-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'bassins', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'bassins-fill', (e) => {
-            if (era5ActiveRef.current && map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0) return
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
