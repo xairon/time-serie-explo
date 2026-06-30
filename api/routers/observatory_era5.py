@@ -420,18 +420,15 @@ def _era5_sti_reference(window: int, end_month: int) -> list[dict]:
 
 def _warm_era5_sti_default():
     """Warm the STI reference for window=3 + latest complete month. Used at startup/re-warm."""
-    try:
-        engine = get_brgm_sync_engine()
-        with engine.connect() as conn:
-            max_date = conn.execute(
-                text('SELECT max("time")::date FROM gold.era5_grid')
-            ).scalar()
-        if max_date is None:
-            return None
-        end_month = latest_complete_month(max_date).month
-        return _era5_sti_reference(3, end_month)
-    except Exception:
-        raise
+    engine = get_brgm_sync_engine()
+    with engine.connect() as conn:
+        max_date = conn.execute(
+            text('SELECT max("time")::date FROM gold.era5_grid')
+        ).scalar()
+    if max_date is None:
+        return None
+    end_month = latest_complete_month(max_date).month
+    return _era5_sti_reference(3, end_month)
 
 
 @router.get("/sti")

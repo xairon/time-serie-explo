@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.cache import get_redis, pool as redis_pool
 from dashboard.utils.cache import delete_cached
 from api.config import settings
-from api.database import engine, brgm_engine, get_db
+from api.database import engine, brgm_engine, get_db, get_brgm_sync_engine
+from api.era5_anomaly import latest_complete_month
 from api.json_response import FastJSONResponse
 from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, pastas
 from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa, observatory_situation, observatory_meteo
@@ -116,6 +117,18 @@ async def lifespan(app: FastAPI):
             try:
                 delete_cached("obs_era5_temp_climatology", {})
                 delete_cached("obs_era5_precip_climatology", {})
+                # Delete STI reference cache before re-warming (non-blocking)
+                try:
+                    engine = get_brgm_sync_engine()
+                    with engine.connect() as conn:
+                        max_date = conn.execute(
+                            text('SELECT max("time")::date FROM gold.era5_grid')
+                        ).scalar()
+                    if max_date is not None:
+                        end_month = latest_complete_month(max_date).month
+                        delete_cached("obs_era5_sti_ref", {"window": 3, "end_month": end_month})
+                except Exception:
+                    pass  # non-blocking; continue even if delete fails
                 results = await asyncio.gather(
                     asyncio.to_thread(observatory_era5._era5_temp_climatology),
                     asyncio.to_thread(observatory_era5._era5_precip_climatology),
