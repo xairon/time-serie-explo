@@ -11,7 +11,8 @@ function RedirectWithParams({ to }: { to: string }) {
 }
 
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
-const MeteoNappesPage = lazy(() => import('./pages/MeteoNappesPage'))
+// Météo des nappes désactivée pour l'instant — réactiver: restaurer cet import + l'élément de route ci-dessous
+// const MeteoNappesPage = lazy(() => import('./pages/MeteoNappesPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
 const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -38,10 +39,11 @@ function SW({ children }: { children: React.ReactNode }) {
 }
 
 export const router = createBrowserRouter([
-  // Météo des nappes — standalone full-screen clone (no TopNav)
+  // Météo des nappes — désactivée pour l'instant (redirige vers l'accueil).
+  // Réactiver: restaurer l'import MeteoNappesPage + remettre l'élément <SessionGate><SW><MeteoNappesPage /></SW></SessionGate>
   {
     path: '/meteo',
-    element: <SessionGate><SW><MeteoNappesPage /></SW></SessionGate>,
+    element: <Navigate to="/" replace />,
   },
   {
     element: <SessionGate><Layout /></SessionGate>,
