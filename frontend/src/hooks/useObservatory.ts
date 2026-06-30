@@ -381,6 +381,15 @@ export function useERA5Anomaly(variable: string, date: string | undefined, windo
   })
 }
 
+export function useERA5Sti(date: string | undefined, window: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['obs-era5', 'sti', date, window],
+    queryFn: () => observatoryApi.era5.sti(date!, window),
+    enabled: enabled && !!date,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
+
 // --- Sector situation hooks ---
 
 export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean, network: 'all' | 'meteeau' = 'all') {

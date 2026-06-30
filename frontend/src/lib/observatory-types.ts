@@ -210,6 +210,15 @@ export interface ERA5AnomalyPoint {
   anomaly?: number | null
 }
 
+export interface ERA5StiPoint {
+  latitude: number
+  longitude: number
+  /** Standardized Temperature Index z-score (null when reference or observations are insufficient). */
+  sti: number | null
+  /** McKee 7-class string or 'UNKNOWN'. */
+  index_class: string | null
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

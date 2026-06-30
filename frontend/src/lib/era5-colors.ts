@@ -1,9 +1,9 @@
-export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'precipAnomaly'
+export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'precipAnomaly' | 'tempStdIndex'
 export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly' | 'sti'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -36,6 +36,12 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     labelKey: 'observatory.drawer.era5VarPrecipAnomaly',
     // Divergent scale centred on 0: dry = brown/red, wet = teal/blue
     stops: [[-80, '#8c510a'], [-40, '#d8b365'], [-10, '#f6e8c3'], [0, '#f5f5f5'], [10, '#c7eae5'], [40, '#5ab4ac'], [80, '#01665e']],
+  },
+  tempStdIndex: {
+    key: 'tempStdIndex', prop: 'sti', unit: 'σ',
+    labelKey: 'observatory.drawer.era5VarStdIndex',
+    // Continuous z-score fallback scale (cold→hot); discrete class colours used by the STI layer
+    stops: [[-2, '#313695'], [-1, '#74add1'], [0, '#10b981'], [1, '#f46d43'], [2, '#7f0000']],
   },
 }
 
@@ -74,8 +80,65 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
     const s = Math.round(value).toString()
     return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
   }
+  if (v === 'tempStdIndex') {
+    const s = Math.abs(value).toFixed(1)
+    return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`
+  }
   const shown = v === 'evaporation' ? Math.abs(value) : value
   return `${shown.toFixed(1)} ${cfg.unit}`
+}
+
+// ---------------------------------------------------------------------------
+// STI (Standardized Temperature Index) — discrete 7-class colour map
+// Temperature-oriented: cold (indigo) → normal (green) → hot (dark red).
+// Inverse of the piezo CLASSIFICATION_COLORS (which use red=low, blue=high).
+// ---------------------------------------------------------------------------
+
+/** McKee 7-class colour map keyed by index_class string (temperature-oriented). */
+export const STI_CLASS_COLORS: Record<string, string> = {
+  EXTREMEMENT_BAS: '#313695',   // indigo — very cold
+  TRES_BAS:        '#4575b4',   // medium blue — cold
+  BAS:             '#74add1',   // light blue — slightly cold
+  NORMAL:          '#10b981',   // green — normal
+  HAUT:            '#f46d43',   // orange — slightly hot
+  TRES_HAUT:       '#d73027',   // red — hot
+  EXTREMEMENT_HAUT:'#7f0000',   // dark red — very hot
+  UNKNOWN:         '#6b7280',   // grey — unknown / insufficient data
+}
+
+/** Ordered from coldest to hottest (for legends). */
+export const STI_CLASS_ORDER = [
+  'EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT',
+] as const
+
+/** French labels for STI classes (temperature-oriented). */
+const STI_CLASS_LABELS_FR: Record<string, string> = {
+  EXTREMEMENT_BAS:  'Extrêmement froid',
+  TRES_BAS:         'Très froid',
+  BAS:              'Froid',
+  NORMAL:           'Normal',
+  HAUT:             'Chaud',
+  TRES_HAUT:        'Très chaud',
+  EXTREMEMENT_HAUT: 'Extrêmement chaud',
+  UNKNOWN:          'Non classé',
+}
+
+/** Returns the CSS colour for a given STI index_class string; falls back to grey. */
+export function era5StiClassColor(cls: string): string {
+  return STI_CLASS_COLORS[cls] ?? STI_CLASS_COLORS['UNKNOWN']
+}
+
+/**
+ * Formats an STI z-score with its class label.
+ * Example: era5FormatSti(2.1, 'TRES_HAUT') → '+2.1 σ · Très chaud'
+ * Uses Unicode minus (U+2212) for negative values.
+ */
+export function era5FormatSti(z: number | null, cls: string | null): string {
+  if (z == null || Number.isNaN(z)) return '—'
+  const abs = Math.abs(z).toFixed(1)
+  const zStr = z < 0 ? `−${abs} σ` : `+${abs} σ`
+  const label = STI_CLASS_LABELS_FR[cls ?? 'UNKNOWN'] ?? STI_CLASS_LABELS_FR['UNKNOWN']
+  return `${zStr} · ${label}`
 }
 
 /**

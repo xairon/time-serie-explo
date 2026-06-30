@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain } from './era5-colors'
+import {
+  ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain,
+  STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, era5FormatSti,
+} from './era5-colors'
 
 describe('era5-colors', () => {
   it('maps each variable to its data property', () => {
@@ -91,6 +94,65 @@ describe('era5-colors', () => {
     const [evapDailyMin] = era5RawDomain('evaporation', 'daily')
     const [evapMonthlyMin] = era5RawDomain('evaporation', 'monthly')
     expect(evapMonthlyMin).toBeLessThan(evapDailyMin)
+  })
+
+  // --- STI (Standardized Temperature Index) ---
+
+  it('STI_CLASS_COLORS has all 7 McKee classes plus UNKNOWN', () => {
+    const expected = ['EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT', 'UNKNOWN']
+    for (const cls of expected) {
+      expect(STI_CLASS_COLORS).toHaveProperty(cls)
+      expect(STI_CLASS_COLORS[cls]).toMatch(/^#[0-9a-fA-F]{6}$/)
+    }
+    expect(Object.keys(STI_CLASS_COLORS)).toHaveLength(8)
+  })
+
+  it('STI_CLASS_COLORS cold→hot orientation: EXTREMEMENT_BAS is indigo, EXTREMEMENT_HAUT is dark red', () => {
+    expect(STI_CLASS_COLORS.EXTREMEMENT_BAS).toBe('#313695')
+    expect(STI_CLASS_COLORS.TRES_BAS).toBe('#4575b4')
+    expect(STI_CLASS_COLORS.BAS).toBe('#74add1')
+    expect(STI_CLASS_COLORS.NORMAL).toBe('#10b981')
+    expect(STI_CLASS_COLORS.HAUT).toBe('#f46d43')
+    expect(STI_CLASS_COLORS.TRES_HAUT).toBe('#d73027')
+    expect(STI_CLASS_COLORS.EXTREMEMENT_HAUT).toBe('#7f0000')
+    expect(STI_CLASS_COLORS.UNKNOWN).toBe('#6b7280')
+  })
+
+  it('STI_CLASS_ORDER has 7 entries in cold→hot order', () => {
+    expect(STI_CLASS_ORDER).toHaveLength(7)
+    expect(STI_CLASS_ORDER[0]).toBe('EXTREMEMENT_BAS')
+    expect(STI_CLASS_ORDER[6]).toBe('EXTREMEMENT_HAUT')
+  })
+
+  it('era5StiClassColor maps known classes and falls back to grey for unknown', () => {
+    expect(era5StiClassColor('EXTREMEMENT_BAS')).toBe('#313695')
+    expect(era5StiClassColor('NORMAL')).toBe('#10b981')
+    expect(era5StiClassColor('EXTREMEMENT_HAUT')).toBe('#7f0000')
+    expect(era5StiClassColor('UNKNOWN')).toBe('#6b7280')
+    // fallback for unrecognised string
+    expect(era5StiClassColor('NOT_A_CLASS')).toBe('#6b7280')
+    expect(era5StiClassColor('')).toBe('#6b7280')
+  })
+
+  it('era5FormatSti formats z-score with sign and class label', () => {
+    expect(era5FormatSti(2.1, 'TRES_HAUT')).toBe('+2.1 σ · Très chaud')
+    expect(era5FormatSti(-1.5, 'TRES_BAS')).toBe('−1.5 σ · Très froid')
+    expect(era5FormatSti(0.0, 'NORMAL')).toBe('+0.0 σ · Normal')
+    expect(era5FormatSti(null, null)).toBe('—')
+  })
+
+  it('tempStdIndex is present in ERA5_VARIABLES with correct prop and unit', () => {
+    expect(ERA5_VARIABLES).toHaveProperty('tempStdIndex')
+    expect(ERA5_VARIABLES.tempStdIndex.prop).toBe('sti')
+    expect(ERA5_VARIABLES.tempStdIndex.unit).toBe('σ')
+    expect(ERA5_VARIABLES.tempStdIndex.labelKey).toBe('observatory.drawer.era5VarStdIndex')
+  })
+
+  it('era5FormatValue formats tempStdIndex as signed z-score', () => {
+    expect(era5FormatValue('tempStdIndex', 2.1)).toBe('+2.1 σ')
+    expect(era5FormatValue('tempStdIndex', -1.5)).toBe('−1.5 σ')
+    expect(era5FormatValue('tempStdIndex', 0.0)).toBe('+0.0 σ')
+    expect(era5FormatValue('tempStdIndex', null)).toBe('—')
   })
 
   it('has strictly increasing stop values for every ERA5 variable (MapLibre requires monotonic stops)', () => {
