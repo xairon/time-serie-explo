@@ -296,6 +296,9 @@ def get_era5_anomaly(
             with engine.connect() as conn:
                 if variable == "temperature":
                     result, _ = _compute_temp_anomaly(conn, anomaly_date, window)
+                    if result is not None:
+                        # Remap anomaly_c to generic anomaly field for /anomaly endpoint
+                        result = [{"latitude": r["latitude"], "longitude": r["longitude"], "anomaly": r["anomaly_c"]} for r in result]
                     return result if result is not None else []
 
                 # precipitation path
