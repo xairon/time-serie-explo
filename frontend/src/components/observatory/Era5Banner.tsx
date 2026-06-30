@@ -57,11 +57,11 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period }:
       <div className="mt-1.5">
         <div className="h-2.5 rounded" style={{ background: era5GradientCss(era5Variable) }} />
         <div className="relative flex justify-between text-[9px] text-text-secondary mt-0.5">
-          <span>{minVal}{cfg.unit}</span>
+          <span>{String(minVal).replace('-', '−')} {cfg.unit}</span>
           {isAnomaly && (
             <span className="absolute left-1/2 -translate-x-1/2">0</span>
           )}
-          <span>+{maxVal}{cfg.unit}</span>
+          <span>+{maxVal} {cfg.unit}</span>
         </div>
       </div>
     </div>
