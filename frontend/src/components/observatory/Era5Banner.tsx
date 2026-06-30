@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { ERA5_VARIABLES, era5GradientCss } from '@/lib/era5-colors'
-import type { Era5Variable } from '@/lib/era5-colors'
+import { ERA5_VARIABLES, era5GradientCss, era5RawDomain } from '@/lib/era5-colors'
+import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 
 interface Props {
   era5Active: boolean
@@ -8,6 +8,8 @@ interface Props {
   era5Window: number
   /** Active period: a date string like '2024-03-01' or a month like '2024-03-01'. May be empty string. */
   era5Period: string
+  /** Granularity of the active ERA5 data; drives the raw legend domain. Defaults to 'daily'. */
+  era5Granularity?: Era5Granularity
 }
 
 function formatPeriodLabel(period: string): string {
@@ -25,16 +27,24 @@ function formatPeriodLabel(period: string): string {
 
 const ANOMALY_VARIABLES: Era5Variable[] = ['anomaly', 'precipAnomaly']
 
-export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period }: Props) {
+export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, era5Granularity = 'daily' }: Props) {
   const { t } = useTranslation()
 
   if (!era5Active) return null
 
   const cfg = ERA5_VARIABLES[era5Variable]
   const isAnomaly = ANOMALY_VARIABLES.includes(era5Variable)
-  const stops = cfg.stops
-  const minVal = stops[0][0]
-  const maxVal = stops[stops.length - 1][0]
+  // For anomaly variables keep using the fixed divergent stop bounds.
+  // For raw variables use the granularity-aware domain so the legend agrees with the map.
+  let minVal: number
+  let maxVal: number
+  if (isAnomaly) {
+    const stops = cfg.stops
+    minVal = stops[0][0]
+    maxVal = stops[stops.length - 1][0]
+  } else {
+    ;[minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
+  }
   const periodLabel = formatPeriodLabel(era5Period)
 
   return (

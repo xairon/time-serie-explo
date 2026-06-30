@@ -83,8 +83,9 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
  * adapted to the temporal granularity (daily vs monthly aggregates).
  *
  * Use this for legend bounds and colour expressions where granularity is known.
- * TODO(V3): wire the returned domain into the MapLibre interpolate expression
- * for the era5-grid-fill layer so monthly raw maps don't saturate.
+ * The domain is wired into the MapLibre interpolate expression (era5-grid-fill
+ * layer) via buildRawGridColorExpression, and into the by-zone choropleth via
+ * era5ZoneColorExpression, so monthly raw maps don't saturate.
  */
 export function era5RawDomain(
   variable: 'temperature' | 'precipitation' | 'evaporation',

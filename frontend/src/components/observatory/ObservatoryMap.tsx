@@ -839,7 +839,12 @@ export function ObservatoryMap({
     const valueKey = isAnom ? 'anomaly' : ERA5_VARIABLES[era5Variable].prop
     const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
     const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
-    const colorExpr = era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable)
+    // For raw variables, pass the granularity-aware domain so the stop positions
+    // are rescaled to the correct range and monthly aggregates don't saturate.
+    const rawDomain = isAnom
+      ? undefined
+      : era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
+    const colorExpr = era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable, rawDomain)
 
     // Build / update the dedicated era5-zone GeoJSON source and fill layer.
     // The source stores lightweight features (geometry + idProp only); colour is applied
@@ -891,7 +896,7 @@ export function ObservatoryMap({
     if (map.getLayer('era5-zone-fill')) {
       map.setLayoutProperty('era5-zone-fill', 'visibility', 'visible')
     }
-  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady])
+  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady, era5Granularity])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete

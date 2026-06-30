@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Layers, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import { CLASSIFICATION_ORDER, CLASSIFICATION_LABELS, CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import type { ObsFilters } from '@/hooks/useObservatory'
-import { ERA5_VARIABLES, era5GradientCss } from '@/lib/era5-colors'
-import type { Era5Variable } from '@/lib/era5-colors'
+import { ERA5_VARIABLES, era5GradientCss, era5RawDomain } from '@/lib/era5-colors'
+import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 
 function useZoneLayers() {
   const { t } = useTranslation()
@@ -46,6 +46,8 @@ interface Props {
   era5Window: number; setEra5Window: (n: number) => void
   era5ByZone: boolean; setEra5ByZone: (v: boolean) => void
   era5TimelineDriven?: boolean
+  /** Granularity of the active ERA5 data; drives the raw legend domain. Defaults to 'daily'. */
+  era5Granularity?: Era5Granularity
 }
 
 function AccordionSection({ id, title, badge, defaultOpen, children }: { id: string; title: string; badge?: string; defaultOpen?: boolean; children: React.ReactNode }) {
@@ -234,13 +236,22 @@ export function RightDrawer(props: Props) {
                 {/* Continuous gradient bar */}
                 <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
                 {/* Scale labels: min left, optional 0 centre for divergent anomaly, max right */}
-                <div className="relative flex justify-between text-[9px] text-text-secondary">
-                  <span>{ERA5_VARIABLES[props.era5Variable].stops[0][0]}</span>
-                  {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') && (
-                    <span className="absolute left-1/2 -translate-x-1/2">0</span>
-                  )}
-                  <span>{ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]}</span>
-                </div>
+                {(() => {
+                  const isAnomalyVar = props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly'
+                  // For raw variables, use the granularity-aware domain; for anomaly, use the fixed stops
+                  const [scaleMin, scaleMax] = isAnomalyVar
+                    ? [ERA5_VARIABLES[props.era5Variable].stops[0][0], ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]]
+                    : era5RawDomain(props.era5Variable as 'temperature' | 'precipitation' | 'evaporation', props.era5Granularity ?? 'daily')
+                  return (
+                    <div className="relative flex justify-between text-[9px] text-text-secondary">
+                      <span>{scaleMin}</span>
+                      {isAnomalyVar && (
+                        <span className="absolute left-1/2 -translate-x-1/2">0</span>
+                      )}
+                      <span>{scaleMax}</span>
+                    </div>
+                  )
+                })()}
                 {/* Evaporation: left end = most evapotranspiration */}
                 {props.era5Variable === 'evaporation' && (
                   <p className="text-[9px] text-text-secondary/60">← {t('observatory.drawer.era5EvaporationMore')}</p>

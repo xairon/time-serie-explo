@@ -68,12 +68,33 @@ function interpColor(value: number, stops: Array<[number, string]>): string {
   return stops[stops.length - 1][1]
 }
 
+/**
+ * Build a MapLibre 'match' colour expression for a by-zone ERA5 choropleth.
+ *
+ * @param domain - When provided (raw variables), the stop positions are rescaled
+ *   from the original [stopsMin, stopsMax] to [domain[0], domain[1]] so that
+ *   monthly aggregates (which exceed daily stop ranges) are not saturated.
+ *   Omit (or pass undefined) for anomaly variables, which keep their fixed
+ *   divergent stops.
+ */
 export function era5ZoneColorExpression(
   idProp: string,
   zoneValues: Record<string, number>,
   variable: Era5Variable,
+  domain?: [number, number],
 ): unknown[] {
-  const stops = ERA5_VARIABLES[variable].stops
+  let stops = ERA5_VARIABLES[variable].stops
+  if (domain != null) {
+    const [dMin, dMax] = domain
+    const sMin = stops[0][0]
+    const sMax = stops[stops.length - 1][0]
+    const sRange = sMax - sMin
+    const dRange = dMax - dMin
+    stops = stops.map(([v, c]): [number, string] => [
+      sRange === 0 ? dMin : dMin + ((v - sMin) / sRange) * dRange,
+      c,
+    ])
+  }
   const expr: unknown[] = ['match', ['get', idProp]]
   for (const [id, value] of Object.entries(zoneValues)) {
     expr.push(id, interpColor(value, stops))
