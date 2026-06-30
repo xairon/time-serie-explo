@@ -241,6 +241,8 @@
       "era5Date": "Date",
       "era5NoData": "No data for this date",
       "era5VarAnomaly": "Thermal anomaly",
+      "era5VarPrecipAnomaly": "Precipitation anomaly",
+      "era5RawContext": "Raw context",
       "era5Window": "Window",
       "era5Window1": "1 month",
       "era5Window3": "3 months",

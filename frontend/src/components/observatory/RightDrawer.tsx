@@ -66,6 +66,35 @@ function AccordionSection({ id, title, badge, defaultOpen, children }: { id: str
   )
 }
 
+const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'evaporation'> = ['temperature', 'precipitation', 'evaporation']
+
+function Era5RawContextSection({ era5Variable, setEra5Variable }: { era5Variable: Era5Variable; setEra5Variable: (v: Era5Variable) => void }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const isRaw = RAW_VARIABLES.includes(era5Variable as any)
+  return (
+    <div className="border border-white/10 rounded-lg overflow-hidden">
+      <button onClick={() => setOpen(v => !v)} className="flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover transition-colors text-left" aria-expanded={open}>
+        <span className="text-xs text-text-secondary">{t('observatory.drawer.era5RawContext')}</span>
+        <div className="flex items-center gap-1.5">
+          {isRaw && <span className="w-2 h-2 rounded-full bg-accent-cyan/80 flex-shrink-0" />}
+          {open ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary" /> : <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />}
+        </div>
+      </button>
+      {open && (
+        <div className="px-3 pb-2 space-y-1 border-t border-white/5">
+          {RAW_VARIABLES.map((key) => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer group py-0.5">
+              <input type="radio" name="era5-variable" checked={era5Variable === key} onChange={() => setEra5Variable(key)} className="w-3.5 h-3.5 accent-accent-cyan" />
+              <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(ERA5_VARIABLES[key].labelKey)}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function RightDrawer(props: Props) {
   const { t } = useTranslation()
   const { ZONE_LAYERS, OVERLAY_LAYERS } = useZoneLayers()
@@ -157,18 +186,19 @@ export function RightDrawer(props: Props) {
           </label>
           {props.era5Active && (
             <div className="space-y-3 border-t border-white/5 pt-2">
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5ColorBy')}</label>
-                <div className="space-y-1">
-                  {(Object.values(ERA5_VARIABLES)).map((cfg) => (
-                    <label key={cfg.key} className="flex items-center gap-2 cursor-pointer group">
-                      <input type="radio" name="era5-variable" checked={props.era5Variable === cfg.key} onChange={() => props.setEra5Variable(cfg.key)} className="w-3.5 h-3.5 accent-accent-cyan" />
-                      <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(cfg.labelKey)}</span>
-                    </label>
-                  ))}
-                </div>
+              {/* Primary anomaly variables */}
+              <div className="space-y-1">
+                {(['precipAnomaly', 'anomaly'] as const).map((key) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer group">
+                    <input type="radio" name="era5-variable" checked={props.era5Variable === key} onChange={() => props.setEra5Variable(key)} className="w-3.5 h-3.5 accent-accent-cyan" />
+                    <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(ERA5_VARIABLES[key].labelKey)}</span>
+                  </label>
+                ))}
               </div>
-              {props.era5Variable === 'anomaly' && (
+              {/* Collapsible raw context */}
+              <Era5RawContextSection era5Variable={props.era5Variable} setEra5Variable={props.setEra5Variable} />
+              {/* Window selector (anomaly variables only) */}
+              {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') && (
                 <div>
                   <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Window')}</label>
                   <div className="flex gap-1">
@@ -187,7 +217,7 @@ export function RightDrawer(props: Props) {
               )}
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
-                {props.era5Variable === 'anomaly' ? (
+                {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') ? (
                   <input type="month" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '').slice(0, 7) : (props.era5Date ? props.era5Date.slice(0, 7) : '')} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
                 ) : (
                   <input type="date" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '') : props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
@@ -203,10 +233,10 @@ export function RightDrawer(props: Props) {
                 </span>
                 {/* Continuous gradient bar */}
                 <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
-                {/* Scale labels: min left, optional 0 centre for anomaly, max right */}
+                {/* Scale labels: min left, optional 0 centre for divergent anomaly, max right */}
                 <div className="relative flex justify-between text-[9px] text-text-secondary">
                   <span>{ERA5_VARIABLES[props.era5Variable].stops[0][0]}</span>
-                  {props.era5Variable === 'anomaly' && (
+                  {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly') && (
                     <span className="absolute left-1/2 -translate-x-1/2">0</span>
                   )}
                   <span>{ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]}</span>

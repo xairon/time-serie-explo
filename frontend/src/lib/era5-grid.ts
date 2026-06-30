@@ -8,6 +8,41 @@ export interface ERA5CellProps {
   potential_evaporation: number | null
 }
 
+/**
+ * Convert generic anomaly points (from /anomaly?variable=...) into GeoJSON squares.
+ * Reads the `anomaly` field and stores it as feature property `anomaly`.
+ * Used for both the temperature-anomaly and precipitation-anomaly grid layers.
+ */
+export function era5GenericAnomalyToSquares(
+  points: ERA5AnomalyPoint[],
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly: number }> {
+  const h = ERA5_CELL_HALF
+  return {
+    type: 'FeatureCollection',
+    features: points
+      .filter((p) => p.anomaly != null)
+      .map((p) => {
+        const lon = Number(p.longitude)
+        const lat = Number(p.latitude)
+        const v = p.anomaly as number
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [lon - h, lat - h],
+              [lon + h, lat - h],
+              [lon + h, lat + h],
+              [lon - h, lat + h],
+              [lon - h, lat - h],
+            ]],
+          },
+          properties: { anomaly: v },
+        }
+      }),
+  }
+}
+
 export function era5AnomalyPointsToSquares(
   points: ERA5AnomalyPoint[],
 ): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly_c: number }> {

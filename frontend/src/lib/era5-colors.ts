@@ -3,7 +3,7 @@ export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly_c' | 'anomaly'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -27,7 +27,7 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     stops: [[-10, '#54278f'], [-6, '#756bb1'], [-3, '#9e9ac8'], [-1, '#cbc9e2'], [0, '#f2f0f7']],
   },
   anomaly: {
-    key: 'anomaly', prop: 'anomaly_c', unit: '°C',
+    key: 'anomaly', prop: 'anomaly', unit: '°C',
     labelKey: 'observatory.drawer.era5VarAnomaly',
     stops: [[-5, '#2166ac'], [-2.5, '#67a9cf'], [-0.5, '#d1e5f0'], [0, '#f7f7f7'], [0.5, '#fddbc7'], [2.5, '#ef8a62'], [5, '#b2182b']],
   },

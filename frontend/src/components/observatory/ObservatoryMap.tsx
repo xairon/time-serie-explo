@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
-import { era5PointsToSquares, era5AnomalyPointsToSquares } from '@/lib/era5-grid'
+import { era5PointsToSquares, era5GenericAnomalyToSquares } from '@/lib/era5-grid'
 import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain } from '@/lib/era5-colors'
 import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 import type { ERA5GridPoint, ERA5AnomalyPoint } from '@/lib/observatory-types'
@@ -723,14 +723,15 @@ export function ObservatoryMap({
     }
 
     const cfg = ERA5_VARIABLES[era5Variable]
+    const isAnomalyVar = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
     let data: GeoJSON.FeatureCollection<GeoJSON.Polygon>
-    if (era5Variable === 'anomaly') {
-      data = era5AnomalyPointsToSquares(era5AnomalyPoints ?? [])
+    if (isAnomalyVar) {
+      data = era5GenericAnomalyToSquares(era5AnomalyPoints ?? [])
     } else {
       const pts = (era5Points ?? []).filter((p) => p[cfg.prop as 'temperature_2m' | 'total_precipitation' | 'potential_evaporation'] != null)
       data = era5PointsToSquares(pts)
     }
-    const loading = era5Variable === 'anomaly' ? era5AnomalyPoints === undefined : era5Points === undefined
+    const loading = isAnomalyVar ? era5AnomalyPoints === undefined : era5Points === undefined
     setEra5NoData(!loading && data.features.length === 0)
 
     if (!map.getSource(SRC)) {
@@ -753,8 +754,9 @@ export function ObservatoryMap({
         const pr = f.properties as Record<string, string>
         const num = (k: string) => { const raw = pr[k]; if (raw == null || raw === '') return null; const v = Number(raw); return Number.isFinite(v) ? v : null }
         let html: string
-        if (era5VariableRef.current === 'anomaly') {
-          html = `<div style="font-size:12px;line-height:1.5"><div>${t('observatory.era5.popupAnomaly', { n: era5WindowRef.current })}: ${era5FormatValue('anomaly', num('anomaly_c'))}</div></div>`
+        const curVar = era5VariableRef.current
+        if (curVar === 'anomaly' || curVar === 'precipAnomaly') {
+          html = `<div style="font-size:12px;line-height:1.5"><div>${t('observatory.era5.popupAnomaly', { n: era5WindowRef.current })}: ${era5FormatValue(curVar, num('anomaly'))}</div></div>`
         } else {
           html = `<div style="font-size:12px;line-height:1.5">
               <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
@@ -833,7 +835,8 @@ export function ObservatoryMap({
     // Aggregate ERA5 values per zone
     const zoneFeatures = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
     const isAnom = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
-    const valueKey = era5Variable === 'precipAnomaly' ? 'anomaly' : (era5Variable === 'anomaly' ? 'anomaly_c' : ERA5_VARIABLES[era5Variable].prop)
+    // Both anomaly variables from the generic hook return the 'anomaly' field
+    const valueKey = isAnom ? 'anomaly' : ERA5_VARIABLES[era5Variable].prop
     const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
     const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
     const colorExpr = era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable)

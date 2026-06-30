@@ -23,9 +23,9 @@ describe('era5-colors', () => {
   })
 
   it('includes the anomaly variable with a divergent scale', () => {
-    expect(ERA5_VARIABLES.anomaly.prop).toBe('anomaly_c')
+    expect(ERA5_VARIABLES.anomaly.prop).toBe('anomaly')
     const expr = era5ColorExpression('anomaly') as any[]
-    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly_c']])
+    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly']])
     // divergent scale includes a 0 midpoint stop
     const stopValues = expr.slice(3).filter((_, i) => i % 2 === 0)
     expect(stopValues).toContain(0)
