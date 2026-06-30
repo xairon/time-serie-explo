@@ -13,7 +13,7 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
   temperature: {
     key: 'temperature', prop: 'temperature_2m', unit: '°C',
     labelKey: 'observatory.drawer.era5VarTemperature',
-    stops: [[-10, '#2166ac'], [0, '#67a9cf'], [10, '#d1e5f0'], [20, '#fddbc7'], [27, '#ef8a62'], [35, '#b2182b']],
+    stops: [[-10, '#3b2d8c'], [-5, '#3d6fd0'], [0, '#4aa3e0'], [5, '#7fd0e8'], [10, '#9fdfa8'], [15, '#e6e36a'], [20, '#f4b942'], [25, '#ef7d2f'], [30, '#df3b2c'], [35, '#c01f8a']],
   },
   precipitation: {
     key: 'precipitation', prop: 'total_precipitation', unit: 'mm',
