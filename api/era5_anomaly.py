@@ -26,6 +26,28 @@ def latest_complete_month(max_date: date) -> date:
     return first_this if max_date >= last_day_this else add_months(first_this, -1)
 
 
+def compute_precip_anomalies(window_rows, climatology, months, window):
+    """Precipitation anomaly in % of the 1950+ normal. climatology rows carry mean_sum
+    per (cell, calendar month); window_rows carry precip_sum + n_months."""
+    month_set = set(months)
+    norm = {}
+    for c in climatology:
+        if c["mo"] in month_set:
+            norm.setdefault((float(c["latitude"]), float(c["longitude"])), []).append(float(c["mean_sum"]))
+    out = []
+    for r in window_rows:
+        key = (float(r["latitude"]), float(r["longitude"]))
+        vals = norm.get(key)
+        if not vals or len(vals) < len(month_set) or r["precip_sum"] is None or int(r["n_months"]) < window:
+            continue
+        total_normal = sum(vals)
+        if total_normal <= 0:
+            continue
+        out.append({"latitude": float(r["latitude"]), "longitude": float(r["longitude"]),
+                    "anomaly": (float(r["precip_sum"]) - total_normal) / total_normal * 100.0})
+    return out
+
+
 def compute_anomalies(window_rows, climatology, months, window):
     """Pure: window_rows = iterable of dicts {latitude, longitude, window_mean, n_months};
     climatology = iterable of dicts {latitude, longitude, mo, mean_c}; months = the N ending

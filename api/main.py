@@ -81,27 +81,38 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_warm_sectors())
 
-    # Warm the ERA5 temperature-climatology cache in the BACKGROUND (~71s full-table
-    # scan) so the first /temp-anomaly request after a restart or 7-day TTL expiry
-    # doesn't hit the scan and exceed the frontend's 30s timeout.
+    # Warm the ERA5 climatology caches (temperature + precipitation) in the BACKGROUND
+    # (~71s full-table scan each) so the first /temp-anomaly or /anomaly request after
+    # a restart or 7-day TTL expiry doesn't hit the scan and exceed the frontend timeout.
     # After the initial warm, re-warm periodically (every 6 days) so the 7-day TTL
     # cold window never occurs in production: delete the key first so the re-warm
     # actually recomputes rather than no-oping on a still-live entry.
     async def _warm_era5_climatology():
         try:
             await asyncio.to_thread(observatory_era5._era5_temp_climatology)
-            logger.info("ERA5 climatology cache warmed")
+            logger.info("ERA5 temperature climatology cache warmed")
         except Exception:
-            logger.warning("ERA5 climatology warm-up failed", exc_info=True)
+            logger.warning("ERA5 temperature climatology warm-up failed", exc_info=True)
+        try:
+            await asyncio.to_thread(observatory_era5._era5_precip_climatology)
+            logger.info("ERA5 precipitation climatology cache warmed")
+        except Exception:
+            logger.warning("ERA5 precipitation climatology warm-up failed", exc_info=True)
 
         while True:
             await asyncio.sleep(CLIMATOLOGY_REWARM_SECONDS)
             try:
                 delete_cached("obs_era5_temp_climatology", {})
                 await asyncio.to_thread(observatory_era5._era5_temp_climatology)
-                logger.info("ERA5 climatology cache re-warmed")
+                logger.info("ERA5 temperature climatology cache re-warmed")
             except Exception:
-                logger.warning("ERA5 climatology re-warm failed", exc_info=True)
+                logger.warning("ERA5 temperature climatology re-warm failed", exc_info=True)
+            try:
+                delete_cached("obs_era5_precip_climatology", {})
+                await asyncio.to_thread(observatory_era5._era5_precip_climatology)
+                logger.info("ERA5 precipitation climatology cache re-warmed")
+            except Exception:
+                logger.warning("ERA5 precipitation climatology re-warm failed", exc_info=True)
 
     asyncio.create_task(_warm_era5_climatology())
 

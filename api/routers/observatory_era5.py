@@ -10,7 +10,7 @@ from api.database import get_brgm_sync_engine
 
 from api.config import settings
 from dashboard.utils.cache import get_cached, read_cached
-from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies
+from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
 
@@ -25,6 +25,8 @@ ANOMALY_TTL = 86400
 # Single-flight guard: only one thread runs the ~71s climatology scan at a time.
 # Concurrent cache misses acquire this lock and double-check before scanning.
 _climatology_lock = threading.Lock()
+# Separate single-flight guard for the precip climatology scan.
+_precip_climatology_lock = threading.Lock()
 
 
 def _brgm_url() -> str:
@@ -187,6 +189,155 @@ def _era5_temp_climatology():
                 pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_temp_climatology", {}, CLIMATOLOGY_TTL, fetch)
+
+
+def _era5_precip_climatology():
+    """Per-cell long-term mean monthly precipitation sum for each calendar month (1950+).
+    Computed as: for each (cell, calendar month), average the monthly SUM across all years."""
+    def fetch():
+        # Single-flight: acquire the lock before running the expensive full-table scan.
+        # Concurrent cache misses serialize here; the first runner computes, the rest
+        # double-check via read_cached and return immediately.
+        with _precip_climatology_lock:
+            cached = read_cached("obs_era5_precip_climatology", {})
+            if cached is not None:
+                return cached
+
+            # We hold the lock and the cache is empty — run the expensive scan.
+            query = """
+                WITH monthly AS (
+                    SELECT latitude, longitude,
+                           date_trunc('month', "time") AS ym,
+                           EXTRACT(MONTH FROM "time")::int AS mo,
+                           SUM(total_precipitation) AS msum
+                    FROM gold.era5_grid
+                    WHERE total_precipitation IS NOT NULL
+                    GROUP BY latitude, longitude,
+                             date_trunc('month', "time"),
+                             EXTRACT(MONTH FROM "time")
+                )
+                SELECT latitude, longitude, mo, AVG(msum) AS mean_sum
+                FROM monthly
+                GROUP BY latitude, longitude, mo
+            """
+            engine = get_brgm_sync_engine()
+            try:
+                with engine.connect() as conn:
+                    result = conn.execute(text(query))
+                    return [dict(r._mapping) for r in result]
+            finally:
+                pass  # shared pooled engine; do not dispose
+
+    return get_cached("obs_era5_precip_climatology", {}, CLIMATOLOGY_TTL, fetch)
+
+
+def _compute_temp_anomaly(conn, anomaly_date, window):
+    """Shared computation for temperature anomaly used by both /temp-anomaly and /anomaly."""
+    d = anomaly_date
+    if d is None:
+        d = conn.execute(
+            text('SELECT max("time")::date FROM gold.era5_grid')
+        ).scalar()
+        if d is None:
+            return None, None  # empty table guard
+        month_start = latest_complete_month(d)
+    else:
+        month_start = DateType(d.year, d.month, 1)
+    win_start = add_months(month_start, -(window - 1))
+    win_end = add_months(month_start, 1)
+    rows = conn.execute(
+        text(
+            """
+            WITH monthly AS (
+                SELECT latitude, longitude,
+                       date_trunc('month', "time") AS ym,
+                       AVG(temperature_2m) AS m_mean
+                FROM gold.era5_grid
+                WHERE "time" >= :win_start AND "time" < :win_end
+                  AND temperature_2m IS NOT NULL
+                GROUP BY latitude, longitude, date_trunc('month', "time")
+            )
+            SELECT latitude, longitude,
+                   AVG(m_mean) AS window_mean,
+                   COUNT(*) AS n_months
+            FROM monthly
+            GROUP BY latitude, longitude
+            """
+        ),
+        {"win_start": win_start, "win_end": win_end},
+    ).mappings().all()
+    clim = _era5_temp_climatology()
+    result = compute_anomalies(rows, clim, window_end_months(month_start.month, window), window)
+    return result, month_start
+
+
+@router.get("/anomaly")
+def get_era5_anomaly(
+    variable: str = Query("temperature", description="Variable: temperature or precipitation"),
+    anomaly_date: DateType | None = Query(
+        None, alias="date", description="Window end date; latest available month if omitted"
+    ),
+    window: int = Query(3, description="Window length in months (1, 3, 6 or 12)"),
+):
+    if window not in (1, 3, 6, 12):
+        window = 3
+    if variable not in ("temperature", "precipitation"):
+        variable = "temperature"
+
+    # Build cache key at month granularity before touching the DB
+    if anomaly_date is None:
+        cache_month_key = "latest"
+    else:
+        cache_month_key = str(DateType(anomaly_date.year, anomaly_date.month, 1))
+
+    def fetch():
+        engine = get_brgm_sync_engine()
+        try:
+            with engine.connect() as conn:
+                if variable == "temperature":
+                    result, _ = _compute_temp_anomaly(conn, anomaly_date, window)
+                    return result if result is not None else []
+
+                # precipitation path
+                d = anomaly_date
+                if d is None:
+                    d = conn.execute(
+                        text('SELECT max("time")::date FROM gold.era5_grid')
+                    ).scalar()
+                    if d is None:
+                        return []
+                    month_start = latest_complete_month(d)
+                else:
+                    month_start = DateType(d.year, d.month, 1)
+                win_start = add_months(month_start, -(window - 1))
+                win_end = add_months(month_start, 1)
+                rows = conn.execute(
+                    text(
+                        """
+                        SELECT latitude, longitude,
+                               SUM(total_precipitation) AS precip_sum,
+                               COUNT(DISTINCT date_trunc('month', "time")) AS n_months
+                        FROM gold.era5_grid
+                        WHERE "time" >= :win_start AND "time" < :win_end
+                          AND total_precipitation IS NOT NULL
+                        GROUP BY latitude, longitude
+                        """
+                    ),
+                    {"win_start": win_start, "win_end": win_end},
+                ).mappings().all()
+                clim = _era5_precip_climatology()
+                return compute_precip_anomalies(
+                    rows, clim, window_end_months(month_start.month, window), window
+                )
+        finally:
+            pass  # shared pooled engine; do not dispose
+
+    return get_cached(
+        "obs_era5_anomaly",
+        {"variable": variable, "month": cache_month_key, "window": window},
+        ANOMALY_TTL,
+        fetch,
+    )
 
 
 @router.get("/temp-anomaly")

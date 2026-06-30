@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 import pytest
-from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies
+from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies
 
 
 def test_window_end_months_no_wrap():
@@ -96,3 +96,26 @@ def test_compute_anomalies_decimal_string_inputs():
     result = compute_anomalies(rows, clim, months, window)
     assert len(result) == 1
     assert result[0]["anomaly_c"] == pytest.approx(3.0)
+
+
+# --- compute_precip_anomalies ---
+
+def test_precip_anomaly_percent_basic():
+    # one cell, window=3 ending month with normals [10,20,30]=60; observed sum=90 → +50%
+    clim = [
+        {"latitude": 48.0, "longitude": 2.0, "mo": 1, "mean_sum": 10.0},
+        {"latitude": 48.0, "longitude": 2.0, "mo": 2, "mean_sum": 20.0},
+        {"latitude": 48.0, "longitude": 2.0, "mo": 3, "mean_sum": 30.0},
+    ]
+    rows = [{"latitude": 48.0, "longitude": 2.0, "precip_sum": 90.0, "n_months": 3}]
+    out = compute_precip_anomalies(rows, clim, [1, 2, 3], 3)
+    assert len(out) == 1
+    assert out[0]["anomaly"] == 50.0  # (90-60)/60*100
+
+
+def test_precip_anomaly_drops_incomplete_and_zero_normal():
+    clim = [{"latitude": 1.0, "longitude": 1.0, "mo": 1, "mean_sum": 0.0}]
+    rows = [{"latitude": 1.0, "longitude": 1.0, "precip_sum": 5.0, "n_months": 1}]
+    assert compute_precip_anomalies(rows, clim, [1], 1) == []  # normal<=0 dropped
+    rows2 = [{"latitude": 1.0, "longitude": 1.0, "precip_sum": 5.0, "n_months": 0}]
+    assert compute_precip_anomalies(rows2, [{"latitude":1.0,"longitude":1.0,"mo":1,"mean_sum":3.0}], [1], 1) == []  # n_months<window
