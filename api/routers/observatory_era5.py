@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from collections import defaultdict
 from datetime import date as DateType, timedelta
 
 from fastapi import APIRouter, Query
@@ -177,21 +178,38 @@ def _era5_temp_climatology():
                 return cached
 
             # We hold the lock and the cache is empty — run the expensive scan.
+            # Scope to WMO standard reference period 1991-2020 (matches hydro IPS ref
+            # per project convention; reduces scan from 321M→126M rows, ~130s).
+            # Use raw lat/lon in SQL (no ::numeric cast → faster), then merge
+            # float-doublon variants by rounding to 0.1° in Python with weighted AVG
+            # so climatology keys match rounded window-query coords.
             query = """
-                SELECT round(latitude::numeric, 1) AS latitude,
-                       round(longitude::numeric, 1) AS longitude,
+                SELECT latitude, longitude,
                        EXTRACT(MONTH FROM "time")::int AS mo,
-                       AVG(temperature_2m) AS mean_c
+                       AVG(temperature_2m) AS mean_c,
+                       COUNT(*) AS n
                 FROM gold.era5_grid
                 WHERE temperature_2m IS NOT NULL
-                GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
-                         EXTRACT(MONTH FROM "time")
+                  AND "time" >= '1991-01-01' AND "time" < '2021-01-01'
+                GROUP BY latitude, longitude, EXTRACT(MONTH FROM "time")
             """
             engine = get_brgm_sync_engine()
             try:
                 with engine.connect() as conn:
                     result = conn.execute(text(query))
-                    return [dict(r._mapping) for r in result]
+                    rows = result.fetchall()
+                # Python-side: round to 0.1° and compute weighted average across doublon variants.
+                acc: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
+                for r in rows:
+                    key = (round(float(r[0]), 1), round(float(r[1]), 1), int(r[2]))
+                    n = int(r[4])
+                    acc[key]["sw"] += float(r[3]) * n
+                    acc[key]["sn"] += n
+                return [
+                    {"latitude": k[0], "longitude": k[1], "mo": k[2],
+                     "mean_c": v["sw"] / v["sn"]}
+                    for k, v in acc.items()
+                ]
             finally:
                 pass  # shared pooled engine; do not dispose
 
@@ -211,20 +229,25 @@ def _era5_precip_climatology():
                 return cached
 
             # We hold the lock and the cache is empty — run the expensive scan.
+            # Scope to WMO standard reference period 1991-2020 (matches hydro IPS ref).
+            # Use raw lat/lon in SQL (no ::numeric cast → faster), then merge
+            # float-doublon variants by rounding to 0.1° in Python with weighted AVG.
             query = """
                 WITH monthly AS (
-                    SELECT round(latitude::numeric, 1) AS latitude,
-                           round(longitude::numeric, 1) AS longitude,
+                    SELECT latitude, longitude,
                            date_trunc('month', "time") AS ym,
                            EXTRACT(MONTH FROM "time")::int AS mo,
                            SUM(total_precipitation) AS msum
                     FROM gold.era5_grid
                     WHERE total_precipitation IS NOT NULL
-                    GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
+                      AND "time" >= '1991-01-01' AND "time" < '2021-01-01'
+                    GROUP BY latitude, longitude,
                              date_trunc('month', "time"),
                              EXTRACT(MONTH FROM "time")
                 )
-                SELECT latitude, longitude, mo, AVG(msum) AS mean_sum
+                SELECT latitude, longitude, mo,
+                       AVG(msum) AS mean_sum,
+                       COUNT(*) AS n_years
                 FROM monthly
                 GROUP BY latitude, longitude, mo
             """
@@ -232,7 +255,19 @@ def _era5_precip_climatology():
             try:
                 with engine.connect() as conn:
                     result = conn.execute(text(query))
-                    return [dict(r._mapping) for r in result]
+                    rows = result.fetchall()
+                # Python-side: round to 0.1° and compute weighted average across doublon variants.
+                acc: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
+                for r in rows:
+                    key = (round(float(r[0]), 1), round(float(r[1]), 1), int(r[2]))
+                    n = int(r[4])  # n_years
+                    acc[key]["sw"] += float(r[3]) * n  # mean_sum * n_years
+                    acc[key]["sn"] += n
+                return [
+                    {"latitude": k[0], "longitude": k[1], "mo": k[2],
+                     "mean_sum": v["sw"] / v["sn"]}
+                    for k, v in acc.items()
+                ]
             finally:
                 pass  # shared pooled engine; do not dispose
 
