@@ -27,6 +27,41 @@ def _normalize_value(v):
     return v
 
 
+def _make_key(prefix: str, params: dict) -> str:
+    """Build the canonical Redis key for a given prefix + params dict."""
+    normalized = {k: _normalize_value(v) for k, v in params.items()}
+    raw = json.dumps(normalized, sort_keys=True, default=str)
+    h = hashlib.sha256(raw.encode()).hexdigest()[:32]
+    return f"junon:{prefix}:{h}"
+
+
+def read_cached(prefix: str, params: dict):
+    """Return the deserialized cached value if present, else None.
+
+    Never triggers a fetch. Swallows Redis errors (returns None on any failure).
+    Key is built identically to get_cached via _make_key.
+    """
+    key = _make_key(prefix, params)
+    r = redis.Redis(connection_pool=_pool)
+    try:
+        cached = r.get(key)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        logger.debug("Redis GET miss/error for %s", key)
+    return None
+
+
+def delete_cached(prefix: str, params: dict) -> None:
+    """Delete the cache entry for the given prefix + params. Swallows errors."""
+    key = _make_key(prefix, params)
+    r = redis.Redis(connection_pool=_pool)
+    try:
+        r.delete(key)
+    except Exception:
+        logger.debug("Redis DELETE error for %s", key)
+
+
 def get_cached(prefix: str, params: dict, ttl: int, fetch_fn):
     """Try Redis cache, on miss call fetch_fn() and store result.
 
@@ -39,10 +74,7 @@ def get_cached(prefix: str, params: dict, ttl: int, fetch_fn):
     Returns:
         The cached or freshly-fetched result (Python object, not bytes).
     """
-    normalized = {k: _normalize_value(v) for k, v in params.items()}
-    raw = json.dumps(normalized, sort_keys=True, default=str)
-    h = hashlib.sha256(raw.encode()).hexdigest()[:32]
-    key = f"junon:{prefix}:{h}"
+    key = _make_key(prefix, params)
 
     r = redis.Redis(connection_pool=_pool)
     try:

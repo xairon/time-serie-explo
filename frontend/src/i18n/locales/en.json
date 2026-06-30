@@ -231,7 +231,33 @@
       "sectorsMeteo": "Groundwater weather (sectors)",
       "groupMeteo": "Synthesis",
       "sectorLegendTitle": "Situation by sector",
-      "sectorNoData": "Insufficient data"
+      "sectorNoData": "Insufficient data",
+      "groupWeatherEra5": "Weather (ERA5)",
+      "era5Layer": "ERA5 grid",
+      "era5ColorBy": "Color by",
+      "era5VarTemperature": "Temperature",
+      "era5VarPrecipitation": "Precipitation",
+      "era5VarEvaporation": "Evapotranspiration (PET)",
+      "era5Date": "Date",
+      "era5NoData": "No data for this date",
+      "era5VarAnomaly": "Thermal anomaly",
+      "era5VarPrecipAnomaly": "Precipitation anomaly",
+      "era5RawContext": "Raw context",
+      "era5Window": "Window",
+      "era5Window1": "1 month",
+      "era5Window3": "3 months",
+      "era5Window6": "6 months",
+      "era5Window12": "12 months",
+      "era5ByZone": "Aggregate by zone (active layer)",
+      "era5ByZoneHint": "Enable a zone layer (departments, regions…)",
+      "era5TimelineDriven": "Driven by the timeline",
+      "era5EvaporationMore": "more evapotranspiration"
+    },
+    "era5": {
+      "popupTemperature": "Temperature",
+      "popupPrecipitation": "Precipitation",
+      "popupEvaporation": "Evapotranspiration (PET)",
+      "popupAnomaly": "Anomaly {{n}} months"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",
@@ -301,7 +327,10 @@
       "months": "{{count}} months",
       "start": "Start",
       "end": "End",
-      "closeTimeline": "Close timeline"
+      "closeTimeline": "Close timeline",
+      "layerMeteo": "Weather",
+      "layerHydro": "Hydro",
+      "layerPiezo": "Piezo"
     },
     "timeseries": {
       "noData": "No data",

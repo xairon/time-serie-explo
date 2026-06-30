@@ -33,9 +33,22 @@ const SPEEDS = [
   { label: 'x10', interval: 150, step: 1 },
 ] as const
 
-interface Props { onPeriodChange: (periodIndex: number | null, timeline: ClassificationTimeline | null) => void }
+interface Props {
+  onPeriodChange: (periodIndex: number | null, timeline: ClassificationTimeline | null) => void
+  showMeteo?: boolean
+  onMeteoChange?: (v: boolean) => void
+  showHydro?: boolean
+  onHydroChange?: (v: boolean) => void
+  showPiezo?: boolean
+  onPiezoChange?: (v: boolean) => void
+}
 
-export function TimelineSlider({ onPeriodChange }: Props) {
+export function TimelineSlider({
+  onPeriodChange,
+  showMeteo = false, onMeteoChange = () => {},
+  showHydro = false, onHydroChange = () => {},
+  showPiezo = false, onPiezoChange = () => {},
+}: Props) {
   const { t, i18n } = useTranslation()
   const SEASONS: { id: Season; label: string; months: number[] }[] = [
     { id: 'winter', label: t('observatory.timeline.winter'), months: [12, 1, 2] },
@@ -97,6 +110,18 @@ export function TimelineSlider({ onPeriodChange }: Props) {
         </div>
         <div className="flex items-center gap-0.5 bg-white/5 rounded-full border border-white/10 px-0.5 py-0.5">
           {SEASONS.map(s => (<button key={s.id} onClick={() => toggleSeason(s.id)} className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors ${activeSeasons.has(s.id) ? 'bg-accent-cyan/20 text-accent-cyan' : 'text-text-secondary/50 hover:text-text-secondary'}`}>{s.label}</button>))}
+        </div>
+        <div className="flex items-center gap-2">
+          {[
+            { key: 'meteo', label: t('observatory.timeline.layerMeteo'), checked: showMeteo, onChange: () => onMeteoChange(!showMeteo) },
+            { key: 'hydro', label: t('observatory.timeline.layerHydro'), checked: showHydro, onChange: () => onHydroChange(!showHydro) },
+            { key: 'piezo', label: t('observatory.timeline.layerPiezo'), checked: showPiezo, onChange: () => onPiezoChange(!showPiezo) },
+          ].map(({ key, label, checked, onChange }) => (
+            <label key={key} className="flex items-center gap-1 cursor-pointer text-[10px] text-text-secondary hover:text-text-primary transition-colors select-none">
+              <input type="checkbox" checked={checked} onChange={onChange} className="w-3 h-3 accent-[#22d3ee] cursor-pointer" />
+              {label}
+            </label>
+          ))}
         </div>
         <span className="text-[10px] text-text-secondary/60 ml-auto">{t('observatory.timeline.months', { count: filteredIndices.length })}</span>
       </div>

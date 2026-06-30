@@ -198,6 +198,18 @@ export interface ERA5GridPoint {
   potential_evaporation: number | null
 }
 
+export interface ERA5Range {
+  min_date: string
+  max_date: string
+}
+
+export interface ERA5AnomalyPoint {
+  latitude: number
+  longitude: number
+  /** Generic anomaly field returned by /anomaly?variable=... (°C for temperature, % for precipitation). */
+  anomaly?: number | null
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

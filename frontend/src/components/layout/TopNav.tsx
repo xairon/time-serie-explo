@@ -6,7 +6,6 @@ import {
   Brain,
   Map,
   GitCompare,
-  CloudRain,
   Menu,
   X,
 } from 'lucide-react'
@@ -26,7 +25,8 @@ export function TopNav() {
 
   const navItems = [
     { to: '/', icon: Map, label: t('nav.observatory'), end: true, tour: 'nav-observatory' },
-    { to: '/meteo', icon: CloudRain, label: t('nav.meteo'), end: false, tour: 'nav-meteo' },
+    // Météo des nappes désactivée pour l'instant — réactiver: restaurer cette entrée + l'import CloudRain
+    // { to: '/meteo', icon: CloudRain, label: t('nav.meteo'), end: false, tour: 'nav-meteo' },
     { to: '/compare', icon: GitCompare, label: t('nav.compare'), end: false, tour: 'nav-compare' },
     { to: '/pastas', icon: Waves, label: t('nav.pastasLab'), end: false, tour: 'nav-pastas' },
     { to: '/ai', icon: Brain, label: t('nav.aiLab'), end: false, tour: 'nav-ai' },

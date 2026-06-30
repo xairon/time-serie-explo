@@ -362,6 +362,25 @@ export function useERA5Monthly(month: string | undefined) {
   })
 }
 
+export function useERA5Range(enabled = true) {
+  return useQuery({
+    queryKey: ['obs-era5', 'range'],
+    queryFn: () => observatoryApi.era5.range(),
+    enabled,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
+
+
+export function useERA5Anomaly(variable: string, date: string | undefined, window: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['obs-era5', 'anomaly', variable, date, window],
+    queryFn: () => observatoryApi.era5.anomaly(variable, date!, window),
+    enabled: enabled && !!date,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+}
+
 // --- Sector situation hooks ---
 
 export function useSectorSituation(type: 'piezo' | 'hydro', enabled: boolean, network: 'all' | 'meteeau' = 'all') {

@@ -5,6 +5,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
+import { era5PointsToSquares, era5GenericAnomalyToSquares } from '@/lib/era5-grid'
+import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain } from '@/lib/era5-colors'
+import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
+import type { ERA5GridPoint, ERA5AnomalyPoint } from '@/lib/observatory-types'
+import { aggregateEra5ByZone, era5ZoneColorExpression } from '@/lib/era5-zones'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -62,6 +67,13 @@ interface Props {
   sectorSituation?: import('@/lib/observatory-types').SectorSituation[]
   onSectorClick?: (codes: string[] | null, name: string | null) => void
   stationsInGeometry?: (geometry: any) => string[]
+  era5Active?: boolean
+  era5Points?: ERA5GridPoint[]
+  era5Variable?: Era5Variable
+  era5AnomalyPoints?: ERA5AnomalyPoint[]
+  era5Window?: number
+  era5ByZone?: boolean
+  era5Granularity?: Era5Granularity
 }
 
 function featuresToGeoJSON(features: StationGeoJSONFeature[]) {
@@ -265,6 +277,39 @@ function computeBbox(geometry: any): [number, number, number, number] {
   return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
 }
 
+/**
+ * Build an interpolate fill-color expression for the ERA5 grid layer.
+ * For anomaly variables, returns the expression built from the configured stops unchanged.
+ * For raw variables, scales the stops proportionally to the granularity-aware domain
+ * returned by era5RawDomain, so monthly maps don't saturate.
+ */
+function buildRawGridColorExpression(variable: Era5Variable, granularity: Era5Granularity): unknown[] {
+  if (variable === 'anomaly' || variable === 'precipAnomaly') {
+    return era5ColorExpression(variable)
+  }
+  const rawVar = variable as 'temperature' | 'precipitation' | 'evaporation'
+  const [dMin, dMax] = era5RawDomain(rawVar, granularity)
+  const cfg = ERA5_VARIABLES[variable]
+  const stops = cfg.stops
+  const sMin = stops[0][0]
+  const sMax = stops[stops.length - 1][0]
+  const sRange = sMax - sMin
+  const dRange = dMax - dMin
+  const expr: unknown[] = ['interpolate', ['linear'], ['to-number', ['get', cfg.prop]]]
+  for (const [v, c] of stops) {
+    expr.push(sRange === 0 ? dMin : dMin + ((v - sMin) / sRange) * dRange, c)
+  }
+  return expr
+}
+
+const ERA5_ZONE_CFG: Record<string, { fillId: string; idProp: string; geoKey: string }> = {
+  depts:    { fillId: 'depts-fill',    idProp: 'code',      geoKey: 'depts' },
+  regions:  { fillId: 'regions-fill',  idProp: 'code',      geoKey: 'regions' },
+  her:      { fillId: 'her-fill',      idProp: 'code',      geoKey: 'her' },
+  bassins:  { fillId: 'bassins-fill',  idProp: 'CdBH',      geoKey: 'bassins' },
+  secteurs: { fillId: 'secteurs-fill', idProp: 'sector_id', geoKey: 'secteurs' },
+}
+
 export function ObservatoryMap({
   features, excludedFeatures, allFeatures,
   showPiezo = true, showHydro = true,
@@ -278,6 +323,10 @@ export function ObservatoryMap({
   selectedStationCode = null, showTerrain = false,
   flyToBbox = null, onFlyToComplete,
   showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
+  era5Active = false, era5Points, era5Variable = 'temperature',
+  era5AnomalyPoints, era5Window = 3,
+  era5ByZone = false,
+  era5Granularity = 'daily',
 }: Props) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -304,6 +353,17 @@ export function ObservatoryMap({
   const onBboxChangeRef = useRef(onBboxChange); onBboxChangeRef.current = onBboxChange
   const onSectorClickRef = useRef(onSectorClick); onSectorClickRef.current = onSectorClick
   const stationsInGeometryRef = useRef(stationsInGeometryProp); stationsInGeometryRef.current = stationsInGeometryProp
+  const era5VariableRef = useRef(era5Variable); era5VariableRef.current = era5Variable
+  const era5WindowRef = useRef(era5Window); era5WindowRef.current = era5Window
+  const era5ActiveRef = useRef(era5Active); era5ActiveRef.current = era5Active
+
+  const zoneGeoRef = useRef<Record<string, any>>({})
+  // Dedicated weather-by-zone layer state (V3: no admin fill-color hijack)
+  const era5DimmedFillIdRef = useRef<string | null>(null)         // which admin layer is currently dimmed
+  const savedAdminOpacityRef = useRef<unknown>(null)              // its saved fill-opacity expression
+  const era5ActiveZoneGeoKeyRef = useRef<string | null>(null)     // which zone geo is loaded in era5-zone source
+
+  const [era5NoData, setEra5NoData] = useState(false)
 
   const [tooltip, setTooltip] = useState<{ name: string; x: number; y: number } | null>(null)
 
@@ -376,6 +436,10 @@ export function ObservatoryMap({
         fetch('/geo/bassins.geojson').then(r => r.json()),
       ]).then(([regionsData, deptsData, herData, bassinsData]) => {
         if (!mapRef.current) return
+        zoneGeoRef.current['regions'] = regionsData
+        zoneGeoRef.current['depts'] = deptsData
+        zoneGeoRef.current['her'] = herData
+        zoneGeoRef.current['bassins'] = bassinsData
         const addLayer = (sourceId: string, data: any, fillId: string, lineId: string, vis: string, fillPaint: any, linePaint: any) => {
           map.addSource(sourceId, { type: 'geojson', data, generateId: true })
           map.addLayer({ id: fillId, type: 'fill', source: sourceId, paint: fillPaint, layout: { visibility: vis as any } }, 'piezo-clusters')
@@ -392,6 +456,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'regions-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'regions', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'regions', id: hovId }, { hover: true }); setTooltip({ name: e.features[0].properties?.nom ?? '', x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'regions-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'regions', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'regions-fill', (e) => {
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -414,6 +482,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'depts-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'departments', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'departments', id: hovId }, { hover: true }); setTooltip({ name: `${e.features[0].properties?.nom ?? ''} (${e.features[0].properties?.code ?? ''})`, x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'depts-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'departments', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'depts-fill', (e) => {
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -435,6 +507,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'her-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'her', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'her', id: hovId }, { hover: true }); const nom = e.features[0].properties?.nom ?? ''; const her1 = e.features[0].properties?.nom_her1 ?? ''; setTooltip({ name: `${nom}${her1 ? ` - ${her1}` : ''}`, x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'her-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'her', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'her-fill', (e) => {
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -456,6 +532,10 @@ export function ObservatoryMap({
           map.on('mousemove', 'bassins-fill', (e) => { if (!e.features?.length) return; if (hovId !== null) map.setFeatureState({ source: 'bassins', id: hovId }, { hover: false }); hovId = e.features[0].id as number; map.setFeatureState({ source: 'bassins', id: hovId }, { hover: true }); setTooltip({ name: e.features[0].properties?.LbBH ?? e.features[0].properties?.CdBH ?? '', x: e.point.x, y: e.point.y }) })
           map.on('mouseleave', 'bassins-fill', () => { if (hovId !== null) map.setFeatureState({ source: 'bassins', id: hovId }, { hover: false }); hovId = null; setTooltip(null) })
           map.on('click', 'bassins-fill', (e) => {
+            if (era5ActiveRef.current && (
+              map.queryRenderedFeatures(e.point, { layers: ['era5-grid-fill'] }).length > 0 ||
+              (map.getLayer('era5-zone-fill') && map.queryRenderedFeatures(e.point, { layers: ['era5-zone-fill'] }).length > 0)
+            )) return
             const stationHits = map.queryRenderedFeatures(e.point, { layers: ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id)) })
             if (stationHits.length > 0) return
             const feat = e.features?.[0]; if (!feat) return
@@ -487,7 +567,7 @@ export function ObservatoryMap({
         const stationLayers = ['piezo-clusters', 'hydro-clusters', 'piezo-unclustered', 'hydro-unclustered', 'piezo-excluded-layer', 'hydro-excluded-layer', 'basin-stations-layer'].filter(id => !!map.getLayer(id))
         const stationHits = map.queryRenderedFeatures(e.point, { layers: stationLayers })
         if (stationHits.length > 0) return
-        const visibleSpatialLayers = ['depts-fill', 'regions-fill', 'her-fill', 'bassins-fill', 'secteurs-fill', ...Object.entries(WFS_LAYER_MAP).filter(([, cfg]) => cfg.geometryType === 'polygon').map(([id]) => `wfs-${id}-fill`)].filter(id => { if (!map.getLayer(id)) return false; return map.getLayoutProperty(id, 'visibility') === 'visible' })
+        const visibleSpatialLayers = ['depts-fill', 'regions-fill', 'her-fill', 'bassins-fill', 'secteurs-fill', 'era5-grid-fill', ...Object.entries(WFS_LAYER_MAP).filter(([, cfg]) => cfg.geometryType === 'polygon').map(([id]) => `wfs-${id}-fill`)].filter(id => { if (!map.getLayer(id)) return false; return map.getLayoutProperty(id, 'visibility') === 'visible' })
         const spatialHits = map.queryRenderedFeatures(e.point, { layers: visibleSpatialLayers })
         if (spatialHits.length > 0) return
         onEmptyClickRef.current?.(); onDeptClickRef.current?.(null); onBassinClickRef.current?.(null); onSpatialFilterRef.current?.(null); onBboxChangeRef.current?.(null)
@@ -534,6 +614,7 @@ export function ObservatoryMap({
     let cancelled = false
     fetch('/geo/secteurs-bsh.geojson').then(r => r.json()).then((gj) => {
       if (cancelled || !mapRef.current) return
+      zoneGeoRef.current['secteurs'] = gj
       const add = () => {
         if (m.getSource('secteurs-bsh')) return
         m.addSource('secteurs-bsh', { type: 'geojson', data: gj, attribution: 'Secteurs © BRGM / Eaufrance' })
@@ -560,10 +641,15 @@ export function ObservatoryMap({
     const sits = sectorSituation ?? []
     const pairs: (string | number)[] = []
     for (const s of sits) { pairs.push(Number(s.code), s.insufficient ? SECTOR_INSUFFICIENT_COLOR : sectorClassColor(s.situation_class)) }
-    m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
+    // Skip fill-color while the by-zone choropleth owns secteurs-fill; by-zone
+    // will repaint choropleth, and this effect re-runs (era5ByZone is a dep) to
+    // restore situation colours when by-zone is released.
+    if (!(era5Active && era5ByZone)) {
+      m.setPaintProperty('secteurs-fill', 'fill-color', pairs.length ? (['match', ['get', 'sector_id'], ...pairs, SECTOR_INSUFFICIENT_COLOR] as unknown as maplibregl.ExpressionSpecification) : SECTOR_INSUFFICIENT_COLOR)
+    }
     const arrowFeatures = sits.map(s => { const c = parseTendancyCoord(s.tendancy_coord); const rot = s.trend != null ? TREND_ROTATION[s.trend] : undefined; if (!c || rot === undefined || s.insufficient) return null; return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: c }, properties: { rot } } }).filter(Boolean)
     ;(m.getSource('secteurs-arrows') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: arrowFeatures as GeoJSON.Feature[] })
-  }, [showSectors, sectorSituation, mapLoaded, layersReady])
+  }, [showSectors, sectorSituation, mapLoaded, layersReady, era5Active, era5ByZone])
 
   // Sync active dept
   useEffect(() => {
@@ -623,6 +709,195 @@ export function ObservatoryMap({
     adminLayers.forEach(id => { if (map.getLayer(id)) map.moveLayer(id, 'piezo-clusters') })
   }, [activeWfsLayers, wfsData])
 
+  // --- ERA5 weather grid (Phase 0: daily squares) ---
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+    const SRC = 'era5-grid'
+    const FILL = 'era5-grid-fill'
+
+    if (!era5Active) {
+      if (map.getLayer(FILL)) map.setLayoutProperty(FILL, 'visibility', 'none')
+      setEra5NoData(false)
+      return
+    }
+
+    const cfg = ERA5_VARIABLES[era5Variable]
+    const isAnomalyVar = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
+    let data: GeoJSON.FeatureCollection<GeoJSON.Polygon>
+    if (isAnomalyVar) {
+      data = era5GenericAnomalyToSquares(era5AnomalyPoints ?? [])
+    } else {
+      const pts = (era5Points ?? []).filter((p) => p[cfg.prop as 'temperature_2m' | 'total_precipitation' | 'potential_evaporation'] != null)
+      data = era5PointsToSquares(pts)
+    }
+    const loading = isAnomalyVar ? era5AnomalyPoints === undefined : era5Points === undefined
+    setEra5NoData(!loading && data.features.length === 0)
+
+    if (!map.getSource(SRC)) {
+      map.addSource(SRC, { type: 'geojson', data })
+      map.addLayer(
+        {
+          id: FILL,
+          type: 'fill',
+          source: SRC,
+          paint: {
+            'fill-color': buildRawGridColorExpression(era5Variable, era5Granularity) as any,
+            'fill-opacity': 0.6,
+          },
+        },
+        map.getLayer('piezo-clusters') ? 'piezo-clusters' : undefined,
+      )
+      map.on('click', FILL, (e) => {
+        const f = e.features?.[0]
+        if (!f) return
+        const pr = f.properties as Record<string, string>
+        const num = (k: string) => { const raw = pr[k]; if (raw == null || raw === '') return null; const v = Number(raw); return Number.isFinite(v) ? v : null }
+        let html: string
+        const curVar = era5VariableRef.current
+        if (curVar === 'anomaly' || curVar === 'precipAnomaly') {
+          html = `<div style="font-size:12px;line-height:1.5"><div>${t('observatory.era5.popupAnomaly', { n: era5WindowRef.current })}: ${era5FormatValue(curVar, num('anomaly'))}</div></div>`
+        } else {
+          html = `<div style="font-size:12px;line-height:1.5">
+              <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
+              <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
+              <div>${t('observatory.era5.popupEvaporation')}: ${era5FormatValue('evaporation', num('potential_evaporation'))}</div>
+            </div>`
+        }
+        new maplibregl.Popup({ closeButton: true })
+          .setLngLat(e.lngLat)
+          .setHTML(html)
+          .addTo(map)
+      })
+      map.on('mouseenter', FILL, () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', FILL, () => { map.getCanvas().style.cursor = '' })
+    } else {
+      ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data)
+      map.setPaintProperty(FILL, 'fill-color', buildRawGridColorExpression(era5Variable, era5Granularity) as any)
+    }
+    if (!era5ByZone) map.setLayoutProperty(FILL, 'visibility', 'visible')
+  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5Variable, era5Window, era5ByZone, era5Granularity, t])
+
+  // --- ERA5 by-zone choropleth (V3: dedicated era5-zone-fill layer, no admin fill-color hijack) ---
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded) return
+
+    // Restore the admin layer's original fill-opacity (called on release or zone-switch)
+    const restoreAdminOpacity = () => {
+      const prev = era5DimmedFillIdRef.current
+      if (prev && map.getLayer(prev) && savedAdminOpacityRef.current !== null) {
+        map.setPaintProperty(prev, 'fill-opacity', savedAdminOpacityRef.current as any)
+      }
+      era5DimmedFillIdRef.current = null
+      savedAdminOpacityRef.current = null
+    }
+
+    // Hide the dedicated zone layer without removing it (so the source persists for reuse)
+    const hideZoneLayer = () => {
+      if (map.getLayer('era5-zone-fill')) {
+        map.setLayoutProperty('era5-zone-fill', 'visibility', 'none')
+      }
+      era5ActiveZoneGeoKeyRef.current = null
+    }
+
+    const activeZone: string | null =
+      showDepts ? 'depts' :
+      showRegions ? 'regions' :
+      showHER ? 'her' :
+      showSandre ? 'bassins' :
+      showSectors ? 'secteurs' :
+      null
+    const cfg = activeZone ? ERA5_ZONE_CFG[activeZone] : undefined
+
+    if (!era5Active || !era5ByZone || !cfg || !map.getLayer(cfg.fillId)) {
+      restoreAdminOpacity()
+      hideZoneLayer()
+      // show the raw grid if ERA5 active but by-zone is off or no compatible zone
+      if (map.getLayer('era5-grid-fill')) {
+        map.setLayoutProperty('era5-grid-fill', 'visibility', era5Active && (!era5ByZone || !cfg) ? 'visible' : 'none')
+      }
+      return
+    }
+
+    // by-zone ON: hide raw grid squares (mutual exclusivity)
+    if (map.getLayer('era5-grid-fill')) map.setLayoutProperty('era5-grid-fill', 'visibility', 'none')
+
+    // Dim the admin fill layer so it doesn't compete visually with the choropleth.
+    // Save the original opacity once and restore on release / zone-switch.
+    if (era5DimmedFillIdRef.current !== cfg.fillId) {
+      restoreAdminOpacity()  // restore the previously dimmed (different) layer
+      savedAdminOpacityRef.current = map.getPaintProperty(cfg.fillId, 'fill-opacity')
+      era5DimmedFillIdRef.current = cfg.fillId
+      map.setPaintProperty(cfg.fillId, 'fill-opacity', 0.05 as any)
+    }
+
+    // Aggregate ERA5 values per zone
+    const zoneFeatures = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
+    const isAnom = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
+    // Both anomaly variables from the generic hook return the 'anomaly' field
+    const valueKey = isAnom ? 'anomaly' : ERA5_VARIABLES[era5Variable].prop
+    const points = (isAnom ? era5AnomalyPoints : era5Points) ?? []
+    const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
+    // For raw variables, pass the granularity-aware domain so the stop positions
+    // are rescaled to the correct range and monthly aggregates don't saturate.
+    const rawDomain = isAnom
+      ? undefined
+      : era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
+    const colorExpr = era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable, rawDomain)
+
+    // Build / update the dedicated era5-zone GeoJSON source and fill layer.
+    // The source stores lightweight features (geometry + idProp only); colour is applied
+    // via the paint expression so only the expression needs to be updated when values change.
+    const geoKey = cfg.geoKey
+    const needSourceRebuild = era5ActiveZoneGeoKeyRef.current !== geoKey
+
+    if (!map.getSource('era5-zone') || needSourceRebuild) {
+      const geoData: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: zoneFeatures.map((f: any) => ({
+          type: 'Feature',
+          geometry: f.geometry,
+          // keep only the id property that the colour expression reads
+          properties: { [cfg.idProp]: String(f.properties?.[cfg.idProp] ?? '') },
+        })),
+      }
+      if (!map.getSource('era5-zone')) {
+        // First activation: create source + layer below piezo-clusters
+        map.addSource('era5-zone', { type: 'geojson', data: geoData })
+        map.addLayer(
+          {
+            id: 'era5-zone-fill',
+            type: 'fill',
+            source: 'era5-zone',
+            paint: {
+              'fill-color': colorExpr as any,
+              'fill-opacity': 0.7,
+            },
+          },
+          map.getLayer('piezo-clusters') ? 'piezo-clusters' : undefined,
+        )
+      } else {
+        // Zone switched: update source data and colour expression
+        ;(map.getSource('era5-zone') as maplibregl.GeoJSONSource).setData(geoData)
+        if (map.getLayer('era5-zone-fill')) {
+          map.setPaintProperty('era5-zone-fill', 'fill-color', colorExpr as any)
+        }
+      }
+      era5ActiveZoneGeoKeyRef.current = geoKey
+    } else {
+      // Same zone, data or variable changed: just update the colour expression
+      if (map.getLayer('era5-zone-fill')) {
+        map.setPaintProperty('era5-zone-fill', 'fill-color', colorExpr as any)
+      }
+    }
+
+    // Ensure the dedicated layer is visible
+    if (map.getLayer('era5-zone-fill')) {
+      map.setLayoutProperty('era5-zone-fill', 'visibility', 'visible')
+    }
+  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady, era5Granularity])
+
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete
   useEffect(() => {
@@ -647,6 +922,11 @@ export function ObservatoryMap({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" role="application" aria-label={t('observatory.map.ariaLabel')} />
+      {era5NoData && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-gray-900/90 backdrop-blur-sm border border-white/10 rounded-lg px-3 py-1.5 text-xs text-gray-300 pointer-events-none">
+          {t('observatory.drawer.era5NoData')}
+        </div>
+      )}
       {tooltip && (
         <div className="absolute z-20 bg-gray-900/95 border border-white/10 rounded px-2 py-1 text-xs text-white pointer-events-none" style={{ left: tooltip.x + 12, top: tooltip.y - 8 }}>{tooltip.name}</div>
       )}

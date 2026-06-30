@@ -231,7 +231,33 @@
       "sectorsMeteo": "Météo des nappes (secteurs)",
       "groupMeteo": "Synthèse",
       "sectorLegendTitle": "Situation par secteur",
-      "sectorNoData": "Données insuffisantes"
+      "sectorNoData": "Données insuffisantes",
+      "groupWeatherEra5": "Météo (ERA5)",
+      "era5Layer": "Grille ERA5",
+      "era5ColorBy": "Colorer par",
+      "era5VarTemperature": "Température",
+      "era5VarPrecipitation": "Précipitations",
+      "era5VarEvaporation": "Évapotranspiration (ETP)",
+      "era5Date": "Date",
+      "era5NoData": "Pas de données pour cette date",
+      "era5VarAnomaly": "Anomalie thermique",
+      "era5VarPrecipAnomaly": "Anomalie de précipitations",
+      "era5RawContext": "Contexte brut",
+      "era5Window": "Fenêtre",
+      "era5Window1": "1 mois",
+      "era5Window3": "3 mois",
+      "era5Window6": "6 mois",
+      "era5Window12": "12 mois",
+      "era5ByZone": "Agréger par zone (calque actif)",
+      "era5ByZoneHint": "Active un calque de zones (départements, régions…)",
+      "era5TimelineDriven": "Piloté par la barre chronologique",
+      "era5EvaporationMore": "plus d'évapotranspiration"
+    },
+    "era5": {
+      "popupTemperature": "Température",
+      "popupPrecipitation": "Précipitations",
+      "popupEvaporation": "Évapotranspiration (ETP)",
+      "popupAnomaly": "Anomalie {{n}} mois"
     },
     "stationDrawer": {
       "ariaLabel": "Station {{code}}",
@@ -301,7 +327,10 @@
       "months": "{{count}} mois",
       "start": "Début",
       "end": "Fin",
-      "closeTimeline": "Fermer la chronologie"
+      "closeTimeline": "Fermer la chronologie",
+      "layerMeteo": "Météo",
+      "layerHydro": "Hydro",
+      "layerPiezo": "Piézo"
     },
     "timeseries": {
       "noData": "Aucune donnée",
