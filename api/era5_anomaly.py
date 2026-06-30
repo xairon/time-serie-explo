@@ -1,7 +1,85 @@
 """Pure helpers for ERA5 temperature-anomaly window maths (no DB/Streamlit)."""
 from __future__ import annotations
 
+import math
 from datetime import date, timedelta
+
+
+# McKee/WMO 7-class thresholds — mirrors dashboard/utils/drought.py _THRESHOLDS_7 exactly.
+_STI_THRESHOLDS = [
+    (-float("inf"), -1.75, "EXTREMEMENT_BAS"),
+    (-1.75, -1.28, "TRES_BAS"),
+    (-1.28, -0.84, "BAS"),
+    (-0.84, 0.84, "NORMAL"),
+    (0.84, 1.28, "HAUT"),
+    (1.28, 1.75, "TRES_HAUT"),
+    (1.75, float("inf"), "EXTREMEMENT_HAUT"),
+]
+
+
+def classify_index(z) -> str:
+    """Classify a standardized index value (z-score) into the 7 McKee/WMO class strings.
+
+    Thresholds: ±0.84 / ±1.28 / ±1.75 (lo <= z < hi convention).
+    None / NaN → 'UNKNOWN'.
+    """
+    if z is None:
+        return "UNKNOWN"
+    try:
+        z = float(z)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if math.isnan(z):
+        return "UNKNOWN"
+    for lo, hi, label in _STI_THRESHOLDS:
+        if lo <= z < hi:
+            return label
+    return "EXTREMEMENT_HAUT"  # fallback: +inf edge
+
+
+def compute_sti(window_rows, reference, window) -> list[dict]:
+    """Compute the Standardized Temperature Index (STI) per grid cell.
+
+    Args:
+        window_rows: Iterable of dicts ``{latitude, longitude, window_mean, n_months}`` —
+            observed N-month window means for each cell.
+        reference:  Iterable of dicts ``{latitude, longitude, mean, std, n_years}`` —
+            1991-2020 reference distribution per cell.
+        window:     Window length in months (1, 3, 6, or 12).
+
+    Returns:
+        List of ``{latitude, longitude, sti, index_class}`` dicts, dropping cells where:
+        - ``window_mean`` is None,
+        - ``n_months < window`` (incomplete observed window),
+        - no reference entry exists for the cell,
+        - reference ``std <= 0``.
+    """
+    ref_map: dict[tuple[float, float], dict] = {}
+    for r in reference:
+        key = (float(r["latitude"]), float(r["longitude"]))
+        ref_map[key] = r
+
+    out = []
+    for r in window_rows:
+        if r["window_mean"] is None:
+            continue
+        if int(r["n_months"]) < window:
+            continue
+        key = (float(r["latitude"]), float(r["longitude"]))
+        ref = ref_map.get(key)
+        if ref is None:
+            continue
+        std = float(ref["std"])
+        if std <= 0:
+            continue
+        z = (float(r["window_mean"]) - float(ref["mean"])) / std
+        out.append({
+            "latitude": float(r["latitude"]),
+            "longitude": float(r["longitude"]),
+            "sti": z,
+            "index_class": classify_index(z),
+        })
+    return out
 
 
 def window_end_months(end_month: int, n: int) -> list[int]:

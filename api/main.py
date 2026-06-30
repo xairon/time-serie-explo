@@ -93,6 +93,7 @@ async def lifespan(app: FastAPI):
             results = await asyncio.gather(
                 asyncio.to_thread(observatory_era5._era5_temp_climatology),
                 asyncio.to_thread(observatory_era5._era5_precip_climatology),
+                asyncio.to_thread(observatory_era5._warm_era5_sti_default),
                 return_exceptions=True
             )
             if not isinstance(results[0], Exception):
@@ -103,6 +104,10 @@ async def lifespan(app: FastAPI):
                 logger.info("ERA5 precipitation climatology cache warmed")
             else:
                 logger.warning("ERA5 precipitation climatology warm-up failed: %s", results[1])
+            if not isinstance(results[2], Exception):
+                logger.info("ERA5 STI reference (window=3) cache warmed")
+            else:
+                logger.warning("ERA5 STI reference warm-up failed: %s", results[2])
         except Exception:
             logger.warning("ERA5 climatology warm-up failed", exc_info=True)
 
@@ -114,6 +119,7 @@ async def lifespan(app: FastAPI):
                 results = await asyncio.gather(
                     asyncio.to_thread(observatory_era5._era5_temp_climatology),
                     asyncio.to_thread(observatory_era5._era5_precip_climatology),
+                    asyncio.to_thread(observatory_era5._warm_era5_sti_default),
                     return_exceptions=True
                 )
                 if not isinstance(results[0], Exception):
@@ -124,6 +130,10 @@ async def lifespan(app: FastAPI):
                     logger.info("ERA5 precipitation climatology cache re-warmed")
                 else:
                     logger.warning("ERA5 precipitation climatology re-warm failed: %s", results[1])
+                if not isinstance(results[2], Exception):
+                    logger.info("ERA5 STI reference (window=3) cache re-warmed")
+                else:
+                    logger.warning("ERA5 STI reference re-warm failed: %s", results[2])
             except Exception:
                 logger.warning("ERA5 climatology re-warm failed", exc_info=True)
 
