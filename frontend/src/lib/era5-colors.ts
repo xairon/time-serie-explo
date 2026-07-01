@@ -111,35 +111,17 @@ export const STI_CLASS_ORDER = [
   'EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT',
 ] as const
 
-/** French labels for STI classes (temperature-oriented). */
-const STI_CLASS_LABELS_FR: Record<string, string> = {
-  EXTREMEMENT_BAS:  'Extrêmement froid',
-  TRES_BAS:         'Très froid',
-  BAS:              'Froid',
-  NORMAL:           'Normal',
-  HAUT:             'Chaud',
-  TRES_HAUT:        'Très chaud',
-  EXTREMEMENT_HAUT: 'Extrêmement chaud',
-  UNKNOWN:          'Non classé',
-}
-
 /** Returns the CSS colour for a given STI index_class string; falls back to grey. */
 export function era5StiClassColor(cls: string): string {
   return STI_CLASS_COLORS[cls] ?? STI_CLASS_COLORS['UNKNOWN']
 }
 
-/**
- * Formats an STI z-score with its class label.
- * Example: era5FormatSti(2.1, 'TRES_HAUT') → '+2.1 σ · Très chaud'
- * Uses Unicode minus (U+2212) for negative values.
- */
-export function era5FormatSti(z: number | null, cls: string | null): string {
-  if (z == null || Number.isNaN(z)) return '—'
-  const abs = Math.abs(z).toFixed(1)
-  const zStr = z < 0 ? `−${abs} σ` : `+${abs} σ`
-  const label = STI_CLASS_LABELS_FR[cls ?? 'UNKNOWN'] ?? STI_CLASS_LABELS_FR['UNKNOWN']
-  return `${zStr} · ${label}`
-}
+// NOTE: The canonical French STI class labels live in i18n under
+// `observatory.sti.*` (rendered by Era5Banner / ObservatoryMap). A second,
+// divergent label map + formatter used to live here; it was dead code and its
+// wording disagreed with the i18n keys, so it was removed to keep one source of
+// truth. If a formatted "z σ · <label>" string is ever needed, read the label
+// from t('observatory.sti.<class>') at the call site.
 
 /**
  * Classifies a z-score into one of the 7 McKee STI classes.
@@ -148,12 +130,15 @@ export function era5FormatSti(z: number | null, cls: string | null): string {
  */
 export function classifyIndex(z: number | null | undefined): string {
   if (z == null || Number.isNaN(z)) return 'UNKNOWN'
+  // Backend uses the half-open convention lo <= z < hi (api/era5_anomaly.py), so
+  // the warm-side comparators are strict '<' — an exact boundary (e.g. z=0.84)
+  // must land in the warmer class to match the per-cell backend classification.
   if (z < -1.75) return 'EXTREMEMENT_BAS'
   if (z < -1.28) return 'TRES_BAS'
   if (z < -0.84) return 'BAS'
-  if (z <= 0.84) return 'NORMAL'
-  if (z <= 1.28) return 'HAUT'
-  if (z <= 1.75) return 'TRES_HAUT'
+  if (z < 0.84) return 'NORMAL'
+  if (z < 1.28) return 'HAUT'
+  if (z < 1.75) return 'TRES_HAUT'
   return 'EXTREMEMENT_HAUT'
 }
 

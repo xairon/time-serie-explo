@@ -62,6 +62,22 @@ def delete_cached(prefix: str, params: dict) -> None:
         logger.debug("Redis DELETE error for %s", key)
 
 
+def write_cached(prefix: str, params: dict, ttl: int, value) -> None:
+    """Store a value under the cache key immediately. Swallows Redis errors.
+
+    Used to publish a computed value while still holding a single-flight lock, so
+    waiting threads see it via read_cached the moment the lock is released (rather
+    than in the window before get_cached's own setex lands). Key is built
+    identically to get_cached via _make_key.
+    """
+    key = _make_key(prefix, params)
+    r = redis.Redis(connection_pool=_pool)
+    try:
+        r.setex(key, ttl, json.dumps(value, default=str))
+    except Exception:
+        logger.debug("Redis SETEX error for %s", key)
+
+
 def get_cached(prefix: str, params: dict, ttl: int, fetch_fn):
     """Try Redis cache, on miss call fetch_fn() and store result.
 

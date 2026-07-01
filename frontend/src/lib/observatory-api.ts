@@ -107,7 +107,9 @@ export const observatoryApi = {
     classificationTimeline: () => fetchJson<ClassificationTimeline>('/observatory/classifications/timeline'),
   },
   era5: {
-    grid: () => fetchJson<ERA5GridPoint[]>('/observatory/era5/grid'),
+    // /grid returns only the raw grid-point coordinates (era5_latitude/longitude),
+    // NOT the full ERA5GridPoint shape — mistyping it made .latitude read undefined.
+    grid: () => fetchJson<{ era5_latitude: number; era5_longitude: number }[]>('/observatory/era5/grid'),
     snapshot: (date: string) => fetchJson<ERA5GridPoint[]>('/observatory/era5/snapshot', { date }),
     dates: () => fetchJson<string[]>('/observatory/era5/dates'),
     monthly: (month: string) => fetchJson<ERA5GridPoint[]>('/observatory/era5/monthly', { month }),

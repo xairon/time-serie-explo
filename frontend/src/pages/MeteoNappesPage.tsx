@@ -95,7 +95,9 @@ export default function MeteoNappesPage() {
       return {
         ...s,
         situation_class: insufficient ? null : (CLS[ci] as SituationClass),
-        trend: ti != null ? TR[ti] : null,
+        // No trend for insufficient sectors — the timeline backend always emits
+        // code 0 ('stable'), which would render a misleading arrow next to "no data".
+        trend: insufficient ? null : (ti != null ? TR[ti] : null),
         insufficient,
       }
     })
@@ -225,11 +227,18 @@ export default function MeteoNappesPage() {
             }
             trend={selectedIps.trend}
             colorHex={selectedIps.insufficient ? SECTOR_INSUFFICIENT_COLOR : meteoClassColor(selectedIps.situation_class)}
-            metrics={{
-              pctBelowNormal: selectedIps.pct_below_normal,
-              nEligible: selectedIps.n_eligible,
-              nProvisoire: selectedIps.n_provisoire,
-            }}
+            metrics={
+              // pct/counts describe the latest month only; the timeline recolor
+              // doesn't carry per-month metrics, so hide them for past months
+              // rather than pin the current month's numbers to a historical verdict.
+              effectivePeriod === latest
+                ? {
+                    pctBelowNormal: selectedIps.pct_below_normal,
+                    nEligible: selectedIps.n_eligible,
+                    nProvisoire: selectedIps.n_provisoire,
+                  }
+                : undefined
+            }
             onClose={() => { setSelectedSectorId(null); setSelectedSectorName(null) }}
           />
         </div>
@@ -241,6 +250,7 @@ export default function MeteoNappesPage() {
             code={selectedStationFeature.properties.code}
             commune={selectedStationFeature.properties.commune ?? undefined}
             classification={selectedStationFeature.properties.classification}
+            type={selectedStation?.type}
             derniereMesure={selectedStationFeature.properties.derniere_mesure}
             onClose={() => setSelectedStation(null)}
           />

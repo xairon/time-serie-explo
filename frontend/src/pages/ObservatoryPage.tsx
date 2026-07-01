@@ -118,7 +118,11 @@ export default function ObservatoryPage() {
 
   const showRegions = activeZoneLayer === 'regions'; const showDepts = activeZoneLayer === 'depts'; const showSandre = activeZoneLayer === 'bassins'; const showHER = activeZoneLayer === 'her'
   const showSectors = activeZoneLayer === 'secteurs'
-  const sectorType: 'piezo' | 'hydro' = showHydro && !showPiezo ? 'hydro' : 'piezo'
+  // Sectors show the "Météo des nappes" (groundwater IPS) verdict, so pin to
+  // piezo. Deriving this from the marker toggles let hiding the piezo markers
+  // silently repaint every sector with hydro SSFI data — an implicit-filtering
+  // side-effect the user never opted into. Change only via an explicit control.
+  const sectorType: 'piezo' | 'hydro' = 'piezo'
   const { data: sectorSituationData } = useSectorSituation(sectorType, showSectors)
   const { data: sectorTimelineData } = useSectorTimeline(sectorType, showSectors)
   const activeWfsLayers = useMemo(() => { const s = new Set<WfsLayerId>(); const wfsZones: WfsLayerId[] = ['region-hydro', 'secteur-hydro', 'sous-secteur-hydro', 'zone-hydro']; if (activeZoneLayer && wfsZones.includes(activeZoneLayer as WfsLayerId)) s.add(activeZoneLayer as WfsLayerId); overlayLayers.forEach(id => s.add(id as WfsLayerId)); return s }, [activeZoneLayer, overlayLayers])
@@ -210,7 +214,7 @@ export default function ObservatoryPage() {
       const ci = sectorTimelineData.sectors[s.code]?.[sIdx]
       const ti = sectorTimelineData.trends[s.code]?.[sIdx]
       const insufficient = ci == null || ci === 7
-      return { ...s, situation_class: insufficient ? null : (CLS[ci] as SituationClass), trend: (ti != null ? TR[ti] : null), insufficient }
+      return { ...s, situation_class: insufficient ? null : (CLS[ci] as SituationClass), trend: insufficient ? null : (ti != null ? TR[ti] : null), insufficient }
     })
   }, [sectorSituationData, sectorTimelineData, timelinePeriodIndex, timelineData])
 

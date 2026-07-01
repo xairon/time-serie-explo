@@ -20,6 +20,11 @@ export function MeteoMiniMap({ mainMap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const miniRef = useRef<maplibregl.Map | null>(null)
   const [collapsed, setCollapsed] = useState(false)
+  // Read the current main map without re-running the creation effect: mainMap is
+  // null on first render then flips to a Map, which would otherwise tear down and
+  // rebuild the mini map (a second OSM instantiation + tile fetch) on every mount.
+  const mainMapRef = useRef(mainMap)
+  mainMapRef.current = mainMap
 
   useEffect(() => {
     if (!containerRef.current || miniRef.current || collapsed) return
@@ -41,14 +46,15 @@ export function MeteoMiniMap({ mainMap }: Props) {
       mini.addSource('viewport', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       mini.addLayer({ id: 'viewport-fill', type: 'fill', source: 'viewport', paint: { 'fill-color': '#3b82f6', 'fill-opacity': 0.15 } })
       mini.addLayer({ id: 'viewport-line', type: 'line', source: 'viewport', paint: { 'line-color': '#3b82f6', 'line-width': 1.5 } })
-      if (mainMap) {
+      const mm = mainMapRef.current
+      if (mm) {
         ;(mini.getSource('viewport') as maplibregl.GeoJSONSource)
-          .setData({ type: 'FeatureCollection', features: [boundsToPolygon(mainMap.getBounds())] })
+          .setData({ type: 'FeatureCollection', features: [boundsToPolygon(mm.getBounds())] })
       }
     })
     miniRef.current = mini
     return () => { mini.remove(); miniRef.current = null }
-  }, [collapsed, mainMap])
+  }, [collapsed]) // eslint-disable-line react-hooks/exhaustive-deps -- mainMap read via ref to avoid rebuild
 
   useEffect(() => {
     if (!mainMap) return
@@ -56,6 +62,7 @@ export function MeteoMiniMap({ mainMap }: Props) {
       const src = miniRef.current?.getSource('viewport') as maplibregl.GeoJSONSource | undefined
       src?.setData({ type: 'FeatureCollection', features: [boundsToPolygon(mainMap.getBounds())] })
     }
+    sync() // draw the initial rectangle as soon as the main map is available
     mainMap.on('move', sync)
     return () => { mainMap.off('move', sync) }
   }, [mainMap, collapsed])

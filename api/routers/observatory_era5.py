@@ -10,7 +10,7 @@ from sqlalchemy import text
 from api.database import get_brgm_sync_engine
 
 from api.config import settings
-from dashboard.utils.cache import get_cached, read_cached
+from dashboard.utils.cache import get_cached, read_cached, write_cached
 from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies, compute_sti
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
@@ -207,11 +207,14 @@ def _era5_temp_climatology():
                     n = int(r[4])
                     acc[key]["sw"] += float(r[3]) * n
                     acc[key]["sn"] += n
-                return [
+                out = [
                     {"latitude": k[0], "longitude": k[1], "mo": k[2],
                      "mean_c": v["sw"] / v["sn"]}
                     for k, v in acc.items()
                 ]
+                # Publish under the lock so waiters see it immediately (see write_cached).
+                write_cached("obs_era5_temp_climatology", {}, CLIMATOLOGY_TTL, out)
+                return out
             finally:
                 pass  # shared pooled engine; do not dispose
 
@@ -265,29 +268,44 @@ def _era5_precip_climatology():
                     n = int(r[4])  # n_years
                     acc[key]["sw"] += float(r[3]) * n  # mean_sum * n_years
                     acc[key]["sn"] += n
-                return [
+                out = [
                     {"latitude": k[0], "longitude": k[1], "mo": k[2],
                      "mean_sum": v["sw"] / v["sn"]}
                     for k, v in acc.items()
                 ]
+                # Publish under the lock so waiters see it immediately (see write_cached).
+                write_cached("obs_era5_precip_climatology", {}, CLIMATOLOGY_TTL, out)
+                return out
             finally:
                 pass  # shared pooled engine; do not dispose
 
     return get_cached("obs_era5_precip_climatology", {}, CLIMATOLOGY_TTL, fetch)
 
 
+def _resolve_month_start(conn, d):
+    """First day of the window-ending month, clamped to the latest COMPLETE month.
+
+    A supplied date is clamped (``min`` against the latest complete month) so a
+    partial in-progress or future month is never scored against the complete-month
+    reference distribution — otherwise the most-visible month gets a biased index.
+    Returns None if the grid table is empty.
+    """
+    max_date = conn.execute(
+        text('SELECT max("time")::date FROM gold.era5_grid')
+    ).scalar()
+    if max_date is None:
+        return None
+    latest = latest_complete_month(max_date)
+    if d is None:
+        return latest
+    return min(DateType(d.year, d.month, 1), latest)
+
+
 def _compute_temp_anomaly(conn, anomaly_date, window):
     """Shared computation for temperature anomaly used by both /temp-anomaly and /anomaly."""
-    d = anomaly_date
-    if d is None:
-        d = conn.execute(
-            text('SELECT max("time")::date FROM gold.era5_grid')
-        ).scalar()
-        if d is None:
-            return None, None  # empty table guard
-        month_start = latest_complete_month(d)
-    else:
-        month_start = DateType(d.year, d.month, 1)
+    month_start = _resolve_month_start(conn, anomaly_date)
+    if month_start is None:
+        return None, None  # empty table guard
     win_start = add_months(month_start, -(window - 1))
     win_end = add_months(month_start, 1)
     rows = conn.execute(
@@ -413,6 +431,8 @@ def _era5_sti_reference(window: int, end_month: int) -> list[dict]:
                     "std": std_val,
                     "n_years": n_years,
                 })
+            # Publish under the lock so waiters see it immediately (see write_cached).
+            write_cached(cache_key, cache_params, CLIMATOLOGY_TTL, out)
             return out
 
     return get_cached(cache_key, cache_params, CLIMATOLOGY_TTL, fetch)
@@ -458,16 +478,9 @@ def get_era5_sti(
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                d = sti_date
-                if d is None:
-                    d = conn.execute(
-                        text('SELECT max("time")::date FROM gold.era5_grid')
-                    ).scalar()
-                    if d is None:
-                        return []
-                    month_start = latest_complete_month(d)
-                else:
-                    month_start = DateType(d.year, d.month, 1)
+                month_start = _resolve_month_start(conn, sti_date)
+                if month_start is None:
+                    return []
 
                 win_start = add_months(month_start, -(window - 1))
                 win_end = add_months(month_start, 1)
@@ -540,16 +553,9 @@ def get_era5_anomaly(
                     return result if result is not None else []
 
                 # precipitation path
-                d = anomaly_date
-                if d is None:
-                    d = conn.execute(
-                        text('SELECT max("time")::date FROM gold.era5_grid')
-                    ).scalar()
-                    if d is None:
-                        return []
-                    month_start = latest_complete_month(d)
-                else:
-                    month_start = DateType(d.year, d.month, 1)
+                month_start = _resolve_month_start(conn, anomaly_date)
+                if month_start is None:
+                    return []
                 win_start = add_months(month_start, -(window - 1))
                 win_end = add_months(month_start, 1)
                 rows = conn.execute(
@@ -602,16 +608,9 @@ def get_era5_temp_anomaly(
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                d = anomaly_date
-                if d is None:
-                    d = conn.execute(
-                        text('SELECT max("time")::date FROM gold.era5_grid')
-                    ).scalar()
-                    if d is None:  # M1: empty table guard
-                        return []
-                    month_start = latest_complete_month(d)  # I1: use latest complete month
-                else:
-                    month_start = DateType(d.year, d.month, 1)
+                month_start = _resolve_month_start(conn, anomaly_date)
+                if month_start is None:  # empty table guard
+                    return []
                 win_start = add_months(month_start, -(window - 1))
                 win_end = add_months(month_start, 1)
                 rows = conn.execute(

@@ -1,4 +1,23 @@
-from api.routers.observatory_situation import router, _eligible_rows_to_territories
+from api.routers.observatory_situation import (
+    router, _eligible_rows_to_territories, _coerce_grid,
+)
+from dashboard.utils.reference import value_to_zscore
+
+
+def test_coerce_grid_parses_json_string_and_passes_through_list():
+    # driver may return the quantile_grid as a JSON string; must become a list
+    assert _coerce_grid("[1.0, 2.0, 3.0]") == [1.0, 2.0, 3.0]
+    assert _coerce_grid([1.0, 2.0]) == [1.0, 2.0]
+    assert _coerce_grid(None) is None
+
+
+def test_coerce_grid_output_feeds_value_to_zscore_without_error():
+    # regression: list("[1.0,...]") used to explode np.interp with a ValueError.
+    # The grid holds one value per percentile 1..99 (see reference.PCTL_GRID).
+    import json
+    grid_json = json.dumps([float(p) for p in range(1, 100)])  # value == percentile
+    z = value_to_zscore(50.0, _coerce_grid(grid_json))
+    assert z is not None and abs(z) < 0.1  # 50th percentile -> ~0 sigma
 
 
 def test_router_mounts_situation_paths():

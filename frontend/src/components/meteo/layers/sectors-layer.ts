@@ -27,14 +27,18 @@ export function addSectorLayers(
   }
 
   map.addSource('secteurs-bsh', { type: 'geojson', data: geojson, attribution: 'Secteurs © BRGM / Eaufrance' })
+  // Keep the 0.6-opacity choropleth (and its outline) BENEATH the station markers,
+  // which are added first. Without a beforeId the fill paints over the badge/glyph
+  // markers and captures their clicks. 'piezo-badge' is the lowest station layer.
+  const stationsBeforeId = map.getLayer('piezo-badge') ? 'piezo-badge' : undefined
   map.addLayer({
     id: 'secteurs-fill', type: 'fill', source: 'secteurs-bsh',
     paint: { 'fill-color': SECTOR_INSUFFICIENT_COLOR, 'fill-opacity': 0.6 },
-  })
+  }, stationsBeforeId)
   map.addLayer({
     id: 'secteurs-line', type: 'line', source: 'secteurs-bsh',
     paint: { 'line-color': '#475569', 'line-width': 0.8, 'line-opacity': 0.5 },
-  })
+  }, stationsBeforeId)
 
   map.addSource('secteurs-trends', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   map.addLayer({

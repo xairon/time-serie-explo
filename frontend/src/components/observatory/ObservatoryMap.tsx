@@ -658,14 +658,27 @@ export function ObservatoryMap({
     if (!mapRef.current || !mapLoadedRef.current) return; const map = mapRef.current; if (!map.getLayer('depts-fill')) return
     const deptColor: any = ['match', ['slice', ['get', 'code'], 0, 1], '0', DEPT_PALETTE[0], '1', DEPT_PALETTE[1], '2', DEPT_PALETTE[2], '3', DEPT_PALETTE[3], '4', DEPT_PALETTE[4], '5', DEPT_PALETTE[5], '6', DEPT_PALETTE[6], '7', DEPT_PALETTE[7], '8', DEPT_PALETTE[8], '9', DEPT_PALETTE[9], DEPT_PALETTE[0]]
     map.setPaintProperty('depts-fill', 'fill-color', ['case', ['==', ['get', 'code'], activeCodeDepartement ?? '$$NONE$$'], '#22d3ee', deptColor])
-    map.setPaintProperty('depts-fill', 'fill-opacity', ['case', ['==', ['get', 'code'], activeCodeDepartement ?? '$$NONE$$'], 0.30, ['boolean', ['feature-state', 'hover'], false], 0.25, 0.10])
+    const deptOpacity: any = ['case', ['==', ['get', 'code'], activeCodeDepartement ?? '$$NONE$$'], 0.30, ['boolean', ['feature-state', 'hover'], false], 0.25, 0.10]
+    if (era5DimmedFillIdRef.current === 'depts-fill') {
+      // by-zone owns this layer's opacity (dimmed to 0.05): don't un-dim it, but
+      // refresh the saved value so a later restore reflects the new active dept.
+      savedAdminOpacityRef.current = deptOpacity
+    } else {
+      map.setPaintProperty('depts-fill', 'fill-opacity', deptOpacity)
+    }
   }, [activeCodeDepartement])
 
   // Sync active bassin
   useEffect(() => {
     activeCodeBassinRef.current = activeCodeBassin
     if (!mapRef.current || !mapLoadedRef.current) return; const map = mapRef.current; if (!map.getLayer('bassins-fill')) return
-    map.setPaintProperty('bassins-fill', 'fill-opacity', ['case', ['==', ['get', 'CdBH'], activeCodeBassin ?? '$$NONE$$'], 0.35, ['boolean', ['feature-state', 'hover'], false], 0.20, 0.10])
+    const bassinOpacity: any = ['case', ['==', ['get', 'CdBH'], activeCodeBassin ?? '$$NONE$$'], 0.35, ['boolean', ['feature-state', 'hover'], false], 0.20, 0.10]
+    if (era5DimmedFillIdRef.current === 'bassins-fill') {
+      // by-zone owns this layer's opacity (dimmed): keep it dimmed, refresh saved value.
+      savedAdminOpacityRef.current = bassinOpacity
+    } else {
+      map.setPaintProperty('bassins-fill', 'fill-opacity', bassinOpacity)
+    }
   }, [activeCodeBassin])
 
   // Selected station ring

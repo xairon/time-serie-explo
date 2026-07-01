@@ -5,6 +5,7 @@ Aggregates per-station fixed-reference indices (IPS/SSFI) into a situation class
 """
 from __future__ import annotations
 
+import json
 import logging
 from typing import Literal
 
@@ -27,6 +28,17 @@ router = APIRouter(prefix="/api/v1/observatory", tags=["observatory-situation"])
 
 SITUATION_TTL = 21600
 RELIABLE_MIN_MOIS = 60
+
+
+def _coerce_grid(g):
+    """Normalize a quantile_grid: the driver may hand it back as a JSON string.
+
+    Mirrors the guard in observatory_piezo/hydro readers — without it
+    ``value_to_zscore`` receives a str and ``np.interp`` raises ValueError.
+    """
+    if isinstance(g, str):
+        g = json.loads(g)
+    return g
 
 _STATION_SQL = {
     "piezo": """
@@ -88,7 +100,7 @@ def _fetch_station_rows(type_: str) -> list[tuple]:
             z_latest = r["z_latest"]
             delta_z = None
             if z_latest is not None and r["lag_value"] is not None and r["lag_grid"]:
-                z_lag = value_to_zscore(float(r["lag_value"]), list(r["lag_grid"]))
+                z_lag = value_to_zscore(float(r["lag_value"]), _coerce_grid(r["lag_grid"]))
                 if z_lag is not None:
                     delta_z = float(z_latest) - z_lag
             out.append((r["dept"], z_latest, delta_z, r["flag"]))
@@ -116,7 +128,7 @@ def _fetch_station_rows_with_code(type_: str) -> list[tuple]:
             z_latest = r["z_latest"]
             delta_z = None
             if z_latest is not None and r["lag_value"] is not None and r["lag_grid"]:
-                z_lag = value_to_zscore(float(r["lag_value"]), list(r["lag_grid"]))
+                z_lag = value_to_zscore(float(r["lag_value"]), _coerce_grid(r["lag_grid"]))
                 if z_lag is not None:
                     delta_z = float(z_latest) - z_lag
             out.append((r["code"], z_latest, delta_z, r["flag"]))

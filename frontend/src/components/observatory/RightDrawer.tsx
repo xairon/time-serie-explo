@@ -237,15 +237,20 @@ export function RightDrawer(props: Props) {
                 <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
                 {/* Scale labels: min left, optional 0 centre for divergent anomaly, max right */}
                 {(() => {
-                  const isAnomalyVar = props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly'
-                  // For raw variables, use the granularity-aware domain; for anomaly, use the fixed stops
-                  const [scaleMin, scaleMax] = isAnomalyVar
+                  // Divergent (0-centred) scales: anomalies AND the STI z-score. STI must
+                  // NOT fall through to era5RawDomain, which would return the temperature
+                  // default [-10, 35] and mislabel the σ ramp.
+                  const isDivergentVar = props.era5Variable === 'anomaly'
+                    || props.era5Variable === 'precipAnomaly'
+                    || props.era5Variable === 'tempStdIndex'
+                  // Divergent vars read their own stops; raw vars use the granularity-aware domain.
+                  const [scaleMin, scaleMax] = isDivergentVar
                     ? [ERA5_VARIABLES[props.era5Variable].stops[0][0], ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]]
                     : era5RawDomain(props.era5Variable as 'temperature' | 'precipitation' | 'evaporation', props.era5Granularity ?? 'daily')
                   return (
                     <div className="relative flex justify-between text-[9px] text-text-secondary">
                       <span>{scaleMin}</span>
-                      {isAnomalyVar && (
+                      {isDivergentVar && (
                         <span className="absolute left-1/2 -translate-x-1/2">0</span>
                       )}
                       <span>{scaleMax}</span>

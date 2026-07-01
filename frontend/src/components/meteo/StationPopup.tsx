@@ -4,6 +4,8 @@ interface Props {
   code: string
   commune?: string
   classification?: string | null
+  /** Station type — drives the fallback label when classification is missing. */
+  type?: 'piezo' | 'hydro'
   derniereMesure?: string | null
   onClose: () => void
 }
@@ -29,10 +31,15 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-export function StationPopup({ code, commune, classification, derniereMesure, onClose }: Props) {
+export function StationPopup({ code, commune, classification, type, derniereMesure, onClose }: Props) {
   const classKey = classification ?? 'UNKNOWN'
   const classColor = meteoClassColor(classification as Parameters<typeof meteoClassColor>[0])
-  const classLabel = capitalize(METEO_CLASS_LABELS[classKey] ?? METEO_CLASS_LABELS.UNKNOWN)
+  const isUnknown = !classification || classification === 'UNKNOWN'
+  // The UNKNOWN label ("Sans nappe libre étendue …") is groundwater-specific and
+  // reads as nonsense on a surface-water flow station — use a neutral fallback there.
+  const classLabel = isUnknown && type === 'hydro'
+    ? 'Non classé / Donnée indisponible'
+    : capitalize(METEO_CLASS_LABELS[classKey] ?? METEO_CLASS_LABELS.UNKNOWN)
   const mesureFormatted = formatMonthFR(derniereMesure)
 
   return (

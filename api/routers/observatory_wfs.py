@@ -2,21 +2,29 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
+import json
 import logging
 from typing import Optional
 
 import httpx
+import redis as sync_redis
 from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.responses import Response
 
 from api.config import settings
-from dashboard.utils.cache import get_cached
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/observatory/wfs", tags=["observatory-wfs"])
 
 WFS_TTL = 86400  # 24h — reference data, rarely changes
+
+# Module-level pool reused across requests — WFS stores compressed bytes, so it
+# needs decode_responses=False and cannot share dashboard.utils.cache._pool.
+# Building a fresh pool per request (the previous behaviour) churned a TCP
+# connection to Redis on every overlay hit.
+_wfs_pool = sync_redis.ConnectionPool.from_url(settings.redis_url, decode_responses=False)
 
 WFS_LAYERS = {
     "region-hydro": {
@@ -88,18 +96,13 @@ def get_wfs_layer(
 
     # For WFS we bypass the JSON-based get_cached and use Redis directly
     # because we store compressed bytes, not JSON dicts.
-    import hashlib
-    import json
-    import redis as sync_redis
-
     cache_params = {"layer_id": layer_id, "bbox": bbox}
     raw_key = json.dumps(cache_params, sort_keys=True, default=str)
     h = hashlib.sha256(raw_key.encode()).hexdigest()[:32]
     key = f"junon:obs_wfs_{layer_id}:{h}"
 
     try:
-        pool = sync_redis.ConnectionPool.from_url(settings.redis_url, decode_responses=False)
-        r = sync_redis.Redis(connection_pool=pool)
+        r = sync_redis.Redis(connection_pool=_wfs_pool)
         cached_val = r.get(key)
         if cached_val:
             if accepts_gzip:

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain,
-  STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, era5FormatSti, classifyIndex, era5StiClassMatchExpr,
+  STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, classifyIndex, era5StiClassMatchExpr,
 } from './era5-colors'
 
 describe('era5-colors', () => {
@@ -134,13 +134,6 @@ describe('era5-colors', () => {
     expect(era5StiClassColor('')).toBe('#6b7280')
   })
 
-  it('era5FormatSti formats z-score with sign and class label', () => {
-    expect(era5FormatSti(2.1, 'TRES_HAUT')).toBe('+2.1 σ · Très chaud')
-    expect(era5FormatSti(-1.5, 'TRES_BAS')).toBe('−1.5 σ · Très froid')
-    expect(era5FormatSti(0.0, 'NORMAL')).toBe('+0.0 σ · Normal')
-    expect(era5FormatSti(null, null)).toBe('—')
-  })
-
   it('tempStdIndex is present in ERA5_VARIABLES with correct prop and unit', () => {
     expect(ERA5_VARIABLES).toHaveProperty('tempStdIndex')
     expect(ERA5_VARIABLES.tempStdIndex.prop).toBe('sti')
@@ -166,11 +159,13 @@ describe('era5-colors', () => {
     expect(classifyIndex(-1.0)).toBe('BAS')
     expect(classifyIndex(-0.84)).toBe('NORMAL')       // -0.84 is NOT < -0.84 → NORMAL
     expect(classifyIndex(0)).toBe('NORMAL')
-    expect(classifyIndex(0.84)).toBe('NORMAL')        // 0.84 <= 0.84 → NORMAL
-    expect(classifyIndex(0.85)).toBe('HAUT')
-    expect(classifyIndex(1.28)).toBe('HAUT')          // 1.28 <= 1.28 → HAUT
+    // Warm-side boundaries mirror the backend half-open convention (lo <= z < hi):
+    // an exact boundary lands in the warmer class.
+    expect(classifyIndex(0.83)).toBe('NORMAL')
+    expect(classifyIndex(0.84)).toBe('HAUT')          // 0.84 is NOT < 0.84 → HAUT
+    expect(classifyIndex(1.28)).toBe('TRES_HAUT')     // 1.28 is NOT < 1.28 → TRES_HAUT
     expect(classifyIndex(1.29)).toBe('TRES_HAUT')
-    expect(classifyIndex(1.75)).toBe('TRES_HAUT')     // 1.75 <= 1.75 → TRES_HAUT
+    expect(classifyIndex(1.75)).toBe('EXTREMEMENT_HAUT')  // 1.75 is NOT < 1.75 → EXTREMEMENT_HAUT
     expect(classifyIndex(1.76)).toBe('EXTREMEMENT_HAUT')
     expect(classifyIndex(2.5)).toBe('EXTREMEMENT_HAUT')
   })
