@@ -37,6 +37,29 @@ _spi_reference_lock = threading.Lock()
 SPI_MIN_REF_YEARS = 10
 
 
+def _mom_gamma(values):
+    """Method-of-moments gamma parameters (a, loc=0, scale) for positive values.
+
+    Used instead of scipy's MLE ``gamma.fit`` so all (window, end_month) SPI
+    references can be precomputed cheaply (O(1) per cell) — MLE over ~550k cells
+    would take ~15 min of CPU. Returns None if the sample is too small/degenerate.
+    """
+    n = len(values)
+    if n < SPI_MIN_REF_YEARS:
+        return None
+    mean = sum(values) / n
+    if mean <= 0:
+        return None
+    var = sum((v - mean) ** 2 for v in values) / (n - 1)
+    if var <= 0:
+        return None
+    scale = var / mean
+    a = mean * mean / var
+    if a <= 0 or scale <= 0:
+        return None
+    return a, 0.0, scale
+
+
 def _brgm_url() -> str:
     return (
         f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
@@ -456,8 +479,6 @@ def _era5_spi_reference(window: int, end_month: int) -> list[dict]:
     cache_params = {"window": window, "end_month": end_month}
 
     def fetch():
-        from scipy import stats
-
         with _spi_reference_lock:
             cached = read_cached(cache_key, cache_params)
             if cached is not None:
@@ -518,24 +539,20 @@ def _era5_spi_reference(window: int, end_month: int) -> list[dict]:
                     continue
                 acc3[(la, lo)].append(sum(month_sums))
 
-            # Step 5: fit a gamma per cell over the positive reference accumulations.
+            # Step 5: method-of-moments gamma per cell over the positive accumulations.
             out = []
             for (la, lo), wsums in acc3.items():
                 positive = [w for w in wsums if w > 0]
-                if len(positive) < SPI_MIN_REF_YEARS:
+                g = _mom_gamma(positive)
+                if g is None:
                     continue
-                try:
-                    a, loc, scale = stats.gamma.fit(positive, floc=0)
-                except Exception:
-                    continue
-                if not (scale and scale > 0):
-                    continue
+                a, loc, scale = g
                 out.append({
                     "latitude": la,
                     "longitude": lo,
-                    "a": float(a),
-                    "loc": float(loc),
-                    "scale": float(scale),
+                    "a": a,
+                    "loc": loc,
+                    "scale": scale,
                     "n_years": len(positive),
                 })
             # Publish under the lock so waiters see it immediately (see write_cached).
@@ -549,42 +566,129 @@ def _era5_spi_reference(window: int, end_month: int) -> list[dict]:
 STI_WARM_WINDOWS = (1, 3, 6, 12)
 
 
-def _warm_era5_sti_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
-    """Warm the STI reference for the given windows at the latest complete month.
+def _scan_monthly_cell_stats(query: str) -> dict:
+    """Run a per-(cell, year, month) monthly-aggregate scan once, weighted-avg the
+    0.1° doublon variants, and return ``{(lat, lon): {(year, month): value}}``.
 
-    Only window=3 used to be warmed, so selecting STI window 1/6/12 in the UI hit a
-    cold ~130s reference scan and looked broken. Warm all UI windows at startup.
-    Used at startup/re-warm; best-effort per window.
+    Shared by the STI/SPI bulk warmers so all 48 (window, end_month) references come
+    from a single table scan instead of 48 separate ~66s scans.
     """
     engine = get_brgm_sync_engine()
-    with engine.connect() as conn:
-        max_date = conn.execute(
-            text('SELECT max("time")::date FROM gold.era5_grid')
-        ).scalar()
-    if max_date is None:
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(query)).fetchall()
+    finally:
+        pass  # shared pooled engine; do not dispose
+    acc: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
+    for r in rows:
+        la = round(float(r[0]), 1)
+        lo = round(float(r[1]), 1)
+        key = (la, lo, int(r[2]), int(r[3]))
+        acc[key]["sw"] += float(r[4]) * int(r[5])
+        acc[key]["sn"] += int(r[5])
+    by_cell: dict = defaultdict(dict)
+    for (la, lo, yr, mo), v in acc.items():
+        by_cell[(la, lo)][(yr, mo)] = v["sw"] / v["sn"]
+    return by_cell
+
+
+def _sti_ref_from_cells(by_cell: dict, window: int, end_month: int) -> list[dict]:
+    """STI reference (mean/std of N-month window means over 1991-2020) per cell,
+    computed from pre-scanned monthly means. Matches _era5_sti_reference exactly."""
+    month_set = set(window_end_months(end_month, window))
+    out = []
+    for (la, lo), ym in by_cell.items():
+        per_year: dict = defaultdict(list)
+        for (yr, mo), v in ym.items():
+            if mo not in month_set:
+                continue
+            wy = yr + 1 if mo > end_month else yr
+            if wy < 1991 or wy > 2020:
+                continue
+            per_year[wy].append(v)
+        wmeans = [sum(mm) / len(mm) for mm in per_year.values() if len(mm) == window]
+        if len(wmeans) < 2:
+            continue
+        mean_val = sum(wmeans) / len(wmeans)
+        variance = sum((w - mean_val) ** 2 for w in wmeans) / (len(wmeans) - 1)
+        out.append({"latitude": la, "longitude": lo, "mean": mean_val,
+                    "std": variance ** 0.5, "n_years": len(wmeans)})
+    return out
+
+
+def _spi_ref_from_cells(by_cell: dict, window: int, end_month: int) -> list[dict]:
+    """SPI gamma reference (method-of-moments) per cell from pre-scanned monthly sums."""
+    month_set = set(window_end_months(end_month, window))
+    out = []
+    for (la, lo), ym in by_cell.items():
+        per_year: dict = defaultdict(list)
+        for (yr, mo), v in ym.items():
+            if mo not in month_set:
+                continue
+            wy = yr + 1 if mo > end_month else yr
+            if wy < 1991 or wy > 2020:
+                continue
+            per_year[wy].append(v)
+        wsums = [sum(mm) for mm in per_year.values() if len(mm) == window]
+        positive = [w for w in wsums if w > 0]
+        g = _mom_gamma(positive)
+        if g is None:
+            continue
+        a, loc, scale = g
+        out.append({"latitude": la, "longitude": lo, "a": a, "loc": loc,
+                    "scale": scale, "n_years": len(positive)})
+    return out
+
+
+def _warm_era5_sti_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
+    """Precompute & cache STI references for EVERY (window, end_month) from a single
+    1990-2020 scan, so stepping the map period to any month is an instant cache hit
+    (previously each non-current month triggered a ~66s cold scan)."""
+    query = """
+        SELECT latitude, longitude,
+               EXTRACT(YEAR FROM "time")::int AS yr,
+               EXTRACT(MONTH FROM "time")::int AS mo,
+               AVG(temperature_2m) AS v, COUNT(*) AS n
+        FROM gold.era5_grid
+        WHERE temperature_2m IS NOT NULL
+          AND "time" >= '1990-01-01' AND "time" < '2021-01-01'
+        GROUP BY latitude, longitude,
+                 EXTRACT(YEAR FROM "time")::int, EXTRACT(MONTH FROM "time")::int
+    """
+    by_cell = _scan_monthly_cell_stats(query)
+    if not by_cell:
         return None
-    end_month = latest_complete_month(max_date).month
-    last = None
-    for w in windows:
-        last = _era5_sti_reference(w, end_month)
-    return last
+    for window in windows:
+        for end_month in range(1, 13):
+            out = _sti_ref_from_cells(by_cell, window, end_month)
+            write_cached("obs_era5_sti_ref", {"window": window, "end_month": end_month},
+                         CLIMATOLOGY_TTL, out)
+    return True
 
 
 def _warm_era5_spi_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
-    """Warm the SPI (precipitation) gamma reference for all UI windows at the latest
-    complete month, so the first /spi request doesn't hit a cold ~130s scan."""
-    engine = get_brgm_sync_engine()
-    with engine.connect() as conn:
-        max_date = conn.execute(
-            text('SELECT max("time")::date FROM gold.era5_grid')
-        ).scalar()
-    if max_date is None:
+    """Precompute & cache SPI references for EVERY (window, end_month) from a single
+    1990-2020 scan (method-of-moments gamma), so any month is an instant cache hit."""
+    query = """
+        SELECT latitude, longitude,
+               EXTRACT(YEAR FROM "time")::int AS yr,
+               EXTRACT(MONTH FROM "time")::int AS mo,
+               SUM(total_precipitation) AS v, COUNT(*) AS n
+        FROM gold.era5_grid
+        WHERE total_precipitation IS NOT NULL
+          AND "time" >= '1990-01-01' AND "time" < '2021-01-01'
+        GROUP BY latitude, longitude,
+                 EXTRACT(YEAR FROM "time")::int, EXTRACT(MONTH FROM "time")::int
+    """
+    by_cell = _scan_monthly_cell_stats(query)
+    if not by_cell:
         return None
-    end_month = latest_complete_month(max_date).month
-    last = None
-    for w in windows:
-        last = _era5_spi_reference(w, end_month)
-    return last
+    for window in windows:
+        for end_month in range(1, 13):
+            out = _spi_ref_from_cells(by_cell, window, end_month)
+            write_cached("obs_era5_spi_ref", {"window": window, "end_month": end_month},
+                         CLIMATOLOGY_TTL, out)
+    return True
 
 
 @router.get("/spi")
