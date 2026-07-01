@@ -438,8 +438,17 @@ def _era5_sti_reference(window: int, end_month: int) -> list[dict]:
     return get_cached(cache_key, cache_params, CLIMATOLOGY_TTL, fetch)
 
 
-def _warm_era5_sti_default():
-    """Warm the STI reference for window=3 + latest complete month. Used at startup/re-warm."""
+# Windows exposed by the UI — warm every one so no first-view hits the ~130s scan.
+STI_WARM_WINDOWS = (1, 3, 6, 12)
+
+
+def _warm_era5_sti_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
+    """Warm the STI reference for the given windows at the latest complete month.
+
+    Only window=3 used to be warmed, so selecting STI window 1/6/12 in the UI hit a
+    cold ~130s reference scan and looked broken. Warm all UI windows at startup.
+    Used at startup/re-warm; best-effort per window.
+    """
     engine = get_brgm_sync_engine()
     with engine.connect() as conn:
         max_date = conn.execute(
@@ -448,7 +457,10 @@ def _warm_era5_sti_default():
     if max_date is None:
         return None
     end_month = latest_complete_month(max_date).month
-    return _era5_sti_reference(3, end_month)
+    last = None
+    for w in windows:
+        last = _era5_sti_reference(w, end_month)
+    return last
 
 
 @router.get("/sti")

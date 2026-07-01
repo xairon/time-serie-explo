@@ -59,7 +59,11 @@ export function aggregateEra5ByZone(
 export function era5StiZoneColorExpression(
   idProp: string,
   zoneValues: Record<string, number>,
-): unknown[] {
+): unknown[] | string {
+  // MapLibre rejects a 'match' with no label→output pairs ("Expected at least 4
+  // arguments"). While the STI data is still loading zoneValues is empty, so
+  // return a plain transparent colour instead of an invalid empty match.
+  if (Object.keys(zoneValues).length === 0) return 'rgba(0,0,0,0)'
   const expr: unknown[] = ['match', ['get', idProp]]
   for (const [id, z] of Object.entries(zoneValues)) {
     const cls = classifyIndex(z)
@@ -100,7 +104,10 @@ export function era5ZoneColorExpression(
   zoneValues: Record<string, number>,
   variable: Era5Variable,
   domain?: [number, number],
-): unknown[] {
+): unknown[] | string {
+  // Same guard as the STI expression: an empty match is invalid in MapLibre, so
+  // render zones transparent until at least one zone has an aggregated value.
+  if (Object.keys(zoneValues).length === 0) return 'rgba(0,0,0,0)'
   let stops = ERA5_VARIABLES[variable].stops
   if (domain != null) {
     const [dMin, dMax] = domain
