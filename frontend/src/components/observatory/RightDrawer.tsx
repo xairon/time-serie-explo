@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Layers, X, RotateCcw, ChevronDown, ChevronRight, Info } from 'lucide-react'
+import { Layers, X, RotateCcw, ChevronDown, ChevronRight, Info, ChevronLeft } from 'lucide-react'
 import { CLASSIFICATION_ORDER, CLASSIFICATION_LABELS, CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import type { ObsFilters } from '@/hooks/useObservatory'
 import { ERA5_VARIABLES, era5GradientCss, era5RawDomain } from '@/lib/era5-colors'
@@ -9,7 +9,6 @@ import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 function useZoneLayers() {
   const { t } = useTranslation()
   const ZONE_LAYERS: { id: string; label: string; group: string; color?: string }[] = [
-    { id: 'secteurs', label: t('observatory.drawer.sectorsMeteo'), group: t('observatory.drawer.groupMeteo'), color: '#3b82f6' },
     { id: 'regions', label: t('observatory.drawer.regions'), group: t('observatory.drawer.groupAdministrative') },
     { id: 'depts', label: t('observatory.drawer.departments'), group: t('observatory.drawer.groupAdministrative') },
     { id: 'bassins', label: t('observatory.drawer.basinsSandre'), group: t('observatory.drawer.groupAdministrative') },
@@ -68,13 +67,13 @@ function AccordionSection({ id, title, badge, defaultOpen, children }: { id: str
   )
 }
 
-const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'evaporation'> = ['temperature', 'precipitation', 'evaporation']
+const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'waterBalance'> = ['temperature', 'precipitation', 'waterBalance']
 
 // i18n key of the hover description for each ERA5 variable (what it is, reference period, colour reading).
 const ERA5_DESC_KEY: Record<string, string> = {
   temperature: 'observatory.drawer.era5DescTemperature',
   precipitation: 'observatory.drawer.era5DescPrecipitation',
-  evaporation: 'observatory.drawer.era5DescEvaporation',
+  waterBalance: 'observatory.drawer.era5DescWaterBalance',
   anomaly: 'observatory.drawer.era5DescAnomaly',
   tempStdIndex: 'observatory.drawer.era5DescStdIndex',
   precipStdIndex: 'observatory.drawer.era5DescPrecipStdIndex',
@@ -87,6 +86,88 @@ function Era5InfoIcon({ descKey }: { descKey: string }) {
     <span title={t(descKey)} className="ml-auto cursor-help" aria-label={t(descKey)}>
       <Info className="w-3 h-3 text-text-secondary/50 hover:text-accent-cyan transition-colors" />
     </span>
+  )
+}
+
+// Window-based (monthly) ERA5 variables — stepped month by month; raw ones step by day.
+const MONTH_VARS: Era5Variable[] = ['anomaly', 'tempStdIndex', 'precipStdIndex']
+
+const _pad = (n: number) => String(n).padStart(2, '0')
+function shiftIso(iso: string, delta: number, byMonth: boolean): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = byMonth ? new Date(y, (m - 1) + delta, 1) : new Date(y, m - 1, (d || 1) + delta)
+  return `${dt.getFullYear()}-${_pad(dt.getMonth() + 1)}-${_pad(byMonth ? 1 : dt.getDate())}`
+}
+function clampIso(iso: string, min?: string, max?: string): string {
+  if (min && iso < min) return min
+  if (max && iso > max) return max
+  return iso
+}
+
+/** ERA5 period picker: ‹ / › month(or day) stepping, a direct input, and a plain-language
+ *  summary of the covered span ("mars → mai 2026" for an N-month window). */
+function Era5PeriodSelector(props: {
+  variable: Era5Variable
+  date: string
+  setDate: (v: string) => void
+  effectiveDate?: string
+  minDate?: string
+  maxDate?: string
+  timelineDriven: boolean
+  window: number
+}) {
+  const { t, i18n } = useTranslation()
+  const byMonth = MONTH_VARS.includes(props.variable)
+  const disabled = props.timelineDriven
+  const eff = (disabled ? (props.effectiveDate ?? '') : props.date) || ''
+  const { minDate: min, maxDate: max } = props
+
+  const fmtMonth = (iso: string) => {
+    const [y, m] = iso.split('-').map(Number)
+    return new Intl.DateTimeFormat(i18n.language, { month: 'short', year: 'numeric' }).format(new Date(y, m - 1, 1))
+  }
+  const fmtDay = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(y, m - 1, d))
+  }
+
+  const step = (delta: number) => {
+    if (!eff || disabled) return
+    props.setDate(clampIso(shiftIso(eff, delta, byMonth), min, max))
+  }
+  const cmp = (s?: string) => (s == null ? undefined : byMonth ? s.slice(0, 7) : s)
+  const cmpEff = cmp(eff), cmpMin = cmp(min), cmpMax = cmp(max)
+  const canPrev = !disabled && !!eff && (cmpMin == null || (cmpEff ?? '') > cmpMin)
+  const canNext = !disabled && !!eff && (cmpMax == null || (cmpEff ?? '') < cmpMax)
+
+  let summary = ''
+  if (eff) {
+    if (byMonth) {
+      const endLabel = fmtMonth(eff)
+      summary = props.window <= 1 ? endLabel : `${fmtMonth(shiftIso(eff, -(props.window - 1), true))} → ${endLabel}`
+    } else {
+      summary = fmtDay(eff)
+    }
+  }
+
+  const inputCls = `flex-1 min-w-0 px-2 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${disabled ? ' opacity-50 cursor-not-allowed' : ''}`
+  const btnCls = 'p-1.5 rounded border border-white/10 bg-bg-primary text-text-secondary hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed'
+
+  return (
+    <div>
+      <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Period')}</label>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => step(-1)} disabled={!canPrev} aria-label={t('observatory.drawer.era5PeriodPrev')} className={btnCls}><ChevronLeft className="w-3.5 h-3.5" /></button>
+        {byMonth ? (
+          <input type="month" value={eff.slice(0, 7)} min={min ? min.slice(0, 7) : undefined} max={max ? max.slice(0, 7) : undefined} disabled={disabled} onChange={(e) => props.setDate(e.target.value ? e.target.value + '-01' : '')} className={inputCls} />
+        ) : (
+          <input type="date" value={eff} min={min} max={max} disabled={disabled} onChange={(e) => props.setDate(e.target.value)} className={inputCls} />
+        )}
+        <button type="button" onClick={() => step(1)} disabled={!canNext} aria-label={t('observatory.drawer.era5PeriodNext')} className={btnCls}><ChevronRight className="w-3.5 h-3.5" /></button>
+      </div>
+      {summary && <p className="text-[11px] text-accent-cyan/80 mt-1">{summary}</p>}
+      {disabled && <p className="text-[10px] text-text-secondary/60 mt-1">{t('observatory.drawer.era5TimelineDriven')}</p>}
+    </div>
   )
 }
 
@@ -190,16 +271,6 @@ export function RightDrawer(props: Props) {
         <AccordionSection id="layers" title={t('observatory.drawer.layers')}>
           {zoneGroups.map(group => (<div key={group.label} className="mb-3"><span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1">{group.label}</span>{group.layers.map(layer => { const active = props.activeZoneLayer === layer.id; return (<label key={layer.id} className="flex items-center gap-2 py-1 cursor-pointer group"><input type="checkbox" checked={active} onChange={() => props.onZoneLayerChange(active ? null : layer.id)} className="w-3.5 h-3.5 accent-accent-cyan rounded" />{layer.color && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: layer.color }} />}<span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{layer.label}</span></label>) })}</div>))}
           {overlayGroups.map(group => (<div key={group.label} className="mb-3"><span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider block mb-1">{group.label}</span>{group.layers.map(layer => (<label key={layer.id} className="flex items-center gap-2 py-1 cursor-pointer group"><input type="checkbox" checked={props.overlayLayers.has(layer.id)} onChange={() => props.onOverlayToggle(layer.id)} className="w-3.5 h-3.5 accent-accent-cyan rounded" /><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: layer.color }} /><span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{layer.label}</span></label>))}</div>))}
-          {props.activeZoneLayer === 'secteurs' && (
-            <div className="px-1 pt-2 text-[11px] text-text-secondary space-y-1 border-t border-white/5 mt-2">
-              <div className="font-semibold text-text-primary">{t('observatory.drawer.sectorLegendTitle')}</div>
-              {CLASSIFICATION_ORDER.map(cls => (
-                <div key={cls} className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: CLASSIFICATION_COLORS[cls] }} />{CLASSIFICATION_LABELS[cls]}</div>
-              ))}
-              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#d9d9d9' }} />{t('observatory.drawer.sectorNoData')}</div>
-              <div className="pt-1">↑ {t('meteo.trend.hausse')} · → {t('meteo.trend.stable')} · ↓ {t('meteo.trend.baisse')}</div>
-            </div>
-          )}
         </AccordionSection>
 
         <AccordionSection id="era5" title={t('observatory.drawer.groupWeatherEra5')}>
@@ -239,17 +310,16 @@ export function RightDrawer(props: Props) {
               {props.era5ByZone && !['depts', 'regions', 'her', 'bassins', 'secteurs'].includes(props.activeZoneLayer ?? '') && (
                 <p className="text-xs text-text-secondary/60">{t('observatory.drawer.era5ByZoneHint')}</p>
               )}
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
-                {(props.era5Variable === 'anomaly' || props.era5Variable === 'tempStdIndex' || props.era5Variable === 'precipStdIndex') ? (
-                  <input type="month" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '').slice(0, 7) : (props.era5Date ? props.era5Date.slice(0, 7) : '')} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
-                ) : (
-                  <input type="date" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '') : props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
-                )}
-                {props.era5TimelineDriven && (
-                  <p className="text-[10px] text-text-secondary/60 mt-1">{t('observatory.drawer.era5TimelineDriven')}</p>
-                )}
-              </div>
+              <Era5PeriodSelector
+                variable={props.era5Variable}
+                date={props.era5Date}
+                setDate={props.setEra5Date}
+                effectiveDate={props.era5EffectiveDate}
+                minDate={props.era5MinDate}
+                maxDate={props.era5MaxDate}
+                timelineDriven={!!props.era5TimelineDriven}
+                window={props.era5Window ?? 3}
+              />
               <div className="flex flex-col gap-1">
                 {/* Title + unit */}
                 <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">
@@ -265,14 +335,16 @@ export function RightDrawer(props: Props) {
                   const isDivergentVar = props.era5Variable === 'anomaly'
                     || props.era5Variable === 'tempStdIndex'
                     || props.era5Variable === 'precipStdIndex'
-                  // Divergent vars read their own stops; raw vars use the granularity-aware domain.
+                  // Water balance is also 0-centred but uses the granularity-aware raw domain.
+                  const isWaterBalance = props.era5Variable === 'waterBalance'
+                  // Divergent index vars read their own stops; raw vars use the granularity domain.
                   const [scaleMin, scaleMax] = isDivergentVar
                     ? [ERA5_VARIABLES[props.era5Variable].stops[0][0], ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]]
-                    : era5RawDomain(props.era5Variable as 'temperature' | 'precipitation' | 'evaporation', props.era5Granularity ?? 'daily')
+                    : era5RawDomain(props.era5Variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance', props.era5Granularity ?? 'daily')
                   return (
                     <div className="relative flex justify-between text-[9px] text-text-secondary">
                       <span>{scaleMin}</span>
-                      {isDivergentVar && (
+                      {(isDivergentVar || isWaterBalance) && (
                         <span className="absolute left-1/2 -translate-x-1/2">0</span>
                       )}
                       <span>{scaleMax}</span>

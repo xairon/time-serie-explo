@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
-import { era5PointsToSquares, era5GenericAnomalyToSquares, era5StiToSquares, era5SpiToSquares } from '@/lib/era5-grid'
+import { era5PointsToSquares, era5GenericAnomalyToSquares, era5StiToSquares, era5SpiToSquares, era5WaterBalance } from '@/lib/era5-grid'
 import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain, era5StiClassMatchExpr, era5SpiClassMatchExpr } from '@/lib/era5-colors'
 import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint, ERA5SpiPoint } from '@/lib/observatory-types'
@@ -289,7 +289,7 @@ function buildRawGridColorExpression(variable: Era5Variable, granularity: Era5Gr
   if (variable === 'anomaly') {
     return era5ColorExpression(variable)
   }
-  const rawVar = variable as 'temperature' | 'precipitation' | 'evaporation'
+  const rawVar = variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance'
   const [dMin, dMax] = era5RawDomain(rawVar, granularity)
   const cfg = ERA5_VARIABLES[variable]
   const stops = cfg.stops
@@ -807,7 +807,7 @@ export function ObservatoryMap({
           html = `<div style="font-size:12px;line-height:1.5">
               <div>${t('observatory.era5.popupTemperature')}: ${era5FormatValue('temperature', num('temperature_2m'))}</div>
               <div>${t('observatory.era5.popupPrecipitation')}: ${era5FormatValue('precipitation', num('total_precipitation'))}</div>
-              <div>${t('observatory.era5.popupEvaporation')}: ${era5FormatValue('evaporation', num('potential_evaporation'))}</div>
+              <div>${t('observatory.era5.popupWaterBalance')}: ${era5FormatValue('waterBalance', num('water_balance'))}</div>
             </div>`
         }
         new maplibregl.Popup({ closeButton: true })
@@ -889,14 +889,17 @@ export function ObservatoryMap({
     const isAnom = era5Variable === 'anomaly'
     const isSti = era5Variable === 'tempStdIndex'
     const isSpi = era5Variable === 'precipStdIndex'
+    const isWb = era5Variable === 'waterBalance'
     const valueKey = isAnom ? 'anomaly' : isSti ? 'sti' : isSpi ? 'spi' : ERA5_VARIABLES[era5Variable].prop
-    const points = (isAnom ? era5AnomalyPoints : isSti ? era5StiPoints : isSpi ? era5SpiPoints : era5Points) ?? []
+    // Water balance isn't a raw DB field — derive it per point (P + potential_evaporation) for aggregation.
+    const wbPoints = isWb ? (era5Points ?? []).map((p) => ({ ...p, water_balance: era5WaterBalance(p) })) : null
+    const points = (isAnom ? era5AnomalyPoints : isSti ? era5StiPoints : isSpi ? era5SpiPoints : isWb ? wbPoints : era5Points) ?? []
     const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
     // For raw variables, pass the granularity-aware domain so the stop positions
     // are rescaled to the correct range and monthly aggregates don't saturate.
     const rawDomain = (isAnom || isSti || isSpi)
       ? undefined
-      : era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
+      : era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance', era5Granularity)
     const colorExpr = isSti
       ? era5StiZoneColorExpression(cfg.idProp, zoneValues)
       : isSpi

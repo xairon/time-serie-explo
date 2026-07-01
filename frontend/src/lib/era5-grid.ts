@@ -6,6 +6,15 @@ export interface ERA5CellProps {
   temperature_2m: number | null
   total_precipitation: number | null
   potential_evaporation: number | null
+  /** Climatic water balance P − ETP (mm). potential_evaporation is stored negative,
+   *  so P − |ETP| = total_precipitation + potential_evaporation. */
+  water_balance: number | null
+}
+
+/** P − ETP for a raw grid point (null unless both components are present). */
+export function era5WaterBalance(p: { total_precipitation?: number | null; potential_evaporation?: number | null }): number | null {
+  if (p.total_precipitation == null || p.potential_evaporation == null) return null
+  return p.total_precipitation + p.potential_evaporation
 }
 
 /**
@@ -133,6 +142,7 @@ export function era5PointsToSquares(
           temperature_2m: p.temperature_2m,
           total_precipitation: p.total_precipitation,
           potential_evaporation: p.potential_evaporation,
+          water_balance: era5WaterBalance(p),
         },
       }
     }),

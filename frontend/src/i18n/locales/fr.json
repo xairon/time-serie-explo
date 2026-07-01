@@ -238,7 +238,11 @@
       "era5VarTemperature": "Température",
       "era5VarPrecipitation": "Précipitations",
       "era5VarEvaporation": "Évapotranspiration (ETP)",
+      "era5VarWaterBalance": "Bilan hydrique (P − ETP)",
       "era5Date": "Date",
+      "era5Period": "Période",
+      "era5PeriodPrev": "Période précédente",
+      "era5PeriodNext": "Période suivante",
       "era5NoData": "Pas de données pour cette date",
       "era5VarAnomaly": "Anomalie thermique",
       "era5VarPrecipStdIndex": "Indice de précipitations (SPI)",
@@ -258,12 +262,14 @@
       "era5DescEvaporation": "Évapotranspiration potentielle (ETP, mm) : demande évaporatoire de l'atmosphère. Plus la couleur est foncée, plus l'ETP est forte.",
       "era5DescAnomaly": "Écart de température (°C) par rapport à la normale 1991-2020 pour la même fenêtre de mois. Divergent autour de 0 : bleu = plus froid que la normale, rouge = plus chaud.",
       "era5DescStdIndex": "Indice thermique standardisé (STI) : température exprimée en écarts-types (σ) par rapport à 1991-2020, classée en 7 classes McKee/OMM. Bleu = froid, vert = normal, rouge = chaud. Analogue thermique du SPI.",
-      "era5DescPrecipStdIndex": "Indice de précipitations standardisé (SPI, McKee 1993) : indicateur OMM de sécheresse/excédent. Cumul de pluie transformé via une loi gamma (référence 1991-2020) en écarts-types (σ), classé en 7 classes. Brun = sec, gris = normal, bleu-vert = humide."
+      "era5DescPrecipStdIndex": "Indice de précipitations standardisé (SPI, McKee 1993) : indicateur OMM de sécheresse/excédent. Cumul de pluie transformé via une loi gamma (référence 1991-2020) en écarts-types (σ), classé en 7 classes. Brun = sec, gris = normal, bleu-vert = humide.",
+      "era5DescWaterBalance": "Bilan hydrique climatique = précipitations − évapotranspiration (P − ETP), en mm. Approche les « pluies efficaces » qui alimentent la recharge. Divergent autour de 0 : rouge = déficit (sec), bleu = excédent (humide)."
     },
     "era5": {
       "popupTemperature": "Température",
       "popupPrecipitation": "Précipitations",
       "popupEvaporation": "Évapotranspiration (ETP)",
+      "popupWaterBalance": "Bilan hydrique (P − ETP)",
       "popupAnomaly": "Anomalie {{n}} mois",
       "popupStiLabel": "Indice thermique {{n}} mois",
       "popupSpiLabel": "Indice de précipitations {{n}} mois"

@@ -21,6 +21,8 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
 
   const cfg = ERA5_VARIABLES[era5Variable]
   const isAnomaly = ANOMALY_VARIABLES.includes(era5Variable)
+  // Water balance is 0-centred (like an anomaly) but uses the granularity-aware raw domain.
+  const isWaterBalance = era5Variable === 'waterBalance'
   // For anomaly variables keep using the fixed divergent stop bounds.
   // For raw variables use the granularity-aware domain so the legend agrees with the map.
   let minVal: number
@@ -30,7 +32,7 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
     minVal = stops[0][0]
     maxVal = stops[stops.length - 1][0]
   } else {
-    ;[minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
+    ;[minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance', era5Granularity)
   }
 
   let periodLabel = ''
@@ -95,7 +97,7 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
         <div className="h-2.5 rounded" style={{ background: era5GradientCss(era5Variable) }} />
         <div className="relative flex justify-between text-[9px] text-text-secondary mt-0.5">
           <span>{String(minVal).replace('-', '−')} {cfg.unit}</span>
-          {isAnomaly && (
+          {(isAnomaly || isWaterBalance) && (
             <span className="absolute left-1/2 -translate-x-1/2">0</span>
           )}
           <span>+{maxVal} {cfg.unit}</span>

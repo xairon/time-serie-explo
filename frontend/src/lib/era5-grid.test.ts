@@ -23,12 +23,13 @@ describe('era5PointsToSquares', () => {
     expect(Math.max(...lats)).toBeCloseTo(48 + ERA5_CELL_HALF)
   })
 
-  it('carries the three values as feature properties', () => {
+  it('carries the raw values plus the derived water balance as feature properties', () => {
     const fc = era5PointsToSquares([
-      { latitude: 45, longitude: 5, temperature_2m: 9, total_precipitation: 0, potential_evaporation: -2 },
+      { latitude: 45, longitude: 5, temperature_2m: 9, total_precipitation: 10, potential_evaporation: -2 },
     ])
     expect(fc.features[0].properties).toEqual({
-      temperature_2m: 9, total_precipitation: 0, potential_evaporation: -2,
+      // water_balance = P + potential_evaporation (ETP stored negative) = 10 + (-2) = 8
+      temperature_2m: 9, total_precipitation: 10, potential_evaporation: -2, water_balance: 8,
     })
   })
 })

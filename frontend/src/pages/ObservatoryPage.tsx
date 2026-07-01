@@ -106,7 +106,7 @@ export default function ObservatoryPage() {
   }, [geojsonData, showPiezo, showHydro, filters, spatialStationCodes])
 
   const [activeZoneLayer, setActiveZoneLayer] = useState<string | null>('regions')
-  const [era5ByZone, setEra5ByZone] = useState(true)
+  const [era5ByZone, setEra5ByZone] = useState(false)
   useEffect(() => {
     if (era5ByZone && !['depts', 'regions', 'her', 'bassins', 'secteurs'].includes(activeZoneLayer ?? '')) {
       setActiveZoneLayer('depts')

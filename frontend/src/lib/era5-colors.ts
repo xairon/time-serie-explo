@@ -1,9 +1,9 @@
-export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'tempStdIndex' | 'precipStdIndex'
+export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance' | 'anomaly' | 'tempStdIndex' | 'precipStdIndex'
 export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly' | 'sti' | 'spi'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'water_balance' | 'anomaly' | 'sti' | 'spi'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -25,6 +25,13 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     labelKey: 'observatory.drawer.era5VarEvaporation',
     // stored negative; more negative = more evapotranspiration
     stops: [[-10, '#54278f'], [-6, '#756bb1'], [-3, '#9e9ac8'], [-1, '#cbc9e2'], [0, '#f2f0f7']],
+  },
+  waterBalance: {
+    key: 'waterBalance', prop: 'water_balance', unit: 'mm',
+    labelKey: 'observatory.drawer.era5VarWaterBalance',
+    // Climatic water balance P − ETP (mm). Divergent around 0: deficit = red/brown,
+    // surplus = blue. Symmetric stops; the display domain is rescaled per granularity.
+    stops: [[-100, '#b2182b'], [-40, '#ef8a62'], [-10, '#fddbc7'], [0, '#f7f7f7'], [10, '#d1e5f0'], [40, '#67a9cf'], [100, '#2166ac']],
   },
   anomaly: {
     key: 'anomaly', prop: 'anomaly', unit: '°C',
@@ -78,6 +85,10 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
   }
   if (v === 'tempStdIndex' || v === 'precipStdIndex') {
     const s = Math.abs(value).toFixed(1)
+    return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`
+  }
+  if (v === 'waterBalance') {
+    const s = Math.abs(Math.round(value)).toString()
     return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`
   }
   const shown = v === 'evaporation' ? Math.abs(value) : value
@@ -200,7 +211,7 @@ export function era5SpiClassMatchExpr(): unknown[] {
  * era5ZoneColorExpression, so monthly raw maps don't saturate.
  */
 export function era5RawDomain(
-  variable: 'temperature' | 'precipitation' | 'evaporation',
+  variable: 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance',
   granularity: Era5Granularity,
 ): [number, number] {
   if (variable === 'precipitation') {
@@ -208,6 +219,10 @@ export function era5RawDomain(
   }
   if (variable === 'evaporation') {
     return granularity === 'monthly' ? [-100, 0] : [-10, 0]
+  }
+  if (variable === 'waterBalance') {
+    // Symmetric around 0 so the divergent scale stays centred; wider for monthly sums.
+    return granularity === 'monthly' ? [-150, 150] : [-15, 15]
   }
   // temperature: same scale covers both daily and monthly means
   return [-10, 35]
