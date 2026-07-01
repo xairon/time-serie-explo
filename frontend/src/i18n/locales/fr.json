@@ -241,7 +241,7 @@
       "era5Date": "Date",
       "era5NoData": "Pas de données pour cette date",
       "era5VarAnomaly": "Anomalie thermique",
-      "era5VarPrecipAnomaly": "Anomalie de précipitations",
+      "era5VarPrecipStdIndex": "Indice de précipitations (SPI)",
       "era5VarStdIndex": "Indice thermique (STI)",
       "era5RawContext": "Contexte brut",
       "era5Window": "Fenêtre",
@@ -252,14 +252,21 @@
       "era5ByZone": "Agréger par zone (calque actif)",
       "era5ByZoneHint": "Active un calque de zones (départements, régions…)",
       "era5TimelineDriven": "Piloté par la barre chronologique",
-      "era5EvaporationMore": "plus d'évapotranspiration"
+      "era5EvaporationMore": "plus d'évapotranspiration",
+      "era5DescTemperature": "Température de l'air à 2 m (moyenne de la période). Échelle brute en °C : bleu = froid, rouge = chaud. Source : ERA5.",
+      "era5DescPrecipitation": "Cumul de précipitations sur la période (mm). Bleu clair = peu, bleu foncé = beaucoup. Source : ERA5.",
+      "era5DescEvaporation": "Évapotranspiration potentielle (ETP, mm) : demande évaporatoire de l'atmosphère. Plus la couleur est foncée, plus l'ETP est forte.",
+      "era5DescAnomaly": "Écart de température (°C) par rapport à la normale 1991-2020 pour la même fenêtre de mois. Divergent autour de 0 : bleu = plus froid que la normale, rouge = plus chaud.",
+      "era5DescStdIndex": "Indice thermique standardisé (STI) : température exprimée en écarts-types (σ) par rapport à 1991-2020, classée en 7 classes McKee/OMM. Bleu = froid, vert = normal, rouge = chaud. Analogue thermique du SPI.",
+      "era5DescPrecipStdIndex": "Indice de précipitations standardisé (SPI, McKee 1993) : indicateur OMM de sécheresse/excédent. Cumul de pluie transformé via une loi gamma (référence 1991-2020) en écarts-types (σ), classé en 7 classes. Brun = sec, gris = normal, bleu-vert = humide."
     },
     "era5": {
       "popupTemperature": "Température",
       "popupPrecipitation": "Précipitations",
       "popupEvaporation": "Évapotranspiration (ETP)",
       "popupAnomaly": "Anomalie {{n}} mois",
-      "popupStiLabel": "Indice thermique {{n}} mois"
+      "popupStiLabel": "Indice thermique {{n}} mois",
+      "popupSpiLabel": "Indice de précipitations {{n}} mois"
     },
     "sti": {
       "EXTREMEMENT_BAS": "Très froid",
@@ -269,6 +276,16 @@
       "HAUT": "Doux",
       "TRES_HAUT": "Chaud",
       "EXTREMEMENT_HAUT": "Très chaud",
+      "UNKNOWN": "—"
+    },
+    "spi": {
+      "EXTREMEMENT_BAS": "Très sec",
+      "TRES_BAS": "Sec",
+      "BAS": "Modérément sec",
+      "NORMAL": "Normal",
+      "HAUT": "Modérément humide",
+      "TRES_HAUT": "Humide",
+      "EXTREMEMENT_HAUT": "Très humide",
       "UNKNOWN": "—"
     },
     "stationDrawer": {

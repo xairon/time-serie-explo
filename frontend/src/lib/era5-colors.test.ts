@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   ERA5_VARIABLES, era5ColorExpression, era5FormatValue, era5GradientCss, era5RawDomain,
   STI_CLASS_COLORS, STI_CLASS_ORDER, era5StiClassColor, classifyIndex, era5StiClassMatchExpr,
+  SPI_CLASS_COLORS, SPI_CLASS_ORDER, era5SpiClassColor, era5SpiClassMatchExpr,
 } from './era5-colors'
 
 describe('era5-colors', () => {
@@ -58,31 +59,41 @@ describe('era5-colors', () => {
     expect(css).toContain('#f7f7f7 50.0%')
   })
 
-  it('precipAnomaly is in the model with prop=anomaly and a 0-centred divergent scale', () => {
-    expect(ERA5_VARIABLES.precipAnomaly.prop).toBe('anomaly')
-    expect(ERA5_VARIABLES.precipAnomaly.unit).toBe('%')
-    const expr = era5ColorExpression('precipAnomaly') as any[]
-    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly']])
+  it('precipStdIndex (SPI) is in the model with prop=spi, σ unit and a 0-centred divergent scale', () => {
+    expect(ERA5_VARIABLES.precipStdIndex.prop).toBe('spi')
+    expect(ERA5_VARIABLES.precipStdIndex.unit).toBe('σ')
+    const expr = era5ColorExpression('precipStdIndex') as any[]
+    expect(expr[2]).toEqual(['to-number', ['get', 'spi']])
     // divergent scale must include a 0 midpoint stop
     const stopValues = expr.slice(3).filter((_: unknown, i: number) => i % 2 === 0)
     expect(stopValues).toContain(0)
   })
 
-  it('formats precipAnomaly as a signed integer percent with Unicode minus', () => {
-    expect(era5FormatValue('precipAnomaly', 50)).toBe('+50 %')
-    expect(era5FormatValue('precipAnomaly', -40)).toBe('−40 %')
-    expect(era5FormatValue('precipAnomaly', 0)).toBe('+0 %')
-    expect(era5FormatValue('precipAnomaly', null)).toBe('—')
+  it('formats precipStdIndex (SPI) as a signed z-score with Unicode minus', () => {
+    expect(era5FormatValue('precipStdIndex', 2.1)).toBe('+2.1 σ')
+    expect(era5FormatValue('precipStdIndex', -1.5)).toBe('−1.5 σ')
+    expect(era5FormatValue('precipStdIndex', 0.0)).toBe('+0.0 σ')
+    expect(era5FormatValue('precipStdIndex', null)).toBe('—')
   })
 
-  it('era5GradientCss works for precipAnomaly and places 0-stop at 50%', () => {
-    const css = era5GradientCss('precipAnomaly')
+  it('era5GradientCss works for precipStdIndex and places the 0-stop at 50% (BrBG dry→wet)', () => {
+    const css = era5GradientCss('precipStdIndex')
     expect(css).toMatch(/^linear-gradient\(to right,/)
-    // precipAnomaly stops: -80..0..+80 → 0 is at (0-(-80))/(80-(-80))*100 = 50%
+    // precipStdIndex stops: -2..0..+2 → 0 is at (0-(-2))/(2-(-2))*100 = 50%
     expect(css).toContain('#f5f5f5 50.0%')
-    // extreme colours present
+    // extreme colours present: brown (dry) and dark teal (wet)
     expect(css).toContain('#8c510a')
     expect(css).toContain('#01665e')
+  })
+
+  it('SPI_CLASS_COLORS/ORDER mirror STI (dry→wet, brown→teal) and match expr builds', () => {
+    expect(SPI_CLASS_ORDER).toHaveLength(7)
+    expect(SPI_CLASS_COLORS.EXTREMEMENT_BAS).toBe('#8c510a')  // extreme drought
+    expect(SPI_CLASS_COLORS.EXTREMEMENT_HAUT).toBe('#01665e') // extreme wet
+    expect(era5SpiClassColor('NOT_A_CLASS')).toBe(SPI_CLASS_COLORS.UNKNOWN)
+    const expr = era5SpiClassMatchExpr() as any[]
+    expect(expr[0]).toBe('match')
+    expect(expr[expr.length - 1]).toBe(SPI_CLASS_COLORS.UNKNOWN)
   })
 
   it('era5RawDomain returns granularity-aware domains for raw variables', () => {

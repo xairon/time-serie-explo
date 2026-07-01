@@ -82,6 +82,62 @@ def compute_sti(window_rows, reference, window) -> list[dict]:
     return out
 
 
+def compute_spi_grid(window_rows, reference, window) -> list[dict]:
+    """Compute the Standardized Precipitation Index (SPI, McKee 1993) per grid cell.
+
+    SPI is the WMO-standard precipitation index (gamma distribution), the precipitation
+    analogue of the STI. For each cell the reference carries the gamma parameters
+    (a, loc, scale) fitted to the 1991-2020 N-month accumulated precipitation totals;
+    the current window's accumulation is mapped through the gamma CDF then onto a
+    standard normal to get z, classified into the 7 McKee/WMO classes.
+
+    Args:
+        window_rows: dicts ``{latitude, longitude, window_sum, n_months}`` — observed
+            N-month accumulated precipitation for each cell.
+        reference:  dicts ``{latitude, longitude, a, loc, scale, n_years}`` — fitted gamma.
+        window:     Window length in months (1, 3, 6, or 12).
+
+    Returns:
+        List of ``{latitude, longitude, spi, index_class}``, dropping cells with a null
+        or non-positive window sum, an incomplete observed window (n_months < window),
+        or no/invalid reference gamma fit.
+    """
+    from scipy import stats
+
+    ref_map: dict[tuple[float, float], dict] = {}
+    for r in reference:
+        ref_map[(float(r["latitude"]), float(r["longitude"]))] = r
+
+    out = []
+    for r in window_rows:
+        s = r.get("window_sum")
+        if s is None:
+            continue
+        if int(r["n_months"]) < window:
+            continue
+        val = float(s)
+        if val <= 0:
+            continue  # gamma support is (0, +inf)
+        key = (float(r["latitude"]), float(r["longitude"]))
+        ref = ref_map.get(key)
+        if ref is None:
+            continue
+        a = ref.get("a")
+        scale = ref.get("scale")
+        if a is None or scale is None or float(scale) <= 0:
+            continue
+        cdf = float(stats.gamma.cdf(val, float(a), loc=float(ref.get("loc", 0.0)), scale=float(scale)))
+        cdf = min(max(cdf, 0.001), 0.999)
+        z = float(stats.norm.ppf(cdf))
+        out.append({
+            "latitude": key[0],
+            "longitude": key[1],
+            "spi": round(z, 3),
+            "index_class": classify_index(z),
+        })
+    return out
+
+
 def window_end_months(end_month: int, n: int) -> list[int]:
     """The n calendar months (1..12) ending at end_month, chronological, wrapping."""
     months = [((end_month - i - 1) % 12) + 1 for i in range(n)]

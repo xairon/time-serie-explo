@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { ERA5_VARIABLES, era5GradientCss, era5RawDomain, STI_CLASS_ORDER, STI_CLASS_COLORS } from '@/lib/era5-colors'
+import { ERA5_VARIABLES, era5GradientCss, era5RawDomain, STI_CLASS_ORDER, STI_CLASS_COLORS, SPI_CLASS_ORDER, SPI_CLASS_COLORS } from '@/lib/era5-colors'
 import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   era5Granularity?: Era5Granularity
 }
 
-const ANOMALY_VARIABLES: Era5Variable[] = ['anomaly', 'precipAnomaly']
+const ANOMALY_VARIABLES: Era5Variable[] = ['anomaly']
 
 export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, era5Granularity = 'daily' }: Props) {
   const { t, i18n } = useTranslation()
@@ -44,7 +44,12 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
     }
   }
 
-  if (era5Variable === 'tempStdIndex') {
+  // STI and SPI share a discrete 7-class McKee legend (only the colours + labels differ).
+  if (era5Variable === 'tempStdIndex' || era5Variable === 'precipStdIndex') {
+    const isSpi = era5Variable === 'precipStdIndex'
+    const classOrder = isSpi ? SPI_CLASS_ORDER : STI_CLASS_ORDER
+    const classColors = isSpi ? SPI_CLASS_COLORS : STI_CLASS_COLORS
+    const ns = isSpi ? 'observatory.spi' : 'observatory.sti'
     return (
       <div
         className="absolute bottom-16 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none"
@@ -58,10 +63,10 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
           {periodLabel && <span>{periodLabel}</span>}
         </div>
         <div className="mt-1.5 space-y-0.5">
-          {[...STI_CLASS_ORDER].reverse().map((cls) => (
+          {[...classOrder].reverse().map((cls) => (
             <div key={cls} className="flex items-center gap-1.5">
-              <span className="w-3 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: STI_CLASS_COLORS[cls] }} />
-              <span className="text-[9px] text-text-secondary">{t(`observatory.sti.${cls}`, { defaultValue: cls })}</span>
+              <span className="w-3 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: classColors[cls] }} />
+              <span className="text-[9px] text-text-secondary">{t(`${ns}.${cls}`, { defaultValue: cls })}</span>
             </div>
           ))}
         </div>

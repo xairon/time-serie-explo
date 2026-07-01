@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Layers, X, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Layers, X, RotateCcw, ChevronDown, ChevronRight, Info } from 'lucide-react'
 import { CLASSIFICATION_ORDER, CLASSIFICATION_LABELS, CLASSIFICATION_COLORS } from '@/lib/observatory-constants'
 import type { ObsFilters } from '@/hooks/useObservatory'
 import { ERA5_VARIABLES, era5GradientCss, era5RawDomain } from '@/lib/era5-colors'
@@ -70,6 +70,26 @@ function AccordionSection({ id, title, badge, defaultOpen, children }: { id: str
 
 const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'evaporation'> = ['temperature', 'precipitation', 'evaporation']
 
+// i18n key of the hover description for each ERA5 variable (what it is, reference period, colour reading).
+const ERA5_DESC_KEY: Record<string, string> = {
+  temperature: 'observatory.drawer.era5DescTemperature',
+  precipitation: 'observatory.drawer.era5DescPrecipitation',
+  evaporation: 'observatory.drawer.era5DescEvaporation',
+  anomaly: 'observatory.drawer.era5DescAnomaly',
+  tempStdIndex: 'observatory.drawer.era5DescStdIndex',
+  precipStdIndex: 'observatory.drawer.era5DescPrecipStdIndex',
+}
+
+/** Small ⓘ affordance whose native title tooltip explains an ERA5 layer on hover. */
+function Era5InfoIcon({ descKey }: { descKey: string }) {
+  const { t } = useTranslation()
+  return (
+    <span title={t(descKey)} className="ml-auto cursor-help" aria-label={t(descKey)}>
+      <Info className="w-3 h-3 text-text-secondary/50 hover:text-accent-cyan transition-colors" />
+    </span>
+  )
+}
+
 function Era5RawContextSection({ era5Variable, setEra5Variable }: { era5Variable: Era5Variable; setEra5Variable: (v: Era5Variable) => void }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -89,6 +109,7 @@ function Era5RawContextSection({ era5Variable, setEra5Variable }: { era5Variable
             <label key={key} className="flex items-center gap-2 cursor-pointer group py-0.5">
               <input type="radio" name="era5-variable" checked={era5Variable === key} onChange={() => setEra5Variable(key)} className="w-3.5 h-3.5 accent-accent-cyan" />
               <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(ERA5_VARIABLES[key].labelKey)}</span>
+              <Era5InfoIcon descKey={ERA5_DESC_KEY[key]} />
             </label>
           ))}
         </div>
@@ -190,17 +211,18 @@ export function RightDrawer(props: Props) {
             <div className="space-y-3 border-t border-white/5 pt-2">
               {/* Primary anomaly variables */}
               <div className="space-y-1">
-                {(['precipAnomaly', 'tempStdIndex'] as const).map((key) => (
+                {(['precipStdIndex', 'tempStdIndex'] as const).map((key) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer group">
                     <input type="radio" name="era5-variable" checked={props.era5Variable === key} onChange={() => props.setEra5Variable(key)} className="w-3.5 h-3.5 accent-accent-cyan" />
                     <span className="text-xs text-text-secondary group-hover:text-text-primary transition-colors">{t(ERA5_VARIABLES[key].labelKey)}</span>
+                    <Era5InfoIcon descKey={ERA5_DESC_KEY[key]} />
                   </label>
                 ))}
               </div>
               {/* Collapsible raw context */}
               <Era5RawContextSection era5Variable={props.era5Variable} setEra5Variable={props.setEra5Variable} />
               {/* Window selector (anomaly variables only) */}
-              {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly' || props.era5Variable === 'tempStdIndex') && (
+              {(props.era5Variable === 'anomaly' || props.era5Variable === 'tempStdIndex' || props.era5Variable === 'precipStdIndex') && (
                 <div>
                   <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Window')}</label>
                   <div className="flex gap-1">
@@ -219,7 +241,7 @@ export function RightDrawer(props: Props) {
               )}
               <div>
                 <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Date')}</label>
-                {(props.era5Variable === 'anomaly' || props.era5Variable === 'precipAnomaly' || props.era5Variable === 'tempStdIndex') ? (
+                {(props.era5Variable === 'anomaly' || props.era5Variable === 'tempStdIndex' || props.era5Variable === 'precipStdIndex') ? (
                   <input type="month" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '').slice(0, 7) : (props.era5Date ? props.era5Date.slice(0, 7) : '')} min={props.era5MinDate ? props.era5MinDate.slice(0, 7) : undefined} max={props.era5MaxDate ? props.era5MaxDate.slice(0, 7) : undefined} onChange={(e) => props.setEra5Date(e.target.value ? e.target.value + '-01' : '')} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
                 ) : (
                   <input type="date" value={props.era5TimelineDriven ? (props.era5EffectiveDate ?? '') : props.era5Date} min={props.era5MinDate} max={props.era5MaxDate} onChange={(e) => props.setEra5Date(e.target.value)} disabled={props.era5TimelineDriven} className={`w-full px-2.5 py-1.5 bg-bg-primary border border-white/10 rounded text-sm text-text-primary focus:outline-none focus:border-accent-cyan/50${props.era5TimelineDriven ? ' opacity-50 cursor-not-allowed' : ''}`} />
@@ -237,12 +259,12 @@ export function RightDrawer(props: Props) {
                 <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
                 {/* Scale labels: min left, optional 0 centre for divergent anomaly, max right */}
                 {(() => {
-                  // Divergent (0-centred) scales: anomalies AND the STI z-score. STI must
-                  // NOT fall through to era5RawDomain, which would return the temperature
-                  // default [-10, 35] and mislabel the σ ramp.
+                  // Divergent (0-centred) scales: the temperature anomaly AND the STI/SPI
+                  // z-scores. These must NOT fall through to era5RawDomain (which returns
+                  // the temperature default [-10, 35] and would mislabel the σ ramp).
                   const isDivergentVar = props.era5Variable === 'anomaly'
-                    || props.era5Variable === 'precipAnomaly'
                     || props.era5Variable === 'tempStdIndex'
+                    || props.era5Variable === 'precipStdIndex'
                   // Divergent vars read their own stops; raw vars use the granularity-aware domain.
                   const [scaleMin, scaleMax] = isDivergentVar
                     ? [ERA5_VARIABLES[props.era5Variable].stops[0][0], ERA5_VARIABLES[props.era5Variable].stops.at(-1)![0]]

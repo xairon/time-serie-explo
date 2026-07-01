@@ -219,6 +219,15 @@ export interface ERA5StiPoint {
   index_class: string | null
 }
 
+export interface ERA5SpiPoint {
+  latitude: number
+  longitude: number
+  /** Standardized Precipitation Index z-score (McKee 1993, gamma). */
+  spi: number | null
+  /** McKee 7-class string or 'UNKNOWN'. */
+  index_class: string | null
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateEra5ByZone, era5ZoneColorExpression, era5StiZoneColorExpression, pointInPolygonGeometry } from './era5-zones'
+import { aggregateEra5ByZone, era5ZoneColorExpression, era5StiZoneColorExpression, era5SpiZoneColorExpression, pointInPolygonGeometry } from './era5-zones'
 
 const square = (cx: number, cy: number) => ({
   type: 'Feature' as const,
@@ -38,11 +38,13 @@ describe('era5-zones', () => {
     // Regression: while ERA5 anomaly/STI data is still loading, zoneValues is empty.
     // An empty ['match', input, fallback] is invalid in MapLibre ("Expected at least
     // 4 arguments") and left the by-zone layer blank. Must be a constant instead.
-    expect(era5ZoneColorExpression('code', {}, 'precipAnomaly')).toBe('rgba(0,0,0,0)')
+    expect(era5ZoneColorExpression('code', {}, 'anomaly')).toBe('rgba(0,0,0,0)')
     expect(era5StiZoneColorExpression('code', {})).toBe('rgba(0,0,0,0)')
-    // with data, both still build a valid match
-    expect(Array.isArray(era5ZoneColorExpression('code', { A: 1 }, 'precipAnomaly'))).toBe(true)
+    expect(era5SpiZoneColorExpression('code', {})).toBe('rgba(0,0,0,0)')
+    // with data, all still build a valid match
+    expect(Array.isArray(era5ZoneColorExpression('code', { A: 1 }, 'anomaly'))).toBe(true)
     expect(Array.isArray(era5StiZoneColorExpression('code', { A: 1 }))).toBe(true)
+    expect(Array.isArray(era5SpiZoneColorExpression('code', { A: 1 }))).toBe(true)
   })
 
   it('rescales stop positions when domain is provided (raw monthly case)', () => {

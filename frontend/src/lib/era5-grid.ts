@@ -1,4 +1,4 @@
-import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint } from './observatory-types'
+import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint, ERA5SpiPoint } from './observatory-types'
 
 export const ERA5_CELL_HALF = 0.05
 
@@ -73,6 +73,36 @@ export function era5StiToSquares(
             ]],
           },
           properties: { index_class: p.index_class as string, sti: p.sti },
+        }
+      }),
+  }
+}
+
+/** Convert SPI points into GeoJSON squares carrying the McKee class + z-score (mirror of STI). */
+export function era5SpiToSquares(
+  points: ERA5SpiPoint[],
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { index_class: string; spi: number | null }> {
+  const h = ERA5_CELL_HALF
+  return {
+    type: 'FeatureCollection',
+    features: points
+      .filter((p) => p.index_class != null && p.index_class !== 'UNKNOWN')
+      .map((p) => {
+        const lon = Number(p.longitude)
+        const lat = Number(p.latitude)
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [lon - h, lat - h],
+              [lon + h, lat - h],
+              [lon + h, lat + h],
+              [lon - h, lat + h],
+              [lon - h, lat - h],
+            ]],
+          },
+          properties: { index_class: p.index_class as string, spi: p.spi },
         }
       }),
   }

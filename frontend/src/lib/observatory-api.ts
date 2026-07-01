@@ -2,7 +2,7 @@
 import { API_BASE } from './constants'
 import type {
   PiezoStation, HydroStation, NationalStats,
-  Alert, ERA5GridPoint, ERA5Range, ERA5AnomalyPoint, ERA5StiPoint,
+  Alert, ERA5GridPoint, ERA5Range, ERA5AnomalyPoint, ERA5StiPoint, ERA5SpiPoint,
   DailyPiezoMeasurement, DailyHydroMeasurement,
   MonthlyPiezoData, MonthlyHydroData,
   YearlyPiezoData, YearlyHydroData,
@@ -118,6 +118,8 @@ export const observatoryApi = {
       fetchJson<ERA5AnomalyPoint[]>('/observatory/era5/anomaly', { variable, date, window: String(window) }),
     sti: (date: string, window: number) =>
       fetchJson<ERA5StiPoint[]>('/observatory/era5/sti', { date, window: String(window) }),
+    spi: (date: string, window: number) =>
+      fetchJson<ERA5SpiPoint[]>('/observatory/era5/spi', { date, window: String(window) }),
   },
   wfs: {
     layer: (layerId: string, bbox?: string) =>

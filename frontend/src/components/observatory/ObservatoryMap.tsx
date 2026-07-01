@@ -5,11 +5,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
-import { era5PointsToSquares, era5GenericAnomalyToSquares, era5StiToSquares } from '@/lib/era5-grid'
-import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain, era5StiClassMatchExpr } from '@/lib/era5-colors'
+import { era5PointsToSquares, era5GenericAnomalyToSquares, era5StiToSquares, era5SpiToSquares } from '@/lib/era5-grid'
+import { era5ColorExpression, era5FormatValue, ERA5_VARIABLES, era5RawDomain, era5StiClassMatchExpr, era5SpiClassMatchExpr } from '@/lib/era5-colors'
 import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
-import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint } from '@/lib/observatory-types'
-import { aggregateEra5ByZone, era5ZoneColorExpression, era5StiZoneColorExpression } from '@/lib/era5-zones'
+import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint, ERA5SpiPoint } from '@/lib/observatory-types'
+import { aggregateEra5ByZone, era5ZoneColorExpression, era5StiZoneColorExpression, era5SpiZoneColorExpression } from '@/lib/era5-zones'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.5
@@ -72,6 +72,7 @@ interface Props {
   era5Variable?: Era5Variable
   era5AnomalyPoints?: ERA5AnomalyPoint[]
   era5StiPoints?: ERA5StiPoint[]
+  era5SpiPoints?: ERA5SpiPoint[]
   era5Window?: number
   era5ByZone?: boolean
   era5Granularity?: Era5Granularity
@@ -285,7 +286,7 @@ function computeBbox(geometry: any): [number, number, number, number] {
  * returned by era5RawDomain, so monthly maps don't saturate.
  */
 function buildRawGridColorExpression(variable: Era5Variable, granularity: Era5Granularity): unknown[] {
-  if (variable === 'anomaly' || variable === 'precipAnomaly') {
+  if (variable === 'anomaly') {
     return era5ColorExpression(variable)
   }
   const rawVar = variable as 'temperature' | 'precipitation' | 'evaporation'
@@ -325,7 +326,7 @@ export function ObservatoryMap({
   flyToBbox = null, onFlyToComplete,
   showSectors = false, sectorSituation, onSectorClick, stationsInGeometry: stationsInGeometryProp,
   era5Active = false, era5Points, era5Variable = 'temperature',
-  era5AnomalyPoints, era5StiPoints, era5Window = 3,
+  era5AnomalyPoints, era5StiPoints, era5SpiPoints, era5Window = 3,
   era5ByZone = false,
   era5Granularity = 'daily',
 }: Props) {
@@ -737,19 +738,23 @@ export function ObservatoryMap({
     }
 
     const cfg = ERA5_VARIABLES[era5Variable]
-    const isAnomalyVar = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
+    const isAnomalyVar = era5Variable === 'anomaly'
     const isStiVar = era5Variable === 'tempStdIndex'
+    const isSpiVar = era5Variable === 'precipStdIndex'
     let data: GeoJSON.FeatureCollection<GeoJSON.Polygon>
     if (isAnomalyVar) {
       data = era5GenericAnomalyToSquares(era5AnomalyPoints ?? [])
     } else if (isStiVar) {
       data = era5StiToSquares(era5StiPoints ?? [])
+    } else if (isSpiVar) {
+      data = era5SpiToSquares(era5SpiPoints ?? [])
     } else {
       const pts = (era5Points ?? []).filter((p) => p[cfg.prop as 'temperature_2m' | 'total_precipitation' | 'potential_evaporation'] != null)
       data = era5PointsToSquares(pts)
     }
     const loading = isAnomalyVar ? era5AnomalyPoints === undefined
       : isStiVar ? era5StiPoints === undefined
+      : isSpiVar ? era5SpiPoints === undefined
       : era5Points === undefined
     setEra5NoData(!loading && data.features.length === 0)
 
@@ -763,7 +768,9 @@ export function ObservatoryMap({
           paint: {
             'fill-color': isStiVar
               ? era5StiClassMatchExpr() as any
-              : buildRawGridColorExpression(era5Variable, era5Granularity) as any,
+              : isSpiVar
+                ? era5SpiClassMatchExpr() as any
+                : buildRawGridColorExpression(era5Variable, era5Granularity) as any,
             'fill-opacity': 0.6,
           },
         },
@@ -785,7 +792,16 @@ export function ObservatoryMap({
             <div><strong>${t('observatory.era5.popupStiLabel', { n: era5WindowRef.current })}</strong></div>
             <div>${label} (${zStr})</div>
           </div>`
-        } else if (curVar === 'anomaly' || curVar === 'precipAnomaly') {
+        } else if (curVar === 'precipStdIndex') {
+          const spi = num('spi')
+          const indexClass = pr['index_class'] ?? 'UNKNOWN'
+          const label = t(`observatory.spi.${indexClass}`, { defaultValue: indexClass })
+          const zStr = spi != null ? (spi >= 0 ? `+${spi.toFixed(1)}` : `−${Math.abs(spi).toFixed(1)}`) + ' σ' : '—'
+          html = `<div style="font-size:12px;line-height:1.5">
+            <div><strong>${t('observatory.era5.popupSpiLabel', { n: era5WindowRef.current })}</strong></div>
+            <div>${label} (${zStr})</div>
+          </div>`
+        } else if (curVar === 'anomaly') {
           html = `<div style="font-size:12px;line-height:1.5"><div>${t('observatory.era5.popupAnomaly', { n: era5WindowRef.current })}: ${era5FormatValue(curVar, num('anomaly'))}</div></div>`
         } else {
           html = `<div style="font-size:12px;line-height:1.5">
@@ -806,11 +822,13 @@ export function ObservatoryMap({
       map.setPaintProperty(FILL, 'fill-color',
         isStiVar
           ? era5StiClassMatchExpr() as any
-          : buildRawGridColorExpression(era5Variable, era5Granularity) as any
+          : isSpiVar
+            ? era5SpiClassMatchExpr() as any
+            : buildRawGridColorExpression(era5Variable, era5Granularity) as any
       )
     }
     if (!era5ByZone) map.setLayoutProperty(FILL, 'visibility', 'visible')
-  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5StiPoints, era5Variable, era5Window, era5ByZone, era5Granularity, t])
+  }, [mapLoaded, era5Active, era5Points, era5AnomalyPoints, era5StiPoints, era5SpiPoints, era5Variable, era5Window, era5ByZone, era5Granularity, t])
 
   // --- ERA5 by-zone choropleth (V3: dedicated era5-zone-fill layer, no admin fill-color hijack) ---
   useEffect(() => {
@@ -868,20 +886,22 @@ export function ObservatoryMap({
 
     // Aggregate ERA5 values per zone
     const zoneFeatures = (zoneGeoRef.current[cfg.geoKey]?.features) ?? []
-    const isAnom = era5Variable === 'anomaly' || era5Variable === 'precipAnomaly'
+    const isAnom = era5Variable === 'anomaly'
     const isSti = era5Variable === 'tempStdIndex'
-    // Both anomaly variables from the generic hook return the 'anomaly' field
-    const valueKey = isAnom ? 'anomaly' : isSti ? 'sti' : ERA5_VARIABLES[era5Variable].prop
-    const points = (isAnom ? era5AnomalyPoints : isSti ? era5StiPoints : era5Points) ?? []
+    const isSpi = era5Variable === 'precipStdIndex'
+    const valueKey = isAnom ? 'anomaly' : isSti ? 'sti' : isSpi ? 'spi' : ERA5_VARIABLES[era5Variable].prop
+    const points = (isAnom ? era5AnomalyPoints : isSti ? era5StiPoints : isSpi ? era5SpiPoints : era5Points) ?? []
     const zoneValues = aggregateEra5ByZone(points as any, valueKey, zoneFeatures, cfg.idProp)
     // For raw variables, pass the granularity-aware domain so the stop positions
     // are rescaled to the correct range and monthly aggregates don't saturate.
-    const rawDomain = (isAnom || isSti)
+    const rawDomain = (isAnom || isSti || isSpi)
       ? undefined
       : era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation', era5Granularity)
     const colorExpr = isSti
       ? era5StiZoneColorExpression(cfg.idProp, zoneValues)
-      : era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable, rawDomain)
+      : isSpi
+        ? era5SpiZoneColorExpression(cfg.idProp, zoneValues)
+        : era5ZoneColorExpression(cfg.idProp, zoneValues, era5Variable, rawDomain)
 
     // Build / update the dedicated era5-zone GeoJSON source and fill layer.
     // The source stores lightweight features (geometry + idProp only); colour is applied
@@ -933,7 +953,7 @@ export function ObservatoryMap({
     if (map.getLayer('era5-zone-fill')) {
       map.setLayoutProperty('era5-zone-fill', 'visibility', 'visible')
     }
-  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, era5StiPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady, era5Granularity])
+  }, [mapLoaded, era5ByZone, era5Active, era5Variable, era5Points, era5AnomalyPoints, era5StiPoints, era5SpiPoints, showDepts, showRegions, showHER, showSandre, showSectors, layersReady, era5Granularity])
 
   // Fly to bbox
   const onFlyToCompleteRef = useRef(onFlyToComplete); onFlyToCompleteRef.current = onFlyToComplete

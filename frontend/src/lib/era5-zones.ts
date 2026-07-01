@@ -1,4 +1,4 @@
-import { ERA5_VARIABLES, type Era5Variable, classifyIndex, era5StiClassColor } from './era5-colors'
+import { ERA5_VARIABLES, type Era5Variable, classifyIndex, era5StiClassColor, era5SpiClassColor } from './era5-colors'
 
 function pointInRing(x: number, y: number, ring: number[][]): boolean {
   let inside = false
@@ -68,6 +68,24 @@ export function era5StiZoneColorExpression(
   for (const [id, z] of Object.entries(zoneValues)) {
     const cls = classifyIndex(z)
     expr.push(id, era5StiClassColor(cls))
+  }
+  expr.push('rgba(0,0,0,0)') // fallback for zones with no data
+  return expr
+}
+
+/**
+ * Build a MapLibre 'match' colour expression for a by-zone SPI choropleth.
+ * Mirrors era5StiZoneColorExpression but with the precipitation-oriented SPI colours.
+ */
+export function era5SpiZoneColorExpression(
+  idProp: string,
+  zoneValues: Record<string, number>,
+): unknown[] | string {
+  if (Object.keys(zoneValues).length === 0) return 'rgba(0,0,0,0)'
+  const expr: unknown[] = ['match', ['get', idProp]]
+  for (const [id, z] of Object.entries(zoneValues)) {
+    const cls = classifyIndex(z)
+    expr.push(id, era5SpiClassColor(cls))
   }
   expr.push('rgba(0,0,0,0)') // fallback for zones with no data
   return expr

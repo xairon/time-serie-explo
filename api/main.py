@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
                 asyncio.to_thread(observatory_era5._era5_temp_climatology),
                 asyncio.to_thread(observatory_era5._era5_precip_climatology),
                 asyncio.to_thread(observatory_era5._warm_era5_sti_default),
+                asyncio.to_thread(observatory_era5._warm_era5_spi_default),
                 return_exceptions=True
             )
             if not isinstance(results[0], Exception):
@@ -109,6 +110,10 @@ async def lifespan(app: FastAPI):
                 logger.info("ERA5 STI reference cache warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
             else:
                 logger.warning("ERA5 STI reference warm-up failed: %s", results[2])
+            if not isinstance(results[3], Exception):
+                logger.info("ERA5 SPI reference cache warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
+            else:
+                logger.warning("ERA5 SPI reference warm-up failed: %s", results[3])
         except Exception:
             logger.warning("ERA5 climatology warm-up failed", exc_info=True)
 
@@ -128,12 +133,14 @@ async def lifespan(app: FastAPI):
                         end_month = latest_complete_month(max_date).month
                         for _w in observatory_era5.STI_WARM_WINDOWS:
                             delete_cached("obs_era5_sti_ref", {"window": _w, "end_month": end_month})
+                            delete_cached("obs_era5_spi_ref", {"window": _w, "end_month": end_month})
                 except Exception:
                     pass  # non-blocking; continue even if delete fails
                 results = await asyncio.gather(
                     asyncio.to_thread(observatory_era5._era5_temp_climatology),
                     asyncio.to_thread(observatory_era5._era5_precip_climatology),
                     asyncio.to_thread(observatory_era5._warm_era5_sti_default),
+                    asyncio.to_thread(observatory_era5._warm_era5_spi_default),
                     return_exceptions=True
                 )
                 if not isinstance(results[0], Exception):
@@ -148,6 +155,10 @@ async def lifespan(app: FastAPI):
                     logger.info("ERA5 STI reference cache re-warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
                 else:
                     logger.warning("ERA5 STI reference re-warm failed: %s", results[2])
+                if not isinstance(results[3], Exception):
+                    logger.info("ERA5 SPI reference cache re-warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
+                else:
+                    logger.warning("ERA5 SPI reference re-warm failed: %s", results[3])
             except Exception:
                 logger.warning("ERA5 climatology re-warm failed", exc_info=True)
 

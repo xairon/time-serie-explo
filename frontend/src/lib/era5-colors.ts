@@ -1,9 +1,9 @@
-export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'precipAnomaly' | 'tempStdIndex'
+export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'anomaly' | 'tempStdIndex' | 'precipStdIndex'
 export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly' | 'sti'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'anomaly' | 'sti' | 'spi'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -31,11 +31,11 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     labelKey: 'observatory.drawer.era5VarAnomaly',
     stops: [[-5, '#2166ac'], [-2.5, '#67a9cf'], [-0.5, '#d1e5f0'], [0, '#f7f7f7'], [0.5, '#fddbc7'], [2.5, '#ef8a62'], [5, '#b2182b']],
   },
-  precipAnomaly: {
-    key: 'precipAnomaly', prop: 'anomaly', unit: '%',
-    labelKey: 'observatory.drawer.era5VarPrecipAnomaly',
-    // Divergent scale centred on 0: dry = brown/red, wet = teal/blue
-    stops: [[-80, '#8c510a'], [-40, '#d8b365'], [-10, '#f6e8c3'], [0, '#f5f5f5'], [10, '#c7eae5'], [40, '#5ab4ac'], [80, '#01665e']],
+  precipStdIndex: {
+    key: 'precipStdIndex', prop: 'spi', unit: 'σ',
+    labelKey: 'observatory.drawer.era5VarPrecipStdIndex',
+    // Continuous z-score fallback scale (dry→wet, BrBG); discrete class colours used by the SPI layer
+    stops: [[-2, '#8c510a'], [-1, '#dfc27d'], [0, '#f5f5f5'], [1, '#80cdc1'], [2, '#01665e']],
   },
   tempStdIndex: {
     key: 'tempStdIndex', prop: 'sti', unit: 'σ',
@@ -76,11 +76,7 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
     const s = value.toFixed(1)
     return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
   }
-  if (v === 'precipAnomaly') {
-    const s = Math.round(value).toString()
-    return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
-  }
-  if (v === 'tempStdIndex') {
+  if (v === 'tempStdIndex' || v === 'precipStdIndex') {
     const s = Math.abs(value).toFixed(1)
     return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`
   }
@@ -153,6 +149,44 @@ export function era5StiClassMatchExpr(): unknown[] {
     expr.push(cls, STI_CLASS_COLORS[cls])
   }
   expr.push(STI_CLASS_COLORS['UNKNOWN']) // fallback
+  return expr
+}
+
+// ---------------------------------------------------------------------------
+// SPI (Standardized Precipitation Index, McKee 1993) — discrete 7-class colour map
+// Precipitation-oriented (BrBG diverging): dry (brown) → normal (neutral) → wet (teal).
+// Opposite orientation to the STI (which is cold→hot); shares the same McKee classes.
+// ---------------------------------------------------------------------------
+
+/** McKee 7-class colour map keyed by index_class string (precipitation-oriented). */
+export const SPI_CLASS_COLORS: Record<string, string> = {
+  EXTREMEMENT_BAS: '#8c510a',   // dark brown — extreme drought
+  TRES_BAS:        '#bf812d',   // brown — severe dry
+  BAS:             '#dfc27d',   // tan — moderately dry
+  NORMAL:          '#f5f5f5',   // neutral — near normal
+  HAUT:            '#80cdc1',   // light teal — moderately wet
+  TRES_HAUT:       '#35978f',   // teal — very wet
+  EXTREMEMENT_HAUT:'#01665e',   // dark teal — extremely wet
+  UNKNOWN:         '#6b7280',   // grey — unknown / insufficient data
+}
+
+/** Ordered from driest to wettest (for legends). */
+export const SPI_CLASS_ORDER = [
+  'EXTREMEMENT_BAS', 'TRES_BAS', 'BAS', 'NORMAL', 'HAUT', 'TRES_HAUT', 'EXTREMEMENT_HAUT',
+] as const
+
+/** Returns the CSS colour for a given SPI index_class string; falls back to grey. */
+export function era5SpiClassColor(cls: string): string {
+  return SPI_CLASS_COLORS[cls] ?? SPI_CLASS_COLORS['UNKNOWN']
+}
+
+/** MapLibre 'match' fill-color expression mapping the 'index_class' property to its SPI colour. */
+export function era5SpiClassMatchExpr(): unknown[] {
+  const expr: unknown[] = ['match', ['get', 'index_class']]
+  for (const cls of SPI_CLASS_ORDER) {
+    expr.push(cls, SPI_CLASS_COLORS[cls])
+  }
+  expr.push(SPI_CLASS_COLORS['UNKNOWN']) // fallback
   return expr
 }
 
