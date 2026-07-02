@@ -144,11 +144,24 @@ export default function MeteoNappesPage() {
     return displaySectorSituation.find((s) => Number(s.code) === selectedSectorId) ?? null
   }, [displaySectorSituation, selectedSectorId])
 
+  // When replaying a past month, per-station classification for that month is not
+  // available (the timeline is per-sector only), so neutralize the marker classes/popups.
+  // Otherwise the markers keep their latest-month colour on top of a historically
+  // recoloured sector map — a visibly inconsistent carte.
+  const isHistorical = effectivePeriod != null && effectivePeriod !== latest
+  const neutralize = useCallback(
+    (fs: StationGeoJSONFeature[]) =>
+      isHistorical ? fs.map((f) => ({ ...f, properties: { ...f.properties, classification: null } })) : fs,
+    [isHistorical],
+  )
+  const displayPiezoFeatures = useMemo(() => neutralize(piezoFeatures), [neutralize, piezoFeatures])
+  const displayHydroFeatures = useMemo(() => neutralize(hydroFeatures), [neutralize, hydroFeatures])
+
   const selectedStationFeature = useMemo<StationGeoJSONFeature | null>(() => {
     if (!selectedStation) return null
-    const pool = selectedStation.type === 'piezo' ? piezoFeatures : hydroFeatures
+    const pool = selectedStation.type === 'piezo' ? displayPiezoFeatures : displayHydroFeatures
     return pool.find((f) => f.properties.code === selectedStation.code) ?? null
-  }, [selectedStation, piezoFeatures, hydroFeatures])
+  }, [selectedStation, displayPiezoFeatures, displayHydroFeatures])
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-slate-100">
@@ -156,8 +169,8 @@ export default function MeteoNappesPage() {
         sectorColorById={sectorColorById}
         sectorTrendById={sectorTrendById}
         visibleLayers={visible}
-        piezoFeatures={piezoFeatures}
-        hydroFeatures={hydroFeatures}
+        piezoFeatures={displayPiezoFeatures}
+        hydroFeatures={displayHydroFeatures}
         onSectorClick={onSectorClick}
         onStationClick={onStationClick}
         onMapReady={setMap}

@@ -146,9 +146,20 @@ export default function CounterfactualPage() {
 
   const currentWindowData = useMemo(() => {
     if (!testInfo || !windowInfo) return null
-    const dates = testInfo.test_dates.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
-    const values = testInfo.test_values.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
-    return { dates, values: values.filter((v): v is number => v !== null) }
+    const rawDates = testInfo.test_dates.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
+    const rawValues = testInfo.test_values.slice(windowInfo.predStartIdx, windowInfo.predEndIdx + 1)
+    // Drop gaps as aligned (date, value) PAIRS. Filtering values alone would shift
+    // every value after a null onto the wrong date, corrupting the monthly IPS classes.
+    const dates: string[] = []
+    const values: number[] = []
+    for (let i = 0; i < rawDates.length; i++) {
+      const v = rawValues[i]
+      if (v !== null && v !== undefined) {
+        dates.push(rawDates[i])
+        values.push(v as number)
+      }
+    }
+    return { dates, values }
   }, [testInfo, windowInfo])
 
   const windowPredValues = useMemo(() => {

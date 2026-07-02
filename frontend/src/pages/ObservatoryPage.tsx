@@ -182,7 +182,9 @@ export default function ObservatoryPage() {
 
   const wfsData = useMemo(() => { if (!activeBbox) return wfsDataAll; const filtered: Record<string, any> = {}; for (const [key, data] of Object.entries(wfsDataAll)) filtered[key] = filterGeoJSONByBbox(data, activeBbox); return filtered }, [wfsDataAll, activeBbox])
 
-  const handleStationClick = useCallback((code: string, type: 'piezo' | 'hydro') => { setSelectedStation(prev => prev?.code === code && prev?.type === type ? null : { code, type }); setSpatialStationCodes(null); setActiveBbox(null) }, [])
+  // "No implicit filtering": selecting a station only sets the selection — it must NOT
+  // clear the active spatial filter / bbox, which would silently re-show excluded stations.
+  const handleStationClick = useCallback((code: string, type: 'piezo' | 'hydro') => { setSelectedStation(prev => prev?.code === code && prev?.type === type ? null : { code, type }) }, [])
   const handleEmptyClick = useCallback(() => { setSelectedStation(null); setSpatialStationCodes(null); setActiveBbox(null) }, [])
   const handleDeptClick = useCallback((code: string | null) => { setSelectedStation(null); setSpatialStationCodes(null); setFilter('dept', code ?? undefined); if (!code) setActiveBbox(null) }, [setFilter])
   const handleBassinClick = useCallback((code: string | null) => { setSelectedStation(null); setSpatialStationCodes(null); setFilter('bassin', code ?? undefined); if (!code) setActiveBbox(null) }, [setFilter])
