@@ -101,6 +101,9 @@ def get_era5_snapshot(
                     d = conn.execute(
                         text('SELECT max("time")::date FROM gold.era5_grid')
                     ).scalar()
+                if d is None:
+                    # Empty grid table — nothing to snapshot (avoids d + timedelta TypeError).
+                    return []
                 query = """
                     SELECT round(latitude::numeric, 1) AS latitude,
                            round(longitude::numeric, 1) AS longitude,

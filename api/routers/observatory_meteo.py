@@ -32,27 +32,28 @@ def parse_brgm_sectors(features: list[dict]) -> list[dict]:
         List of dicts with keys: sector_id, color, brgm_class, trend, ips,
         status, tendancy_coord.
     """
-    # The WFS returns every published 15-day window; keep only the most recent one
-    # (max end_period). Today's literal date is often past the last published window,
-    # so we never filter by "today" — we always take the latest available situation.
-    parents = [f for f in features if (f.get("properties") or {}).get("is_parent")]
-    end_periods = [(f["properties"].get("end_period")) for f in parents if f["properties"].get("end_period")]
-    if end_periods:
-        latest = max(end_periods)
-        parents = [f for f in parents if f["properties"].get("end_period") == latest]
-
-    seen: set[int] = set()
-    result: list[dict] = []
-
-    for feat in parents:
+    # The WFS returns every published 15-day window. Keep, PER SECTOR, that sector's
+    # most recent window (max end_period). A single global max(end_period) would drop
+    # any sector whose latest published window lags behind the others ("en retard").
+    # We never filter by today's literal date — today is often past the last window.
+    best: dict[int, dict] = {}
+    for feat in features:
         props = feat.get("properties") or {}
         if not props.get("is_parent"):
             continue
-
         sector_id = props.get("sector_id")
-        if sector_id in seen:
+        if sector_id is None:
             continue
-        seen.add(sector_id)
+        ep = props.get("end_period")
+        cur = best.get(sector_id)
+        cur_ep = (cur.get("properties") or {}).get("end_period") if cur else None
+        if cur is None or (ep is not None and (cur_ep is None or ep > cur_ep)):
+            best[sector_id] = feat
+
+    result: list[dict] = []
+
+    for sector_id, feat in best.items():
+        props = feat.get("properties") or {}
 
         tendency_raw = props.get("tendency")
         trend: Optional[str] = _TENDENCY_MAP.get(tendency_raw)  # None if not in map

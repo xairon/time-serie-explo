@@ -837,7 +837,16 @@ def export_pas(run_id: str, current: User = Depends(get_current_user)):
 
     f = tempfile.NamedTemporaryFile(suffix=".pas", delete=False)
     f.close()
-    model.to_file(f.name)
+    try:
+        model.to_file(f.name)
+    except Exception:
+        # BackgroundTask cleanup only runs once the FileResponse is returned, so a
+        # serialization failure here would otherwise leak the temp file.
+        try:
+            os.unlink(f.name)
+        except OSError:
+            pass
+        raise
     return FileResponse(
         f.name,
         filename=f"pastas_{run_id[:8]}.pas",

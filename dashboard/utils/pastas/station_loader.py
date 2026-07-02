@@ -197,7 +197,8 @@ def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series, pd
                e.potential_evaporation, e.temperature_2m
         FROM gold.int_era5_for_all_stations e
         JOIN gold.int_station_era5_mapping m
-          ON m.era5_latitude = e.latitude AND m.era5_longitude = e.longitude
+          ON round(m.era5_latitude::numeric, 1) = round(e.latitude::numeric, 1)
+         AND round(m.era5_longitude::numeric, 1) = round(e.longitude::numeric, 1)
         WHERE m.code_bss = :code_bss
         ORDER BY e.era5_date
     """)
@@ -215,8 +216,10 @@ def _load_era5_fallback(code_bss: str, engine) -> tuple[pd.Series, pd.Series, pd
     evap = (-era5_df["potential_evaporation"]).clip(lower=0)
     temp = era5_df["temperature_2m"]
 
-    for s in (precip, evap, temp):
-        if s.index.freq is None:
-            s = s.asfreq("D")
+    # Regularize to a daily frequency. The previous loop reassigned a local variable
+    # and threw the result away, so the series stayed irregular (freq=None).
+    precip = precip.asfreq("D")
+    evap = evap.asfreq("D")
+    temp = temp.asfreq("D")
 
     return precip, evap, temp
