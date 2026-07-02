@@ -172,6 +172,32 @@ class MetricsFileCallback(Callback):
         self._write_state()
 
 
+class StopEventCallback(Callback):
+    """Stop training gracefully when an external ``threading.Event`` is set.
+
+    Used to make a user-requested cancellation actually interrupt the fit (and
+    free the shared GPU) instead of letting it run to completion. Checked at
+    every batch/epoch boundary so the fit stops within one epoch at most.
+    """
+
+    def __init__(self, stop_event: Any) -> None:
+        super().__init__()
+        self._stop_event = stop_event
+
+    def _maybe_stop(self, trainer) -> None:
+        if self._stop_event is not None and self._stop_event.is_set():
+            trainer.should_stop = True
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx) -> None:
+        self._maybe_stop(trainer)
+
+    def on_train_epoch_start(self, trainer, pl_module) -> None:
+        self._maybe_stop(trainer)
+
+    def on_validation_epoch_start(self, trainer, pl_module) -> None:
+        self._maybe_stop(trainer)
+
+
 def create_training_callbacks(
     *,
     metrics_file: Optional[Path] = None,
@@ -183,6 +209,7 @@ def create_training_callbacks(
     verbose: bool = True,
     enable_lr_monitor: bool = False,
     has_validation: bool = True,
+    stop_event: Optional[Any] = None,
 ) -> List[Callback]:
     """
     Crée les callbacks de training standards (LR monitor, early stopping,
@@ -192,6 +219,10 @@ def create_training_callbacks(
     """
 
     callbacks: List[Callback] = []
+
+    # Cancellation: stop the fit (and release the GPU) when the task is cancelled.
+    if stop_event is not None:
+        callbacks.append(StopEventCallback(stop_event))
 
     # Learning rate monitor (désactivé par défaut car nécessite un logger actif)
     if enable_lr_monitor:

@@ -497,7 +497,8 @@ def run_training_pipeline(
     early_stopping_patience: Optional[int] = None,
     metrics_file: Optional[Path] = None,  # NEW: Path to JSON file for metrics (replaces Streamlit callbacks)
     n_epochs: Optional[int] = None,  # NEW: Total epochs for metrics callback
-    owner_id: Optional[str] = None  # NEW: User ID to stamp on MLflow run tags
+    owner_id: Optional[str] = None,  # NEW: User ID to stamp on MLflow run tags
+    stop_event: Optional[Any] = None,  # NEW: threading.Event to abort the fit (cancellation)
 ) -> Dict[str, Any]:
     """
     Complete training pipeline with split saving.
@@ -673,6 +674,7 @@ def run_training_pipeline(
                 use_mlflow=True,  # Enable MLflow callback
                 enable_lr_monitor=False,
                 has_validation=(val is not None),
+                stop_event=stop_event,
             )
             
             if 'callbacks' in trainer_kwargs:

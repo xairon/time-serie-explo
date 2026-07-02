@@ -189,7 +189,15 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
                 "covariate_vars": cov_cols or [],
             },
             owner_id=owner_id,
+            stop_event=task.stop_event,
         )
+
+        # If the task was cancelled while the fit was running, honour that terminal
+        # state instead of overwriting it with COMPLETED (the fit is stopped early).
+        if task.stop_event.is_set():
+            with task.lock:
+                task.status = TaskStatus.CANCELLED
+            return
 
         with task.lock:
             task.status = TaskStatus.COMPLETED
@@ -212,10 +220,17 @@ def _run_training_thread(task_id: str, req: TrainingRequest, owner_id: str | Non
                 pass
 
     except Exception as exc:
-        logger.exception("Training task %s failed", task_id)
-        with task.lock:
-            task.status = TaskStatus.FAILED
-            task.error = str(exc)
+        # A cancellation that surfaces as an exception (e.g. the fit aborted mid-step)
+        # is a CANCELLED task, not a FAILED one.
+        if task.stop_event.is_set():
+            logger.info("Training task %s cancelled during execution", task_id)
+            with task.lock:
+                task.status = TaskStatus.CANCELLED
+        else:
+            logger.exception("Training task %s failed", task_id)
+            with task.lock:
+                task.status = TaskStatus.FAILED
+                task.error = str(exc)
 
 
 # --------------------------------------------------------------------------- #
@@ -249,9 +264,13 @@ async def start_training(req: TrainingRequest, current: User = Depends(get_curre
 
     from api.task_manager import TaskStatus
 
+    # A task counts as "active" (holding the single shared GPU) if it is still
+    # PENDING/RUNNING, OR if it was just cancelled but its worker thread is still
+    # winding down the fit — starting a second job then would put two jobs on the GPU.
     active = [
         t for t in task_manager.list_tasks(task_type="training")
         if t.status in (TaskStatus.PENDING, TaskStatus.RUNNING)
+        or (t.thread is not None and t.thread.is_alive())
     ]
     if active:
         from api.auth.ownership import is_owner_or_admin
