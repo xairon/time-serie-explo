@@ -726,15 +726,34 @@ def get_era5_spi(
 
                 rows = conn.execute(
                     text(
+                        # Mirror _era5_spi_reference's doublon handling: compute each
+                        # float-coordinate variant's monthly sum, weighted-merge the
+                        # variants of the same rounded cell/month (avoids double-counting
+                        # the ERA5 coordinate-precision duplicates), then accumulate months.
                         """
-                        SELECT round(latitude::numeric, 1) AS latitude,
-                               round(longitude::numeric, 1) AS longitude,
-                               SUM(total_precipitation) AS window_sum,
-                               COUNT(DISTINCT date_trunc('month', "time")) AS n_months
-                        FROM gold.era5_grid
-                        WHERE "time" >= :win_start AND "time" < :win_end
-                          AND total_precipitation IS NOT NULL
-                        GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
+                        WITH per_variant AS (
+                            SELECT latitude, longitude,
+                                   date_trunc('month', "time") AS ym,
+                                   SUM(total_precipitation) AS m_sum,
+                                   COUNT(*) AS n
+                            FROM gold.era5_grid
+                            WHERE "time" >= :win_start AND "time" < :win_end
+                              AND total_precipitation IS NOT NULL
+                            GROUP BY latitude, longitude, date_trunc('month', "time")
+                        ),
+                        monthly AS (
+                            SELECT round(latitude::numeric, 1) AS latitude,
+                                   round(longitude::numeric, 1) AS longitude,
+                                   ym,
+                                   SUM(m_sum * n) / NULLIF(SUM(n), 0) AS m_merged
+                            FROM per_variant
+                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1), ym
+                        )
+                        SELECT latitude, longitude,
+                               SUM(m_merged) AS window_sum,
+                               COUNT(*) AS n_months
+                        FROM monthly
+                        GROUP BY latitude, longitude
                         """
                     ),
                     {"win_start": win_start, "win_end": win_end},
@@ -862,15 +881,33 @@ def get_era5_anomaly(
                 win_end = add_months(month_start, 1)
                 rows = conn.execute(
                     text(
+                        # Weighted-merge the ERA5 float-coordinate doublons per (rounded
+                        # cell, month) before accumulating, consistent with the climatology
+                        # builder — a raw SUM would double-count duplicated cells.
                         """
-                        SELECT round(latitude::numeric, 1) AS latitude,
-                               round(longitude::numeric, 1) AS longitude,
-                               SUM(total_precipitation) AS precip_sum,
-                               COUNT(DISTINCT date_trunc('month', "time")) AS n_months
-                        FROM gold.era5_grid
-                        WHERE "time" >= :win_start AND "time" < :win_end
-                          AND total_precipitation IS NOT NULL
-                        GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
+                        WITH per_variant AS (
+                            SELECT latitude, longitude,
+                                   date_trunc('month', "time") AS ym,
+                                   SUM(total_precipitation) AS m_sum,
+                                   COUNT(*) AS n
+                            FROM gold.era5_grid
+                            WHERE "time" >= :win_start AND "time" < :win_end
+                              AND total_precipitation IS NOT NULL
+                            GROUP BY latitude, longitude, date_trunc('month', "time")
+                        ),
+                        monthly AS (
+                            SELECT round(latitude::numeric, 1) AS latitude,
+                                   round(longitude::numeric, 1) AS longitude,
+                                   ym,
+                                   SUM(m_sum * n) / NULLIF(SUM(n), 0) AS m_merged
+                            FROM per_variant
+                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1), ym
+                        )
+                        SELECT latitude, longitude,
+                               SUM(m_merged) AS precip_sum,
+                               COUNT(*) AS n_months
+                        FROM monthly
+                        GROUP BY latitude, longitude
                         """
                     ),
                     {"win_start": win_start, "win_end": win_end},

@@ -592,12 +592,14 @@ def get_station(code_station: str):
                         FROM gold.fct_monthly_hydro m2
                         WHERE m2.code_station = s.code_station
                           AND m2.grandeur_hydro_elab = s.grandeur_hydro_principale
-                          AND m2.resultat_moyen IS NOT NULL AND m2.resultat_moyen < 1e8
+                          AND m2.resultat_moyen IS NOT NULL
+                          AND m2.resultat_moyen > 0 AND m2.resultat_moyen < 1e8
                           AND EXTRACT(MONTH FROM m2.mois) = EXTRACT(MONTH FROM m.mois)) AS month_median
                 FROM gold.fct_monthly_hydro m
                 WHERE m.code_station = s.code_station
                   AND m.grandeur_hydro_elab = s.grandeur_hydro_principale
-                  AND m.resultat_moyen IS NOT NULL AND m.resultat_moyen < 1e8
+                  AND m.resultat_moyen IS NOT NULL
+                  AND m.resultat_moyen > 0 AND m.resultat_moyen < 1e8
                 ORDER BY m.mois DESC LIMIT 1
             ) lm ON true
             WHERE s.code_station = :code
