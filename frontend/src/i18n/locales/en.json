@@ -70,7 +70,19 @@
     "pastasLab": "Pastas Lab",
     "aiLab": "AI Lab",
     "stationDetail": "Station detail",
-    "meteo": "Groundwater weather"
+    "meteo": "Groundwater weather",
+    "admin": "Admin",
+    "apiConnected": "API connected",
+    "apiUnavailable": "API unavailable"
+  },
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out"
+  },
+  "pumping": {
+    "selectPlaceholder": "-- Select --",
+    "analyze": "Analyze",
+    "advancedSettings": "Advanced settings"
   },
   "language": {
     "fr": "Français",
@@ -1363,6 +1375,8 @@
       "observations": "Observations",
       "prediction": "Prediction",
       "stepwise": "Stepwise",
+      "inputWindow": "Input ({{days}}d)",
+      "predictionWindow": "Prediction ({{days}}d)",
       "errorBadge": "MAE {{mae}} m · bias {{bias}} m",
       "testSet": "Test set",
       "value": "Value",

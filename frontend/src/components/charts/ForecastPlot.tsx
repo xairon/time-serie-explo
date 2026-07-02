@@ -125,7 +125,7 @@ export function ForecastPlot({
         x: dates[contextStartIdx],
         y: 0,
         yref: 'paper',
-        text: `Input (${inputChunkLength}j)`,
+        text: t('sharedComponents.charts.inputWindow', { days: inputChunkLength }),
         showarrow: false,
         font: { size: 10, color: 'rgba(46, 134, 171, 0.8)' },
         xanchor: 'left',
@@ -152,7 +152,7 @@ export function ForecastPlot({
       x: dates[lastPredIdx],
       y: 1,
       yref: 'paper',
-      text: `Prediction (${predLen}j)`,
+      text: t('sharedComponents.charts.predictionWindow', { days: predLen }),
       showarrow: false,
       font: { size: 10, color: 'rgba(255, 200, 0, 0.9)' },
       xanchor: 'right',
@@ -175,8 +175,8 @@ export function ForecastPlot({
 
   const layout: Partial<Layout> = {
     ...darkLayout,
-    xaxis: { ...darkLayout.xaxis, title: { text: 'Date' } },
-    yaxis: { ...darkLayout.yaxis, title: { text: 'Piezometric level' } },
+    xaxis: { ...darkLayout.xaxis, title: { text: t('sharedComponents.charts.date') } },
+    yaxis: { ...darkLayout.yaxis, title: { text: t('sharedComponents.charts.piezometricLevel') } },
     shapes,
     annotations,
     hovermode: 'x unified',

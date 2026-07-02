@@ -70,7 +70,19 @@
     "pastasLab": "Pastas Lab",
     "aiLab": "Lab IA",
     "stationDetail": "Détail station",
-    "meteo": "Météo des nappes"
+    "meteo": "Météo des nappes",
+    "admin": "Admin",
+    "apiConnected": "API connectée",
+    "apiUnavailable": "API indisponible"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Déconnexion"
+  },
+  "pumping": {
+    "selectPlaceholder": "-- Sélectionner --",
+    "analyze": "Analyser",
+    "advancedSettings": "Paramètres avancés"
   },
   "language": {
     "fr": "Français",
@@ -1363,6 +1375,8 @@
       "observations": "Observations",
       "prediction": "Prédiction",
       "stepwise": "Pas à pas",
+      "inputWindow": "Contexte ({{days}} j)",
+      "predictionWindow": "Prévision ({{days}} j)",
       "errorBadge": "MAE {{mae}} m · biais {{bias}} m",
       "testSet": "Test set",
       "value": "Valeur",

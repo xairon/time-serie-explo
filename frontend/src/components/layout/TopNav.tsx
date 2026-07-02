@@ -88,7 +88,7 @@ export function TopNav() {
             GPU
           </span>
         )}
-        <div className="flex items-center gap-1.5" title={isHealthy ? 'API connected' : 'API unavailable'}>
+        <div className="flex items-center gap-1.5" title={isHealthy ? t('nav.apiConnected') : t('nav.apiUnavailable')}>
           <div
             className={`w-2 h-2 rounded-full ${
               isHealthy ? 'bg-accent-green' : 'bg-accent-red'
@@ -109,7 +109,7 @@ export function TopNav() {
                 to="/admin/users"
                 className="text-xs px-2.5 py-1 rounded-lg text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 transition-colors"
               >
-                Admin
+                {t('nav.admin')}
               </Link>
             )}
             <span className="text-xs text-text-secondary hidden lg:block">{user.display_name}</span>
@@ -117,7 +117,7 @@ export function TopNav() {
               onClick={async () => { await logout(); navigate('/') }}
               className="text-xs px-2.5 py-1 rounded-lg text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 transition-colors"
             >
-              Déconnexion
+              {t('auth.logout')}
             </button>
           </div>
         ) : (
@@ -125,7 +125,7 @@ export function TopNav() {
             to="/login"
             className="hidden md:inline-flex text-xs px-2.5 py-1 rounded-lg text-accent-cyan border border-accent-cyan/30 hover:bg-accent-cyan/10 transition-colors"
           >
-            Se connecter
+            {t('auth.login')}
           </Link>
         )}
 

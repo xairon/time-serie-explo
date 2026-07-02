@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Play, Square, RotateCcw, AlertTriangle } from 'lucide-react'
 import { useDatasets } from '@/hooks/useDatasets'
 import { usePumpingDetection, usePumpingResults } from '@/hooks/usePumpingDetection'
@@ -129,6 +130,7 @@ function TabButton({
 // --- Main page -------------------------------------------------------------
 
 export default function PumpingDetectionPage() {
+  const { t } = useTranslation()
   const [datasetId, setDatasetId] = useState('')
   const [configOpen, setConfigOpen] = useState(false)
   const [diagTab, setDiagTab] = useState<DiagTab>('pastas')
@@ -210,7 +212,7 @@ export default function PumpingDetectionPage() {
                 disabled={datasetsLoading || detection.isAnalyzing}
                 className="bg-bg-primary border border-white/10 rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan/40 disabled:opacity-50"
               >
-                <option value="">-- Select --</option>
+                <option value="">{t('pumping.selectPlaceholder')}</option>
                 {(datasets ?? []).map(d => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -244,7 +246,7 @@ export default function PumpingDetectionPage() {
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan text-sm hover:bg-accent-cyan/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     <Play className="w-4 h-4" />
-                    Analyze
+                    {t('pumping.analyze')}
                   </button>
                 </>
               )}
@@ -258,7 +260,7 @@ export default function PumpingDetectionPage() {
               className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
             >
               {configOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-              Advanced settings
+              {t('pumping.advancedSettings')}
             </button>
             {configOpen && (
               <ConfigPanel config={config} onChange={setConfig} />

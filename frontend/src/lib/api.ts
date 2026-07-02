@@ -140,18 +140,18 @@ export const api = {
   db: {
     schemas: () => fetchJson<string[]>('/db/schemas'),
     tables: (schema: string) =>
-      fetchJson<{ tables: string[]; views: string[] }>(`/db/tables?schema=${schema}`),
+      fetchJson<{ tables: string[]; views: string[] }>(`/db/tables?schema=${encodeURIComponent(schema)}`),
     columns: (table: string, schema: string) =>
       fetchJson<{
         columns: { name: string; type: string; nullable: boolean }[]
         row_count: number
         date_columns: string[]
-      }>(`/db/columns?table=${table}&schema=${schema}`),
+      }>(`/db/columns?table=${encodeURIComponent(table)}&schema=${encodeURIComponent(schema)}`),
     distinct: (table: string, column: string, schema: string) =>
-      fetchJson<string[]>(`/db/distinct?table=${table}&column=${column}&schema=${schema}`),
+      fetchJson<string[]>(`/db/distinct?table=${encodeURIComponent(table)}&column=${encodeURIComponent(column)}&schema=${encodeURIComponent(schema)}`),
     dateRange: (table: string, column: string, schema: string) =>
       fetchJson<{ min: string | null; max: string | null }>(
-        `/db/date-range?table=${table}&column=${column}&schema=${schema}`,
+        `/db/date-range?table=${encodeURIComponent(table)}&column=${encodeURIComponent(column)}&schema=${encodeURIComponent(schema)}`,
       ),
     searchStations: (params: {
       q?: string
@@ -297,7 +297,7 @@ export const api = {
       include_temp?: boolean
     }) => postJson<PastasFitResponse>('/pastas/fit', body, 120_000),
     models: (codeBss?: string) => {
-      const params = codeBss ? `?code_bss=${codeBss}` : ''
+      const params = codeBss ? `?code_bss=${encodeURIComponent(codeBss)}` : ''
       return fetchJson<PastasModelSummary[]>(`/pastas/models${params}`)
     },
     model: (runId: string) => fetchJson<PastasFitResponse>(`/pastas/models/${runId}`),
