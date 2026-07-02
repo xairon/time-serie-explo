@@ -247,6 +247,12 @@ async def shap_analysis(req: ExplainRequest, current: User = Depends(get_current
         getattr(model, "uses_past_covariates", False)
     )
 
+    # Track wrapper health: SHAP perturbs the input and re-predicts many times.
+    # If EVERY prediction throws, the wrapper returns zeros and SHAP silently
+    # produces all-zero attributions — which must be reported as a failure, not
+    # as a successful (but meaningless) explanation.
+    wrapper_stats = {"calls": 0, "failures": 0, "last_error": None}
+
     def model_wrapper(x):
         """Wrap the Darts model for SHAP-style (batch, seq, features) -> (batch, horizon)."""
         from darts import TimeSeries
@@ -254,6 +260,7 @@ async def shap_analysis(req: ExplainRequest, current: User = Depends(get_current
         # Reconstruct target series from column 0
         target_ts = TimeSeries.from_values(x[0, :, 0:1])
 
+        wrapper_stats["calls"] += 1
         try:
             predict_kwargs = {"n": output_chunk, "series": target_ts}
 
@@ -264,7 +271,9 @@ async def shap_analysis(req: ExplainRequest, current: User = Depends(get_current
 
             pred = model.predict(**predict_kwargs)
             return pred.values().reshape(1, -1)
-        except Exception:
+        except Exception as exc:
+            wrapper_stats["failures"] += 1
+            wrapper_stats["last_error"] = str(exc)
             return np.zeros((1, output_chunk))
 
     result = compute_shap_importance(
@@ -273,6 +282,19 @@ async def shap_analysis(req: ExplainRequest, current: User = Depends(get_current
         feature_names=feature_names,
         n_samples=req.n_samples,
     )
+
+    # Surface an outright failure instead of returning a zero-filled "success".
+    all_failed = wrapper_stats["calls"] > 0 and wrapper_stats["failures"] == wrapper_stats["calls"]
+    if all_failed or result.get("_error"):
+        detail = result.get("_error") or (
+            f"La prédiction du modèle a échoué à chaque itération SHAP : {wrapper_stats['last_error']}"
+        )
+        return ExplainResult(
+            method=result.get("method", "shap"),
+            success=False,
+            error_message=detail,
+            feature_names=feature_names,
+        )
 
     shap_values_list = None
     if result.get("shap_values") is not None:
