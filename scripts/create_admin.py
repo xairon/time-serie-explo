@@ -1,10 +1,13 @@
 """Create (or promote) an admin user. Usage:
     python scripts/create_admin.py --email a@b.fr --name "Nicolas" [--password ...]
-If --password is omitted, prompts securely.
+Password resolution order: --password, then $ADMIN_PASSWORD (for automation),
+then a secure interactive prompt (no echo). Avoid --password on shared hosts:
+it leaks via `ps` and shell history.
 """
 import argparse
 import asyncio
 import getpass
+import os
 
 from sqlalchemy import select
 
@@ -19,7 +22,7 @@ async def main():
     p.add_argument("--name", required=True)
     p.add_argument("--password")
     args = p.parse_args()
-    password = args.password or getpass.getpass("Password: ")
+    password = args.password or os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Password: ")
 
     async with async_session() as db:
         existing = (await db.execute(select(User).where(User.email == args.email))).scalar_one_or_none()

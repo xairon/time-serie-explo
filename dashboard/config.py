@@ -58,12 +58,20 @@ VARIABLE_NAMES = {
 # Modèles disponibles
 MODELS = ['NBEATS', 'TFT', 'TCN', 'LSTM']
 
-# Couleurs par modèle
+# Couleurs par modèle (couvre les 12 architectures de dashboard/models_config.py)
 MODEL_COLORS = {
-    'NBEATS': '#1f77b4',  # Bleu
-    'TFT': '#ff7f0e',      # Orange
-    'TCN': '#2ca02c',      # Vert
-    'LSTM': '#d62728'      # Rouge
+    'NBEATS': '#1f77b4',       # Bleu
+    'TFT': '#ff7f0e',          # Orange
+    'TCN': '#2ca02c',          # Vert
+    'LSTM': '#d62728',         # Rouge
+    'NHiTS': '#9467bd',        # Violet
+    'Transformer': '#8c564b',  # Marron
+    'GRU': '#e377c2',          # Rose
+    'BlockRNN': '#7f7f7f',     # Gris
+    'TiDE': '#bcbd22',         # Olive
+    'DLinear': '#17becf',      # Cyan
+    'NLinear': '#aec7e8',      # Bleu clair
+    'TSMixer': '#ffbb78'       # Orange clair
 }
 
 # Hyperparamètres par défaut
