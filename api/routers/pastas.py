@@ -210,13 +210,21 @@ def preview_station(code_bss: str):
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 
+    import math
+
     piezo = station.piezo
+
+    def _finite(x: float) -> float | None:
+        # A single-observation series yields std() == NaN, which serializes to the
+        # non-standard JSON token `NaN` and breaks strict parsers. Emit null instead.
+        return round(x, 3) if math.isfinite(x) else None
+
     stats: dict[str, Any] = {
         "n_obs_piezo": len(piezo),
         "n_obs_precip": len(station.precip),
         "date_range": [str(piezo.index.min()), str(piezo.index.max())],
-        "piezo_mean": round(float(piezo.mean()), 3),
-        "piezo_std": round(float(piezo.std()), 3),
+        "piezo_mean": _finite(float(piezo.mean())),
+        "piezo_std": _finite(float(piezo.std())),
     }
 
     if len(piezo) > 1:

@@ -117,6 +117,14 @@ async def create_dataset(
         raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Échec de lecture du CSV : {exc}")
+    finally:
+        # The temp file is only needed until the CSV is parsed into memory; remove it
+        # on every path (success or error) so uploads don't leak files onto disk.
+        if tmp_path is not None:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
     cov_cols = [c.strip() for c in covariate_columns.split(",") if c.strip()]
     station_list = [s.strip() for s in stations.split(",") if s.strip()]

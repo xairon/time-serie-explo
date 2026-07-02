@@ -80,6 +80,17 @@ def _fetch_wfs_raw(layer_id: str, bbox: Optional[str] = None) -> bytes:
     if resp.status_code != 200:
         logger.error("WFS error for %s: %s %s", layer_id, resp.status_code, resp.text[:200])
         raise HTTPException(status_code=502, detail=f"WFS service error for {layer_id}")
+    # SANDRE WFS returns HTTP 200 with an OWS ExceptionReport (XML) on failure.
+    # Validate that the body is a real GeoJSON FeatureCollection before the caller
+    # caches it for 24h — otherwise a transient upstream error poisons the cache.
+    try:
+        parsed = json.loads(resp.content)
+    except (json.JSONDecodeError, ValueError):
+        logger.error("WFS non-JSON body for %s: %s", layer_id, resp.text[:200])
+        raise HTTPException(status_code=502, detail=f"WFS service returned a non-GeoJSON body for {layer_id}")
+    if not isinstance(parsed, dict) or parsed.get("type") != "FeatureCollection":
+        logger.error("WFS unexpected payload for %s: %s", layer_id, resp.text[:200])
+        raise HTTPException(status_code=502, detail=f"WFS service returned an unexpected payload for {layer_id}")
     return resp.content
 
 
