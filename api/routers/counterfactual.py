@@ -13,12 +13,13 @@ import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 from api.auth.deps import get_current_user
 from api.auth.ownership import assert_owns_model
 from api.config import settings
+from api.database import get_brgm_sync_engine
 from api.models_db import User
 from api.serializers import clean_nans
 from api.task_manager import TaskStatus, task_manager
@@ -39,13 +40,6 @@ router = APIRouter(prefix="/api/v1/counterfactual", tags=["counterfactual"])
 # Shared fixed-reference grid helpers
 # ---------------------------------------------------------------------------
 
-def _brgm_url() -> str:
-    return (
-        f"postgresql://{settings.brgm_db_user}:{settings.brgm_db_password}"
-        f"@{settings.brgm_db_host}:{settings.brgm_db_port}/{settings.brgm_db_name}"
-    )
-
-
 def _load_station_grid(code_bss: str) -> dict[int, list[float] | None]:
     """Load the per-month quantile grid for a piezo station from gold.station_reference_stats.
 
@@ -53,7 +47,7 @@ def _load_station_grid(code_bss: str) -> dict[int, list[float] | None]:
     Handles gracefully: missing table, no data for station, DB unavailable.
     """
     try:
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 rows = conn.execute(
@@ -67,8 +61,7 @@ def _load_station_grid(code_bss: str) -> dict[int, list[float] | None]:
         except ProgrammingError:
             logger.info("gold.station_reference_stats not yet materialized — returning empty grid")
             return {}
-        finally:
-            engine.dispose()
+        # shared pooled engine — do not dispose
         return {r["month"]: r["quantile_grid"] for r in rows}
     except Exception as exc:
         logger.warning("Could not load station grid for %s: %s", code_bss, exc)
@@ -606,16 +599,15 @@ async def ips_reference(
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    # Load from shared fixed-reference grid (warehouse table)
-    station_grid = _load_station_grid(entry.station_name)
-
     # Build ref_stats {month: [mu, sigma]} for the requested window
-    # (window smoothing not applied at grid level — use IPS-1 grid for all windows)
+    # (window smoothing not applied at grid level — use IPS-1 grid for all windows).
+    # A single query against gold.station_reference_stats fetches quantile_grid + n_years;
+    # no separate _load_station_grid() pass is needed (its result was unused here).
     ref_stats_for_window: dict[str, list[float]] = {}
     n_years = None
     try:
         import numpy as np
-        engine = create_engine(_brgm_url())
+        engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
                 meta_rows = conn.execute(
@@ -628,8 +620,7 @@ async def ips_reference(
                 ).mappings().all()
         except ProgrammingError:
             meta_rows = []
-        finally:
-            engine.dispose()
+        # shared pooled engine — do not dispose
 
         for r in meta_rows:
             g = r["quantile_grid"]

@@ -29,8 +29,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/explainability", tags=["explainability"])
 
 
-def _load_model_for_explain(model_id: str):
-    """Load model, data, and metadata needed for explainability."""
+def _load_model_for_explain(model_id: str, load_model: bool = True):
+    """Load model, data, and metadata needed for explainability.
+
+    ``load_model=False`` skips deserializing the (potentially large) torch model
+    for endpoints that only need the data/metadata (e.g. lag & seasonality
+    analysis), returning ``model=None``.
+    """
     from dashboard.utils.model_registry import ModelRegistry
 
     registry = ModelRegistry(checkpoints_dir=Path(settings.checkpoints_dir))
@@ -38,8 +43,10 @@ def _load_model_for_explain(model_id: str):
     if entry is None:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    model = registry.load_model(entry)
-    force_cpu_if_needed(model)
+    model = None
+    if load_model:
+        model = registry.load_model(entry)
+        force_cpu_if_needed(model)
     config = registry.load_model_config(entry)
     scalers = registry.load_scalers(entry)
 
@@ -387,8 +394,9 @@ async def gradient_analysis(req: ExplainRequest, current: User = Depends(get_cur
 async def lag_importance(model_id: str, max_lag: int = 60, current: User = Depends(get_current_user)):
     """Compute lag importance (autocorrelation analysis) for the target variable."""
     assert_owns_model(current, model_id)
+    # Only the target series is needed here — skip deserializing the torch model.
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
-        _load_model_for_explain(model_id)
+        _load_model_for_explain(model_id, load_model=False)
     )
 
     if test_df is None or target_col not in test_df.columns:
@@ -569,8 +577,9 @@ async def residual_analysis(model_id: str, current: User = Depends(get_current_u
 async def seasonality_analysis(model_id: str, current: User = Depends(get_current_user)):
     """Detect seasonality patterns and compute STL decomposition."""
     assert_owns_model(current, model_id)
+    # STL/FFT run on the target series only — skip deserializing the torch model.
     model, entry, config, scalers, train_df, test_df, target_col, cov_cols, input_chunk, output_chunk = (
-        _load_model_for_explain(model_id)
+        _load_model_for_explain(model_id, load_model=False)
     )
 
     df = test_df if test_df is not None else train_df

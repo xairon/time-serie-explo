@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
 
 from api.auth.deps import get_current_user
 from api.auth.ownership import assert_owns_model
@@ -102,7 +103,11 @@ async def single_forecast(req: ForecastRequest, current: User = Depends(get_curr
 
     from dashboard.utils.forecasting import generate_single_window_forecast
 
-    model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = _load_model_and_data(req.model_id)
+    # Model deserialization + inference are blocking (torch); run them in a threadpool
+    # so a forecast does not freeze the event loop for every other request.
+    model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = (
+        await run_in_threadpool(_load_model_and_data, req.model_id)
+    )
 
     # Auto-detect use_covariates: only use if covariates exist in data
     use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
@@ -118,7 +123,8 @@ async def single_forecast(req: ForecastRequest, current: User = Depends(get_curr
 
     try:
         pred_auto, pred_onestep, target_series, metrics_auto, metrics_onestep, horizon = (
-            generate_single_window_forecast(
+            await run_in_threadpool(
+                generate_single_window_forecast,
                 model=model,
                 full_df=full_df,
                 target_col=target_col,
@@ -176,7 +182,9 @@ async def rolling_forecast(req: RollingForecastRequest, current: User = Depends(
 
     from dashboard.utils.forecasting import generate_rolling_forecast
 
-    model, full_df, target_col, cov_cols, preproc, scalers, *_ = _load_model_and_data(req.model_id)
+    model, full_df, target_col, cov_cols, preproc, scalers, *_ = await run_in_threadpool(
+        _load_model_and_data, req.model_id
+    )
     use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
     try:
@@ -185,7 +193,8 @@ async def rolling_forecast(req: RollingForecastRequest, current: User = Depends(
         raise HTTPException(status_code=400, detail=f"Invalid start_date: {req.start_date}")
 
     try:
-        forecasts, full_series = generate_rolling_forecast(
+        forecasts, full_series = await run_in_threadpool(
+            generate_rolling_forecast,
             model=model,
             full_df=full_df,
             target_col=target_col,
@@ -218,7 +227,9 @@ async def comparison_forecast(req: ComparisonForecastRequest, current: User = De
 
     from dashboard.utils.forecasting import generate_comparison_forecast
 
-    model, full_df, target_col, cov_cols, preproc, scalers, *_ = _load_model_and_data(req.model_id)
+    model, full_df, target_col, cov_cols, preproc, scalers, *_ = await run_in_threadpool(
+        _load_model_and_data, req.model_id
+    )
     use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
     try:
@@ -228,7 +239,8 @@ async def comparison_forecast(req: ComparisonForecastRequest, current: User = De
 
     try:
         target_slice, autoregressive, exact_window, metrics_auto, metrics_exact = (
-            generate_comparison_forecast(
+            await run_in_threadpool(
+                generate_comparison_forecast,
                 model=model,
                 full_df=full_df,
                 target_col=target_col,
@@ -262,7 +274,7 @@ async def global_forecast(req: GlobalForecastRequest, current: User = Depends(ge
     from dashboard.utils.forecasting import generate_global_forecast
 
     model, full_df, target_col, cov_cols, preproc, scalers, is_global, entry, train_df, val_df, test_df = (
-        _load_model_and_data(req.model_id)
+        await run_in_threadpool(_load_model_and_data, req.model_id)
     )
     use_cov = req.use_covariates and bool(cov_cols) and all(c in full_df.columns for c in cov_cols)
 
@@ -270,7 +282,8 @@ async def global_forecast(req: GlobalForecastRequest, current: User = Depends(ge
     history_df = history_df[~history_df.index.duplicated(keep="first")].sort_index()
 
     try:
-        pred_series, target_series, metrics = generate_global_forecast(
+        pred_series, target_series, metrics = await run_in_threadpool(
+            generate_global_forecast,
             model=model,
             history_df=history_df,
             target_df=test_df,
