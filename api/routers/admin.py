@@ -17,6 +17,21 @@ from api.auth.schemas import UserOut
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin"])
 
 
+async def _other_active_admins(db: AsyncSession, exclude_user_id: uuid.UUID) -> int:
+    """Count active admins other than the given user (the "at least one admin" invariant)."""
+    return (
+        await db.execute(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.role == UserRole.admin,
+                User.is_active.is_(True),
+                User.id != exclude_user_id,
+            )
+        )
+    ).scalar_one()
+
+
 class CreateUserRequest(BaseModel):
     email: EmailStr
     display_name: str
@@ -53,10 +68,26 @@ async def create_user(req: CreateUserRequest, _: User = Depends(require_admin), 
 
 
 @router.patch("/{user_id}", response_model=UserOut)
-async def update_user(user_id: uuid.UUID, req: UpdateUserRequest, _: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def update_user(user_id: uuid.UUID, req: UpdateUserRequest, current_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Guard the "at least one active admin" invariant (delete_user enforces it too):
+    # demoting or deactivating the last active admin would lock everyone out permanently.
+    demotes_admin = user.role == UserRole.admin and req.role is not None and req.role != UserRole.admin
+    deactivates_admin = user.role == UserRole.admin and req.is_active is False
+    if demotes_admin or deactivates_admin:
+        if user.id == current_admin.id:
+            raise HTTPException(
+                status_code=409,
+                detail="Un administrateur ne peut pas se rétrograder ni se désactiver lui-même",
+            )
+        if await _other_active_admins(db, exclude_user_id=user.id) == 0:
+            raise HTTPException(
+                status_code=409, detail="Impossible de rétrograder/désactiver le dernier administrateur"
+            )
+
     if req.is_active is not None:
         user.is_active = req.is_active
         user.token_version += 1
@@ -106,18 +137,11 @@ async def delete_user(
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
-    if user.role == UserRole.admin:
-        admin_count = (
-            await db.execute(
-                select(func.count()).select_from(User).where(User.role == UserRole.admin)
-            )
-        ).scalar_one()
-        if admin_count <= 1:
-            raise HTTPException(
-                status_code=409, detail="Impossible de supprimer le dernier administrateur"
-            )
+    if user.role == UserRole.admin and await _other_active_admins(db, exclude_user_id=user.id) == 0:
+        raise HTTPException(
+            status_code=409, detail="Impossible de supprimer le dernier administrateur"
+        )
     uid = user.id
-    erase_user_artifacts(uid)
     await db.delete(user)
     await record_event(
         db, event_type="admin_user_deleted", email=None, user_id=uid,
@@ -125,3 +149,6 @@ async def delete_user(
         user_agent=request.headers.get("user-agent"),
     )
     await db.commit()
+    # Irreversible artifact erasure happens only AFTER the DB deletion is committed,
+    # so a commit failure can never destroy data belonging to a still-existing user.
+    erase_user_artifacts(uid)

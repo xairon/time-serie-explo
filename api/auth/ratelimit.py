@@ -60,7 +60,13 @@ async def clear_failures(email: str) -> None:
 
 
 async def enforce_ip_rate_limit(request: Request) -> None:
-    """Sliding 60s counter per client IP. Raises 429 over the limit."""
+    """Sliding 60s counter per client IP. Raises 429 over the limit.
+
+    Fails CLOSED when Redis is configured but unreachable: an attacker must not be
+    able to disable login throttling by knocking Redis over. A 503 is retryable and
+    does not permanently lock anyone out. When Redis is intentionally not configured
+    (client is None, e.g. dev/test), this is a no-op by design.
+    """
     r = get_redis()
     if r is None:
         return
@@ -77,4 +83,7 @@ async def enforce_ip_rate_limit(request: Request) -> None:
     except HTTPException:
         raise
     except Exception as e:
-        logger.debug("rate limit check failed: %s", e)
+        logger.warning("rate limit backend unavailable, failing closed: %s", e)
+        raise HTTPException(
+            status_code=503, detail="Service d'authentification temporairement indisponible"
+        )

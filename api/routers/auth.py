@@ -8,7 +8,7 @@ from api.database import get_db
 from api.models_db import User
 from api.auth.audit import record_event
 from api.auth.deps import get_current_user
-from api.auth.passwords import hash_password, verify_password
+from api.auth.passwords import dummy_verify, hash_password, verify_password
 from api.auth.ratelimit import (
     clear_failures,
     enforce_ip_rate_limit,
@@ -49,7 +49,14 @@ async def login(
             status_code=429, detail="Compte temporairement verrouillé, réessayez plus tard"
         )
     user = (await db.execute(select(User).where(User.email == req.email))).scalar_one_or_none()
-    if user is None or not user.is_active or not verify_password(req.password, user.password_hash):
+    # Always run a password verification (real or dummy) so response timing does not
+    # reveal whether the email exists (user enumeration).
+    if user is not None and user.password_hash:
+        password_ok = verify_password(req.password, user.password_hash)
+    else:
+        dummy_verify()
+        password_ok = False
+    if user is None or not user.is_active or not password_ok:
         await register_failure(req.email)
         await record_event(
             db, event_type="login_failure", email=req.email,
@@ -69,7 +76,26 @@ async def login(
 
 
 @router.post("/logout", status_code=204)
-async def logout(response: Response):
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    # Best-effort server-side revocation: bump token_version so the session JWT is
+    # rejected by get_current_user even if it was captured. Logout stays idempotent —
+    # it never fails, even for an already-invalid or missing cookie.
+    import uuid as _uuid
+
+    from api.auth.tokens import decode_session_token
+
+    token = request.cookies.get(settings.cookie_name)
+    if token:
+        try:
+            claims = decode_session_token(token)
+            user = (
+                await db.execute(select(User).where(User.id == _uuid.UUID(claims["sub"])))
+            ).scalar_one_or_none()
+            if user is not None:
+                user.token_version += 1
+                await db.commit()
+        except Exception:
+            pass
     response.delete_cookie(settings.cookie_name, path="/")
 
 
@@ -111,7 +137,6 @@ async def delete_me(
     from api.auth.erasure import erase_user_artifacts
 
     uid = user.id
-    erase_user_artifacts(uid)
     await db.delete(user)
     await record_event(
         db, event_type="account_deleted", email=None, user_id=uid,
@@ -119,4 +144,7 @@ async def delete_me(
         user_agent=request.headers.get("user-agent"),
     )
     await db.commit()
+    # Irreversible artifact erasure only after the DB deletion is committed, so a
+    # commit failure can never destroy data belonging to a still-existing account.
+    erase_user_artifacts(uid)
     response.delete_cookie(settings.cookie_name, path="/")
