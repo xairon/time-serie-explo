@@ -12,28 +12,15 @@ interface Props {
   era5Granularity?: Era5Granularity
 }
 
-const ANOMALY_VARIABLES: Era5Variable[] = ['anomaly']
-
 export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, era5Granularity = 'daily' }: Props) {
   const { t, i18n } = useTranslation()
 
   if (!era5Active) return null
 
   const cfg = ERA5_VARIABLES[era5Variable]
-  const isAnomaly = ANOMALY_VARIABLES.includes(era5Variable)
-  // Water balance is 0-centred (like an anomaly) but uses the granularity-aware raw domain.
+  // Water balance is 0-centred but uses the granularity-aware raw domain.
   const isWaterBalance = era5Variable === 'waterBalance'
-  // For anomaly variables keep using the fixed divergent stop bounds.
-  // For raw variables use the granularity-aware domain so the legend agrees with the map.
-  let minVal: number
-  let maxVal: number
-  if (isAnomaly) {
-    const stops = cfg.stops
-    minVal = stops[0][0]
-    maxVal = stops[stops.length - 1][0]
-  } else {
-    ;[minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance', era5Granularity)
-  }
+  const [minVal, maxVal] = era5RawDomain(era5Variable as 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance', era5Granularity)
 
   let periodLabel = ''
   if (era5Period) {
@@ -85,11 +72,8 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
       <div className="text-xs font-semibold text-text-primary leading-tight">
         {t(cfg.labelKey)}
       </div>
-      {/* Window + period */}
+      {/* Period */}
       <div className="text-[10px] text-text-secondary mt-0.5">
-        {isAnomaly && (
-          <span>{t(`observatory.drawer.era5Window${era5Window}`)} · </span>
-        )}
         {periodLabel && <span>{periodLabel}</span>}
       </div>
       {/* Gradient legend */}
@@ -97,7 +81,7 @@ export function Era5Banner({ era5Active, era5Variable, era5Window, era5Period, e
         <div className="h-2.5 rounded" style={{ background: era5GradientCss(era5Variable) }} />
         <div className="relative flex justify-between text-[9px] text-text-secondary mt-0.5">
           <span>{String(minVal).replace('-', '−')} {cfg.unit}</span>
-          {(isAnomaly || isWaterBalance) && (
+          {isWaterBalance && (
             <span className="absolute left-1/2 -translate-x-1/2">0</span>
           )}
           <span>+{maxVal} {cfg.unit}</span>

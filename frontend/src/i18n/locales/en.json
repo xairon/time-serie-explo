@@ -248,7 +248,7 @@
       "groupWeatherEra5": "Weather (ERA5)",
       "era5Layer": "ERA5 grid",
       "era5ColorBy": "Color by",
-      "era5VarTemperature": "Temperature",
+      "era5VarTemperature": "Temp. at 00:00 UTC",
       "era5VarPrecipitation": "Precipitation",
       "era5VarEvaporation": "Evapotranspiration (PET)",
       "era5VarWaterBalance": "Water balance (P − PET)",
@@ -257,7 +257,6 @@
       "era5PeriodPrev": "Previous period",
       "era5PeriodNext": "Next period",
       "era5NoData": "No data for this date",
-      "era5VarAnomaly": "Thermal anomaly",
       "era5VarPrecipStdIndex": "Precipitation index (SPI)",
       "era5VarStdIndex": "Temperature index (STI)",
       "era5RawContext": "Raw context",
@@ -270,22 +269,21 @@
       "era5ByZoneHint": "Enable a zone layer (departments, regions…)",
       "era5TimelineDriven": "Driven by the timeline",
       "era5EvaporationMore": "more evapotranspiration",
-      "era5DescTemperature": "2 m air temperature (period mean). Raw °C scale: blue = cold, red = hot. Source: ERA5.",
+      "era5DescTemperature": "2 m air temperature: an instantaneous 00:00 UTC snapshot (not a daily mean), pending the switch to ERA5 daily statistics — roughly 2-4°C colder than a true daily average. Raw °C scale: blue = cold, red = hot. Source: ERA5.",
       "era5DescPrecipitation": "Accumulated precipitation over the period (mm). Light blue = little, dark blue = a lot. Source: ERA5.",
       "era5DescEvaporation": "Potential evapotranspiration (PET, mm): atmospheric evaporative demand. Darker = higher PET.",
-      "era5DescAnomaly": "Temperature departure (°C) from the 1991-2020 normal for the same window of months. Diverging around 0: blue = colder than normal, red = warmer.",
       "era5DescStdIndex": "Standardized Temperature Index (STI): temperature in standard deviations (σ) versus 1991-2020, in 7 McKee/WMO classes. Blue = cold, green = normal, red = hot. Temperature analogue of the SPI.",
       "era5DescPrecipStdIndex": "Standardized Precipitation Index (SPI, McKee 1993): the WMO-standard drought/wetness index. Accumulated rainfall mapped through a gamma fit (1991-2020 reference) into standard deviations (σ), in 7 classes. Brown = dry, grey = normal, blue-green = wet.",
       "era5DescWaterBalance": "Climatic water balance = precipitation − evapotranspiration (P − PET), in mm. Approximates the 'effective rainfall' that feeds recharge. Diverging around 0: red = deficit (dry), blue = surplus (wet)."
     },
     "era5": {
-      "popupTemperature": "Temperature",
+      "popupTemperature": "Temp. at 00:00 UTC",
       "popupPrecipitation": "Precipitation",
       "popupEvaporation": "Evapotranspiration (PET)",
       "popupWaterBalance": "Water balance (P − PET)",
-      "popupAnomaly": "Anomaly {{n}} months",
       "popupStiLabel": "Temperature index {{n}} months",
-      "popupSpiLabel": "Precipitation index {{n}} months"
+      "popupSpiLabel": "Precipitation index {{n}} months",
+      "popupClimatLink": "Analyze in Climat →"
     },
     "sti": {
       "EXTREMEMENT_BAS": "Very cold",

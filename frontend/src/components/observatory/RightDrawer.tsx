@@ -67,14 +67,14 @@ function AccordionSection({ id, title, badge, defaultOpen, children }: { id: str
   )
 }
 
-const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'waterBalance'> = ['temperature', 'precipitation', 'waterBalance']
+const RAW_VARIABLES: Array<'temperature' | 'precipitation' | 'evaporation' | 'waterBalance'> = ['temperature', 'precipitation', 'evaporation', 'waterBalance']
 
 // i18n key of the hover description for each ERA5 variable (what it is, reference period, colour reading).
 const ERA5_DESC_KEY: Record<string, string> = {
   temperature: 'observatory.drawer.era5DescTemperature',
   precipitation: 'observatory.drawer.era5DescPrecipitation',
+  evaporation: 'observatory.drawer.era5DescEvaporation',
   waterBalance: 'observatory.drawer.era5DescWaterBalance',
-  anomaly: 'observatory.drawer.era5DescAnomaly',
   tempStdIndex: 'observatory.drawer.era5DescStdIndex',
   precipStdIndex: 'observatory.drawer.era5DescPrecipStdIndex',
 }
@@ -90,7 +90,7 @@ function Era5InfoIcon({ descKey }: { descKey: string }) {
 }
 
 // Window-based (monthly) ERA5 variables — stepped month by month; raw ones step by day.
-const MONTH_VARS: Era5Variable[] = ['anomaly', 'tempStdIndex', 'precipStdIndex']
+const MONTH_VARS: Era5Variable[] = ['tempStdIndex', 'precipStdIndex']
 
 const _pad = (n: number) => String(n).padStart(2, '0')
 function shiftIso(iso: string, delta: number, byMonth: boolean): string {
@@ -280,7 +280,7 @@ export function RightDrawer(props: Props) {
           </label>
           {props.era5Active && (
             <div className="space-y-3 border-t border-white/5 pt-2">
-              {/* Primary anomaly variables */}
+              {/* Primary standardized index variables (SPI/STI) */}
               <div className="space-y-1">
                 {(['precipStdIndex', 'tempStdIndex'] as const).map((key) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer group">
@@ -292,8 +292,8 @@ export function RightDrawer(props: Props) {
               </div>
               {/* Collapsible raw context */}
               <Era5RawContextSection era5Variable={props.era5Variable} setEra5Variable={props.setEra5Variable} />
-              {/* Window selector (anomaly variables only) */}
-              {(props.era5Variable === 'anomaly' || props.era5Variable === 'tempStdIndex' || props.era5Variable === 'precipStdIndex') && (
+              {/* Window selector (SPI/STI index variables only) */}
+              {(props.era5Variable === 'tempStdIndex' || props.era5Variable === 'precipStdIndex') && (
                 <div>
                   <label className="text-xs text-text-secondary block mb-1">{t('observatory.drawer.era5Window')}</label>
                   <div className="flex gap-1">
@@ -327,13 +327,12 @@ export function RightDrawer(props: Props) {
                 </span>
                 {/* Continuous gradient bar */}
                 <div className="h-3 rounded" style={{ background: era5GradientCss(props.era5Variable) }} />
-                {/* Scale labels: min left, optional 0 centre for divergent anomaly, max right */}
+                {/* Scale labels: min left, optional 0 centre for divergent scales, max right */}
                 {(() => {
-                  // Divergent (0-centred) scales: the temperature anomaly AND the STI/SPI
-                  // z-scores. These must NOT fall through to era5RawDomain (which returns
-                  // the temperature default [-10, 35] and would mislabel the σ ramp).
-                  const isDivergentVar = props.era5Variable === 'anomaly'
-                    || props.era5Variable === 'tempStdIndex'
+                  // Divergent (0-centred) scales: the STI/SPI z-scores. These must NOT
+                  // fall through to era5RawDomain (which returns the temperature default
+                  // [-10, 35] and would mislabel the σ ramp).
+                  const isDivergentVar = props.era5Variable === 'tempStdIndex'
                     || props.era5Variable === 'precipStdIndex'
                   // Water balance is also 0-centred but uses the granularity-aware raw domain.
                   const isWaterBalance = props.era5Variable === 'waterBalance'

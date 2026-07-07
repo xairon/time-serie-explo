@@ -4,7 +4,7 @@
 the precomputed ``gold.fct_era5_indices_grid`` mart and only format + classify
 the result. These tests cover the pure formatting helpers (``_rows_to_spi``,
 ``_rows_to_sti``) and the month-resolution helper (``_resolve_indices_month``),
-following the repo convention (no DB touched — see test_era5_resolve_month_start.py).
+following the repo convention (no DB touched, fake conn/query objects only).
 """
 from datetime import date
 

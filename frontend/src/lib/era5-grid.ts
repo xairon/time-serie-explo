@@ -1,4 +1,4 @@
-import type { ERA5GridPoint, ERA5AnomalyPoint, ERA5StiPoint, ERA5SpiPoint } from './observatory-types'
+import type { ERA5GridPoint, ERA5StiPoint, ERA5SpiPoint } from './observatory-types'
 
 export const ERA5_CELL_HALF = 0.05
 
@@ -17,41 +17,22 @@ export function era5WaterBalance(p: { total_precipitation?: number | null; poten
   return p.total_precipitation + p.potential_evaporation
 }
 
-/**
- * Convert generic anomaly points (from /anomaly?variable=...) into GeoJSON squares.
- * Reads the `anomaly` field and stores it as feature property `anomaly`.
- * Used for both the temperature-anomaly and precipitation-anomaly grid layers.
- */
-export function era5GenericAnomalyToSquares(
-  points: ERA5AnomalyPoint[],
-): GeoJSON.FeatureCollection<GeoJSON.Polygon, { anomaly: number }> {
-  const h = ERA5_CELL_HALF
+/** Centre (lat/lon) of an ERA5 grid-square polygon — recovered from its bounding box
+ *  rather than re-deriving it from a raw feature property (the squares built by
+ *  era5*ToSquares above are ±ERA5_CELL_HALF around the exact cell centre, so the
+ *  bbox midpoint recovers it exactly). Used by ObservatoryMap's cell popup to deep-link
+ *  the "Analyser dans Climat" action (Task C1) to the same cell that was clicked. */
+export function cellCenterFromPolygon(geometry: GeoJSON.Geometry): { lat: number; lon: number } | null {
+  if (geometry.type !== 'Polygon') return null
+  const ring = geometry.coordinates[0]
+  if (!ring?.length) return null
+  const lons = ring.map((c) => c[0])
+  const lats = ring.map((c) => c[1])
   return {
-    type: 'FeatureCollection',
-    features: points
-      .filter((p) => p.anomaly != null)
-      .map((p) => {
-        const lon = Number(p.longitude)
-        const lat = Number(p.latitude)
-        const v = p.anomaly as number
-        return {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [lon - h, lat - h],
-              [lon + h, lat - h],
-              [lon + h, lat + h],
-              [lon - h, lat + h],
-              [lon - h, lat - h],
-            ]],
-          },
-          properties: { anomaly: v },
-        }
-      }),
+    lon: (Math.min(...lons) + Math.max(...lons)) / 2,
+    lat: (Math.min(...lats) + Math.max(...lats)) / 2,
   }
 }
-
 
 /**
  * Convert STI points to GeoJSON squares.

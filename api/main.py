@@ -79,10 +79,9 @@ async def lifespan(app: FastAPI):
 
     # No ERA5 warmers left: /spi, /sti and /monthly now read precomputed marts
     # (gold.fct_era5_indices_grid / fct_era5_monthly_grid) — sub-second regardless of
-    # cache state. /anomaly (temperature path) still hits the ~71s on-the-fly
-    # climatology scan on a cold cache, but it is no longer pre-warmed here; the
-    # scan's own single-flight lock (observatory_era5._climatology_lock) still
-    # prevents a thundering herd on a cold miss.
+    # cache state. /anomaly (the ~71s on-the-fly climatology scan) and its sole
+    # frontend consumer, the "anomaly" overlay variable, were removed entirely
+    # (Task C1, Lot 2) — STI now covers that use case from the precomputed grid.
 
     yield
 

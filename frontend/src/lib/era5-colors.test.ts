@@ -26,22 +26,6 @@ describe('era5-colors', () => {
     expect(era5FormatValue('precipitation', null)).toBe('—')
   })
 
-  it('includes the anomaly variable with a divergent scale', () => {
-    expect(ERA5_VARIABLES.anomaly.prop).toBe('anomaly')
-    const expr = era5ColorExpression('anomaly') as any[]
-    expect(expr[2]).toEqual(['to-number', ['get', 'anomaly']])
-    // divergent scale includes a 0 midpoint stop
-    const stopValues = expr.slice(3).filter((_, i) => i % 2 === 0)
-    expect(stopValues).toContain(0)
-  })
-
-  it('formats anomaly with an explicit sign', () => {
-    expect(era5FormatValue('anomaly', 2.3)).toBe('+2.3 °C')
-    expect(era5FormatValue('anomaly', -1.1)).toBe('−1.1 °C')
-    expect(era5FormatValue('anomaly', 0)).toBe('+0.0 °C')
-    expect(era5FormatValue('anomaly', null)).toBe('—')
-  })
-
   it('era5GradientCss returns a linear-gradient string containing the first and last stop colours', () => {
     const css = era5GradientCss('temperature')
     expect(css).toMatch(/^linear-gradient\(to right,/)
@@ -51,12 +35,6 @@ describe('era5-colors', () => {
     // first stop should be positioned at 0.0%, last at 100.0%
     expect(css).toContain('0.0%')
     expect(css).toContain('100.0%')
-  })
-
-  it('era5GradientCss positions anomaly 0-stop at exactly 50%', () => {
-    const css = era5GradientCss('anomaly')
-    // anomaly stops: -5 … 0 … +5 → 0 is at (0 - (-5)) / (5 - (-5)) * 100 = 50%
-    expect(css).toContain('#f7f7f7 50.0%')
   })
 
   it('precipStdIndex (SPI) is in the model with prop=spi, σ unit and a 0-centred divergent scale', () => {

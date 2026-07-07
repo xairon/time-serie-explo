@@ -1,9 +1,9 @@
-export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance' | 'anomaly' | 'tempStdIndex' | 'precipStdIndex'
+export type Era5Variable = 'temperature' | 'precipitation' | 'evaporation' | 'waterBalance' | 'tempStdIndex' | 'precipStdIndex'
 export type Era5Granularity = 'daily' | 'monthly'
 
 export interface Era5VarConfig {
   key: Era5Variable
-  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'water_balance' | 'anomaly' | 'sti' | 'spi'
+  prop: 'temperature_2m' | 'total_precipitation' | 'potential_evaporation' | 'water_balance' | 'sti' | 'spi'
   unit: string
   labelKey: string
   stops: Array<[number, string]>
@@ -32,11 +32,6 @@ export const ERA5_VARIABLES: Record<Era5Variable, Era5VarConfig> = {
     // Climatic water balance P − ETP (mm). Divergent around 0: deficit = red/brown,
     // surplus = blue. Symmetric stops; the display domain is rescaled per granularity.
     stops: [[-100, '#b2182b'], [-40, '#ef8a62'], [-10, '#fddbc7'], [0, '#f7f7f7'], [10, '#d1e5f0'], [40, '#67a9cf'], [100, '#2166ac']],
-  },
-  anomaly: {
-    key: 'anomaly', prop: 'anomaly', unit: '°C',
-    labelKey: 'observatory.drawer.era5VarAnomaly',
-    stops: [[-5, '#2166ac'], [-2.5, '#67a9cf'], [-0.5, '#d1e5f0'], [0, '#f7f7f7'], [0.5, '#fddbc7'], [2.5, '#ef8a62'], [5, '#b2182b']],
   },
   precipStdIndex: {
     key: 'precipStdIndex', prop: 'spi', unit: 'σ',
@@ -79,10 +74,6 @@ export function era5GradientCss(variable: Era5Variable): string {
 export function era5FormatValue(v: Era5Variable, value: number | null): string {
   if (value == null || Number.isNaN(value)) return '—'
   const cfg = ERA5_VARIABLES[v]
-  if (v === 'anomaly') {
-    const s = value.toFixed(1)
-    return `${value < 0 ? s.replace('-', '−') : `+${s}`} ${cfg.unit}`
-  }
   if (v === 'tempStdIndex' || v === 'precipStdIndex') {
     const s = Math.abs(value).toFixed(1)
     return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`

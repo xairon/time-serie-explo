@@ -203,13 +203,6 @@ export interface ERA5Range {
   max_date: string
 }
 
-export interface ERA5AnomalyPoint {
-  latitude: number
-  longitude: number
-  /** Generic anomaly field returned by /anomaly?variable=... (°C for temperature, % for precipitation). */
-  anomaly?: number | null
-}
-
 export interface ERA5StiPoint {
   latitude: number
   longitude: number

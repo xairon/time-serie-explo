@@ -110,12 +110,12 @@ function interpColor(value: number, stops: Array<[number, string]>): string {
 
 /**
  * Build a MapLibre 'match' colour expression for a by-zone ERA5 choropleth.
+ * Used for raw variables (temperature/precipitation/evaporation/waterBalance) —
+ * STI/SPI use their own dedicated era5StiZoneColorExpression / era5SpiZoneColorExpression.
  *
- * @param domain - When provided (raw variables), the stop positions are rescaled
- *   from the original [stopsMin, stopsMax] to [domain[0], domain[1]] so that
- *   monthly aggregates (which exceed daily stop ranges) are not saturated.
- *   Omit (or pass undefined) for anomaly variables, which keep their fixed
- *   divergent stops.
+ * @param domain - When provided, the stop positions are rescaled from the
+ *   original [stopsMin, stopsMax] to [domain[0], domain[1]] so that monthly
+ *   aggregates (which exceed daily stop ranges) are not saturated.
  */
 export function era5ZoneColorExpression(
   idProp: string,

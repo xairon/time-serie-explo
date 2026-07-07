@@ -1,8 +1,8 @@
 """Unit tests for the observatory_climat router — pure helpers + param validation.
 
-Follows the repo convention (see test_era5_spi.py / test_era5_resolve_month_start.py):
-exercise the pure Python transforms directly with plain dicts standing in for
-SQLAlchemy row mappings, rather than hitting the real BRGM warehouse.
+Follows the repo convention (see test_era5_spi.py): exercise the pure Python
+transforms directly with plain dicts standing in for SQLAlchemy row mappings,
+rather than hitting the real BRGM warehouse.
 """
 from datetime import date
 

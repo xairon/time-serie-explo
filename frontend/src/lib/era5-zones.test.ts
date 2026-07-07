@@ -35,14 +35,14 @@ describe('era5-zones', () => {
   })
 
   it('returns a plain transparent colour (never an empty match) when no zone has data', () => {
-    // Regression: while ERA5 anomaly/STI data is still loading, zoneValues is empty.
+    // Regression: while ERA5 STI/SPI data is still loading, zoneValues is empty.
     // An empty ['match', input, fallback] is invalid in MapLibre ("Expected at least
     // 4 arguments") and left the by-zone layer blank. Must be a constant instead.
-    expect(era5ZoneColorExpression('code', {}, 'anomaly')).toBe('rgba(0,0,0,0)')
+    expect(era5ZoneColorExpression('code', {}, 'tempStdIndex')).toBe('rgba(0,0,0,0)')
     expect(era5StiZoneColorExpression('code', {})).toBe('rgba(0,0,0,0)')
     expect(era5SpiZoneColorExpression('code', {})).toBe('rgba(0,0,0,0)')
     // with data, all still build a valid match
-    expect(Array.isArray(era5ZoneColorExpression('code', { A: 1 }, 'anomaly'))).toBe(true)
+    expect(Array.isArray(era5ZoneColorExpression('code', { A: 1 }, 'tempStdIndex'))).toBe(true)
     expect(Array.isArray(era5StiZoneColorExpression('code', { A: 1 }))).toBe(true)
     expect(Array.isArray(era5SpiZoneColorExpression('code', { A: 1 }))).toBe(true)
   })

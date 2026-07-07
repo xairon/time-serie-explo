@@ -8,7 +8,7 @@ upstream remediation). Commit 8231128 dropped the weighted AVG merge from
 were always clean. Without the merge, two float variants of the same 0.1° cell
 (e.g. 47.09999999999994 and 47.1) surface as two separate cells instead of one
 averaged cell — this test locks in the fix (no DB touched, follows the repo
-convention — see test_era5_resolve_month_start.py / test_era5_spi.py).
+convention — see test_era5_spi.py).
 """
 from api.routers.observatory_era5 import _rows_to_snapshot
 

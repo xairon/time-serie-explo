@@ -248,7 +248,7 @@
       "groupWeatherEra5": "Météo (ERA5)",
       "era5Layer": "Grille ERA5",
       "era5ColorBy": "Colorer par",
-      "era5VarTemperature": "Température",
+      "era5VarTemperature": "T° à 00h UTC",
       "era5VarPrecipitation": "Précipitations",
       "era5VarEvaporation": "Évapotranspiration (ETP)",
       "era5VarWaterBalance": "Bilan hydrique (P − ETP)",
@@ -257,7 +257,6 @@
       "era5PeriodPrev": "Période précédente",
       "era5PeriodNext": "Période suivante",
       "era5NoData": "Pas de données pour cette date",
-      "era5VarAnomaly": "Anomalie thermique",
       "era5VarPrecipStdIndex": "Indice de précipitations (SPI)",
       "era5VarStdIndex": "Indice thermique (STI)",
       "era5RawContext": "Contexte brut",
@@ -270,22 +269,21 @@
       "era5ByZoneHint": "Active un calque de zones (départements, régions…)",
       "era5TimelineDriven": "Piloté par la barre chronologique",
       "era5EvaporationMore": "plus d'évapotranspiration",
-      "era5DescTemperature": "Température de l'air à 2 m (moyenne de la période). Échelle brute en °C : bleu = froid, rouge = chaud. Source : ERA5.",
+      "era5DescTemperature": "Température de l'air à 2 m : instantané à 00h00 UTC (et non une moyenne journalière), en attendant le passage aux statistiques journalières ERA5 — biais froid d'environ 2 à 4 °C par rapport à une vraie moyenne quotidienne. Échelle brute en °C : bleu = froid, rouge = chaud. Source : ERA5.",
       "era5DescPrecipitation": "Cumul de précipitations sur la période (mm). Bleu clair = peu, bleu foncé = beaucoup. Source : ERA5.",
       "era5DescEvaporation": "Évapotranspiration potentielle (ETP, mm) : demande évaporatoire de l'atmosphère. Plus la couleur est foncée, plus l'ETP est forte.",
-      "era5DescAnomaly": "Écart de température (°C) par rapport à la normale 1991-2020 pour la même fenêtre de mois. Divergent autour de 0 : bleu = plus froid que la normale, rouge = plus chaud.",
       "era5DescStdIndex": "Indice thermique standardisé (STI) : température exprimée en écarts-types (σ) par rapport à 1991-2020, classée en 7 classes McKee/OMM. Bleu = froid, vert = normal, rouge = chaud. Analogue thermique du SPI.",
       "era5DescPrecipStdIndex": "Indice de précipitations standardisé (SPI, McKee 1993) : indicateur OMM de sécheresse/excédent. Cumul de pluie transformé via une loi gamma (référence 1991-2020) en écarts-types (σ), classé en 7 classes. Brun = sec, gris = normal, bleu-vert = humide.",
       "era5DescWaterBalance": "Bilan hydrique climatique = précipitations − évapotranspiration (P − ETP), en mm. Approche les « pluies efficaces » qui alimentent la recharge. Divergent autour de 0 : rouge = déficit (sec), bleu = excédent (humide)."
     },
     "era5": {
-      "popupTemperature": "Température",
+      "popupTemperature": "T° à 00h UTC",
       "popupPrecipitation": "Précipitations",
       "popupEvaporation": "Évapotranspiration (ETP)",
       "popupWaterBalance": "Bilan hydrique (P − ETP)",
-      "popupAnomaly": "Anomalie {{n}} mois",
       "popupStiLabel": "Indice thermique {{n}} mois",
-      "popupSpiLabel": "Indice de précipitations {{n}} mois"
+      "popupSpiLabel": "Indice de précipitations {{n}} mois",
+      "popupClimatLink": "Analyser dans Climat →"
     },
     "sti": {
       "EXTREMEMENT_BAS": "Très froid",
