@@ -67,6 +67,40 @@ def get_era5_grid():
     return get_cached("obs_era5_grid", {}, GRID_TTL, fetch)
 
 
+def _rows_to_snapshot(rows) -> list[dict]:
+    """Merge duplicate-coordinate rows into one row per rounded 0.1° grid cell.
+
+    CONFIRMED (verified against the live warehouse): ``gold.era5_grid`` is a view
+    over ``bronze.era5_france_timeseries``, which was never purged — unrounded
+    float coordinates still exist there for 2026-01-21→2026-05-01 (~1.16M rows;
+    only SILVER was purged/re-staged by the upstream remediation). Two float
+    variants of the same cell (e.g. ``47.09999999999994`` and ``47.1``) must be
+    merged into a single row, averaging the three variables per cell — otherwise
+    /snapshot returns duplicate/overlapping cells for any date in that window
+    (and defensively, for any future ingestion regression that reintroduces
+    unrounded coordinates). This reproduces the pre-8231128
+    ``GROUP BY round(...) / AVG(...)`` SQL behaviour, but merges in Python so the
+    logic can be unit-tested without touching the database.
+    """
+    fields = ("temperature_2m", "total_precipitation", "potential_evaporation")
+    acc: dict = defaultdict(lambda: {f: [] for f in fields})
+    for r in rows:
+        key = (round(float(r["latitude"]), 1), round(float(r["longitude"]), 1))
+        bucket = acc[key]
+        for f in fields:
+            v = r[f]
+            if v is not None:
+                bucket[f].append(float(v))
+    return [
+        {
+            "latitude": lat,
+            "longitude": lon,
+            **{f: (sum(vals) / len(vals) if vals else None) for f, vals in bucket.items()},
+        }
+        for (lat, lon), bucket in acc.items()
+    ]
+
+
 @router.get("/snapshot")
 def get_era5_snapshot(
     snapshot_date: DateType | None = Query(
@@ -85,13 +119,13 @@ def get_era5_snapshot(
                 if d is None:
                     # Empty grid table — nothing to snapshot (avoids d + timedelta TypeError).
                     return []
-                # No weighted duplicate-coordinate merge needed here anymore: the
-                # upstream ERA5 coordinates are clean + defensively rounded to 0.1°
-                # (one row per cell/day), so a plain per-row rounding is equivalent
-                # to the old AVG(...)-per-rounded-cell aggregation.
+                # Duplicate-coordinate merge IS required here: gold.era5_grid reads
+                # bronze (never purged), which still has unrounded float coordinates
+                # for jan-avr 2026 (and potentially future ingestion regressions).
+                # See _rows_to_snapshot docstring for the verified detail.
                 query = """
-                    SELECT round(latitude::numeric, 1) AS latitude,
-                           round(longitude::numeric, 1) AS longitude,
+                    SELECT latitude,
+                           longitude,
                            temperature_2m,
                            total_precipitation,
                            potential_evaporation
@@ -102,7 +136,7 @@ def get_era5_snapshot(
                            OR potential_evaporation IS NOT NULL)
                 """
                 result = conn.execute(text(query), {"d": d, "d_next": d + timedelta(days=1)})
-                return [dict(r._mapping) for r in result]
+                return _rows_to_snapshot([dict(r._mapping) for r in result])
         finally:
             pass  # shared pooled engine; do not dispose
 
