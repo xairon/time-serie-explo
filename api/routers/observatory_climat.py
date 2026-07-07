@@ -64,6 +64,13 @@ def _round_cell(lat: float, lon: float) -> tuple[float, float]:
     return round(lat, 1), round(lon, 1)
 
 
+def _validate_window(window: int) -> None:
+    """Reject an unknown window with 422, like variable/index/month/years elsewhere
+    in this router — a silent fallback to 3 would hide a client-side bug."""
+    if window not in WINDOWS:
+        raise HTTPException(422, f"Fenêtre invalide : {window!r} (attendu {WINDOWS})")
+
+
 def _build_situation_summary(rows, year_rows, month_start: DateType, window: int) -> dict:
     """Pure aggregation: 7-class WMO breakdown, % en sécheresse, rang du mois vs.
     l'historique, top-5 des cellules les plus sèches.
@@ -177,6 +184,69 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
     return series
 
 
+def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
+    """Pure gaps-and-islands grouping: consecutive CALENDAR months with SPI < -1
+    form one drought episode.
+
+    Island key = ``month_ordinal - rank`` where ``rank`` is the 1-based position
+    of the row once sorted by month among the drought-only rows — the calendar
+    equivalent of the SQL idiom
+    ``month - ROW_NUMBER() OVER (ORDER BY month) * INTERVAL '1 month'``.
+    Consecutive calendar months keep the same key; any missing month (an absent
+    row, or a NULL SPI filtered out upstream) shifts the key and therefore
+    breaks the episode — un mois manquant casse l'épisode, robuste aux trous de
+    série (a mid-series gap no longer silently merges two distinct droughts).
+
+    Args:
+        spi_rows: dicts ``{month, spi}`` for one cell/window, ``spi`` may be
+            non-drought or already spi-not-null filtered upstream.
+        monthly_rows: dicts ``{mois, precipitation_totale}`` for the same cell,
+            used to compute the cumulative rainfall deficit per episode.
+        clim_rows: dicts ``{mois_calendaire, precip_moyenne}`` (window-1
+            climatology), the calendar-month normal subtracted from
+            ``precipitation_totale``.
+    """
+    normal_by_month = {int(r["mois_calendaire"]): _num(r["precip_moyenne"]) for r in clim_rows}
+    precip_by_month = {r["mois"]: _num(r["precipitation_totale"]) for r in monthly_rows}
+
+    drought = sorted(
+        (
+            {"month": r["month"], "spi": float(r["spi"])}
+            for r in spi_rows
+            if r["spi"] is not None and float(r["spi"]) < -1.0
+        ),
+        key=lambda r: r["month"],
+    )
+
+    groups: dict = defaultdict(list)
+    for rank, row in enumerate(drought, start=1):
+        month_ordinal = row["month"].year * 12 + row["month"].month
+        groups[month_ordinal - rank].append(row)
+
+    episodes = []
+    for members in groups.values():
+        months = [m["month"] for m in members]
+        debut, fin = min(months), max(months)
+        deficit_terms = []
+        for month, precip in precip_by_month.items():
+            if not (debut <= month <= fin):
+                continue
+            normal = normal_by_month.get(month.month)
+            if precip is not None and normal is not None:
+                deficit_terms.append(precip - normal)
+        episodes.append(
+            {
+                "debut": str(debut),
+                "fin": str(fin),
+                "duree_mois": len(members),
+                "spi_min": round(min(m["spi"] for m in members), 3),
+                "deficit_cumule_mm": round(sum(deficit_terms), 1),
+            }
+        )
+    episodes.sort(key=lambda e: (-e["duree_mois"], e["debut"]))
+    return episodes
+
+
 def _merge_compare_years(monthly_rows, clim_rows, spi_rows, year_list) -> dict:
     """Pure merge: per-year cumulative monthly rainfall (vs. normal) + 3-month SPI series."""
     normal_by_month = {int(r["mois_calendaire"]): _num(r["precip_moyenne"]) or 0.0 for r in clim_rows}
@@ -252,8 +322,7 @@ def get_grid_indices(
     index: str = Query("spi", description="spi ou sti"),
 ):
     """Per-cell SPI or STI value from ``fct_era5_indices_grid`` for the given month/window."""
-    if window not in WINDOWS:
-        window = 3
+    _validate_window(window)
     if index not in ("spi", "sti"):
         raise HTTPException(422, f"Indice inconnu : {index!r} (attendu spi ou sti)")
     month_start = _parse_month(month)
@@ -298,8 +367,7 @@ def get_situation_summary(
     """Territory-wide aggregates for a month/window: 7-class WMO breakdown, % en
     sécheresse (SPI < -1), rang du mois vs. l'historique 1950→présent, top-5 des
     cellules les plus sèches."""
-    if window not in WINDOWS:
-        window = 3
+    _validate_window(window)
     month_start = _parse_month(month)
 
     def fetch():
@@ -426,10 +494,12 @@ def get_point_episodes(
     lon: float = Query(..., description="Longitude"),
     window: int = Query(3, description="Fenêtre en mois (1, 3, 6 ou 12)"),
 ):
-    """Drought episodes at the nearest cell: consecutive months with SPI < -1 for the
-    given window (gaps-and-islands via a running sum of non-dry breaks)."""
-    if window not in WINDOWS:
-        window = 3
+    """Drought episodes at the nearest cell: consecutive CALENDAR months with
+    SPI < -1 for the given window. The SQL below only fetches raw rows —
+    grouping is CALENDAR-aware gaps-and-islands done in ``_build_drought_episodes``
+    (see its docstring for the island-keying idiom), so a missing month never
+    silently merges two distinct episodes."""
+    _validate_window(window)
     cell_lat, cell_lon = _round_cell(lat, lon)
 
     def fetch():
@@ -444,52 +514,29 @@ def get_point_episodes(
             ).first()
             if exists is None:
                 return None
-            rows = conn.execute(
+            spi_rows = conn.execute(
                 text(
-                    """
-                    WITH cell_spi AS (
-                        SELECT month, spi
-                        FROM gold.fct_era5_indices_grid
-                        WHERE era5_latitude = :lat AND era5_longitude = :lon
-                          AND fenetre = :window AND spi IS NOT NULL
-                    ),
-                    flagged AS (
-                        SELECT month, spi,
-                               SUM(CASE WHEN spi < -1 THEN 0 ELSE 1 END) OVER (ORDER BY month) AS grp
-                        FROM cell_spi
-                    ),
-                    episodes AS (
-                        SELECT grp, MIN(month) AS debut, MAX(month) AS fin,
-                               COUNT(*) AS duree_mois, MIN(spi) AS spi_min
-                        FROM flagged
-                        WHERE spi < -1
-                        GROUP BY grp
-                    )
-                    SELECT e.debut, e.fin, e.duree_mois, e.spi_min,
-                           COALESCE(SUM(m.precipitation_totale - c.precip_moyenne), 0) AS deficit_cumule_mm
-                    FROM episodes e
-                    JOIN gold.fct_era5_monthly_grid m
-                      ON m.era5_latitude = :lat AND m.era5_longitude = :lon
-                     AND m.mois BETWEEN e.debut AND e.fin
-                    LEFT JOIN gold.fct_era5_climatology_grid c
-                      ON c.era5_latitude = :lat AND c.era5_longitude = :lon
-                     AND c.fenetre = 1 AND c.mois_calendaire = EXTRACT(MONTH FROM m.mois)::int
-                    GROUP BY e.grp, e.debut, e.fin, e.duree_mois, e.spi_min
-                    ORDER BY e.duree_mois DESC
-                    """
+                    "SELECT month, spi FROM gold.fct_era5_indices_grid"
+                    " WHERE era5_latitude = :lat AND era5_longitude = :lon"
+                    " AND fenetre = :window AND spi IS NOT NULL ORDER BY month"
                 ),
                 {"lat": cell_lat, "lon": cell_lon, "window": window},
             ).mappings().all()
-        return [
-            {
-                "debut": str(r["debut"]),
-                "fin": str(r["fin"]),
-                "duree_mois": int(r["duree_mois"]),
-                "spi_min": round(float(r["spi_min"]), 3),
-                "deficit_cumule_mm": round(float(r["deficit_cumule_mm"]), 1),
-            }
-            for r in rows
-        ]
+            monthly_rows = conn.execute(
+                text(
+                    "SELECT mois, precipitation_totale FROM gold.fct_era5_monthly_grid"
+                    " WHERE era5_latitude = :lat AND era5_longitude = :lon"
+                ),
+                {"lat": cell_lat, "lon": cell_lon},
+            ).mappings().all()
+            clim_rows = conn.execute(
+                text(
+                    "SELECT mois_calendaire, precip_moyenne FROM gold.fct_era5_climatology_grid"
+                    " WHERE era5_latitude = :lat AND era5_longitude = :lon AND fenetre = 1"
+                ),
+                {"lat": cell_lat, "lon": cell_lon},
+            ).mappings().all()
+        return _build_drought_episodes(spi_rows, monthly_rows, clim_rows)
 
     result = get_cached(
         "obs_climat_point_episodes", {"lat": cell_lat, "lon": cell_lon, "window": window}, GRID_TTL, fetch

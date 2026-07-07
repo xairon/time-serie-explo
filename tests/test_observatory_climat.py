@@ -14,6 +14,7 @@ from api.routers.observatory_climat import (
     _parse_month,
     _round_cell,
     _build_situation_summary,
+    _build_drought_episodes,
     _merge_point_series,
     _merge_compare_years,
     _MONTHLY_VARIABLES,
@@ -126,6 +127,85 @@ class TestBuildSituationSummary:
         assert out["is_driest_on_record"] is False
         # 1990 was as dry/drier -> driest since 1991 (the year right after)
         assert out["driest_since_year"] == 1991
+
+
+class TestBuildDroughtEpisodes:
+    """Calendar-aware gaps-and-islands: a missing calendar month must break the
+    episode instead of silently merging two distinct droughts."""
+
+    def _spi(self, *month_spi_pairs):
+        return [{"month": date(y, m, 1), "spi": v} for (y, m), v in month_spi_pairs]
+
+    def test_consecutive_drought_months_form_one_episode(self):
+        spi_rows = self._spi(
+            ((2020, 1), -1.5), ((2020, 2), -2.0), ((2020, 3), -1.2)
+        )
+        out = _build_drought_episodes(spi_rows, [], [])
+        assert len(out) == 1
+        assert out[0]["debut"] == "2020-01-01"
+        assert out[0]["fin"] == "2020-03-01"
+        assert out[0]["duree_mois"] == 3
+        assert out[0]["spi_min"] == -2.0
+
+    def test_missing_month_in_the_middle_splits_into_two_episodes(self):
+        # 2020-03 is simply absent (e.g. its SPI was NULL and filtered upstream) —
+        # the drought resumes in 04-05 but must NOT be merged with 01-02.
+        spi_rows = self._spi(
+            ((2020, 1), -1.5), ((2020, 2), -2.0),
+            ((2020, 4), -1.8), ((2020, 5), -3.0),
+        )
+        out = _build_drought_episodes(spi_rows, [], [])
+        assert len(out) == 2
+        by_debut = {e["debut"]: e for e in out}
+        assert by_debut["2020-01-01"]["fin"] == "2020-02-01"
+        assert by_debut["2020-01-01"]["duree_mois"] == 2
+        assert by_debut["2020-04-01"]["fin"] == "2020-05-01"
+        assert by_debut["2020-04-01"]["duree_mois"] == 2
+
+    def test_non_drought_month_present_also_breaks_the_episode(self):
+        # 2020-03 IS present but spi >= -1 (not a drought month) — must break too.
+        spi_rows = self._spi(
+            ((2020, 1), -1.5), ((2020, 2), -2.0),
+            ((2020, 3), 0.2),
+            ((2020, 4), -1.8), ((2020, 5), -3.0),
+        )
+        out = _build_drought_episodes(spi_rows, [], [])
+        assert len(out) == 2
+        assert {e["duree_mois"] for e in out} == {2, 2}
+
+    def test_no_drought_rows_returns_empty_list(self):
+        spi_rows = self._spi(((2020, 1), 0.5), ((2020, 2), -0.3))
+        assert _build_drought_episodes(spi_rows, [], []) == []
+
+    def test_episodes_sorted_by_duration_descending(self):
+        spi_rows = self._spi(
+            ((2020, 1), -1.5),
+            ((2020, 3), -2.0), ((2020, 4), -2.1), ((2020, 5), -1.9),
+        )
+        out = _build_drought_episodes(spi_rows, [], [])
+        assert [e["duree_mois"] for e in out] == [3, 1]
+        assert out[0]["debut"] == "2020-03-01"
+
+    def test_deficit_cumule_mm_sums_precip_minus_normal_within_episode_range(self):
+        spi_rows = self._spi(((2020, 1), -1.5), ((2020, 2), -2.0))
+        monthly_rows = [
+            {"mois": date(2020, 1, 1), "precipitation_totale": 10.0},
+            {"mois": date(2020, 2, 1), "precipitation_totale": 5.0},
+            {"mois": date(2020, 3, 1), "precipitation_totale": 999.0},  # outside range
+        ]
+        clim_rows = [
+            {"mois_calendaire": 1, "precip_moyenne": 40.0},
+            {"mois_calendaire": 2, "precip_moyenne": 35.0},
+        ]
+        out = _build_drought_episodes(spi_rows, monthly_rows, clim_rows)
+        assert len(out) == 1
+        # (10 - 40) + (5 - 35) = -60.0 — March is excluded despite the huge value.
+        assert out[0]["deficit_cumule_mm"] == -60.0
+
+    def test_missing_climatology_or_monthly_row_yields_zero_deficit(self):
+        spi_rows = self._spi(((2020, 1), -1.5))
+        out = _build_drought_episodes(spi_rows, [], [])
+        assert out[0]["deficit_cumule_mm"] == 0.0
 
 
 class TestMergePointSeries:
@@ -246,5 +326,36 @@ class TestParamValidationViaHttp:
         r = client.get(
             "/api/v1/observatory/climat/compare-years",
             params={"lat": 47.4, "lon": 0.7, "years": "abc,2003"},
+        )
+        assert r.status_code == 422
+
+    def test_grid_indices_rejects_invalid_window(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/grid-indices", params={"month": "2026-06", "window": 4}
+        )
+        assert r.status_code == 422
+
+    def test_situation_summary_rejects_invalid_window(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/situation-summary", params={"month": "2026-06", "window": 4}
+        )
+        assert r.status_code == 422
+
+    def test_point_episodes_rejects_invalid_window(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/point-episodes",
+            params={"lat": 47.4, "lon": 0.7, "window": 4},
         )
         assert r.status_code == 422
