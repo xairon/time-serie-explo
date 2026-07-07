@@ -12,7 +12,7 @@ import type {
   HydroSiteSiblings,
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
-  ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary,
+  ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary, ClimatPointSeries, ClimatDroughtEpisode,
 } from './observatory-types'
 
 export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
@@ -132,6 +132,17 @@ export const observatoryApi = {
       fetchJson<ClimatIndexPoint[]>('/observatory/climat/grid-indices', { month, window: String(window), index }),
     situationSummary: (month: string, window: number) =>
       fetchJson<ClimatSituationSummary>('/observatory/climat/situation-summary', { month, window: String(window) }),
+    // Point/Zone view (Task B2) — full history + drought episodes for the grid cell
+    // nearest to lat/lon (rounded to 0.1° server-side).
+    pointSeries: (lat: number, lon: number) =>
+      fetchJson<ClimatPointSeries>('/observatory/climat/point-series', { lat: String(lat), lon: String(lon) }),
+    pointEpisodes: (lat: number, lon: number, window: number) =>
+      fetchJson<ClimatDroughtEpisode[]>('/observatory/climat/point-episodes', {
+        lat: String(lat), lon: String(lon), window: String(window),
+      }),
+    // Direct download link (no fetch-into-memory) — the browser streams the CSV response.
+    exportPointUrl: (lat: number, lon: number) =>
+      `${API_BASE}/observatory/climat/export-point.csv?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`,
   },
   wfs: {
     layer: (layerId: string, bbox?: string) =>

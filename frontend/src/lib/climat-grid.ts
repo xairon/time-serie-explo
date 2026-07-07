@@ -36,6 +36,21 @@ export function climatMonthlyToSquares(
   }
 }
 
+/** Outline square for the cell selected on the Situation map (Task B2 Point panel
+ *  highlight) — a single-feature FeatureCollection centred on lat/lon. */
+export function climatSelectedCellSquare(lat: number, lon: number): GeoJSON.FeatureCollection<GeoJSON.Polygon> {
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: [square(lon, lat, ERA5_CELL_HALF)] },
+        properties: {},
+      },
+    ],
+  }
+}
+
 /** Convert grid-indices points (SPI or STI) into squares carrying `value` + `index_class`. */
 export function climatIndicesToSquares(
   points: ClimatIndexPoint[],

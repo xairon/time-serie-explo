@@ -1,22 +1,27 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { climatMonthlyToSquares, climatIndicesToSquares } from '@/lib/climat-grid'
-import { climatRawColorExpression, climatIndexColorExpression, climatFormatValue, isClimatIndexVariable, CLIMAT_VARIABLES } from '@/lib/climat-colors'
+import { climatMonthlyToSquares, climatIndicesToSquares, climatSelectedCellSquare } from '@/lib/climat-grid'
+import { climatRawColorExpression, climatIndexColorExpression, isClimatIndexVariable } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
 import type { ClimatMonthlyPoint, ClimatIndexPoint } from '@/lib/observatory-types'
+import type { SelectedCell } from '@/hooks/useClimat'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
 const FRANCE_ZOOM = 5.2
 const SRC = 'climat-grid'
 const FILL = 'climat-grid-fill'
+const SELECTED_SRC = 'climat-selected-cell'
+const SELECTED_LINE = 'climat-selected-cell-line'
 
 interface Props {
   variable: ClimatVariable
-  window: number
   monthlyPoints?: ClimatMonthlyPoint[]
   indexPoints?: ClimatIndexPoint[]
+  /** Called with the clicked cell's centre (rounded to 0.1°) — opens the Point panel (Task B2). */
+  onCellClick?: (lat: number, lon: number) => void
+  /** Currently open Point panel's cell, outlined on the map for orientation. */
+  selectedCell?: SelectedCell | null
 }
 
 /** Lean full-screen MapLibre map for the Climat "Situation" view — a single ERA5-grid
@@ -24,14 +29,11 @@ interface Props {
  *  ObservatoryMap, which is coupled to the station/zone/sensor overlay state (see plan
  *  Task B1: "if ObservatoryMap is too coupled, build a lean ClimatMap"). Reuses the same
  *  base style + squares approach as era5-grid.ts / ObservatoryMap's era5-grid-fill layer. */
-export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Props) {
-  const { t } = useTranslation()
+export function ClimatMap({ variable, monthlyPoints, indexPoints, onCellClick, selectedCell }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
-  const variableRef = useRef(variable); variableRef.current = variable
-  const windowRef = useRef(window); windowRef.current = window
-  const tRef = useRef(t); tRef.current = t
+  const onCellClickRef = useRef(onCellClick); onCellClickRef.current = onCellClick
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -45,25 +47,22 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
     map.on('load', () => {
       map.addSource(SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: FILL, type: 'fill', source: SRC, paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.65 } })
+      map.addSource(SELECTED_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: SELECTED_LINE, type: 'line', source: SELECTED_SRC,
+        paint: { 'line-color': '#22d3ee', 'line-width': 3 },
+      })
+      // Click opens the Point panel (Task B2) instead of a quick popup — the panel
+      // carries far more information (full history, SPI/STI, drought episodes) than
+      // a one-line value ever could. The cell centre is the clicked square's centroid
+      // (average of its 4 corners), rounded back to the 0.1° grid.
       map.on('click', FILL, (e) => {
         const f = e.features?.[0]
-        if (!f) return
-        const pr = f.properties as Record<string, string | number>
-        const v = Number(pr.value)
-        const curVar = variableRef.current
-        // SPI/STI share the observatory overlay's popup label i18n keys — same wording, no duplication.
-        // Reads tRef.current (not the closed-over `t`) so popups created after a language change
-        // still pick up the new translations, even though this effect never re-runs.
-        const curT = tRef.current
-        const label = curVar === 'spi'
-          ? curT('observatory.era5.popupSpiLabel', { n: windowRef.current })
-          : curVar === 'sti'
-            ? curT('observatory.era5.popupStiLabel', { n: windowRef.current })
-            : curT(CLIMAT_VARIABLES[curVar].labelKey)
-        new maplibregl.Popup({ closeButton: true })
-          .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-size:12px;line-height:1.5"><strong>${label}</strong><div>${climatFormatValue(curVar, Number.isFinite(v) ? v : null)}</div></div>`)
-          .addTo(map)
+        if (!f || f.geometry.type !== 'Polygon') return
+        const ring = f.geometry.coordinates[0]
+        const lon = (ring[0][0] + ring[1][0] + ring[2][0] + ring[3][0]) / 4
+        const lat = (ring[0][1] + ring[1][1] + ring[2][1] + ring[3][1]) / 4
+        onCellClickRef.current?.(Math.round(lat * 10) / 10, Math.round(lon * 10) / 10)
       })
       map.on('mouseenter', FILL, () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', FILL, () => { map.getCanvas().style.cursor = '' })
@@ -71,10 +70,8 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
       setMapLoaded(true)
     })
     return () => { map.remove(); mapRef.current = null }
-    // Map init must run exactly once: react-i18next hands out a new `t` reference on every
-    // language change, and depending on it here would tear down and rebuild the whole
-    // maplibre map (style reload, viewport reset, tile cache lost). Language-dependent
-    // strings read tRef.current at event time instead (see click handler above).
+    // Map init must run exactly once — see updateLayer/selected-cell effects below for
+    // everything that needs to react to prop changes without rebuilding the map.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -93,6 +90,15 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
   }, [mapLoaded, variable, monthlyPoints, indexPoints])
 
   useEffect(() => { updateLayer() }, [updateLayer])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapLoaded || !map.getSource(SELECTED_SRC)) return
+    const data = selectedCell
+      ? climatSelectedCellSquare(selectedCell.lat, selectedCell.lon)
+      : { type: 'FeatureCollection' as const, features: [] }
+    ;(map.getSource(SELECTED_SRC) as maplibregl.GeoJSONSource).setData(data as any)
+  }, [mapLoaded, selectedCell])
 
   return <div ref={containerRef} className="absolute inset-0" data-testid="climat-map" />
 }

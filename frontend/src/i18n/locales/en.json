@@ -1854,6 +1854,32 @@
       "driestSince": "driest month since {{year}}",
       "mostAffected": "Most affected areas:"
     },
-    "loadingGrid": "Loading grid…"
+    "loadingGrid": "Loading grid…",
+    "pointPanel": {
+      "title": "Point analysis",
+      "ariaLabel": "Point analysis — {{lat}}, {{lon}}",
+      "coords": "{{lat}}° N, {{lon}}° E",
+      "exportCsv": "Export CSV",
+      "loadFailed": "Could not load data for this point.",
+      "noData": "No data for this cell.",
+      "noIndexData": "No index data for this period.",
+      "precipVsNormal": "Monthly precipitation vs. normal (1991-2020)",
+      "precipitation": "Precipitation",
+      "normal": "Normal",
+      "indexLabel": "Index",
+      "period5y": "5 years",
+      "period10y": "10 years",
+      "periodMax": "Full history"
+    },
+    "episodes": {
+      "title": "Drought episodes",
+      "start": "Start",
+      "end": "End",
+      "duration": "Duration (months)",
+      "spiMin": "Min SPI",
+      "deficit": "Deficit (mm)",
+      "empty": "No drought episode recorded over this period.",
+      "ongoing": "Ongoing"
+    }
   }
 }

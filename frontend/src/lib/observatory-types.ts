@@ -261,6 +261,47 @@ export interface ClimatSituationSummary {
   top5_cellules_seches: Array<{ latitude: number; longitude: number; spi: number }>
 }
 
+/** One monthly row from GET /observatory/climat/point-series (Task B2) — merges the
+ *  monthly grid variables with the calendar-month normal (window-1 climatology) and
+ *  SPI/STI for the 4 standard windows (1/3/6/12 months). */
+export interface ClimatPointSeriesEntry {
+  month: string
+  temperature_moyenne: number | null
+  temperature_min: number | null
+  temperature_max: number | null
+  precipitation_totale: number | null
+  etp_totale: number | null
+  bilan_hydrique: number | null
+  nb_jours: number | null
+  mois_complet: boolean | null
+  precipitation_normale: number | null
+  temperature_normale: number | null
+  spi_1: number | null
+  sti_1: number | null
+  spi_3: number | null
+  sti_3: number | null
+  spi_6: number | null
+  sti_6: number | null
+  spi_12: number | null
+  sti_12: number | null
+}
+
+/** GET /observatory/climat/point-series response — the full history for the nearest cell. */
+export interface ClimatPointSeries {
+  cell: { latitude: number; longitude: number }
+  series: ClimatPointSeriesEntry[]
+}
+
+/** One drought episode from GET /observatory/climat/point-episodes — a run of
+ *  consecutive calendar months with SPI < -1 at the requested window. */
+export interface ClimatDroughtEpisode {
+  debut: string
+  fin: string
+  duree_mois: number
+  spi_min: number
+  deficit_cumule_mm: number
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

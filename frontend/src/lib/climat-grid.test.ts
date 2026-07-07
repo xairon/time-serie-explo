@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { climatMonthlyToSquares, climatIndicesToSquares } from './climat-grid'
+import { climatMonthlyToSquares, climatIndicesToSquares, climatSelectedCellSquare } from './climat-grid'
 import { ERA5_CELL_HALF } from './era5-grid'
 
 describe('climatMonthlyToSquares', () => {
@@ -46,5 +46,16 @@ describe('climatIndicesToSquares', () => {
       'spi',
     )
     expect(fc.features).toHaveLength(0)
+  })
+})
+
+describe('climatSelectedCellSquare', () => {
+  it('builds a single square centred on lat/lon', () => {
+    const fc = climatSelectedCellSquare(47.4, 0.7)
+    expect(fc.features).toHaveLength(1)
+    const ring = fc.features[0].geometry.coordinates[0]
+    expect(ring).toHaveLength(5)
+    expect(ring[0]).toEqual([0.7 - ERA5_CELL_HALF, 47.4 - ERA5_CELL_HALF])
+    expect(ring[2]).toEqual([0.7 + ERA5_CELL_HALF, 47.4 + ERA5_CELL_HALF])
   })
 })

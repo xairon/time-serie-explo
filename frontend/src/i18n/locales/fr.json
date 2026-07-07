@@ -1854,6 +1854,32 @@
       "driestSince": "mois le plus sec depuis {{year}}",
       "mostAffected": "Zones les plus touchées :"
     },
-    "loadingGrid": "Chargement de la grille…"
+    "loadingGrid": "Chargement de la grille…",
+    "pointPanel": {
+      "title": "Analyse du point",
+      "ariaLabel": "Analyse du point — {{lat}}, {{lon}}",
+      "coords": "{{lat}}° N, {{lon}}° E",
+      "exportCsv": "Exporter en CSV",
+      "loadFailed": "Impossible de charger les données de ce point.",
+      "noData": "Aucune donnée pour cette cellule.",
+      "noIndexData": "Aucune donnée d'indice pour cette période.",
+      "precipVsNormal": "Précipitations mensuelles vs normale (1991-2020)",
+      "precipitation": "Précipitations",
+      "normal": "Normale",
+      "indexLabel": "Indice",
+      "period5y": "5 ans",
+      "period10y": "10 ans",
+      "periodMax": "Historique complet"
+    },
+    "episodes": {
+      "title": "Épisodes de sécheresse",
+      "start": "Début",
+      "end": "Fin",
+      "duration": "Durée (mois)",
+      "spiMin": "SPI min",
+      "deficit": "Déficit (mm)",
+      "empty": "Aucun épisode de sécheresse recensé sur cette période.",
+      "ongoing": "En cours"
+    }
   }
 }
