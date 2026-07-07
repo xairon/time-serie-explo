@@ -1,0 +1,59 @@
+// GeoJSON square-polygon builders for the Climat module map (mirrors era5-grid.ts,
+// but adapted to the generic response shapes of api/routers/observatory_climat.py:
+// grid-monthly returns {latitude, longitude, value, mois_complet} and grid-indices
+// returns {latitude, longitude, spi|sti, index_class}).
+import { ERA5_CELL_HALF } from './era5-grid'
+import type { ClimatMonthlyPoint, ClimatIndexPoint } from './observatory-types'
+
+function square(lon: number, lat: number, h: number): number[][] {
+  return [
+    [lon - h, lat - h],
+    [lon + h, lat - h],
+    [lon + h, lat + h],
+    [lon - h, lat + h],
+    [lon - h, lat - h],
+  ]
+}
+
+/** Convert grid-monthly points (one raw variable) into squares carrying `value`. Null values are dropped. */
+export function climatMonthlyToSquares(
+  points: ClimatMonthlyPoint[],
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { value: number }> {
+  const h = ERA5_CELL_HALF
+  return {
+    type: 'FeatureCollection',
+    features: points
+      .filter((p) => p.value != null)
+      .map((p) => {
+        const lon = Number(p.longitude)
+        const lat = Number(p.latitude)
+        return {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [square(lon, lat, h)] },
+          properties: { value: p.value as number },
+        }
+      }),
+  }
+}
+
+/** Convert grid-indices points (SPI or STI) into squares carrying `value` + `index_class`. */
+export function climatIndicesToSquares(
+  points: ClimatIndexPoint[],
+  index: 'spi' | 'sti',
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { value: number; index_class: string }> {
+  const h = ERA5_CELL_HALF
+  return {
+    type: 'FeatureCollection',
+    features: points
+      .filter((p) => p[index] != null)
+      .map((p) => {
+        const lon = Number(p.longitude)
+        const lat = Number(p.latitude)
+        return {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [square(lon, lat, h)] },
+          properties: { value: p[index] as number, index_class: p.index_class },
+        }
+      }),
+  }
+}

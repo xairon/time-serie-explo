@@ -8,6 +8,7 @@ import {
   GitCompare,
   Menu,
   X,
+  Thermometer,
 } from 'lucide-react'
 import { useHealth } from '@/hooks/useHealth'
 import { useCompareSelection } from '@/contexts/CompareSelection'
@@ -27,6 +28,7 @@ export function TopNav() {
     { to: '/', icon: Map, label: t('nav.observatory'), end: true, tour: 'nav-observatory' },
     // Météo des nappes désactivée pour l'instant — réactiver: restaurer cette entrée + l'import CloudRain
     // { to: '/meteo', icon: CloudRain, label: t('nav.meteo'), end: false, tour: 'nav-meteo' },
+    { to: '/climat', icon: Thermometer, label: t('nav.climat'), end: false, tour: 'nav-climat' },
     { to: '/compare', icon: GitCompare, label: t('nav.compare'), end: false, tour: 'nav-compare' },
     { to: '/pastas', icon: Waves, label: t('nav.pastasLab'), end: false, tour: 'nav-pastas' },
     { to: '/ai', icon: Brain, label: t('nav.aiLab'), end: false, tour: 'nav-ai' },

@@ -228,6 +228,39 @@ export interface ERA5SpiPoint {
   index_class: string | null
 }
 
+// --- Climat module types (api/routers/observatory_climat.py — reads gold ERA5 grid marts) ---
+
+/** One grid cell from GET /observatory/climat/grid-monthly (temperature/precip/etp/bilan_hydrique). */
+export interface ClimatMonthlyPoint {
+  latitude: number
+  longitude: number
+  value: number | null
+  mois_complet: boolean | null
+}
+
+/** One grid cell from GET /observatory/climat/grid-indices?index=spi|sti — only the requested index key is present. */
+export interface ClimatIndexPoint {
+  latitude: number
+  longitude: number
+  spi?: number | null
+  sti?: number | null
+  /** McKee 7-class string (server always returns a non-null index for cells present in the response). */
+  index_class: string
+}
+
+/** Territory-wide aggregate from GET /observatory/climat/situation-summary. */
+export interface ClimatSituationSummary {
+  month: string
+  window: number
+  n_cells: number
+  classes_pct: Record<string, number>
+  pct_secheresse: number
+  median_spi: number | null
+  driest_since_year: number | null
+  is_driest_on_record: boolean
+  top5_cellules_seches: Array<{ latitude: number; longitude: number; spi: number }>
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

@@ -62,6 +62,7 @@
   },
   "nav": {
     "observatory": "Observatoire",
+    "climat": "Climat",
     "dashboard": "Tableau de bord",
     "data": "Données",
     "training": "Entraînement",
@@ -1826,5 +1827,29 @@
   },
   "meteo": {
     "trend": { "hausse": "en hausse", "stable": "stable", "baisse": "en baisse" }
+  },
+  "climat": {
+    "variables": {
+      "spi": "SPI (précipitations)",
+      "sti": "STI (température)",
+      "bilanHydrique": "Bilan hydrique",
+      "precipitation": "Précipitations",
+      "temperature": "T° à 00h UTC",
+      "etp": "ETP"
+    },
+    "picker": {
+      "variableLabel": "Variable",
+      "windowLabel": "Fenêtre"
+    },
+    "legend": {
+      "window": "Fenêtre {{n}} mois"
+    },
+    "banner": {
+      "loading": "Chargement de la synthèse…",
+      "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",
+      "driestSince": "mois le plus sec depuis {{year}}",
+      "mostAffected": "Zones les plus touchées :"
+    },
+    "loadingGrid": "Chargement de la grille…"
   }
 }

@@ -12,6 +12,7 @@ import type {
   HydroSiteSiblings,
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
+  ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary,
 } from './observatory-types'
 
 export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
@@ -120,6 +121,17 @@ export const observatoryApi = {
       fetchJson<ERA5StiPoint[]>('/observatory/era5/sti', { date, window: String(window) }),
     spi: (date: string, window: number) =>
       fetchJson<ERA5SpiPoint[]>('/observatory/era5/spi', { date, window: String(window) }),
+  },
+  // Climat module (Lot 2) — thin read layer over the BRGM gold ERA5 grid marts
+  // (fct_era5_monthly_grid / fct_era5_climatology_grid / fct_era5_indices_grid).
+  // No stats are recomputed server-side; see api/routers/observatory_climat.py.
+  climat: {
+    gridMonthly: (month: string, variable: string) =>
+      fetchJson<ClimatMonthlyPoint[]>('/observatory/climat/grid-monthly', { month, variable }),
+    gridIndices: (month: string, window: number, index: 'spi' | 'sti') =>
+      fetchJson<ClimatIndexPoint[]>('/observatory/climat/grid-indices', { month, window: String(window), index }),
+    situationSummary: (month: string, window: number) =>
+      fetchJson<ClimatSituationSummary>('/observatory/climat/situation-summary', { month, window: String(window) }),
   },
   wfs: {
     layer: (layerId: string, bbox?: string) =>

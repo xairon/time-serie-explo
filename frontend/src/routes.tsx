@@ -13,6 +13,7 @@ function RedirectWithParams({ to }: { to: string }) {
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 // Météo des nappes désactivée pour l'instant — réactiver: restaurer cet import + l'élément de route ci-dessous
 // const MeteoNappesPage = lazy(() => import('./pages/MeteoNappesPage'))
+const ClimatPage = lazy(() => import('./pages/ClimatPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
 const ComparePage = lazy(() => import('./pages/ComparePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       // Observatory (home)
       { path: '/', element: <SW><ObservatoryPage /></SW> },
       { path: '/observatory', element: <Navigate to="/" replace /> },
+      { path: '/climat', element: <SW><ClimatPage /></SW> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
 
       // Cross-station comparison
