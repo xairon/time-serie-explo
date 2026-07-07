@@ -14,7 +14,7 @@ from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
 from api.routers import datasets, training, models, forecasting, explainability, counterfactual, db_introspection, pumping_detection, pastas
-from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa, observatory_situation, observatory_meteo
+from api.routers import observatory_piezo, observatory_hydro, observatory_common, observatory_era5, observatory_wfs, observatory_bdlisa, observatory_situation, observatory_meteo, observatory_climat
 from api.routers import auth as auth_router
 from api.routers import admin as admin_router
 from api.routers import admin_audit as admin_audit_router
@@ -207,6 +207,7 @@ app.include_router(observatory_wfs.router)
 app.include_router(observatory_bdlisa.router)
 app.include_router(observatory_situation.router)
 app.include_router(observatory_meteo.router)
+app.include_router(observatory_climat.router)
 
 
 def _check_gpu() -> dict:
