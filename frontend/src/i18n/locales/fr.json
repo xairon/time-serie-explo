@@ -1841,6 +1841,10 @@
       "variableLabel": "Variable",
       "windowLabel": "Fenêtre"
     },
+    "stepper": {
+      "prevMonth": "Mois précédent",
+      "nextMonth": "Mois suivant"
+    },
     "legend": {
       "window": "Fenêtre {{n}} mois"
     },

@@ -31,6 +31,7 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
   const [mapLoaded, setMapLoaded] = useState(false)
   const variableRef = useRef(variable); variableRef.current = variable
   const windowRef = useRef(window); windowRef.current = window
+  const tRef = useRef(t); tRef.current = t
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -51,11 +52,14 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
         const v = Number(pr.value)
         const curVar = variableRef.current
         // SPI/STI share the observatory overlay's popup label i18n keys — same wording, no duplication.
+        // Reads tRef.current (not the closed-over `t`) so popups created after a language change
+        // still pick up the new translations, even though this effect never re-runs.
+        const curT = tRef.current
         const label = curVar === 'spi'
-          ? t('observatory.era5.popupSpiLabel', { n: windowRef.current })
+          ? curT('observatory.era5.popupSpiLabel', { n: windowRef.current })
           : curVar === 'sti'
-            ? t('observatory.era5.popupStiLabel', { n: windowRef.current })
-            : t(CLIMAT_VARIABLES[curVar].labelKey)
+            ? curT('observatory.era5.popupStiLabel', { n: windowRef.current })
+            : curT(CLIMAT_VARIABLES[curVar].labelKey)
         new maplibregl.Popup({ closeButton: true })
           .setLngLat(e.lngLat)
           .setHTML(`<div style="font-size:12px;line-height:1.5"><strong>${label}</strong><div>${climatFormatValue(curVar, Number.isFinite(v) ? v : null)}</div></div>`)
@@ -67,7 +71,12 @@ export function ClimatMap({ variable, window, monthlyPoints, indexPoints }: Prop
       setMapLoaded(true)
     })
     return () => { map.remove(); mapRef.current = null }
-  }, [t])
+    // Map init must run exactly once: react-i18next hands out a new `t` reference on every
+    // language change, and depending on it here would tear down and rebuild the whole
+    // maplibre map (style reload, viewport reset, tile cache lost). Language-dependent
+    // strings read tRef.current at event time instead (see click handler above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updateLayer = useCallback(() => {
     const map = mapRef.current
