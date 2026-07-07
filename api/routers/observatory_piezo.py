@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text

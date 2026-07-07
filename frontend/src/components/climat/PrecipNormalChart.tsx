@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Plot from 'react-plotly.js'
 import type { ClimatPointSeriesEntry } from '@/lib/observatory-types'
@@ -15,19 +16,13 @@ const DEFAULT_YEARS = 10
 export function PrecipNormalChart({ series }: Props) {
   const { t } = useTranslation()
 
-  if (!series.length) {
-    return <div className="flex items-center justify-center h-40 text-text-secondary text-sm">{t('climat.pointPanel.noData')}</div>
-  }
+  const { dates, precip, normal } = useMemo(() => ({
+    dates: series.map((d) => d.month),
+    precip: series.map((d) => d.precipitation_totale),
+    normal: series.map((d) => d.precipitation_normale),
+  }), [series])
 
-  const dates = series.map((d) => d.month)
-  const precip = series.map((d) => d.precipitation_totale)
-  const normal = series.map((d) => d.precipitation_normale)
-
-  const lastDate = new Date(dates[dates.length - 1])
-  const defaultStart = new Date(lastDate)
-  defaultStart.setFullYear(defaultStart.getFullYear() - DEFAULT_YEARS)
-
-  const traces: Plotly.Data[] = [
+  const traces = useMemo<Plotly.Data[]>(() => [
     {
       x: dates, y: precip,
       type: 'bar',
@@ -40,30 +35,46 @@ export function PrecipNormalChart({ series }: Props) {
       name: t('climat.pointPanel.normal'),
       line: { color: '#f59e0b', width: 1.5, dash: 'dot' },
     },
-  ]
+  ], [dates, precip, normal, t])
 
-  const layout: Partial<Plotly.Layout> = {
-    paper_bgcolor: 'transparent',
-    plot_bgcolor: 'transparent',
-    font: { color: '#9ca3af', size: 11 },
-    margin: { t: 10, r: 20, b: 40, l: 55 },
-    height: 260,
-    xaxis: {
-      type: 'date' as const,
-      gridcolor: 'rgba(255,255,255,0.04)',
-      rangeslider: { visible: true, thickness: 0.08 },
-      range: [defaultStart.toISOString().slice(0, 10), dates[dates.length - 1]],
-    },
-    yaxis: {
-      title: { text: 'mm' },
-      gridcolor: 'rgba(255,255,255,0.05)',
-    },
-    legend: {
-      orientation: 'h' as const,
-      y: -0.3,
-      font: { size: 10, color: '#9ca3af' },
-    },
-    hovermode: 'x unified' as const,
+  const layout = useMemo<Partial<Plotly.Layout>>(() => {
+    // Guard against an empty series: the component still returns its own "no
+    // data" placeholder below without rendering this layout, but hooks must
+    // run unconditionally, so this must not throw on an empty `dates` array.
+    let rangeStart = ''
+    const rangeEnd = dates[dates.length - 1] ?? ''
+    if (dates.length) {
+      const defaultStart = new Date(dates[dates.length - 1])
+      defaultStart.setFullYear(defaultStart.getFullYear() - DEFAULT_YEARS)
+      rangeStart = defaultStart.toISOString().slice(0, 10)
+    }
+    return {
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      font: { color: '#9ca3af', size: 11 },
+      margin: { t: 10, r: 20, b: 40, l: 55 },
+      height: 260,
+      xaxis: {
+        type: 'date' as const,
+        gridcolor: 'rgba(255,255,255,0.04)',
+        rangeslider: { visible: true, thickness: 0.08 },
+        range: [rangeStart, rangeEnd],
+      },
+      yaxis: {
+        title: { text: 'mm' },
+        gridcolor: 'rgba(255,255,255,0.05)',
+      },
+      legend: {
+        orientation: 'h' as const,
+        y: -0.3,
+        font: { size: 10, color: '#9ca3af' },
+      },
+      hovermode: 'x unified' as const,
+    }
+  }, [dates])
+
+  if (!series.length) {
+    return <div className="flex items-center justify-center h-40 text-text-secondary text-sm">{t('climat.pointPanel.noData')}</div>
   }
 
   return (

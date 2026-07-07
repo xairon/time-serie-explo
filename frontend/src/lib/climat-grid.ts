@@ -2,17 +2,15 @@
 // but adapted to the generic response shapes of api/routers/observatory_climat.py:
 // grid-monthly returns {latitude, longitude, value, mois_complet} and grid-indices
 // returns {latitude, longitude, spi|sti, index_class}).
-import { ERA5_CELL_HALF } from './era5-grid'
+import { ERA5_CELL_HALF, buildSquarePolygon } from './era5-grid'
 import type { ClimatMonthlyPoint, ClimatIndexPoint } from './observatory-types'
 
-function square(lon: number, lat: number, h: number): number[][] {
-  return [
-    [lon - h, lat - h],
-    [lon + h, lat - h],
-    [lon + h, lat + h],
-    [lon - h, lat + h],
-    [lon - h, lat - h],
-  ]
+/** URL of the Climat module Point panel for a given cell, pre-filled via
+ *  ?lat&lon (consumed by useSelectedCellParam — 2-decimal fixed, finer than the
+ *  0.1° grid). Shared by every "Analyser dans Climat →" link: ObservatoryMap's
+ *  cell popup (Task C1) and StationPage's Contexte climatique section (Task C2). */
+export function climatDeepLink(lat: number, lon: number): string {
+  return `/climat?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`
 }
 
 /** Convert grid-monthly points (one raw variable) into squares carrying `value`. Null values are dropped. */
@@ -29,7 +27,7 @@ export function climatMonthlyToSquares(
         const lat = Number(p.latitude)
         return {
           type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [square(lon, lat, h)] },
+          geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, h)] },
           properties: { value: p.value as number },
         }
       }),
@@ -44,7 +42,7 @@ export function climatSelectedCellSquare(lat: number, lon: number): GeoJSON.Feat
     features: [
       {
         type: 'Feature',
-        geometry: { type: 'Polygon', coordinates: [square(lon, lat, ERA5_CELL_HALF)] },
+        geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, ERA5_CELL_HALF)] },
         properties: {},
       },
     ],
@@ -66,7 +64,7 @@ export function climatIndicesToSquares(
         const lat = Number(p.latitude)
         return {
           type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [square(lon, lat, h)] },
+          geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, h)] },
           properties: { value: p[index] as number, index_class: p.index_class },
         }
       }),

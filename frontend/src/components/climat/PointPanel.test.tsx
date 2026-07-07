@@ -10,6 +10,7 @@ vi.mock('./CompareYearsSection', () => ({ CompareYearsSection: () => <div data-t
 vi.mock('@/hooks/useClimat', () => ({
   useClimatPointSeries: vi.fn(),
   useClimatPointEpisodes: vi.fn(),
+  EPISODES_WINDOW: 3,
 }))
 
 import { useClimatPointSeries, useClimatPointEpisodes } from '@/hooks/useClimat'

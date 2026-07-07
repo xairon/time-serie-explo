@@ -8,6 +8,7 @@ import { DroughtIndexChart } from './DroughtIndexChart'
 import { SpiClassBadge } from './SpiClassBadge'
 import { computeRollingCumuls, latestSpiPoint } from '@/lib/climate-cumuls'
 import { formatNumber } from '@/lib/observatory-utils'
+import { climatDeepLink } from '@/lib/climat-grid'
 
 /** SPI windows supported by the station endpoint (months). */
 const SPI_WINDOWS = [1, 3, 6, 12] as const
@@ -64,7 +65,7 @@ export function StationClimateSection({ code, type, era5Lat, era5Lon }: Props) {
         <div className="flex-1" />
         {hasCell && (
           <Link
-            to={`/climat?lat=${era5Lat!.toFixed(2)}&lon=${era5Lon!.toFixed(2)}`}
+            to={climatDeepLink(era5Lat!, era5Lon!)}
             className="text-xs font-semibold text-accent-cyan hover:underline"
           >
             {t('observatory.era5.popupClimatLink')}

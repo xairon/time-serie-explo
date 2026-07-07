@@ -6,6 +6,7 @@ import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
 import { WFS_LAYER_MAP } from '@/lib/observatory-constants'
 import { SECTOR_INSUFFICIENT_COLOR, parseTendancyCoord, sectorClassColor } from '@/lib/sector-arrows'
 import { era5PointsToSquares, era5StiToSquares, era5SpiToSquares, era5WaterBalance, cellCenterFromPolygon } from '@/lib/era5-grid'
+import { climatDeepLink } from '@/lib/climat-grid'
 import { era5FormatValue, ERA5_VARIABLES, era5RawDomain, era5StiClassMatchExpr, era5SpiClassMatchExpr } from '@/lib/era5-colors'
 import type { Era5Variable, Era5Granularity } from '@/lib/era5-colors'
 import type { ERA5GridPoint, ERA5StiPoint, ERA5SpiPoint } from '@/lib/observatory-types'
@@ -802,7 +803,7 @@ export function ObservatoryMap({
         const center = cellCenterFromPolygon(f.geometry)
         const climatLink = center
           ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15)">
-              <a href="/climat?lat=${center.lat.toFixed(2)}&lon=${center.lon.toFixed(2)}" style="color:#22d3ee;text-decoration:none;font-weight:600;font-size:11px">${t('observatory.era5.popupClimatLink')}</a>
+              <a href="${climatDeepLink(center.lat, center.lon)}" style="color:#22d3ee;text-decoration:none;font-weight:600;font-size:11px">${t('observatory.era5.popupClimatLink')}</a>
             </div>`
           : ''
         const html = `<div style="font-size:12px;line-height:1.5">${bodyHtml}${climatLink}</div>`

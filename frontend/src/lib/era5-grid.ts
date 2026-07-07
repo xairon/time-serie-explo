@@ -17,6 +17,19 @@ export function era5WaterBalance(p: { total_precipitation?: number | null; poten
   return p.total_precipitation + p.potential_evaporation
 }
 
+/** Coordinate ring for a closed square polygon of half-width `half` centred on
+ *  (lon, lat) — the single source for the grid-square shape shared by every
+ *  era5*ToSquares builder below and by climat-grid.ts (Climat module map). */
+export function buildSquarePolygon(lon: number, lat: number, half: number): number[][] {
+  return [
+    [lon - half, lat - half],
+    [lon + half, lat - half],
+    [lon + half, lat + half],
+    [lon - half, lat + half],
+    [lon - half, lat - half],
+  ]
+}
+
 /** Centre (lat/lon) of an ERA5 grid-square polygon — recovered from its bounding box
  *  rather than re-deriving it from a raw feature property (the squares built by
  *  era5*ToSquares above are ±ERA5_CELL_HALF around the exact cell centre, so the
@@ -52,16 +65,7 @@ export function era5StiToSquares(
         const lat = Number(p.latitude)
         return {
           type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [lon - h, lat - h],
-              [lon + h, lat - h],
-              [lon + h, lat + h],
-              [lon - h, lat + h],
-              [lon - h, lat - h],
-            ]],
-          },
+          geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, h)] },
           properties: { index_class: p.index_class as string, sti: p.sti },
         }
       }),
@@ -82,16 +86,7 @@ export function era5SpiToSquares(
         const lat = Number(p.latitude)
         return {
           type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[
-              [lon - h, lat - h],
-              [lon + h, lat - h],
-              [lon + h, lat + h],
-              [lon - h, lat + h],
-              [lon - h, lat - h],
-            ]],
-          },
+          geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, h)] },
           properties: { index_class: p.index_class as string, spi: p.spi },
         }
       }),
@@ -109,16 +104,7 @@ export function era5PointsToSquares(
       const lat = Number(p.latitude)
       return {
         type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[
-            [lon - h, lat - h],
-            [lon + h, lat - h],
-            [lon + h, lat + h],
-            [lon - h, lat + h],
-            [lon - h, lat - h],
-          ]],
-        },
+        geometry: { type: 'Polygon', coordinates: [buildSquarePolygon(lon, lat, h)] },
         properties: {
           temperature_2m: p.temperature_2m,
           total_precipitation: p.total_precipitation,

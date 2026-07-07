@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Download } from 'lucide-react'
-import { useClimatPointSeries, useClimatPointEpisodes } from '@/hooks/useClimat'
+import { useClimatPointSeries, useClimatPointEpisodes, EPISODES_WINDOW } from '@/hooks/useClimat'
 import { observatoryApi } from '@/lib/observatory-api'
 import { findCurrentEpisode } from '@/lib/climat-episodes'
+import type { ClimatPointSeriesEntry } from '@/lib/observatory-types'
 import { PrecipNormalChart } from './PrecipNormalChart'
 import { ClimatIndexChart } from './ClimatIndexChart'
 import { EpisodesTable } from './EpisodesTable'
@@ -23,7 +24,10 @@ interface Props {
 export function PointPanel({ lat, lon, onClose }: Props) {
   const { t } = useTranslation()
   const { data: pointData, isLoading: seriesLoading, isError: seriesError } = useClimatPointSeries(lat, lon)
-  const { data: episodes, isLoading: episodesLoading, isError: episodesError } = useClimatPointEpisodes(lat, lon)
+  // Window selector lives here (not inside ClimatIndexChart) so the episodes table
+  // below follows the same window the SPI/STI chart is showing (Task C3).
+  const [indexWindow, setIndexWindow] = useState<number>(EPISODES_WINDOW)
+  const { data: episodes, isLoading: episodesLoading, isError: episodesError } = useClimatPointEpisodes(lat, lon, indexWindow)
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -33,7 +37,10 @@ export function PointPanel({ lat, lon, onClose }: Props) {
 
   const series = pointData?.series ?? []
   const lastEntry = series[series.length - 1]
-  const currentEpisode = findCurrentEpisode(episodes ?? [], lastEntry?.month, lastEntry?.spi_3)
+  // Read spi_<indexWindow> so the "ongoing" highlight stays consistent with
+  // whichever window the episodes table was fetched at (see findCurrentEpisode).
+  const lastEntrySpi = lastEntry?.[`spi_${indexWindow}` as keyof ClimatPointSeriesEntry] as number | null | undefined
+  const currentEpisode = findCurrentEpisode(episodes ?? [], lastEntry?.month, lastEntrySpi)
 
   return (
     <>
@@ -76,7 +83,7 @@ export function PointPanel({ lat, lon, onClose }: Props) {
           {!seriesLoading && !seriesError && (
             <>
               <PrecipNormalChart series={series} />
-              <ClimatIndexChart series={series} />
+              <ClimatIndexChart series={series} window={indexWindow} onWindowChange={setIndexWindow} />
               <div>
                 <h3 className="text-sm font-semibold text-text-primary mb-2">{t('climat.episodes.title')}</h3>
                 <EpisodesTable episodes={episodes ?? []} isLoading={episodesLoading && !episodesError} currentEpisode={currentEpisode} />

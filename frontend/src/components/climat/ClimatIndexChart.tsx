@@ -8,6 +8,10 @@ import { CLIMAT_WINDOWS } from '@/lib/climat-colors'
 
 interface Props {
   series: ClimatPointSeriesEntry[]
+  /** SPI/STI window (months) — controlled by the parent (PointPanel) so the
+   *  episodes table (useClimatPointEpisodes) can follow the same window (Task C3). */
+  window: number
+  onWindowChange: (window: number) => void
 }
 
 // WMO 7-class boundaries (±0.84/±1.28/±1.75σ), same thresholds as DroughtIndexChart /
@@ -32,10 +36,9 @@ const PERIODS = [
  *  (1/3/6/12 months), 7-class WMO severity bands (reusing the same thresholds/colours
  *  as the Situation map and DroughtIndexChart). Fed by point-series (no separate
  *  endpoint call — the 4 windows are already in the payload). */
-export function ClimatIndexChart({ series }: Props) {
+export function ClimatIndexChart({ series, window, onWindowChange }: Props) {
   const { t, i18n } = useTranslation()
   const [index, setIndex] = useState<'spi' | 'sti'>('spi')
-  const [window, setWindowState] = useState(3)
   const [period, setPeriod] = useState<number>(120)
   const localeTag = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
 
@@ -83,7 +86,7 @@ export function ClimatIndexChart({ series }: Props) {
           {CLIMAT_WINDOWS.map((w) => (
             <button
               key={w} type="button" role="radio" aria-checked={window === w}
-              onClick={() => setWindowState(w)}
+              onClick={() => onWindowChange(w)}
               className={`text-xs px-2 py-0.5 rounded-md transition-colors ${window === w ? 'bg-accent-cyan/20 text-accent-cyan' : 'text-text-secondary hover:text-text-primary'}`}
             >
               {w}
