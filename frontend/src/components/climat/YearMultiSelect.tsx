@@ -19,6 +19,7 @@ const ADDABLE_YEARS = Array.from({ length: CURRENT_YEAR - 1949 }, (_, i) => CURR
 export function YearMultiSelect({ years, onChange }: Props) {
   const { t } = useTranslation()
   const chipYears = Array.from(new Set<number>([...DROUGHT_YEAR_PRESETS, ...years])).sort((a, b) => a - b)
+  const atMax = years.length >= MAX_COMPARE_YEARS
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -30,7 +31,8 @@ export function YearMultiSelect({ years, onChange }: Props) {
           value=""
           onChange={(e) => { if (e.target.value) onChange(toggleYear(years, Number(e.target.value))) }}
           aria-label={t('climat.compare.addYear')}
-          className="bg-bg-hover border border-white/10 rounded px-1.5 py-0.5 text-text-primary text-[11px]"
+          disabled={atMax}
+          className="bg-bg-hover border border-white/10 rounded px-1.5 py-0.5 text-text-primary text-[11px] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="">{t('climat.compare.addYear')}</option>
           {ADDABLE_YEARS.filter((y) => !years.includes(y)).map((y) => (
@@ -41,7 +43,7 @@ export function YearMultiSelect({ years, onChange }: Props) {
       <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('climat.compare.yearsLabel')}>
         {chipYears.map((year) => {
           const selected = years.includes(year)
-          const disabled = selected && years.length <= MIN_COMPARE_YEARS
+          const disabled = selected ? years.length <= MIN_COMPARE_YEARS : atMax
           return (
             <button
               key={year}

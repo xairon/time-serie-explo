@@ -43,6 +43,17 @@ export function CompareSpiMiniMaps({ years, month, onMonthChange }: Props) {
           if (q.isLoading) {
             return <div key={year} className="w-[180px] h-[204px] bg-white/5 rounded animate-pulse" />
           }
+          if (q.isError || !q.data) {
+            return (
+              <div
+                key={year}
+                className="w-[180px] h-[204px] flex flex-col items-center justify-center gap-1 rounded border border-white/10 bg-black/20 text-center px-2"
+              >
+                <span className="text-[11px] text-text-secondary">{t('climat.compare.dataUnavailable')}</span>
+                <span className="text-[11px] text-text-secondary">{year}</span>
+              </div>
+            )
+          }
           return <MiniSpiMap key={year} points={q.data} label={String(year)} />
         })}
       </div>
