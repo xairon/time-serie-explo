@@ -45,9 +45,39 @@ In short:
 
 ### Climat
 - Dedicated page (`/climat`) with 3 views: **Situation** (France-wide grid map of SPI/STI/precip/ETP/water balance per 0.1° cell), **Point/Zone** (per-cell 1950→present history, precip vs. normal, SPI/STI multi-window, drought episode table, CSV export), **Comparaison** (multi-year rainfall overlays, SPI small multiples)
-- Backend endpoints under `/api/v1/observatory/climat/*` (`grid-monthly`, `grid-indices`, `situation-summary`, `point-series`, `point-episodes`, `compare-years`, `export-point.csv`) — plain `SELECT`s (no on-the-fly statistics) over the BRGM data warehouse's precomputed ERA5 grid marts (`gold.fct_era5_monthly_grid`, `gold.fct_era5_climatology_grid`, `gold.fct_era5_indices_grid`), Redis-cached 24h
+- Backend endpoints under `/api/v1/observatory/climat/*` (`range`, `grid-monthly`, `grid-indices`, `situation-summary`, `point-series`, `point-episodes`, `compare-years`, `export-point.csv`) — plain `SELECT`s (no on-the-fly statistics) over the BRGM data warehouse's precomputed ERA5 grid marts (`gold.fct_era5_monthly_grid`, `gold.fct_era5_climatology_grid`, `gold.fct_era5_indices_grid`), Redis-cached 24h
 - Integrated into the Observatory map (cell popup deep-link) and the Station page (local SPI/rolling cumuls)
+- The default month and the `MonthStepper` bounds come from `GET /observatory/climat/range` (`max_indices_month` / `max_monthly_complete_month` / `max_monthly_month` / `min_month`), not from `/observatory/era5/range` (the daily grid) — the daily grid's max is the current partial month, which has no SPI/STI yet. `situation-summary` returns `available: false` (instead of zeroed percentages) when no cell has an SPI for the requested month/window
 - ⚠️ Temperature is currently a 00:00 UTC instantaneous read (cold bias ~2-4 °C) pending the warehouse's "daily statistics" cutover; SPI/STI drought/heat indices are already exact and unaffected
+
+#### Notes de déploiement
+
+Ce chantier reshape le payload de `situation-summary` (nouveau champ `available`) et
+ajoute l'endpoint `range`. Après déploiement, vider dans Redis les clés :
+- `junon:obs_climat_*` (situation-summary, range, grid-monthly, grid-indices, point-series,
+  point-episodes, compare-years, export-point) — TTL 24h (`GRID_TTL`), donc une entrée
+  déjà en cache continuerait sinon à servir l'ancienne forme du payload jusqu'à 24h
+- `junon:obs_era5_*` — TTL 24h également ; l'ancien `/era5/range` (grille journalière)
+  n'est plus consommé par la page Climat, mais une entrée obsolète en cache ne serait
+  de toute façon plus lue
+- `junon:obs_piezo_detail:*` / `junon:obs_hydro_detail:*` — TTL 1h (`DETAIL_TTL`), sinon la
+  section « Contexte climatique » de la page Station peut rester masquée/obsolète
+  jusqu'à 1h après le déploiement
+- `junon:obs_piezo_spi:*` / `junon:obs_hydro_spi:*` — TTL 24h (`SPLI_TTL`/`SSFI_TTL`)
+
+(Les clés Redis sont suffixées d'un hash des paramètres — voir `dashboard/utils/cache.py::_make_key` —
+d'où les patterns `*` ci-dessous plutôt que des clés exactes.) Les autres clés SPI en
+cache (préfixes non listés ci-dessus) ne sont pas affectées par ce changement et
+expirent naturellement sur leur propre TTL — aucune action requise.
+
+```bash
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_climat_*' | xargs -r docker exec -i junon-redis redis-cli DEL
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_era5_*' | xargs -r docker exec -i junon-redis redis-cli DEL
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_piezo_detail:*' | xargs -r docker exec -i junon-redis redis-cli DEL
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_hydro_detail:*' | xargs -r docker exec -i junon-redis redis-cli DEL
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_piezo_spi:*' | xargs -r docker exec -i junon-redis redis-cli DEL
+docker exec junon-redis redis-cli --scan --pattern 'junon:obs_hydro_spi:*' | xargs -r docker exec -i junon-redis redis-cli DEL
+```
 
 ## Quick Start
 

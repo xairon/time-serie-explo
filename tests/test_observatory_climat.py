@@ -15,6 +15,7 @@ from api.routers.observatory_climat import (
     _round_cell,
     _build_situation_summary,
     _build_drought_episodes,
+    _build_range,
     _merge_point_series,
     _merge_compare_years,
     _MONTHLY_VARIABLES,
@@ -22,9 +23,10 @@ from api.routers.observatory_climat import (
 )
 
 
-def test_router_mounts_all_seven_climat_paths():
+def test_router_mounts_all_eight_climat_paths():
     paths = {r.path for r in router.routes}
     assert paths == {
+        "/api/v1/observatory/climat/range",
         "/api/v1/observatory/climat/grid-monthly",
         "/api/v1/observatory/climat/grid-indices",
         "/api/v1/observatory/climat/situation-summary",
@@ -76,6 +78,32 @@ class TestMonthlyVariables:
         assert set(_MONTHLY_VARIABLES.values()) == expected_columns
 
 
+class TestBuildRange:
+    def test_formats_all_bounds_as_iso_month_strings(self):
+        out = _build_range(date(2026, 6, 1), date(2026, 6, 1), date(2026, 7, 1), date(1950, 1, 1))
+        assert out == {
+            "min_month": "1950-01-01",
+            "max_indices_month": "2026-06-01",
+            "max_monthly_complete_month": "2026-06-01",
+            "max_monthly_month": "2026-07-01",
+        }
+
+    def test_indices_and_monthly_maxima_can_differ(self):
+        # The real-world case this endpoint exists for: a partial current month
+        # already has a raw-monthly row but no SPI/STI yet.
+        out = _build_range(date(2026, 6, 1), date(2026, 6, 1), date(2026, 7, 1), date(1950, 1, 1))
+        assert out["max_indices_month"] != out["max_monthly_month"]
+
+    def test_none_when_a_mart_is_empty(self):
+        out = _build_range(None, None, None, None)
+        assert out == {
+            "min_month": None,
+            "max_indices_month": None,
+            "max_monthly_complete_month": None,
+            "max_monthly_month": None,
+        }
+
+
 class TestBuildSituationSummary:
     def _rows(self, spis):
         return [{"era5_latitude": 45.0 + i * 0.1, "era5_longitude": 2.0, "spi": v} for i, v in enumerate(spis)]
@@ -87,6 +115,13 @@ class TestBuildSituationSummary:
         assert out["is_driest_on_record"] is False
         assert out["top5_cellules_seches"] == []
         assert sum(out["classes_pct"].values()) == 0.0
+        # No SPI computed for this month/window yet (e.g. the partial current
+        # month) — must be flagged explicitly, not read as a real 0% drought.
+        assert out["available"] is False
+
+    def test_non_empty_rows_yields_available_true(self):
+        out = _build_situation_summary(self._rows([-2.0, -0.5]), [], date(2026, 6, 1), 3)
+        assert out["available"] is True
 
     def test_classes_pct_sums_to_100(self):
         spis = [-2.0, -1.5, -0.5, 0.0, 0.5, 1.5, 2.0, -1.2]

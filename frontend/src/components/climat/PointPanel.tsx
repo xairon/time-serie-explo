@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, Download } from 'lucide-react'
 import { useClimatPointSeries, useClimatPointEpisodes, EPISODES_WINDOW } from '@/hooks/useClimat'
 import { observatoryApi } from '@/lib/observatory-api'
-import { findCurrentEpisode } from '@/lib/climat-episodes'
+import { findCurrentEpisode, findLastEntryWithSpi } from '@/lib/climat-episodes'
 import type { ClimatPointSeriesEntry } from '@/lib/observatory-types'
 import { PrecipNormalChart } from './PrecipNormalChart'
 import { ClimatIndexChart } from './ClimatIndexChart'
@@ -36,11 +36,15 @@ export function PointPanel({ lat, lon, onClose }: Props) {
   }, [onClose])
 
   const series = pointData?.series ?? []
-  const lastEntry = series[series.length - 1]
-  // Read spi_<indexWindow> so the "ongoing" highlight stays consistent with
-  // whichever window the episodes table was fetched at (see findCurrentEpisode).
-  const lastEntrySpi = lastEntry?.[`spi_${indexWindow}` as keyof ClimatPointSeriesEntry] as number | null | undefined
-  const currentEpisode = findCurrentEpisode(episodes ?? [], lastEntry?.month, lastEntrySpi)
+  // The series' last entry is usually the partial current month, which has no
+  // SPI/STI yet (null) — scan backward for the last entry that actually has
+  // spi_<indexWindow>, so the "ongoing" highlight doesn't silently go dead in
+  // production (see findLastEntryWithSpi). Also reads the window-specific field
+  // so the highlight stays consistent with whichever window the episodes table
+  // was fetched at (see findCurrentEpisode).
+  const lastSpiEntry = findLastEntryWithSpi(series, indexWindow)
+  const lastEntrySpi = lastSpiEntry?.[`spi_${indexWindow}` as keyof ClimatPointSeriesEntry] as number | null | undefined
+  const currentEpisode = findCurrentEpisode(episodes ?? [], lastSpiEntry?.month, lastEntrySpi)
 
   return (
     <>

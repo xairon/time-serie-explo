@@ -1,7 +1,7 @@
 // Pure helpers for the Point-panel drought episodes table (Task B2, EpisodesTable.tsx).
 // Kept separate from the component so the logic is unit-testable without rendering
 // (mirrors the climat-situation-format.ts pattern used by SituationBanner).
-import type { ClimatDroughtEpisode } from './observatory-types'
+import type { ClimatDroughtEpisode, ClimatPointSeriesEntry } from './observatory-types'
 
 export type EpisodeSortKey = 'debut' | 'duree_mois'
 export type SortDirection = 'asc' | 'desc'
@@ -35,4 +35,25 @@ export function findCurrentEpisode(
 ): ClimatDroughtEpisode | undefined {
   if (lastMonth == null || lastMonthSpi == null || lastMonthSpi >= -1) return undefined
   return episodes.find((e) => e.fin === lastMonth)
+}
+
+/** Last series entry with a non-null `spi_<window>` value — mirrors the
+ *  backward-scan pattern of `latestSpiPoint` in climate-cumuls.ts, but keyed on
+ *  whichever SPI window the caller is currently displaying (1/3/6/12), since
+ *  point-series entries carry one spi_* field per window rather than a single
+ *  `spi` field.
+ *
+ *  The series' last entry is normally the partial current month, for which
+ *  no SPI/STI has been computed yet (null) — reading `series[length-1]`
+ *  directly for the "épisode en cours" highlight would then always miss it in
+ *  production. */
+export function findLastEntryWithSpi(
+  series: ClimatPointSeriesEntry[],
+  window: number,
+): ClimatPointSeriesEntry | undefined {
+  const key = `spi_${window}` as keyof ClimatPointSeriesEntry
+  for (let i = series.length - 1; i >= 0; i--) {
+    if (series[i][key] != null) return series[i]
+  }
+  return undefined
 }

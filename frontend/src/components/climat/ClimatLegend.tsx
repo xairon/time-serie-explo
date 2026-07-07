@@ -8,10 +8,14 @@ interface Props {
   window: number
   /** Active month, 'YYYY-MM'. */
   month: string
+  /** True when the raw-variable grid-monthly response came back with
+   *  mois_complet=false for this month (partial current month) — shows a
+   *  "mois incomplet" badge so the value isn't read as a settled monthly figure. */
+  incomplete?: boolean
 }
 
 /** 7-class McKee legend (SPI/STI) or gradient legend (raw variables) for the Climat map. */
-export function ClimatLegend({ variable, window, month }: Props) {
+export function ClimatLegend({ variable, window, month, incomplete }: Props) {
   const { t, i18n } = useTranslation()
   const cfg = CLIMAT_VARIABLES[variable]
 
@@ -48,6 +52,9 @@ export function ClimatLegend({ variable, window, month }: Props) {
     <div className="absolute bottom-4 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none" style={{ maxWidth: '190px' }}>
       <div className="text-xs font-semibold text-text-primary leading-tight">{t(cfg.labelKey)}</div>
       <div className="text-[10px] text-text-secondary mt-0.5">{periodLabel}</div>
+      {incomplete && (
+        <div className="text-[9px] font-semibold text-amber-400 mt-0.5">{t('climat.legend.incompleteMonth')}</div>
+      )}
       <div className="mt-1.5">
         <div className="h-2.5 rounded" style={{ background: climatGradientCss(variable) }} />
         <div className="relative flex justify-between text-[9px] text-text-secondary mt-0.5">

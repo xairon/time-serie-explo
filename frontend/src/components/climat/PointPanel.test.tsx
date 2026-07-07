@@ -5,7 +5,17 @@ import { PointPanel } from './PointPanel'
 import type { ClimatPointSeriesEntry, ClimatDroughtEpisode } from '@/lib/observatory-types'
 
 vi.mock('./PrecipNormalChart', () => ({ PrecipNormalChart: () => <div data-testid="precip-chart" /> }))
-vi.mock('./ClimatIndexChart', () => ({ ClimatIndexChart: () => <div data-testid="index-chart" /> }))
+vi.mock('./ClimatIndexChart', () => ({
+  // A minimal stand-in that still exposes the real onWindowChange wiring, so
+  // tests can prove the "en cours" highlight actually follows the selected
+  // window (not just the hardcoded EPISODES_WINDOW default).
+  ClimatIndexChart: ({ window, onWindowChange }: { window: number; onWindowChange: (w: number) => void }) => (
+    <div data-testid="index-chart">
+      <span data-testid="index-chart-window">{window}</span>
+      <button onClick={() => onWindowChange(6)}>window-6</button>
+    </div>
+  ),
+}))
 vi.mock('./CompareYearsSection', () => ({ CompareYearsSection: () => <div data-testid="compare-section" /> }))
 vi.mock('@/hooks/useClimat', () => ({
   useClimatPointSeries: vi.fn(),
@@ -107,5 +117,43 @@ describe('PointPanel', () => {
     mockSuccess(calmSeries)
     render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
     expect(screen.queryByText('En cours')).not.toBeInTheDocument()
+  })
+
+  it('highlights the ongoing episode past a trailing null-spi month (partial current month)', () => {
+    // 2026-06 stands in for the partial current month: no SPI computed yet
+    // (null), same as production right after the daily grid rolls into a new
+    // month. The real episode ends 2026-05, the last month WITH an spi_3.
+    const seriesWithPartialMonth: ClimatPointSeriesEntry[] = [
+      ...SERIES,
+      { ...SERIES[SERIES.length - 1], month: '2026-06-01', spi_1: null, spi_3: null, spi_6: null, spi_12: null },
+    ]
+    const episodesEndingOnLastRealMonth: ClimatDroughtEpisode[] = [
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -1.8, deficit_cumule_mm: -90.5 },
+    ]
+    mockSuccess(seriesWithPartialMonth, episodesEndingOnLastRealMonth)
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    // A naive `series[series.length - 1]` read would see 2026-06's null spi_3
+    // and never highlight anything — this must still fire.
+    expect(screen.getByText('En cours')).toBeInTheDocument()
+  })
+
+  it('judges the ongoing highlight on spi_6 (not spi_3) once window 6 is selected', () => {
+    // At the default window (3), the last month is calm (spi_3 = 0.3) — no
+    // highlight. At window 6, the same last month is in a live drought
+    // (spi_6 = -2.1) — proves the highlight reads the field for the SELECTED
+    // window, not a hardcoded one.
+    const series: ClimatPointSeriesEntry[] = [
+      { ...SERIES[0], spi_3: -0.2, spi_6: -1.9 },
+      { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 },
+    ]
+    const episodes: ClimatDroughtEpisode[] = [
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 },
+    ]
+    mockSuccess(series, episodes)
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    expect(screen.queryByText('En cours')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('window-6'))
+    expect(screen.getByText('En cours')).toBeInTheDocument()
   })
 })

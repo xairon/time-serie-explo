@@ -94,6 +94,10 @@ def _build_situation_summary(rows, year_rows, month_start: DateType, window: int
             "driest_since_year": None,
             "is_driest_on_record": False,
             "top5_cellules_seches": [],
+            # Explicit flag so the front never confuses "no indices computed yet for
+            # this month" (e.g. the daily-grid partial current month) with a real
+            # 0%-drought reading — see ClimatPage/SituationBanner.
+            "available": False,
         }
 
     values = [float(r["spi"]) for r in rows]
@@ -141,6 +145,28 @@ def _build_situation_summary(rows, year_rows, month_start: DateType, window: int
         "driest_since_year": driest_since_year,
         "is_driest_on_record": is_driest_on_record,
         "top5_cellules_seches": top5,
+        "available": True,
+    }
+
+
+def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) -> dict:
+    """Pure formatting for GET /range: month bounds as ISO ``YYYY-MM-DD`` strings
+    (None-safe — e.g. before the first backfill).
+
+    Two distinct maxima matter because the two marts have different grain:
+    ``fct_era5_indices_grid`` only ever contains complete calendar months, while
+    ``fct_era5_monthly_grid`` may include a partial current month (flagged via
+    ``mois_complet``). Seeding the Climat page's default month or an SPI/STI
+    MonthStepper bound from the wrong one lands on a month with no indices at
+    all — empty map, misleading 0% drought banner. Raw variables may still step
+    into the partial month (``max_monthly_month``), it just needs to be flagged
+    per-cell (``mois_complet``) in the UI.
+    """
+    return {
+        "min_month": str(min_monthly) if min_monthly else None,
+        "max_indices_month": str(max_indices) if max_indices else None,
+        "max_monthly_complete_month": str(max_monthly_complete) if max_monthly_complete else None,
+        "max_monthly_month": str(max_monthly) if max_monthly else None,
     }
 
 
@@ -275,6 +301,33 @@ def _merge_compare_years(monthly_rows, clim_rows, spi_rows, year_list) -> dict:
     return {yr: by_year.get(yr, {"cumul_mensuel": [], "spi_3": []}) for yr in year_list}
 
 
+@router.get("/range")
+def get_climat_range():
+    """Month bounds for the Climat page (24h cache). See ``_build_range`` for why
+    the indices max and the raw-monthly max are reported separately instead of
+    reusing ``/era5/range`` (daily-grid based, reflects the partial current
+    month)."""
+
+    def fetch():
+        engine = get_brgm_sync_engine()
+        with engine.connect() as conn:
+            max_indices = conn.execute(
+                text("SELECT max(month) FROM gold.fct_era5_indices_grid")
+            ).scalar()
+            max_monthly_complete = conn.execute(
+                text("SELECT max(mois) FROM gold.fct_era5_monthly_grid WHERE mois_complet = true")
+            ).scalar()
+            max_monthly = conn.execute(
+                text("SELECT max(mois) FROM gold.fct_era5_monthly_grid")
+            ).scalar()
+            min_monthly = conn.execute(
+                text("SELECT min(mois) FROM gold.fct_era5_monthly_grid")
+            ).scalar()
+        return _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly)
+
+    return get_cached("obs_climat_range", {}, GRID_TTL, fetch)
+
+
 @router.get("/grid-monthly")
 def get_grid_monthly(
     month: str = Query(..., description="Mois au format YYYY-MM"),
@@ -366,7 +419,9 @@ def get_situation_summary(
 ):
     """Territory-wide aggregates for a month/window: 7-class WMO breakdown, % en
     sécheresse (SPI < -1), rang du mois vs. l'historique 1950→présent, top-5 des
-    cellules les plus sèches."""
+    cellules les plus sèches. ``available`` is False (all other numeric fields
+    zeroed/None) when no cell has an SPI for this month/window yet — e.g. the
+    partial current month — so the front never mistakes "no data" for a real 0%."""
     _validate_window(window)
     month_start = _parse_month(month)
 

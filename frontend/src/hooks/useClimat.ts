@@ -14,6 +14,19 @@ const CLIMAT_STALE_TIME = 24 * 60 * 60 * 1000
  *  standard 3-month "meteorological drought" window, matching the backend default. */
 export const EPISODES_WINDOW = 3
 
+/** Month bounds for the Climat page — see ClimatRange for why the indices max
+ *  and the raw-monthly max are reported separately (the old default month came
+ *  from /era5/range, the daily grid, which lands on the partial current month
+ *  and breaks SPI/STI: no indices are computed for it yet). */
+export function useClimatRange(enabled = true) {
+  return useQuery({
+    queryKey: ['climat', 'range'],
+    queryFn: () => observatoryApi.climat.range(),
+    enabled,
+    staleTime: CLIMAT_STALE_TIME,
+  })
+}
+
 /** Per-cell monthly variable (temperature/precipitation/etp/bilan_hydrique) for one month. */
 export function useClimatGridMonthly(month: string | undefined, variable: string, enabled: boolean) {
   return useQuery({

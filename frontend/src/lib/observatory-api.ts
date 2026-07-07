@@ -13,7 +13,7 @@ import type {
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
   ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary, ClimatPointSeries, ClimatDroughtEpisode,
-  ClimatCompareYears,
+  ClimatCompareYears, ClimatRange,
 } from './observatory-types'
 
 export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
@@ -127,6 +127,9 @@ export const observatoryApi = {
   // (fct_era5_monthly_grid / fct_era5_climatology_grid / fct_era5_indices_grid).
   // No stats are recomputed server-side; see api/routers/observatory_climat.py.
   climat: {
+    // Month bounds, split by data availability (indices vs. raw monthly) — see
+    // ClimatRange. Drives ClimatPage's default month + MonthStepper bounds.
+    range: () => fetchJson<ClimatRange>('/observatory/climat/range'),
     gridMonthly: (month: string, variable: string) =>
       fetchJson<ClimatMonthlyPoint[]>('/observatory/climat/grid-monthly', { month, variable }),
     gridIndices: (month: string, window: number, index: 'spi' | 'sti') =>

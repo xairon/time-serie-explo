@@ -46,10 +46,10 @@ les indices STI/SPI sont exacts.
 - `GET /compare-years?lat=&lon=&years=1976,2003,2026` → par année demandée : cumul pluviométrique mensuel glissant (jan→déc) + la normale ; et par année : SPI de chaque mois (fenêtre 3) pour petits multiples.
 - `GET /export-point.csv?lat=&lon=` → CSV du point (mensuel + indices), streaming.
 
-- [ ] Écrire le router (requêtes SQL paramétrées, mêmes patterns que observatory_era5.py : `text()` + engine sync + get_cached)
-- [ ] Tests endpoints (au moins : nominal + cellule inconnue → 404/vide propre + validation params)
-- [ ] Vérif manuelle en dev sur 2-3 cellules connues (Tours 47.4/0.7)
-- [ ] Commit
+- [x] Écrire le router (requêtes SQL paramétrées, mêmes patterns que observatory_era5.py : `text()` + engine sync + get_cached)
+- [x] Tests endpoints (au moins : nominal + cellule inconnue → 404/vide propre + validation params)
+- [x] Vérif manuelle en dev sur 2-3 cellules connues (Tours 47.4/0.7)
+- [x] Commit
 
 ### Task A2 : Bascule des endpoints ERA5 existants sur les marts + suppression des warmers
 
@@ -68,45 +68,45 @@ les indices STI/SPI sont exacts.
 
 **Files:** Create `frontend/src/pages/ClimatPage.tsx` + `frontend/src/components/climat/*` ; Modify `routes.tsx`, `TopNav.tsx` (entrée « Climat »), `observatory-api.ts` (client `climat.*`), hooks (`useClimat.ts`).
 
-- [ ] Route `/climat`, entrée nav « Climat » (l'emplacement laissé par MétéEAU)
-- [ ] Vue Situation (défaut) : carte plein écran MapLibre réutilisant `era5PointsToSquares`/`era5-colors` ; variables : SPI (défaut, fenêtre 3), STI, bilan hydrique, précip, temp (libellé « T° 00h UTC »), ETP ; sélecteurs mois (‹/›) + fenêtre (1/3/6/12) ; légende 7 classes
-- [ ] Bandeau de synthèse (données `/situation-summary`) : « X % du territoire en sécheresse (SPI < −1) · mois le plus sec depuis AAAA · zones les plus touchées : … »
-- [ ] i18n fr/en ; tests composants du bandeau + du sélecteur
-- [ ] Commit
+- [x] Route `/climat`, entrée nav « Climat » (l'emplacement laissé par MétéEAU)
+- [x] Vue Situation (défaut) : carte plein écran MapLibre réutilisant `era5PointsToSquares`/`era5-colors` ; variables : SPI (défaut, fenêtre 3), STI, bilan hydrique, précip, temp (libellé « T° 00h UTC »), ETP ; sélecteurs mois (‹/›) + fenêtre (1/3/6/12) ; légende 7 classes
+- [x] Bandeau de synthèse (données `/situation-summary`) : « X % du territoire en sécheresse (SPI < −1) · mois le plus sec depuis AAAA · zones les plus touchées : … »
+- [x] i18n fr/en ; tests composants du bandeau (logique testée via `climat-situation-format.test.ts`) + du sélecteur (`MonthStepper.test.tsx`, `VariablePicker.test.tsx`)
+- [x] Commit
 
 ### Task B2 : Vue Point/Zone
 
-- [ ] Clic cellule sur la carte Situation → panneau latéral large (ou vue dédiée) : graphique précip mensuelle vs normale (barres + ligne), courbes SPI/STI multi-fenêtres, zoom/brush 1950→présent
-- [ ] Tableau des épisodes de sécheresse (`/point-episodes`) : début, fin, durée, SPI min, déficit mm — triable ; l'épisode en cours (si spi<−1 au dernier mois) mis en évidence
-- [ ] Recherche commune/département → centre la carte + sélectionne la cellule (réutiliser le géocodage existant du repo s'il y en a un — sinon simple recherche par coordonnées/nom de la barre existante)
-- [ ] Export CSV du point (bouton → `/export-point.csv`)
-- [ ] Tests composants (tableau épisodes avec fixture) ; commit
+- [x] Clic cellule sur la carte Situation → panneau latéral large (ou vue dédiée) : graphique précip mensuelle vs normale (barres + ligne), courbes SPI/STI multi-fenêtres, zoom/brush 1950→présent
+- [x] Tableau des épisodes de sécheresse (`/point-episodes`) : début, fin, durée, SPI min, déficit mm — triable ; l'épisode en cours (si spi<−1 au dernier mois) mis en évidence
+- [ ] Recherche commune/département → centre la carte + sélectionne la cellule (réutiliser le géocodage existant du repo s'il y en a un — sinon simple recherche par coordonnées/nom de la barre existante) — **différé (pas de géocodeur réutilisable)**
+- [x] Export CSV du point (bouton → `/export-point.csv`)
+- [x] Tests composants (tableau épisodes avec fixture) ; commit
 
 ### Task B3 : Vue Comparaison
 
-- [ ] Sélection zone (cellule courante) + multi-sélection d'années → courbes de cumul pluviométrique superposées (une par année, normale en référence)
-- [ ] Petits multiples : cartes SPI du même mois sur N années (réutiliser la carte en mini, données `/grid-indices` par année)
-- [ ] Presets d'années de sécheresse célèbres (1976, 1989, 2003, 2022) ; tests ; commit
+- [x] Sélection zone (cellule courante) + multi-sélection d'années → courbes de cumul pluviométrique superposées (une par année, normale en référence)
+- [x] Petits multiples : cartes SPI du même mois sur N années (réutiliser la carte en mini, données `/grid-indices` par année)
+- [x] Presets d'années de sécheresse célèbres (1976, 1989, 2003, 2022) ; tests ; commit
 
 ## Phase C — Intégrations & nettoyage
 
 ### Task C1 : Overlay Observatoire simplifié
 
-- [ ] Retirer la variable fantôme `anomaly` (code, couleurs, i18n, hooks — et l'endpoint côté A2)
-- [ ] Exposer `evaporation` (ETP) dans les radios du RightDrawer (config déjà présente dans era5-colors)
-- [ ] Popup cellule : ajouter lien « Analyser dans Climat → » (navigue vers /climat, vue Point pré-remplie lat/lon/mois)
-- [ ] Libellé température : « T° à 00h UTC » (tooltip explicatif) ; commit
+- [x] Retirer la variable fantôme `anomaly` (code, couleurs, i18n, hooks — et l'endpoint côté A2)
+- [x] Exposer `evaporation` (ETP) dans les radios du RightDrawer (config déjà présente dans era5-colors)
+- [x] Popup cellule : ajouter lien « Analyser dans Climat → » (navigue vers /climat, vue Point pré-remplie lat/lon/mois)
+- [x] Libellé température : « T° à 00h UTC » (tooltip explicatif) ; commit
 
 ### Task C2 : Section climat page Station
 
-- [ ] `StationPage` : section « Contexte climatique » — SPI local (cellule mappée, via endpoint station A2), cumuls glissants 3/6/12 vs normale, à côté des barres de précip existantes du TimeseriesChart
-- [ ] KPI cards : ajouter classe SPI courante du point ; commit
+- [x] `StationPage` : section « Contexte climatique » — SPI local (cellule mappée, via endpoint station A2), cumuls glissants 3/6/12 vs normale, à côté des barres de précip existantes du TimeseriesChart
+- [x] KPI cards : ajouter classe SPI courante du point ; commit
 
 ### Task C3 : Finitions
 
-- [ ] Passe i18n complète (fr/en), vérif accessibilité de base (contrastes légende)
-- [ ] Docs repo (README/docs) : le module Climat, ses endpoints, la provenance entrepôt
-- [ ] Nettoyage : imports/exports morts suite aux suppressions A2/C1 ; commit final + revue de branche
+- [x] Passe i18n complète (fr/en), vérif accessibilité de base (contrastes légende)
+- [x] Docs repo (README/docs) : le module Climat, ses endpoints, la provenance entrepôt
+- [x] Nettoyage : imports/exports morts suite aux suppressions A2/C1 ; commit final + revue de branche
 
 ## Ordre & dépendances
 

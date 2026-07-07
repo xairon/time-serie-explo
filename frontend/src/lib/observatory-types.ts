@@ -247,7 +247,10 @@ export interface ClimatIndexPoint {
   index_class: string
 }
 
-/** Territory-wide aggregate from GET /observatory/climat/situation-summary. */
+/** Territory-wide aggregate from GET /observatory/climat/situation-summary.
+ *  `available` is false when no cell has an SPI for this month/window yet (e.g.
+ *  the partial current month) — all other numeric fields are then zeroed/None
+ *  and must NOT be rendered as a real 0% drought reading. */
 export interface ClimatSituationSummary {
   month: string
   window: number
@@ -258,6 +261,19 @@ export interface ClimatSituationSummary {
   driest_since_year: number | null
   is_driest_on_record: boolean
   top5_cellules_seches: Array<{ latitude: number; longitude: number; spi: number }>
+  available: boolean
+}
+
+/** Month bounds from GET /observatory/climat/range — split by data availability
+ *  because the indices mart (SPI/STI) only ever contains complete calendar
+ *  months while the raw monthly mart may include a partial current month
+ *  (flagged per-cell via `mois_complet`). Any field may be null before the
+ *  first backfill. */
+export interface ClimatRange {
+  min_month: string | null
+  max_indices_month: string | null
+  max_monthly_complete_month: string | null
+  max_monthly_month: string | null
 }
 
 /** One monthly row from GET /observatory/climat/point-series (Task B2) — merges the

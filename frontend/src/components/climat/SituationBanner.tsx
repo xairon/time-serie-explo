@@ -12,7 +12,7 @@ interface Props {
  *  GET /observatory/climat/situation-summary. Text shaping lives in
  *  climat-situation-format.ts (unit-tested independently of this component). */
 export function SituationBanner({ summary, isLoading }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   if (isLoading || !summary) {
     return (
@@ -22,7 +22,17 @@ export function SituationBanner({ summary, isLoading }: Props) {
     )
   }
 
-  const data = buildSituationBannerData(summary)
+  // No SPI computed for this month/window yet (e.g. the partial current month)
+  // — never render this as a real "0 % en sécheresse".
+  if (!summary.available) {
+    return (
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-4 py-2 shadow-lg text-xs text-text-secondary">
+        {t('climat.banner.indicesUnavailable')}
+      </div>
+    )
+  }
+
+  const data = buildSituationBannerData(summary, i18n.language?.startsWith('en') ? 'en' : 'fr')
 
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-2xl bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-4 py-2.5 shadow-lg">

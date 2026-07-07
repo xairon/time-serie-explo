@@ -1856,13 +1856,15 @@
       "nextMonth": "Next month"
     },
     "legend": {
-      "window": "{{n}}-month window"
+      "window": "{{n}}-month window",
+      "incompleteMonth": "Incomplete month"
     },
     "banner": {
       "loading": "Loading summary…",
       "droughtPct": "{{pct}}% of the territory in drought (SPI < −1)",
       "driestSince": "driest month since {{year}}",
-      "mostAffected": "Most affected areas:"
+      "mostAffected": "Most affected areas:",
+      "indicesUnavailable": "Indices unavailable for this month"
     },
     "loadingGrid": "Loading grid…",
     "pointPanel": {

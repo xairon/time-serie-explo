@@ -3,11 +3,17 @@ import { formatLatLon, formatDroughtPct, buildSituationBannerData } from './clim
 import type { ClimatSituationSummary } from './observatory-types'
 
 describe('formatLatLon', () => {
-  it('formats a coordinate to one decimal with N/E suffixes', () => {
+  it('formats a coordinate to one decimal with N/E suffixes (east, default fr locale)', () => {
     expect(formatLatLon(48.2345, 1.6789)).toBe('48.2°N, 1.7°E')
   })
-  it('handles negative longitudes (west of the meridian)', () => {
-    expect(formatLatLon(45.0, -1.234)).toBe('45.0°N, -1.2°E')
+  it('renders a west longitude with the French cardinal "O" (not a bare minus)', () => {
+    expect(formatLatLon(45.0, -1.234)).toBe('45.0°N, 1.2°O')
+  })
+  it('renders a west longitude with the English cardinal "W"', () => {
+    expect(formatLatLon(45.0, -1.234, 'en')).toBe('45.0°N, 1.2°W')
+  })
+  it('keeps "E" for an east longitude in English too', () => {
+    expect(formatLatLon(48.2345, 1.6789, 'en')).toBe('48.2°N, 1.7°E')
   })
 })
 
@@ -37,6 +43,7 @@ function makeSummary(overrides: Partial<ClimatSituationSummary> = {}): ClimatSit
       { latitude: 43.6, longitude: 3.9, spi: -2.1 },
       { latitude: 44.1, longitude: 4.2, spi: -2.0 },
     ],
+    available: true,
     ...overrides,
   }
 }
@@ -60,5 +67,20 @@ describe('buildSituationBannerData', () => {
   it('returns an empty chip list when the territory has no dry cells', () => {
     const data = buildSituationBannerData(makeSummary({ top5_cellules_seches: [] }))
     expect(data.chips).toEqual([])
+  })
+
+  it('formats a west-longitude chip with the locale cardinal (Bretagne, fr default)', () => {
+    const data = buildSituationBannerData(
+      makeSummary({ top5_cellules_seches: [{ latitude: 48.1, longitude: -2.8, spi: -2.3 }] }),
+    )
+    expect(data.chips).toEqual([{ label: '48.1°N, 2.8°O', latitude: 48.1, longitude: -2.8 }])
+  })
+
+  it('formats a west-longitude chip with the English cardinal when locale=en', () => {
+    const data = buildSituationBannerData(
+      makeSummary({ top5_cellules_seches: [{ latitude: 48.1, longitude: -2.8, spi: -2.3 }] }),
+      'en',
+    )
+    expect(data.chips).toEqual([{ label: '48.1°N, 2.8°W', latitude: 48.1, longitude: -2.8 }])
   })
 })

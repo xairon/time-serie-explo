@@ -1856,13 +1856,15 @@
       "nextMonth": "Mois suivant"
     },
     "legend": {
-      "window": "Fenêtre {{n}} mois"
+      "window": "Fenêtre {{n}} mois",
+      "incompleteMonth": "Mois incomplet"
     },
     "banner": {
       "loading": "Chargement de la synthèse…",
       "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",
       "driestSince": "mois le plus sec depuis {{year}}",
-      "mostAffected": "Zones les plus touchées :"
+      "mostAffected": "Zones les plus touchées :",
+      "indicesUnavailable": "Indices non disponibles pour ce mois"
     },
     "loadingGrid": "Chargement de la grille…",
     "pointPanel": {
