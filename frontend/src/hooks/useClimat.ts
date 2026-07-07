@@ -3,9 +3,10 @@
 // itself caches the same window server-side via get_cached, so re-fetching sooner
 // on the client would just re-hit a warm Redis cache for nothing).
 import { useCallback, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueries } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { observatoryApi } from '@/lib/observatory-api'
+import { MIN_COMPARE_YEARS } from '@/lib/climat-year-select'
 
 const CLIMAT_STALE_TIME = 24 * 60 * 60 * 1000
 
@@ -108,5 +109,45 @@ export function useClimatPointEpisodes(lat: number | undefined, lon: number | un
     queryFn: () => observatoryApi.climat.pointEpisodes(lat!, lon!, EPISODES_WINDOW),
     enabled: lat != null && lon != null,
     staleTime: CLIMAT_STALE_TIME,
+  })
+}
+
+/** Fixed SPI window used for the Comparaison mini-maps (Task B3) — matches the
+ *  3-month series already returned inline by compare-years, so the mini-maps and
+ *  the cumulative chart read the same drought signal. */
+export const COMPARE_MINIMAP_WINDOW = 3
+
+/** Comparaison view (Task B3): per-year cumulative rainfall (vs. normale) + 3-month
+ *  SPI series for the grid cell nearest lat/lon. Gated on a valid 2-6 year selection —
+ *  fetching for a single year (or none) would be a wasted round-trip the UI never
+ *  renders anything meaningful for. */
+export function useClimatCompareYears(lat: number | undefined, lon: number | undefined, years: number[]) {
+  const sortedKey = useMemo(() => years.slice().sort((a, b) => a - b).join(','), [years])
+  return useQuery({
+    queryKey: ['climat', 'compare-years', lat, lon, sortedKey],
+    queryFn: () => observatoryApi.climat.compareYears(lat!, lon!, years),
+    enabled: lat != null && lon != null && years.length >= MIN_COMPARE_YEARS,
+    staleTime: CLIMAT_STALE_TIME,
+  })
+}
+
+/** Petits multiples SPI (Task B3): one grid-indices fetch per selected year for a
+ *  single chosen calendar month (e.g. June across 1976/1989/2003/2022) — same query
+ *  key shape as useClimatGridIndices, so a mini-map reuses the Situation map's cache
+ *  when the two happen to target the same month/window. Only fetches the selected
+ *  years (TanStack Query keys the cache per year, nothing else is refetched when the
+ *  selection grows). */
+export function useClimatCompareGridIndices(years: number[], calendarMonth: number, enabled: boolean) {
+  const window = COMPARE_MINIMAP_WINDOW
+  return useQueries({
+    queries: years.map((year) => {
+      const month = `${year}-${String(calendarMonth).padStart(2, '0')}`
+      return {
+        queryKey: ['climat', 'grid-indices', month, window, 'spi' as const],
+        queryFn: () => observatoryApi.climat.gridIndices(month, window, 'spi'),
+        enabled: enabled && years.length > 0,
+        staleTime: CLIMAT_STALE_TIME,
+      }
+    }),
   })
 }

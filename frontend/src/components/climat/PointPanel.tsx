@@ -7,6 +7,7 @@ import { findCurrentEpisode } from '@/lib/climat-episodes'
 import { PrecipNormalChart } from './PrecipNormalChart'
 import { ClimatIndexChart } from './ClimatIndexChart'
 import { EpisodesTable } from './EpisodesTable'
+import { CompareYearsSection } from './CompareYearsSection'
 
 interface Props {
   lat: number
@@ -17,7 +18,8 @@ interface Props {
 /** Point/Zone side panel (Task B2) — opened when a grid cell is clicked on the
  *  Situation map (or via a deep link carrying ?lat&lon, see useSelectedCellParam).
  *  Composes: précip vs normale (PrecipNormalChart), SPI/STI multi-window
- *  (ClimatIndexChart), drought episodes (EpisodesTable), and a direct CSV export link. */
+ *  (ClimatIndexChart), drought episodes (EpisodesTable), a direct CSV export link,
+ *  and the Comparaison section (CompareYearsSection, Task B3). */
 export function PointPanel({ lat, lon, onClose }: Props) {
   const { t } = useTranslation()
   const { data: pointData, isLoading: seriesLoading, isError: seriesError } = useClimatPointSeries(lat, lon)
@@ -82,6 +84,10 @@ export function PointPanel({ lat, lon, onClose }: Props) {
               </div>
             </>
           )}
+
+          {/* Comparaison (Task B3) — independent of the history/episodes load state
+              above, it targets the same cell via its own compare-years fetch. */}
+          <CompareYearsSection lat={lat} lon={lon} />
         </div>
       </div>
     </>

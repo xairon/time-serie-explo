@@ -13,6 +13,7 @@ import type {
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
   ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary, ClimatPointSeries, ClimatDroughtEpisode,
+  ClimatCompareYears,
 } from './observatory-types'
 
 export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
@@ -139,6 +140,13 @@ export const observatoryApi = {
     pointEpisodes: (lat: number, lon: number, window: number) =>
       fetchJson<ClimatDroughtEpisode[]>('/observatory/climat/point-episodes', {
         lat: String(lat), lon: String(lon), window: String(window),
+      }),
+    // Comparaison view (Task B3) — per-year cumulative rainfall + 3-month SPI series
+    // for the grid cell nearest lat/lon, over the requested years (2-15 accepted
+    // server-side; the front bounds the multi-select to 2-6, see climat-year-select.ts).
+    compareYears: (lat: number, lon: number, years: number[]) =>
+      fetchJson<ClimatCompareYears>('/observatory/climat/compare-years', {
+        lat: String(lat), lon: String(lon), years: years.join(','),
       }),
     // Direct download link (no fetch-into-memory) — the browser streams the CSV response.
     exportPointUrl: (lat: number, lon: number) =>

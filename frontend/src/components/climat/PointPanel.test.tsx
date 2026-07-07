@@ -6,6 +6,7 @@ import type { ClimatPointSeriesEntry, ClimatDroughtEpisode } from '@/lib/observa
 
 vi.mock('./PrecipNormalChart', () => ({ PrecipNormalChart: () => <div data-testid="precip-chart" /> }))
 vi.mock('./ClimatIndexChart', () => ({ ClimatIndexChart: () => <div data-testid="index-chart" /> }))
+vi.mock('./CompareYearsSection', () => ({ CompareYearsSection: () => <div data-testid="compare-section" /> }))
 vi.mock('@/hooks/useClimat', () => ({
   useClimatPointSeries: vi.fn(),
   useClimatPointEpisodes: vi.fn(),
@@ -70,6 +71,12 @@ describe('PointPanel', () => {
     expect(screen.getByTestId('precip-chart')).toBeInTheDocument()
     expect(screen.getByTestId('index-chart')).toBeInTheDocument()
     expect(screen.getByText('Épisodes de sécheresse')).toBeInTheDocument()
+  })
+
+  it('renders the Comparaison section regardless of the point-series load state', () => {
+    mockSuccess()
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    expect(screen.getByTestId('compare-section')).toBeInTheDocument()
   })
 
   it('shows a loading state while the series is loading', () => {

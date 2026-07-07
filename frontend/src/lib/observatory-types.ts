@@ -302,6 +302,34 @@ export interface ClimatDroughtEpisode {
   deficit_cumule_mm: number
 }
 
+/** One month of the running cumulative sum within a compare-years year (Task B3). */
+export interface ClimatCompareMonthCumul {
+  mois: number
+  precipitation: number
+  cumul: number
+  cumul_normal: number
+}
+
+/** One month of the fixed-window-3 SPI series within a compare-years year (Task B3). */
+export interface ClimatCompareMonthSpi {
+  mois: number
+  spi: number | null
+}
+
+/** Per-year payload of GET /observatory/climat/compare-years. */
+export interface ClimatCompareYearData {
+  cumul_mensuel: ClimatCompareMonthCumul[]
+  spi_3: ClimatCompareMonthSpi[]
+}
+
+/** GET /observatory/climat/compare-years response (Task B3 — Vue Comparaison):
+ *  per requested year, the monthly running rainfall cumulative sum (vs. the calendar-month
+ *  normal) and the 3-month SPI series, for the grid cell nearest lat/lon. */
+export interface ClimatCompareYears {
+  cell: { latitude: number; longitude: number }
+  years: Record<string, ClimatCompareYearData>
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

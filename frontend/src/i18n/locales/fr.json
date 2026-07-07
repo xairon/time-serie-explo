@@ -1880,6 +1880,16 @@
       "deficit": "Déficit (mm)",
       "empty": "Aucun épisode de sécheresse recensé sur cette période.",
       "ongoing": "En cours"
+    },
+    "compare": {
+      "title": "Comparaison",
+      "yearsLabel": "Années sélectionnées",
+      "yearsHint": "Sélectionnez {{min}} à {{max}} années",
+      "addYear": "Ajouter une année",
+      "cumulTitle": "Cumul pluviométrique mensuel (janv. → déc.)",
+      "normal": "Normale 1991-2020",
+      "miniMapsTitle": "SPI par année (petits multiples)",
+      "monthLabel": "Mois"
     }
   }
 }

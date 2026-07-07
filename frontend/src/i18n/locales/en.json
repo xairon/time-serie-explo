@@ -1880,6 +1880,16 @@
       "deficit": "Deficit (mm)",
       "empty": "No drought episode recorded over this period.",
       "ongoing": "Ongoing"
+    },
+    "compare": {
+      "title": "Comparison",
+      "yearsLabel": "Selected years",
+      "yearsHint": "Select {{min}} to {{max}} years",
+      "addYear": "Add a year",
+      "cumulTitle": "Monthly cumulative precipitation (Jan → Dec)",
+      "normal": "1991-2020 normal",
+      "miniMapsTitle": "SPI by year (small multiples)",
+      "monthLabel": "Month"
     }
   }
 }
