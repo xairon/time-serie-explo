@@ -22,8 +22,9 @@ from api.schemas.observatory import (
     PiezoStation,
     PiezoYearly,
 )
+from api.era5_anomaly import station_spi_rows
 from dashboard.utils.cache import get_cached
-from dashboard.utils.drought import compute_spi, _classify
+from dashboard.utils.drought import _classify
 from dashboard.utils.reference import value_to_zscore, class_bounds_ngf
 
 router = APIRouter(prefix="/api/v1/observatory/piezo", tags=["observatory-piezo"])
@@ -393,20 +394,34 @@ def get_spli(code_bss: str):
 
 
 @router.get("/stations/{code_bss:path}/spi", response_model=list[PiezoSPI])
-def get_spi(code_bss: str):
-    """Compute Standardized Precipitation Index (SPI) from monthly precipitation."""
+def get_spi(code_bss: str, window: int = Query(1, description="Window length in months (1, 3, 6 or 12)")):
+    """Standardized Precipitation Index (SPI) for the station's mapped ERA5 grid cell.
+
+    No statistics are recomputed here: SPI and the monthly precipitation total come
+    directly from the BRGM warehouse marts (``fct_era5_indices_grid`` /
+    ``fct_era5_monthly_grid``), joined through the station→cell mapping
+    (``int_station_era5_mapping``). Defaults to the 1-month window, matching the
+    historical per-calendar-month on-the-fly gamma fit this replaces.
+    """
+    if window not in (1, 3, 6, 12):
+        window = 1
 
     def fetch():
         query = """
-            SELECT mois, precipitation_totale
-            FROM gold.fct_monthly_chroniques
-            WHERE code_bss = :code AND precipitation_totale IS NOT NULL
-            ORDER BY mois
+            SELECT m.mois AS mois, m.precipitation_totale AS value, g.spi AS spi
+            FROM gold.int_station_era5_mapping map
+            JOIN gold.fct_era5_monthly_grid m
+              ON m.era5_latitude = map.era5_latitude AND m.era5_longitude = map.era5_longitude
+            LEFT JOIN gold.fct_era5_indices_grid g
+              ON g.era5_latitude = map.era5_latitude AND g.era5_longitude = map.era5_longitude
+             AND g.month = m.mois AND g.fenetre = :window
+            WHERE map.code_bss = :code
+            ORDER BY m.mois
         """
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"code": code_bss})
+                result = conn.execute(text(query), {"code": code_bss, "window": window})
                 rows = [dict(r._mapping) for r in result]
                 if not rows:
                     exists = conn.execute(
@@ -419,11 +434,9 @@ def get_spi(code_bss: str):
         finally:
             pass  # shared pooled engine; do not dispose
 
-        months = [str(r["mois"]) for r in rows]
-        values = [float(r["precipitation_totale"]) if r["precipitation_totale"] is not None else None for r in rows]
-        return compute_spi(months, values)
+        return station_spi_rows(rows)
 
-    return get_cached("obs_piezo_spi", {"code_bss": code_bss}, SPLI_TTL, fetch)
+    return get_cached("obs_piezo_spi", {"code_bss": code_bss, "window": window}, SPLI_TTL, fetch)
 
 
 @router.get("/stations/{code_bss:path}/siblings", response_model=PiezoBdlisaSiblings)

@@ -11,7 +11,14 @@ from api.database import get_brgm_sync_engine
 
 from api.config import settings
 from dashboard.utils.cache import get_cached, read_cached, write_cached
-from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies, compute_sti, compute_spi_grid
+from api.era5_anomaly import (
+    window_end_months,
+    add_months,
+    latest_complete_month,
+    compute_anomalies,
+    compute_precip_anomalies,
+    classify_index,
+)
 
 router = APIRouter(prefix="/api/v1/observatory/era5", tags=["observatory-era5"])
 
@@ -22,42 +29,16 @@ MONTHLY_TTL = 86400
 RANGE_TTL = 86400
 CLIMATOLOGY_TTL = 604800  # 7 days — climatology is effectively static
 ANOMALY_TTL = 86400
+INDICES_TTL = 86400
 
 # Single-flight guard: only one thread runs the ~71s climatology scan at a time.
 # Concurrent cache misses acquire this lock and double-check before scanning.
+# Still needed by /anomaly (temperature path), which is the one remaining consumer
+# of the on-the-fly climatology scan — /spi and /sti now read the precomputed
+# gold.fct_era5_indices_grid mart directly (no more per-request gamma fit).
 _climatology_lock = threading.Lock()
-# Separate single-flight guard for the precip climatology scan.
+# Separate single-flight guard for the precip climatology scan (/anomaly, precipitation path).
 _precip_climatology_lock = threading.Lock()
-# Single-flight guard for the STI reference scan.
-_sti_reference_lock = threading.Lock()
-# Single-flight guard for the SPI (precipitation) reference scan.
-_spi_reference_lock = threading.Lock()
-
-# Minimum positive reference years required for a stable per-cell gamma fit.
-SPI_MIN_REF_YEARS = 10
-
-
-def _mom_gamma(values):
-    """Method-of-moments gamma parameters (a, loc=0, scale) for positive values.
-
-    Used instead of scipy's MLE ``gamma.fit`` so all (window, end_month) SPI
-    references can be precomputed cheaply (O(1) per cell) — MLE over ~550k cells
-    would take ~15 min of CPU. Returns None if the sample is too small/degenerate.
-    """
-    n = len(values)
-    if n < SPI_MIN_REF_YEARS:
-        return None
-    mean = sum(values) / n
-    if mean <= 0:
-        return None
-    var = sum((v - mean) ** 2 for v in values) / (n - 1)
-    if var <= 0:
-        return None
-    scale = var / mean
-    a = mean * mean / var
-    if a <= 0 or scale <= 0:
-        return None
-    return a, 0.0, scale
 
 
 def _brgm_url() -> str:
@@ -104,18 +85,21 @@ def get_era5_snapshot(
                 if d is None:
                     # Empty grid table — nothing to snapshot (avoids d + timedelta TypeError).
                     return []
+                # No weighted duplicate-coordinate merge needed here anymore: the
+                # upstream ERA5 coordinates are clean + defensively rounded to 0.1°
+                # (one row per cell/day), so a plain per-row rounding is equivalent
+                # to the old AVG(...)-per-rounded-cell aggregation.
                 query = """
                     SELECT round(latitude::numeric, 1) AS latitude,
                            round(longitude::numeric, 1) AS longitude,
-                           AVG(temperature_2m) AS temperature_2m,
-                           AVG(total_precipitation) AS total_precipitation,
-                           AVG(potential_evaporation) AS potential_evaporation
+                           temperature_2m,
+                           total_precipitation,
+                           potential_evaporation
                     FROM gold.era5_grid
                     WHERE "time" >= :d AND "time" < :d_next
                       AND (temperature_2m IS NOT NULL
                            OR total_precipitation IS NOT NULL
                            OR potential_evaporation IS NOT NULL)
-                    GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
                 """
                 result = conn.execute(text(query), {"d": d, "d_next": d + timedelta(days=1)})
                 return [dict(r._mapping) for r in result]
@@ -153,26 +137,30 @@ def get_era5_dates():
 def get_era5_monthly(
     month: DateType = Query(..., description="Month in YYYY-MM-DD format (first of month)"),
 ):
+    """Per-cell monthly snapshot, read from the precomputed ``fct_era5_monthly_grid`` mart
+    (no more on-the-fly aggregation over the daily grid).
+
+    ``potential_evaporation`` is reconstructed to match the historical field exactly:
+    the mart's ``etp_totale`` is a POSITIVE monthly total (mm), while this field has
+    always been a NEGATIVE daily-average rate (ERA5 raw-variable convention, consumed
+    as-is by the frontend's water-balance calc: ``total_precipitation + potential_evaporation``).
+    ``-(etp_totale / nb_jours)`` reproduces the old ``AVG(potential_evaporation)`` value bit-for-bit.
+    """
     def fetch():
-        month_start = month
-        if month.month == 12:
-            month_end = DateType(month.year + 1, 1, 1)
-        else:
-            month_end = DateType(month.year, month.month + 1, 1)
+        month_start = DateType(month.year, month.month, 1)
         query = """
-            SELECT round(latitude::numeric, 1) AS latitude,
-                   round(longitude::numeric, 1) AS longitude,
-                   AVG(temperature_2m) AS temperature_2m,
-                   SUM(total_precipitation) AS total_precipitation,
-                   AVG(potential_evaporation) AS potential_evaporation
-            FROM gold.era5_grid
-            WHERE "time" >= :month_start AND "time" < :month_end
-            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1)
+            SELECT era5_latitude AS latitude,
+                   era5_longitude AS longitude,
+                   temperature_moyenne AS temperature_2m,
+                   precipitation_totale AS total_precipitation,
+                   CASE WHEN nb_jours > 0 THEN -(etp_totale / nb_jours) END AS potential_evaporation
+            FROM gold.fct_era5_monthly_grid
+            WHERE mois = :month_start
         """
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                result = conn.execute(text(query), {"month_start": month_start, "month_end": month_end})
+                result = conn.execute(text(query), {"month_start": month_start})
                 return [dict(r._mapping) for r in result]
         finally:
             pass  # shared pooled engine; do not dispose
@@ -333,7 +321,7 @@ def _resolve_month_start(conn, d):
 
 
 def _compute_temp_anomaly(conn, anomaly_date, window):
-    """Shared computation for temperature anomaly used by both /temp-anomaly and /anomaly."""
+    """Computation for the temperature-anomaly path of /anomaly."""
     month_start = _resolve_month_start(conn, anomaly_date)
     if month_start is None:
         return None, None  # empty table guard
@@ -367,331 +355,64 @@ def _compute_temp_anomaly(conn, anomaly_date, window):
     return result, month_start
 
 
-def _era5_sti_reference(window: int, end_month: int) -> list[dict]:
-    """Per-cell reference distribution for STI: mean and std of N-month window means over 1991-2020.
+def _resolve_indices_month(conn, requested_date, window: int):
+    """Resolve the target month for /spi or /sti, clamped to the latest month present
+    in ``gold.fct_era5_indices_grid`` for the given window (the mart only contains
+    complete calendar months by construction — no need to look at the daily grid).
 
-    For each reference year in 1991-2020, computes the N-month window mean temperature ending at
-    ``end_month`` per cell, then returns AVG and STDDEV_SAMP over years.
-
-    Year-boundary windows (e.g. window=3, end_month=1 → months Nov/Dec/Jan): each row is
-    assigned to the year of its window's END via CASE WHEN mo > end_month THEN yr+1 ELSE yr.
-
-    Coords rounded to 0.1° in Python (same doublon-merge strategy as the temp climatology).
-    Cached keyed (window, end_month), own single-flight lock, TTL 7 days.
+    Mirrors ``_resolve_month_start``'s "latest available if omitted / clamp if too
+    recent" contract, but scoped to the indices mart. Returns None if the mart has no
+    row yet for this window (e.g. before the first backfill).
     """
-    cache_key = "obs_era5_sti_ref"
-    cache_params = {"window": window, "end_month": end_month}
-
-    def fetch():
-        with _sti_reference_lock:
-            cached = read_cached(cache_key, cache_params)
-            if cached is not None:
-                return cached
-
-            months = window_end_months(end_month, window)
-            # Earliest data needed: reference year 1991 starting (window-1) months before end_month
-            ref_start = add_months(DateType(1991, end_month, 1), -(window - 1))
-
-            # Step 1: raw SQL — per (latitude, longitude, year, month) → monthly mean + count.
-            # Raw lat/lon (no ::numeric cast) for speed; Python-side rounding handles doublons.
-            query = """
-                SELECT latitude, longitude,
-                       EXTRACT(YEAR FROM "time")::int AS yr,
-                       EXTRACT(MONTH FROM "time")::int AS mo,
-                       AVG(temperature_2m) AS m_mean,
-                       COUNT(*) AS n
-                FROM gold.era5_grid
-                WHERE temperature_2m IS NOT NULL
-                  AND "time" >= :ref_start AND "time" < '2021-01-01'
-                  AND EXTRACT(MONTH FROM "time")::int = ANY(:months)
-                GROUP BY latitude, longitude,
-                         EXTRACT(YEAR FROM "time")::int,
-                         EXTRACT(MONTH FROM "time")::int
-            """
-            engine = get_brgm_sync_engine()
-            try:
-                with engine.connect() as conn:
-                    result = conn.execute(text(query), {"ref_start": ref_start, "months": months})
-                    rows = result.fetchall()
-            finally:
-                pass  # shared pooled engine; do not dispose
-
-            # Step 2: round to 0.1°, weighted-avg doublon variants per (rounded_lat, rounded_lon, yr, mo)
-            acc1: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
-            for r in rows:
-                la = round(float(r[0]), 1)
-                lo = round(float(r[1]), 1)
-                yr = int(r[2])
-                mo = int(r[3])
-                m_mean = float(r[4])
-                n = int(r[5])
-                acc1[(la, lo, yr, mo)]["sw"] += m_mean * n
-                acc1[(la, lo, yr, mo)]["sn"] += n
-
-            # Step 3: assign ending year (wy) and collect monthly means per (la, lo, wy)
-            # mo > end_month means this row belongs to the PREVIOUS calendar year of the window's end
-            acc2: dict = defaultdict(list)
-            for (la, lo, yr, mo), v in acc1.items():
-                merged_mean = v["sw"] / v["sn"]
-                wy = yr + 1 if mo > end_month else yr
-                acc2[(la, lo, wy)].append(merged_mean)
-
-            # Step 4: filter complete windows in the 1991-2020 reference period, compute wmean per year
-            acc3: dict = defaultdict(list)
-            for (la, lo, wy), month_means in acc2.items():
-                if wy < 1991 or wy > 2020:
-                    continue
-                if len(month_means) != window:
-                    continue  # incomplete window (boundary year or missing data)
-                wmean = sum(month_means) / len(month_means)
-                acc3[(la, lo)].append(wmean)
-
-            # Step 5: AVG + STDDEV_SAMP (sample std) over reference years per cell
-            out = []
-            for (la, lo), wmeans in acc3.items():
-                n_years = len(wmeans)
-                if n_years < 2:
-                    continue  # need at least 2 for sample std
-                mean_val = sum(wmeans) / n_years
-                variance = sum((w - mean_val) ** 2 for w in wmeans) / (n_years - 1)
-                std_val = variance ** 0.5
-                out.append({
-                    "latitude": la,
-                    "longitude": lo,
-                    "mean": mean_val,
-                    "std": std_val,
-                    "n_years": n_years,
-                })
-            # Publish under the lock so waiters see it immediately (see write_cached).
-            write_cached(cache_key, cache_params, CLIMATOLOGY_TTL, out)
-            return out
-
-    return get_cached(cache_key, cache_params, CLIMATOLOGY_TTL, fetch)
+    max_month = conn.execute(
+        text("SELECT max(month) FROM gold.fct_era5_indices_grid WHERE fenetre = :window"),
+        {"window": window},
+    ).scalar()
+    if max_month is None:
+        return None
+    if requested_date is None:
+        return max_month
+    requested_month = DateType(requested_date.year, requested_date.month, 1)
+    return min(requested_month, max_month)
 
 
-def _era5_spi_reference(window: int, end_month: int) -> list[dict]:
-    """Per-cell gamma reference for SPI: fits a gamma to the N-month accumulated
-    precipitation totals over 1991-2020.
+def _rows_to_spi(rows) -> list[dict]:
+    """Format raw ``fct_era5_indices_grid`` SPI rows into the API response shape.
 
-    Mirrors ``_era5_sti_reference`` but accumulates monthly precipitation SUMS (not
-    means) per reference-year window, then fits a gamma per cell (McKee 1993 SPI).
-    Stores ``{latitude, longitude, a, loc, scale, n_years}``. Cached keyed
-    (window, end_month), own single-flight lock, TTL 7 days.
+    No statistics are (re)computed here — SPI is precomputed upstream in the mart
+    (gamma fit on the 1991-2020 reference); this only rounds and classifies.
     """
-    cache_key = "obs_era5_spi_ref"
-    cache_params = {"window": window, "end_month": end_month}
-
-    def fetch():
-        with _spi_reference_lock:
-            cached = read_cached(cache_key, cache_params)
-            if cached is not None:
-                return cached
-
-            months = window_end_months(end_month, window)
-            ref_start = add_months(DateType(1991, end_month, 1), -(window - 1))
-
-            # Step 1: per (latitude, longitude, year, month) → monthly precip SUM + day count.
-            query = """
-                SELECT latitude, longitude,
-                       EXTRACT(YEAR FROM "time")::int AS yr,
-                       EXTRACT(MONTH FROM "time")::int AS mo,
-                       SUM(total_precipitation) AS m_sum,
-                       COUNT(*) AS n
-                FROM gold.era5_grid
-                WHERE total_precipitation IS NOT NULL
-                  AND "time" >= :ref_start AND "time" < '2021-01-01'
-                  AND EXTRACT(MONTH FROM "time")::int = ANY(:months)
-                GROUP BY latitude, longitude,
-                         EXTRACT(YEAR FROM "time")::int,
-                         EXTRACT(MONTH FROM "time")::int
-            """
-            engine = get_brgm_sync_engine()
-            try:
-                with engine.connect() as conn:
-                    result = conn.execute(text(query), {"ref_start": ref_start, "months": months})
-                    rows = result.fetchall()
-            finally:
-                pass  # shared pooled engine; do not dispose
-
-            # Step 2: round to 0.1°, weighted-avg the doublon variants' monthly sum (same
-            # physical cell duplicated by float rounding — average, don't double-count).
-            acc1: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
-            for r in rows:
-                la = round(float(r[0]), 1)
-                lo = round(float(r[1]), 1)
-                yr = int(r[2])
-                mo = int(r[3])
-                m_sum = float(r[4])
-                n = int(r[5])
-                acc1[(la, lo, yr, mo)]["sw"] += m_sum * n
-                acc1[(la, lo, yr, mo)]["sn"] += n
-
-            # Step 3: assign ending year (wy) and collect monthly sums per (la, lo, wy)
-            acc2: dict = defaultdict(list)
-            for (la, lo, yr, mo), v in acc1.items():
-                merged_sum = v["sw"] / v["sn"]
-                wy = yr + 1 if mo > end_month else yr
-                acc2[(la, lo, wy)].append(merged_sum)
-
-            # Step 4: complete windows only; window value = SUM of monthly sums (accumulation).
-            acc3: dict = defaultdict(list)
-            for (la, lo, wy), month_sums in acc2.items():
-                if wy < 1991 or wy > 2020:
-                    continue
-                if len(month_sums) != window:
-                    continue
-                acc3[(la, lo)].append(sum(month_sums))
-
-            # Step 5: method-of-moments gamma per cell over the positive accumulations.
-            out = []
-            for (la, lo), wsums in acc3.items():
-                positive = [w for w in wsums if w > 0]
-                g = _mom_gamma(positive)
-                if g is None:
-                    continue
-                a, loc, scale = g
-                out.append({
-                    "latitude": la,
-                    "longitude": lo,
-                    "a": a,
-                    "loc": loc,
-                    "scale": scale,
-                    "n_years": len(positive),
-                })
-            # Publish under the lock so waiters see it immediately (see write_cached).
-            write_cached(cache_key, cache_params, CLIMATOLOGY_TTL, out)
-            return out
-
-    return get_cached(cache_key, cache_params, CLIMATOLOGY_TTL, fetch)
-
-
-# Windows exposed by the UI — warm every one so no first-view hits the ~130s scan.
-STI_WARM_WINDOWS = (1, 3, 6, 12)
-
-
-def _scan_monthly_cell_stats(query: str) -> dict:
-    """Run a per-(cell, year, month) monthly-aggregate scan once, weighted-avg the
-    0.1° doublon variants, and return ``{(lat, lon): {(year, month): value}}``.
-
-    Shared by the STI/SPI bulk warmers so all 48 (window, end_month) references come
-    from a single table scan instead of 48 separate ~66s scans.
-    """
-    engine = get_brgm_sync_engine()
-    try:
-        with engine.connect() as conn:
-            rows = conn.execute(text(query)).fetchall()
-    finally:
-        pass  # shared pooled engine; do not dispose
-    acc: dict = defaultdict(lambda: {"sw": 0.0, "sn": 0})
+    out = []
     for r in rows:
-        la = round(float(r[0]), 1)
-        lo = round(float(r[1]), 1)
-        key = (la, lo, int(r[2]), int(r[3]))
-        acc[key]["sw"] += float(r[4]) * int(r[5])
-        acc[key]["sn"] += int(r[5])
-    by_cell: dict = defaultdict(dict)
-    for (la, lo, yr, mo), v in acc.items():
-        by_cell[(la, lo)][(yr, mo)] = v["sw"] / v["sn"]
-    return by_cell
-
-
-def _sti_ref_from_cells(by_cell: dict, window: int, end_month: int) -> list[dict]:
-    """STI reference (mean/std of N-month window means over 1991-2020) per cell,
-    computed from pre-scanned monthly means. Matches _era5_sti_reference exactly."""
-    month_set = set(window_end_months(end_month, window))
-    out = []
-    for (la, lo), ym in by_cell.items():
-        per_year: dict = defaultdict(list)
-        for (yr, mo), v in ym.items():
-            if mo not in month_set:
-                continue
-            wy = yr + 1 if mo > end_month else yr
-            if wy < 1991 or wy > 2020:
-                continue
-            per_year[wy].append(v)
-        wmeans = [sum(mm) / len(mm) for mm in per_year.values() if len(mm) == window]
-        if len(wmeans) < 2:
+        if r["spi"] is None:
             continue
-        mean_val = sum(wmeans) / len(wmeans)
-        variance = sum((w - mean_val) ** 2 for w in wmeans) / (len(wmeans) - 1)
-        out.append({"latitude": la, "longitude": lo, "mean": mean_val,
-                    "std": variance ** 0.5, "n_years": len(wmeans)})
+        z = round(float(r["spi"]), 3)
+        out.append({
+            "latitude": float(r["latitude"]),
+            "longitude": float(r["longitude"]),
+            "spi": z,
+            "index_class": classify_index(z),
+        })
     return out
 
 
-def _spi_ref_from_cells(by_cell: dict, window: int, end_month: int) -> list[dict]:
-    """SPI gamma reference (method-of-moments) per cell from pre-scanned monthly sums."""
-    month_set = set(window_end_months(end_month, window))
+def _rows_to_sti(rows) -> list[dict]:
+    """Format raw ``fct_era5_indices_grid`` STI rows into the API response shape.
+
+    No statistics are (re)computed here — STI is precomputed upstream in the mart;
+    this only classifies (matches the historical unrounded ``sti`` field)."""
     out = []
-    for (la, lo), ym in by_cell.items():
-        per_year: dict = defaultdict(list)
-        for (yr, mo), v in ym.items():
-            if mo not in month_set:
-                continue
-            wy = yr + 1 if mo > end_month else yr
-            if wy < 1991 or wy > 2020:
-                continue
-            per_year[wy].append(v)
-        wsums = [sum(mm) for mm in per_year.values() if len(mm) == window]
-        positive = [w for w in wsums if w > 0]
-        g = _mom_gamma(positive)
-        if g is None:
+    for r in rows:
+        if r["sti"] is None:
             continue
-        a, loc, scale = g
-        out.append({"latitude": la, "longitude": lo, "a": a, "loc": loc,
-                    "scale": scale, "n_years": len(positive)})
+        z = float(r["sti"])
+        out.append({
+            "latitude": float(r["latitude"]),
+            "longitude": float(r["longitude"]),
+            "sti": z,
+            "index_class": classify_index(z),
+        })
     return out
-
-
-def _warm_era5_sti_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
-    """Precompute & cache STI references for EVERY (window, end_month) from a single
-    1990-2020 scan, so stepping the map period to any month is an instant cache hit
-    (previously each non-current month triggered a ~66s cold scan)."""
-    query = """
-        SELECT latitude, longitude,
-               EXTRACT(YEAR FROM "time")::int AS yr,
-               EXTRACT(MONTH FROM "time")::int AS mo,
-               AVG(temperature_2m) AS v, COUNT(*) AS n
-        FROM gold.era5_grid
-        WHERE temperature_2m IS NOT NULL
-          AND "time" >= '1990-01-01' AND "time" < '2021-01-01'
-        GROUP BY latitude, longitude,
-                 EXTRACT(YEAR FROM "time")::int, EXTRACT(MONTH FROM "time")::int
-    """
-    by_cell = _scan_monthly_cell_stats(query)
-    if not by_cell:
-        return None
-    for window in windows:
-        for end_month in range(1, 13):
-            out = _sti_ref_from_cells(by_cell, window, end_month)
-            write_cached("obs_era5_sti_ref", {"window": window, "end_month": end_month},
-                         CLIMATOLOGY_TTL, out)
-    return True
-
-
-def _warm_era5_spi_default(windows: tuple[int, ...] = STI_WARM_WINDOWS):
-    """Precompute & cache SPI references for EVERY (window, end_month) from a single
-    1990-2020 scan (method-of-moments gamma), so any month is an instant cache hit."""
-    query = """
-        SELECT latitude, longitude,
-               EXTRACT(YEAR FROM "time")::int AS yr,
-               EXTRACT(MONTH FROM "time")::int AS mo,
-               SUM(total_precipitation) AS v, COUNT(*) AS n
-        FROM gold.era5_grid
-        WHERE total_precipitation IS NOT NULL
-          AND "time" >= '1990-01-01' AND "time" < '2021-01-01'
-        GROUP BY latitude, longitude,
-                 EXTRACT(YEAR FROM "time")::int, EXTRACT(MONTH FROM "time")::int
-    """
-    by_cell = _scan_monthly_cell_stats(query)
-    if not by_cell:
-        return None
-    for window in windows:
-        for end_month in range(1, 13):
-            out = _spi_ref_from_cells(by_cell, window, end_month)
-            write_cached("obs_era5_spi_ref", {"window": window, "end_month": end_month},
-                         CLIMATOLOGY_TTL, out)
-    return True
 
 
 @router.get("/spi")
@@ -703,10 +424,9 @@ def get_era5_spi(
 ):
     """Standardized Precipitation Index (SPI, McKee 1993) per grid cell.
 
-    Returns ``[{latitude, longitude, spi, index_class}]``: the observed N-month
-    accumulated precipitation is mapped through a per-cell gamma CDF (fitted on
-    1991-2020) then onto a standard normal, classified into the 7 McKee/WMO classes.
-    The precipitation analogue of /sti; the WMO-standard precipitation index.
+    Returns ``[{latitude, longitude, spi, index_class}]``, read directly from the
+    precomputed ``gold.fct_era5_indices_grid`` mart — no gamma fit / CDF projection
+    happens in the API anymore (that runs once upstream, in the Dagster pipeline).
     """
     if window not in (1, 3, 6, 12):
         window = 3
@@ -720,57 +440,29 @@ def get_era5_spi(
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                month_start = _resolve_month_start(conn, spi_date)
+                month_start = _resolve_indices_month(conn, spi_date, window)
                 if month_start is None:
                     return []
 
-                win_start = add_months(month_start, -(window - 1))
-                win_end = add_months(month_start, 1)
-
                 rows = conn.execute(
                     text(
-                        # Mirror _era5_spi_reference's doublon handling: compute each
-                        # float-coordinate variant's monthly sum, weighted-merge the
-                        # variants of the same rounded cell/month (avoids double-counting
-                        # the ERA5 coordinate-precision duplicates), then accumulate months.
                         """
-                        WITH per_variant AS (
-                            SELECT latitude, longitude,
-                                   date_trunc('month', "time") AS ym,
-                                   SUM(total_precipitation) AS m_sum,
-                                   COUNT(*) AS n
-                            FROM gold.era5_grid
-                            WHERE "time" >= :win_start AND "time" < :win_end
-                              AND total_precipitation IS NOT NULL
-                            GROUP BY latitude, longitude, date_trunc('month', "time")
-                        ),
-                        monthly AS (
-                            SELECT round(latitude::numeric, 1) AS latitude,
-                                   round(longitude::numeric, 1) AS longitude,
-                                   ym,
-                                   SUM(m_sum * n) / NULLIF(SUM(n), 0) AS m_merged
-                            FROM per_variant
-                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1), ym
-                        )
-                        SELECT latitude, longitude,
-                               SUM(m_merged) AS window_sum,
-                               COUNT(*) AS n_months
-                        FROM monthly
-                        GROUP BY latitude, longitude
+                        SELECT era5_latitude AS latitude, era5_longitude AS longitude, spi
+                        FROM gold.fct_era5_indices_grid
+                        WHERE month = :month AND fenetre = :window
                         """
                     ),
-                    {"win_start": win_start, "win_end": win_end},
+                    {"month": month_start, "window": window},
                 ).mappings().all()
         finally:
             pass  # shared pooled engine; do not dispose
 
-        ref = _era5_spi_reference(window, month_start.month)
-        return compute_spi_grid(rows, ref, window)
+        return _rows_to_spi(rows)
 
     return get_cached(
         "obs_era5_spi",
         {"window": window, "month": cache_month_key},
-        ANOMALY_TTL,
+        INDICES_TTL,
         fetch,
     )
 
@@ -784,11 +476,9 @@ def get_era5_sti(
 ):
     """Standardized Temperature Index (STI) per grid cell.
 
-    Returns ``[{latitude, longitude, sti, index_class}]`` using the SPI method applied to
-    temperature: z = (observed_window_mean − reference_mean) / reference_std,
-    classified into 7 McKee/WMO classes (±0.84 / ±1.28 / ±1.75 thresholds).
-
-    Reference distribution: 1991-2020, per (cell, window, end-calendar-month).
+    Returns ``[{latitude, longitude, sti, index_class}]``, read directly from the
+    precomputed ``gold.fct_era5_indices_grid`` mart — no z-score computation happens
+    in the API anymore (that runs once upstream, in the Dagster pipeline).
     """
     if window not in (1, 3, 6, 12):
         window = 3
@@ -802,46 +492,29 @@ def get_era5_sti(
         engine = get_brgm_sync_engine()
         try:
             with engine.connect() as conn:
-                month_start = _resolve_month_start(conn, sti_date)
+                month_start = _resolve_indices_month(conn, sti_date, window)
                 if month_start is None:
                     return []
-
-                win_start = add_months(month_start, -(window - 1))
-                win_end = add_months(month_start, 1)
 
                 rows = conn.execute(
                     text(
                         """
-                        WITH monthly AS (
-                            SELECT round(latitude::numeric, 1) AS latitude,
-                                   round(longitude::numeric, 1) AS longitude,
-                                   date_trunc('month', "time") AS ym,
-                                   AVG(temperature_2m) AS m_mean
-                            FROM gold.era5_grid
-                            WHERE "time" >= :win_start AND "time" < :win_end
-                              AND temperature_2m IS NOT NULL
-                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
-                                     date_trunc('month', "time")
-                        )
-                        SELECT latitude, longitude,
-                               AVG(m_mean) AS window_mean,
-                               COUNT(*) AS n_months
-                        FROM monthly
-                        GROUP BY latitude, longitude
+                        SELECT era5_latitude AS latitude, era5_longitude AS longitude, sti
+                        FROM gold.fct_era5_indices_grid
+                        WHERE month = :month AND fenetre = :window
                         """
                     ),
-                    {"win_start": win_start, "win_end": win_end},
+                    {"month": month_start, "window": window},
                 ).mappings().all()
         finally:
             pass  # shared pooled engine; do not dispose
 
-        ref = _era5_sti_reference(window, month_start.month)
-        return compute_sti(rows, ref, window)
+        return _rows_to_sti(rows)
 
     return get_cached(
         "obs_era5_sti",
         {"window": window, "month": cache_month_key},
-        ANOMALY_TTL,
+        INDICES_TTL,
         fetch,
     )
 
@@ -929,65 +602,3 @@ def get_era5_anomaly(
         fetch,
     )
 
-
-@router.get("/temp-anomaly")
-def get_era5_temp_anomaly(
-    anomaly_date: DateType | None = Query(
-        None, alias="date", description="Window end date; latest available month if omitted"
-    ),
-    window: int = Query(3, description="Window length in months (1, 3, 6 or 12)"),
-):
-    if window not in (1, 3, 6, 12):
-        window = 3
-
-    # M2: build cache key at month granularity before touching the DB
-    if anomaly_date is None:
-        cache_month_key = "latest"
-    else:
-        cache_month_key = str(DateType(anomaly_date.year, anomaly_date.month, 1))
-
-    def fetch():
-        engine = get_brgm_sync_engine()
-        try:
-            with engine.connect() as conn:
-                month_start = _resolve_month_start(conn, anomaly_date)
-                if month_start is None:  # empty table guard
-                    return []
-                win_start = add_months(month_start, -(window - 1))
-                win_end = add_months(month_start, 1)
-                rows = conn.execute(
-                    text(
-                        """
-                        WITH monthly AS (
-                            SELECT round(latitude::numeric, 1) AS latitude,
-                                   round(longitude::numeric, 1) AS longitude,
-                                   date_trunc('month', "time") AS ym,
-                                   AVG(temperature_2m) AS m_mean
-                            FROM gold.era5_grid
-                            WHERE "time" >= :win_start AND "time" < :win_end
-                              AND temperature_2m IS NOT NULL
-                            GROUP BY round(latitude::numeric, 1), round(longitude::numeric, 1),
-                                     date_trunc('month', "time")
-                        )
-                        SELECT latitude, longitude,
-                               AVG(m_mean) AS window_mean,
-                               COUNT(*) AS n_months
-                        FROM monthly
-                        GROUP BY latitude, longitude
-                        """
-                    ),
-                    {"win_start": win_start, "win_end": win_end},
-                ).mappings().all()
-
-            # climatology (separately cached) → normal for the N ending months
-            clim = _era5_temp_climatology()
-            return compute_anomalies(rows, clim, window_end_months(month_start.month, window), window)
-        finally:
-            pass  # shared pooled engine; do not dispose
-
-    return get_cached(
-        "obs_era5_temp_anomaly",
-        {"month": cache_month_key, "window": window},
-        ANOMALY_TTL,
-        fetch,
-    )

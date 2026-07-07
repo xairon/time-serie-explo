@@ -9,7 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.cache import get_redis, pool as redis_pool
-from dashboard.utils.cache import delete_cached
 from api.config import settings
 from api.database import engine, brgm_engine, get_db
 from api.json_response import FastJSONResponse
@@ -21,9 +20,6 @@ from api.routers import admin_audit as admin_audit_router
 from api.auth.deps import get_current_user
 
 logger = logging.getLogger(__name__)
-
-# Re-warm the climatology one day before its 7-day TTL so the cold window never hits.
-CLIMATOLOGY_REWARM_SECONDS = 6 * 24 * 3600
 
 
 @asynccontextmanager
@@ -81,82 +77,12 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_warm_sectors())
 
-    # Warm the ERA5 climatology caches (temperature + precipitation) in the BACKGROUND
-    # (~71s full-table scan each) so the first /temp-anomaly or /anomaly request after
-    # a restart or 7-day TTL expiry doesn't hit the scan and exceed the frontend timeout.
-    # After the initial warm, re-warm periodically (every 6 days) so the 7-day TTL
-    # cold window never occurs in production: delete the key first so the re-warm
-    # actually recomputes rather than no-oping on a still-live entry.
-    async def _warm_era5_climatology():
-        # Initial warm in parallel
-        try:
-            results = await asyncio.gather(
-                asyncio.to_thread(observatory_era5._era5_temp_climatology),
-                asyncio.to_thread(observatory_era5._era5_precip_climatology),
-                asyncio.to_thread(observatory_era5._warm_era5_sti_default),
-                asyncio.to_thread(observatory_era5._warm_era5_spi_default),
-                return_exceptions=True
-            )
-            if not isinstance(results[0], Exception):
-                logger.info("ERA5 temperature climatology cache warmed")
-            else:
-                logger.warning("ERA5 temperature climatology warm-up failed: %s", results[0])
-            if not isinstance(results[1], Exception):
-                logger.info("ERA5 precipitation climatology cache warmed")
-            else:
-                logger.warning("ERA5 precipitation climatology warm-up failed: %s", results[1])
-            if not isinstance(results[2], Exception):
-                logger.info("ERA5 STI reference cache warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
-            else:
-                logger.warning("ERA5 STI reference warm-up failed: %s", results[2])
-            if not isinstance(results[3], Exception):
-                logger.info("ERA5 SPI reference cache warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
-            else:
-                logger.warning("ERA5 SPI reference warm-up failed: %s", results[3])
-        except Exception:
-            logger.warning("ERA5 climatology warm-up failed", exc_info=True)
-
-        while True:
-            await asyncio.sleep(CLIMATOLOGY_REWARM_SECONDS)
-            try:
-                delete_cached("obs_era5_temp_climatology", {})
-                delete_cached("obs_era5_precip_climatology", {})
-                # Delete every (window, end_month) STI/SPI reference before re-warming
-                # (the bulk warmers recompute all 12 months from one scan).
-                try:
-                    for _w in observatory_era5.STI_WARM_WINDOWS:
-                        for _em in range(1, 13):
-                            delete_cached("obs_era5_sti_ref", {"window": _w, "end_month": _em})
-                            delete_cached("obs_era5_spi_ref", {"window": _w, "end_month": _em})
-                except Exception:
-                    pass  # non-blocking; continue even if delete fails
-                results = await asyncio.gather(
-                    asyncio.to_thread(observatory_era5._era5_temp_climatology),
-                    asyncio.to_thread(observatory_era5._era5_precip_climatology),
-                    asyncio.to_thread(observatory_era5._warm_era5_sti_default),
-                    asyncio.to_thread(observatory_era5._warm_era5_spi_default),
-                    return_exceptions=True
-                )
-                if not isinstance(results[0], Exception):
-                    logger.info("ERA5 temperature climatology cache re-warmed")
-                else:
-                    logger.warning("ERA5 temperature climatology re-warm failed: %s", results[0])
-                if not isinstance(results[1], Exception):
-                    logger.info("ERA5 precipitation climatology cache re-warmed")
-                else:
-                    logger.warning("ERA5 precipitation climatology re-warm failed: %s", results[1])
-                if not isinstance(results[2], Exception):
-                    logger.info("ERA5 STI reference cache re-warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
-                else:
-                    logger.warning("ERA5 STI reference re-warm failed: %s", results[2])
-                if not isinstance(results[3], Exception):
-                    logger.info("ERA5 SPI reference cache re-warmed (windows %s)", observatory_era5.STI_WARM_WINDOWS)
-                else:
-                    logger.warning("ERA5 SPI reference re-warm failed: %s", results[3])
-            except Exception:
-                logger.warning("ERA5 climatology re-warm failed", exc_info=True)
-
-    asyncio.create_task(_warm_era5_climatology())
+    # No ERA5 warmers left: /spi, /sti and /monthly now read precomputed marts
+    # (gold.fct_era5_indices_grid / fct_era5_monthly_grid) — sub-second regardless of
+    # cache state. /anomaly (temperature path) still hits the ~71s on-the-fly
+    # climatology scan on a cold cache, but it is no longer pre-warmed here; the
+    # scan's own single-flight lock (observatory_era5._climatology_lock) still
+    # prevents a thundering herd on a cold miss.
 
     yield
 

@@ -55,12 +55,12 @@ les indices STI/SPI sont exacts.
 
 **Files:** Modify `api/routers/observatory_era5.py`, `api/main.py`, `api/era5_anomaly.py` (réduction).
 
-- [ ] `/spi` et `/sti` lisent `fct_era5_indices_grid` (plus de gamma à la volée) ; `/monthly` lit `fct_era5_monthly_grid` ; `/snapshot` inchangé (daily) mais retirer la fusion pondérée des doublons de coordonnées (l'amont est propre + arrondi défensif)
-- [ ] Supprimer `_warm_era5_climatology`, locks single-flight, re-warm 6 jours (`api/main.py:84-159`) ; supprimer de `era5_anomaly.py` le code de fit gamma devenu mort (garder `classify_index` si consommé)
-- [ ] Supprimer les endpoints `/anomaly` et `/temp-anomaly` APRÈS vérification qu'aucun composant frontend ne les appelle encore (grep `era5.anomaly|temp-anomaly` dans frontend/src — l'audit indique la variable `anomaly` orpheline côté UI ; la Task C1 retire le code front en même temps)
-- [ ] SPI station (`observatory_piezo.py:397` et équivalent hydro) : lecture directe `fct_era5_indices_grid` via la cellule mappée de la station (jointure `int_station_era5_mapping`), fenêtre paramétrable
-- [ ] Tests de non-régression sur les endpoints conservés (mêmes shapes de réponse) ; mesure avant/après du temps de premier hit (attendu : sub-seconde vs 71 s)
-- [ ] Commit
+- [x] `/spi` et `/sti` lisent `fct_era5_indices_grid` (plus de gamma à la volée) ; `/monthly` lit `fct_era5_monthly_grid` ; `/snapshot` inchangé (daily) mais retirer la fusion pondérée des doublons de coordonnées (l'amont est propre + arrondi défensif)
+- [x] Supprimer `_warm_era5_climatology`, locks single-flight, re-warm 6 jours (`api/main.py:84-159`) ; supprimer de `era5_anomaly.py` le code de fit gamma devenu mort (garder `classify_index` si consommé)
+- [x] `/anomaly` et `/temp-anomaly` : vérifié via grep frontend — `/anomaly` (variable `anomaly`) est **toujours consommé** (RightDrawer/ObservatoryMap/Era5Banner/ObservatoryPage), donc **conservé** (retrait prévu en C1) ; `/temp-anomaly` n'a **aucun** client (`observatory-api.ts` n'expose pas de méthode) → **supprimé**
+- [x] SPI station (`observatory_piezo.py:397` et équivalent hydro `observatory_hydro.py`) : lecture directe `fct_era5_indices_grid` via la cellule mappée de la station (jointure `int_station_era5_mapping`/`int_hydro_station_era5_mapping`), fenêtre paramétrable (défaut 1 mois)
+- [x] Tests de non-régression sur les endpoints conservés (mêmes shapes de réponse) ; mesure avant/après du temps de premier hit (attendu : sub-seconde vs 71 s)
+- [x] Commit
 
 ## Phase B — Page « Climat »
 

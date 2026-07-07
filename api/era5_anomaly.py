@@ -37,103 +37,25 @@ def classify_index(z) -> str:
     return "EXTREMEMENT_HAUT"  # fallback: +inf edge
 
 
-def compute_sti(window_rows, reference, window) -> list[dict]:
-    """Compute the Standardized Temperature Index (STI) per grid cell.
+def station_spi_rows(rows) -> list[dict]:
+    """Format station SPI rows into the ``{mois, value, spi, classification}`` shape
+    used by the piezo/hydro ``/stations/{code}/spi`` endpoints.
 
-    Args:
-        window_rows: Iterable of dicts ``{latitude, longitude, window_mean, n_months}`` —
-            observed N-month window means for each cell.
-        reference:  Iterable of dicts ``{latitude, longitude, mean, std, n_years}`` —
-            1991-2020 reference distribution per cell.
-        window:     Window length in months (1, 3, 6, or 12).
-
-    Returns:
-        List of ``{latitude, longitude, sti, index_class}`` dicts, dropping cells where:
-        - ``window_mean`` is None,
-        - ``n_months < window`` (incomplete observed window),
-        - no reference entry exists for the cell,
-        - reference ``std <= 0``.
+    ``rows`` are dicts ``{mois, value, spi}`` — the month, the mapped ERA5 grid
+    cell's monthly precipitation total, and its precomputed SPI (from
+    ``gold.fct_era5_indices_grid``). No statistics are (re)computed here; this only
+    rounds and classifies, mirroring the shape the old per-station on-the-fly gamma
+    fit used to return.
     """
-    ref_map: dict[tuple[float, float], dict] = {}
-    for r in reference:
-        key = (float(r["latitude"]), float(r["longitude"]))
-        ref_map[key] = r
-
     out = []
-    for r in window_rows:
-        if r["window_mean"] is None:
-            continue
-        if int(r["n_months"]) < window:
-            continue
-        key = (float(r["latitude"]), float(r["longitude"]))
-        ref = ref_map.get(key)
-        if ref is None:
-            continue
-        std = float(ref["std"])
-        if std <= 0:
-            continue
-        z = (float(r["window_mean"]) - float(ref["mean"])) / std
+    for r in rows:
+        spi = float(r["spi"]) if r["spi"] is not None else None
+        value = float(r["value"]) if r["value"] is not None else None
         out.append({
-            "latitude": float(r["latitude"]),
-            "longitude": float(r["longitude"]),
-            "sti": z,
-            "index_class": classify_index(z),
-        })
-    return out
-
-
-def compute_spi_grid(window_rows, reference, window) -> list[dict]:
-    """Compute the Standardized Precipitation Index (SPI, McKee 1993) per grid cell.
-
-    SPI is the WMO-standard precipitation index (gamma distribution), the precipitation
-    analogue of the STI. For each cell the reference carries the gamma parameters
-    (a, loc, scale) fitted to the 1991-2020 N-month accumulated precipitation totals;
-    the current window's accumulation is mapped through the gamma CDF then onto a
-    standard normal to get z, classified into the 7 McKee/WMO classes.
-
-    Args:
-        window_rows: dicts ``{latitude, longitude, window_sum, n_months}`` — observed
-            N-month accumulated precipitation for each cell.
-        reference:  dicts ``{latitude, longitude, a, loc, scale, n_years}`` — fitted gamma.
-        window:     Window length in months (1, 3, 6, or 12).
-
-    Returns:
-        List of ``{latitude, longitude, spi, index_class}``, dropping cells with a null
-        or non-positive window sum, an incomplete observed window (n_months < window),
-        or no/invalid reference gamma fit.
-    """
-    from scipy import stats
-
-    ref_map: dict[tuple[float, float], dict] = {}
-    for r in reference:
-        ref_map[(float(r["latitude"]), float(r["longitude"]))] = r
-
-    out = []
-    for r in window_rows:
-        s = r.get("window_sum")
-        if s is None:
-            continue
-        if int(r["n_months"]) < window:
-            continue
-        val = float(s)
-        if val <= 0:
-            continue  # gamma support is (0, +inf)
-        key = (float(r["latitude"]), float(r["longitude"]))
-        ref = ref_map.get(key)
-        if ref is None:
-            continue
-        a = ref.get("a")
-        scale = ref.get("scale")
-        if a is None or scale is None or float(scale) <= 0:
-            continue
-        cdf = float(stats.gamma.cdf(val, float(a), loc=float(ref.get("loc", 0.0)), scale=float(scale)))
-        cdf = min(max(cdf, 0.001), 0.999)
-        z = float(stats.norm.ppf(cdf))
-        out.append({
-            "latitude": key[0],
-            "longitude": key[1],
-            "spi": round(z, 3),
-            "index_class": classify_index(z),
+            "mois": str(r["mois"]),
+            "value": round(value, 4) if value is not None else None,
+            "spi": round(spi, 3) if spi is not None else None,
+            "classification": classify_index(spi),
         })
     return out
 

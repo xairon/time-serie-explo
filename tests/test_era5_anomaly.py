@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 import math
 import pytest
-from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies, classify_index, compute_sti
+from api.era5_anomaly import window_end_months, add_months, latest_complete_month, compute_anomalies, compute_precip_anomalies, classify_index
 
 
 def test_window_end_months_no_wrap():
@@ -150,76 +150,3 @@ def test_classify_index_boundary_values():
     assert classify_index(1.75) == "EXTREMEMENT_HAUT"  # exactly at boundary → enters EXTREMEMENT_HAUT
     assert classify_index(2.0) == "EXTREMEMENT_HAUT"
 
-
-# --- compute_sti ---
-
-def test_compute_sti_basic_z2_extremement_haut():
-    """mean=10, std=2, obs=14 → z=2.0 → EXTREMEMENT_HAUT."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 3}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 2.0, "n_years": 30}]
-    result = compute_sti(window_rows, reference, 3)
-    assert len(result) == 1
-    assert result[0]["latitude"] == pytest.approx(48.0)
-    assert result[0]["longitude"] == pytest.approx(2.0)
-    assert result[0]["sti"] == pytest.approx(2.0)
-    assert result[0]["index_class"] == "EXTREMEMENT_HAUT"
-
-
-def test_compute_sti_std_zero_dropped():
-    """std=0 → cell must be dropped."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 3}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 0.0, "n_years": 30}]
-    assert compute_sti(window_rows, reference, 3) == []
-
-
-def test_compute_sti_std_negative_dropped():
-    """std<0 (should not happen but guard) → dropped."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 3}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": -1.0, "n_years": 30}]
-    assert compute_sti(window_rows, reference, 3) == []
-
-
-def test_compute_sti_n_months_less_than_window_dropped():
-    """n_months < window → cell must be dropped."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 2}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 2.0, "n_years": 30}]
-    assert compute_sti(window_rows, reference, 3) == []
-
-
-def test_compute_sti_missing_reference_dropped():
-    """No reference entry for the cell → dropped."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 3}]
-    assert compute_sti(window_rows, [], 3) == []
-
-
-def test_compute_sti_window_mean_none_dropped():
-    """window_mean is None → dropped."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": None, "n_months": 3}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 2.0, "n_years": 30}]
-    assert compute_sti(window_rows, reference, 3) == []
-
-
-def test_compute_sti_negative_z():
-    """mean=10, std=2, obs=6 → z=-2.0 → EXTREMEMENT_BAS."""
-    window_rows = [{"latitude": 48.0, "longitude": 2.0, "window_mean": 6.0, "n_months": 1}]
-    reference = [{"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 2.0, "n_years": 30}]
-    result = compute_sti(window_rows, reference, 1)
-    assert len(result) == 1
-    assert result[0]["sti"] == pytest.approx(-2.0)
-    assert result[0]["index_class"] == "EXTREMEMENT_BAS"
-
-
-def test_compute_sti_multiple_cells():
-    """Two cells, both valid, produce two results."""
-    window_rows = [
-        {"latitude": 48.0, "longitude": 2.0, "window_mean": 14.0, "n_months": 3},
-        {"latitude": 49.0, "longitude": 3.0, "window_mean": 9.0, "n_months": 3},
-    ]
-    reference = [
-        {"latitude": 48.0, "longitude": 2.0, "mean": 10.0, "std": 2.0, "n_years": 30},
-        {"latitude": 49.0, "longitude": 3.0, "mean": 10.0, "std": 2.0, "n_years": 30},
-    ]
-    result = compute_sti(window_rows, reference, 3)
-    assert len(result) == 2
-    lats = {r["latitude"] for r in result}
-    assert 48.0 in lats and 49.0 in lats
