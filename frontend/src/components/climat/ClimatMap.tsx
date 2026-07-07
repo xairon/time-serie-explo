@@ -100,5 +100,12 @@ export function ClimatMap({ variable, monthlyPoints, indexPoints, onCellClick, s
     ;(map.getSource(SELECTED_SRC) as maplibregl.GeoJSONSource).setData(data as any)
   }, [mapLoaded, selectedCell])
 
-  return <div ref={containerRef} className="absolute inset-0" data-testid="climat-map" />
+  // Wrapper absolu + conteneur w-full/h-full : la CSS maplibre force `position: relative`
+  // sur l'élément qui porte la carte, ce qui annule `absolute inset-0` → hauteur 0
+  // (carte noire, constaté en dev). Même pattern que ObservatoryMap.
+  return (
+    <div className="absolute inset-0">
+      <div ref={containerRef} className="w-full h-full" data-testid="climat-map" />
+    </div>
+  )
 }
