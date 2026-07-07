@@ -102,6 +102,8 @@ services:
       - REDIS_URL=redis://junon-redis-dev:6379/0
       - MLFLOW_TRACKING_URI=http://mlflow-dev:5000
       - DEBUG=${DEBUG:-true}
+      # Settings durci (branche audit) : JWT_SECRET requis dès que DEBUG=false (fourni par .env)
+      - JWT_SECRET=${JWT_SECRET:-}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS_DEV:-http://localhost:49518}
       - DATA_DIR=/app/data
       - CHECKPOINTS_DIR=/app/checkpoints
