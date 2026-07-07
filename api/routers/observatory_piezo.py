@@ -605,9 +605,11 @@ def get_station(code_bss: str):
                    sci.baseline_start AS index_baseline_start,
                    sci.baseline_end AS index_baseline_end,
                    lm.ref_value AS index_ref_value,
-                   lm.month_median AS index_month_median
+                   lm.month_median AS index_month_median,
+                   map.era5_latitude, map.era5_longitude
             FROM gold.dim_piezo_stations s
             LEFT JOIN gold.station_current_index sci ON sci.type = 'piezo' AND sci.code = s.code_bss
+            LEFT JOIN gold.int_station_era5_mapping map ON map.code_bss = s.code_bss
             LEFT JOIN LATERAL (
                 SELECT m.niveau_moyen AS ref_value,
                        (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY m2.niveau_moyen)

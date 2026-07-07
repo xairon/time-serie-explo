@@ -156,7 +156,8 @@
       "minMax": "Min / Max",
       "stddev": "Std. dev.",
       "measurementDays": "Measurement days",
-      "historicalMean": "Historical mean"
+      "historicalMean": "Historical mean",
+      "spi3": "SPI (3 months)"
     },
     "map": {
       "ariaLabel": "Interactive map of French hydrological stations",
@@ -1173,7 +1174,18 @@
       "monthSuffix": "months",
       "yearsSuffix": "years",
       "until": "until",
-      "since": "since"
+      "since": "since",
+      "climate": {
+        "title": "Climate context",
+        "latestMonth": "Latest month",
+        "window": "SPI window",
+        "windowMonths": "{{n}} mo",
+        "cumulsTitle": "Rolling precipitation totals vs 1991-2020 normal",
+        "cumulWindow": "{{n}}-month total",
+        "normal": "Normal",
+        "insufficientData": "Insufficient data",
+        "noSpiData": "No SPI data available for this station's climate cell."
+      }
     },
     "compare": {
       "backToObservatory": "Back to observatory",

@@ -156,7 +156,8 @@
       "minMax": "Min / Max",
       "stddev": "Écart-type",
       "measurementDays": "Jours de mesure",
-      "historicalMean": "Moyenne historique"
+      "historicalMean": "Moyenne historique",
+      "spi3": "SPI (3 mois)"
     },
     "map": {
       "ariaLabel": "Carte interactive des stations hydrologiques françaises",
@@ -1173,7 +1174,18 @@
       "monthSuffix": "mois",
       "yearsSuffix": "ans",
       "until": "jusqu'à",
-      "since": "depuis"
+      "since": "depuis",
+      "climate": {
+        "title": "Contexte climatique",
+        "latestMonth": "Dernier mois",
+        "window": "Fenêtre SPI",
+        "windowMonths": "{{n}} mois",
+        "cumulsTitle": "Cumuls de précipitations glissants vs normale 1991-2020",
+        "cumulWindow": "Cumul {{n}} mois",
+        "normal": "Normale",
+        "insufficientData": "Données insuffisantes",
+        "noSpiData": "Aucune donnée SPI disponible pour la cellule climatique de cette station."
+      }
     },
     "compare": {
       "backToObservatory": "Retour à l'observatoire",

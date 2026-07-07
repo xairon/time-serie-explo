@@ -152,10 +152,10 @@ export function useHydroSSFI(code: string) {
   })
 }
 
-export function useSPI(code: string, type: 'piezo' | 'hydro') {
+export function useSPI(code: string, type: 'piezo' | 'hydro', window: number = 1) {
   return useQuery<SPIDataPoint[]>({
-    queryKey: ['obs-drought', type, 'spi', code],
-    queryFn: () => type === 'piezo' ? observatoryApi.piezo.spi(code) : observatoryApi.hydro.spi(code),
+    queryKey: ['obs-drought', type, 'spi', code, window],
+    queryFn: () => type === 'piezo' ? observatoryApi.piezo.spi(code, window) : observatoryApi.hydro.spi(code, window),
     enabled: !!code,
     staleTime: 24 * 60 * 60 * 1000,
   })

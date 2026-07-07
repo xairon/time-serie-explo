@@ -15,6 +15,9 @@ export interface PiezoStation {
   codes_bdlisa: string | null
   reference_flag: string | null
   index_class_bounds: number[] | null
+  /** Mapped ERA5 grid cell (nearest 0.1° point) — used by the climate context section. */
+  era5_latitude?: number | null
+  era5_longitude?: number | null
 }
 
 export interface HydroStation {
@@ -35,6 +38,9 @@ export interface HydroStation {
   resultat_max_global: number | null
   reference_flag: string | null
   index_class_bounds: number[] | null
+  /** Mapped ERA5 grid cell (nearest 0.1° point) — used by the climate context section. */
+  era5_latitude?: number | null
+  era5_longitude?: number | null
 }
 
 // Timeseries types

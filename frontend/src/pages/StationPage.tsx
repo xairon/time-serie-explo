@@ -8,6 +8,8 @@ import { StationKPICards } from '@/components/observatory/StationKPICards'
 import { TimeseriesChart } from '@/components/observatory/TimeseriesChart'
 import { StationPeriodsPanel } from '@/components/observatory/StationPeriodsPanel'
 import { DroughtIndexChart } from '@/components/observatory/DroughtIndexChart'
+import { StationClimateSection } from '@/components/observatory/StationClimateSection'
+import { latestSpiPoint } from '@/lib/climate-cumuls'
 import { PastasSection } from '@/components/observatory/PastasSection'
 import { AddToCompareButton } from '@/components/observatory/AddToCompareButton'
 import { observatoryApi } from '../lib/observatory-api'
@@ -82,7 +84,10 @@ export default function StationPage() {
 
   const { data: spliData } = usePiezoSPLI(isPiezo ? code : '')
   const { data: ssfiData } = useHydroSSFI(!isPiezo ? code : '')
-  const { data: spiData } = useSPI(code, type)
+  // 3-month SPI of the mapped ERA5 cell — feeds the « SPI (3 mois) » KPI tile.
+  // The full SPI chart (with its own window selector) lives in StationClimateSection.
+  const { data: spi3Data } = useSPI(code, type, 3)
+  const spi3Latest = useMemo(() => latestSpiPoint(spi3Data ?? []), [spi3Data])
   const droughtData = isPiezo ? spliData : ssfiData
 
   const activeData = useMemo(() => { if (resolution === 'daily') return isPiezo ? piezoDaily : hydroDaily; if (resolution === 'yearly') return isPiezo ? piezoYearly : hydroYearly; return monthly }, [resolution, isPiezo, piezoDaily, hydroDaily, piezoYearly, hydroYearly, monthly])
@@ -151,7 +156,7 @@ export default function StationPage() {
           indexClassBounds={(station as any).index_class_bounds}
         />
 
-        <StationKPICards station={station} type={type} />
+        <StationKPICards station={station} type={type} spi3={spi3Latest} />
 
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-text-secondary font-medium">{t('mainPages.station.resolution')}</span>
@@ -161,13 +166,12 @@ export default function StationPage() {
 
         {activeLoading ? <SkeletonChart /> : activeData && activeData.length > 0 ? (<div className="bg-bg-card border border-white/5 rounded-xl p-5"><TimeseriesChart data={activeData} valueKey={valueKey} valueLabel={valueLabel} unit={unit} precipKey={resolution === 'yearly' ? 'precipitation_totale_annuelle' : 'precipitation_totale'} percentiles={undefined} resolution={resolution} defaultPeriod={resolution === 'daily' ? 60 : Infinity} onPeriodChange={resolution === 'daily' ? handleDailyPeriodChange : undefined} /></div>) : (<div className="bg-bg-card border border-white/5 rounded-xl p-5 flex items-center justify-center h-64 text-text-secondary text-sm">{t('mainPages.station.noDataForResolution')}</div>)}
 
+        <StationClimateSection code={code} type={type} era5Lat={(station as any).era5_latitude} era5Lon={(station as any).era5_longitude} />
+
         <StationPeriodsPanel code={code} type={type} unit={unit} />
 
-        {(droughtData && droughtData.length > 0) || (spiData && spiData.length > 0) ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {droughtData && droughtData.length > 0 && (<div className="bg-bg-card border border-white/5 rounded-xl p-5"><DroughtIndexChart data={droughtData} indexKey={isPiezo ? 'spli' : 'ssfi'} label={isPiezo ? t('mainPages.station.spliLabel') : t('mainPages.station.ssfiLabel')} /></div>)}
-            {spiData && spiData.length > 0 && (<div className="bg-bg-card border border-white/5 rounded-xl p-5"><DroughtIndexChart data={spiData} indexKey="spi" label={t('mainPages.station.spiLabel')} /></div>)}
-          </div>
+        {droughtData && droughtData.length > 0 ? (
+          <div className="bg-bg-card border border-white/5 rounded-xl p-5"><DroughtIndexChart data={droughtData} indexKey={isPiezo ? 'spli' : 'ssfi'} label={isPiezo ? t('mainPages.station.spliLabel') : t('mainPages.station.ssfiLabel')} /></div>
         ) : null}
 
         {isPiezo && <PastasSection codeBss={code} />}

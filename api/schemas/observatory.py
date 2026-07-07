@@ -53,6 +53,10 @@ class PiezoStation(BaseModel):
     index_threshold_values: list[float] | None = None
     reference_flag: str | None = None
     index_class_bounds: list[float] | None = None
+    # Mapped ERA5 grid cell (nearest 0.1° point, via gold.int_station_era5_mapping) —
+    # lets the frontend query the climat endpoints for the station's cell.
+    era5_latitude: float | None = None
+    era5_longitude: float | None = None
 
 
 class PiezoDaily(BaseModel):
@@ -155,6 +159,9 @@ class HydroStation(BaseModel):
     index_threshold_values: list[float] | None = None
     reference_flag: str | None = None
     index_class_bounds: list[float] | None = None
+    # Mapped ERA5 grid cell (nearest 0.1° point, via gold.int_hydro_station_era5_mapping).
+    era5_latitude: float | None = None
+    era5_longitude: float | None = None
 
 
 class HydroDaily(BaseModel):

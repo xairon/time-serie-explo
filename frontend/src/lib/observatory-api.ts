@@ -77,7 +77,8 @@ export const observatoryApi = {
     monthly: (code: string) => fetchJson<MonthlyPiezoData[]>(`/observatory/piezo/stations/${code}/monthly`),
     yearly: (code: string) => fetchJson<YearlyPiezoData[]>(`/observatory/piezo/stations/${code}/yearly`),
     spli: (code: string) => fetchJson<SPLIDataPoint[]>(`/observatory/piezo/stations/${code}/spli`),
-    spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`),
+    spi: (code: string, window: number = 1) =>
+      fetchJson<SPIDataPoint[]>(`/observatory/piezo/stations/${code}/spi`, { window: String(window) }),
     siblings: (code: string, level: 'nappe' | 'systeme' = 'nappe') =>
       fetchJson<PiezoBdlisaSiblings>(`/observatory/piezo/stations/${encodeURIComponent(code)}/siblings`, { level }),
     exportUrl: (code: string, range?: ExportRange, groups?: string[]) =>
@@ -94,7 +95,8 @@ export const observatoryApi = {
     monthly: (code: string) => fetchJson<MonthlyHydroData[]>(`/observatory/hydro/stations/${code}/monthly`),
     yearly: (code: string) => fetchJson<YearlyHydroData[]>(`/observatory/hydro/stations/${code}/yearly`),
     ssfi: (code: string) => fetchJson<SSFIDataPoint[]>(`/observatory/hydro/stations/${code}/ssfi`),
-    spi: (code: string) => fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`),
+    spi: (code: string, window: number = 1) =>
+      fetchJson<SPIDataPoint[]>(`/observatory/hydro/stations/${code}/spi`, { window: String(window) }),
     siblings: (code: string, level: 'site' | 'cours_eau' = 'site') =>
       fetchJson<HydroSiteSiblings>(`/observatory/hydro/stations/${encodeURIComponent(code)}/siblings`, { level }),
     exportUrl: (code: string, range?: ExportRange, groups?: string[]) =>
