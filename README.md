@@ -43,6 +43,12 @@ In short:
 - BDLISA aquifer overlays, drought indices (SPI, SPLI, SSFI)
 - Cross-station comparison with persistent selection
 
+### Climat
+- Dedicated page (`/climat`) with 3 views: **Situation** (France-wide grid map of SPI/STI/precip/ETP/water balance per 0.1° cell), **Point/Zone** (per-cell 1950→present history, precip vs. normal, SPI/STI multi-window, drought episode table, CSV export), **Comparaison** (multi-year rainfall overlays, SPI small multiples)
+- Backend endpoints under `/api/v1/observatory/climat/*` (`grid-monthly`, `grid-indices`, `situation-summary`, `point-series`, `point-episodes`, `compare-years`, `export-point.csv`) — plain `SELECT`s (no on-the-fly statistics) over the BRGM data warehouse's precomputed ERA5 grid marts (`gold.fct_era5_monthly_grid`, `gold.fct_era5_climatology_grid`, `gold.fct_era5_indices_grid`), Redis-cached 24h
+- Integrated into the Observatory map (cell popup deep-link) and the Station page (local SPI/rolling cumuls)
+- ⚠️ Temperature is currently a 00:00 UTC instantaneous read (cold bias ~2-4 °C) pending the warehouse's "daily statistics" cutover; SPI/STI drought/heat indices are already exact and unaffected
+
 ## Quick Start
 
 ### Requirements
