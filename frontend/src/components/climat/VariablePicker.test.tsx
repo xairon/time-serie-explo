@@ -45,4 +45,26 @@ describe('VariablePicker', () => {
     fireEvent.click(screen.getByRole('radio', { name: '12' }))
     expect(onWindowChange).toHaveBeenCalledWith(12)
   })
+
+  it('renders the daily-temp section with Tx/Tn/T moy', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByText('Températures journalières')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Tx (max)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Tn (min)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'T moy' })).toBeInTheDocument()
+  })
+
+  it('marks the active daily-temp variable as checked and hides the window selector', () => {
+    render(<VariablePicker variable="tmax" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByRole('radio', { name: 'Tx (max)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Tn (min)' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('Fenêtre')).not.toBeInTheDocument()
+  })
+
+  it('calls onVariableChange when a daily-temp button is clicked', () => {
+    const onVariableChange = vi.fn()
+    render(<VariablePicker variable="spi" onVariableChange={onVariableChange} window={3} onWindowChange={() => {}} />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Tn (min)' }))
+    expect(onVariableChange).toHaveBeenCalledWith('tmin')
+  })
 })

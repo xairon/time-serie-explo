@@ -1845,15 +1845,22 @@
       "bilanHydrique": "Water balance",
       "precipitation": "Precipitation",
       "temperature": "Temp. at 00:00 UTC",
-      "etp": "PET"
+      "etp": "PET",
+      "tmax": "Tx (max)",
+      "tmin": "Tn (min)",
+      "tmean": "T avg"
     },
     "picker": {
       "variableLabel": "Variable",
-      "windowLabel": "Window"
+      "windowLabel": "Window",
+      "dailyTempLabel": "Daily temperatures",
+      "dailyTempInfo": "ERA5 reanalysis — available at D-7, this is not a forecast"
     },
     "stepper": {
       "prevMonth": "Previous month",
-      "nextMonth": "Next month"
+      "nextMonth": "Next month",
+      "prevDay": "Previous day",
+      "nextDay": "Next day"
     },
     "legend": {
       "window": "{{n}}-month window",
@@ -1864,7 +1871,10 @@
       "droughtPct": "{{pct}}% of the territory in drought (SPI < −1)",
       "driestSince": "driest month since {{year}}",
       "mostAffected": "Most affected areas:",
-      "indicesUnavailable": "Indices unavailable for this month"
+      "indicesUnavailable": "Indices unavailable for this month",
+      "dailyTempUnavailable": "No data for this day",
+      "dailyTempSummary_one": "{{variable}} max France: {{max}} °C · {{count}} cell > 35 °C",
+      "dailyTempSummary_other": "{{variable}} max France: {{max}} °C · {{count}} cells > 35 °C"
     },
     "loadingGrid": "Loading grid…",
     "pointPanel": {

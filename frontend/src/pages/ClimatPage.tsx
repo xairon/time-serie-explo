@@ -3,12 +3,18 @@ import { useTranslation } from 'react-i18next'
 import { ClimatMap } from '@/components/climat/ClimatMap'
 import { VariablePicker } from '@/components/climat/VariablePicker'
 import { MonthStepper } from '@/components/climat/MonthStepper'
+import { DayStepper } from '@/components/climat/DayStepper'
 import { ClimatLegend } from '@/components/climat/ClimatLegend'
 import { SituationBanner } from '@/components/climat/SituationBanner'
+import { DailyTempBanner } from '@/components/climat/DailyTempBanner'
 import { PointPanel } from '@/components/climat/PointPanel'
-import { useClimatGridMonthly, useClimatGridIndices, useClimatSituationSummary, useClimatRange, useSelectedCellParam } from '@/hooks/useClimat'
-import { CLIMAT_VARIABLES, isClimatIndexVariable } from '@/lib/climat-colors'
+import {
+  useClimatGridMonthly, useClimatGridIndices, useClimatSituationSummary, useClimatRange, useSelectedCellParam,
+  useClimatDailyTempRange, useClimatDailyTemp,
+} from '@/hooks/useClimat'
+import { CLIMAT_VARIABLES, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
+import { resolveDefaultDay } from '@/lib/climat-day-stepper'
 
 /** Climat page — vue Situation (Lot 2, Task B1) + vue Point (Task B2): full-screen map
  *  of SPI/STI or a raw monthly variable, month/window pickers, a territory-wide
@@ -20,6 +26,7 @@ export default function ClimatPage() {
   const [variable, setVariable] = useState<ClimatVariable>('spi')
   const [window, setWindow] = useState(3)
   const [month, setMonth] = useState<string>('')
+  const [day, setDay] = useState<string>('')
   const { selectedCell, selectCell, clearSelectedCell } = useSelectedCellParam()
 
   // Default month + stepper bounds come from the Climat range endpoint, NOT
@@ -31,8 +38,18 @@ export default function ClimatPage() {
     if (range?.max_indices_month && !month) setMonth(range.max_indices_month.slice(0, 7))
   }, [range, month])
 
+  // Daily-temp layer (Tx/Tn/Tmoy) — separate date bounds from the monthly range
+  // above: coverage is partial (nightly J-7 ingestion + an independent
+  // 1950-2025 backfill still running), default day = the most recent covered.
+  const { data: dailyRange } = useClimatDailyTempRange()
+  useEffect(() => {
+    if (dailyRange?.max_date && !day) setDay(resolveDefaultDay(dailyRange.max_date))
+  }, [dailyRange, day])
+
   const isIndex = isClimatIndexVariable(variable)
+  const isDaily = isClimatDailyVariable(variable)
   const monthlyParam = CLIMAT_VARIABLES[variable].monthlyParam
+  const dailyParam = CLIMAT_VARIABLES[variable].dailyParam
   // SPI/STI never exist past max_indices_month — capping the stepper there
   // prevents users from stepping into a dead-end empty map. Raw variables may
   // still step into the partial current month (max_monthly_month); it gets
@@ -41,17 +58,20 @@ export default function ClimatPage() {
   const stepperMinMonth = range?.min_month
 
   const { data: monthlyPoints, isLoading: monthlyLoading } = useClimatGridMonthly(
-    month, monthlyParam ?? '', !isIndex && !!month,
+    month, monthlyParam ?? '', !isIndex && !isDaily && !!month,
   )
   const { data: indexPoints, isLoading: indexLoading } = useClimatGridIndices(
     month, window, variable as 'spi' | 'sti', isIndex && !!month,
   )
-  const { data: summary, isLoading: summaryLoading } = useClimatSituationSummary(month, window, !!month)
+  const { data: dailyPoints, isLoading: dailyLoading } = useClimatDailyTemp(
+    day, dailyParam ?? 'tmax', isDaily && !!day,
+  )
+  const { data: summary, isLoading: summaryLoading } = useClimatSituationSummary(month, window, !isDaily && !!month)
 
-  const gridLoading = isIndex ? indexLoading : monthlyLoading
+  const gridLoading = isDaily ? dailyLoading : isIndex ? indexLoading : monthlyLoading
   // At least one cell came back flagged mois_complet=false (the raw-variable
   // grid-monthly response) — the value shown is a partial-month reading.
-  const monthIncomplete = !isIndex && (monthlyPoints ?? []).some((p) => p.mois_complet === false)
+  const monthIncomplete = !isIndex && !isDaily && (monthlyPoints ?? []).some((p) => p.mois_complet === false)
 
   if (!month) {
     return <div className="flex items-center justify-center h-full text-text-secondary">{t('common.loading')}</div>
@@ -63,15 +83,24 @@ export default function ClimatPage() {
         variable={variable}
         monthlyPoints={monthlyPoints}
         indexPoints={indexPoints}
+        dailyPoints={dailyPoints}
         onCellClick={selectCell}
         selectedCell={selectedCell}
       />
-      <SituationBanner summary={summary} isLoading={summaryLoading} />
+      {isDaily ? (
+        <DailyTempBanner variable={variable} points={dailyPoints} isLoading={dailyLoading} />
+      ) : (
+        <SituationBanner summary={summary} isLoading={summaryLoading} />
+      )}
       <div className="absolute top-16 left-3 z-10 flex flex-col gap-2">
         <VariablePicker variable={variable} onVariableChange={setVariable} window={window} onWindowChange={setWindow} />
-        <MonthStepper month={month} onChange={setMonth} minMonth={stepperMinMonth ?? undefined} maxMonth={stepperMaxMonth ?? undefined} />
+        {isDaily ? (
+          <DayStepper day={day} onChange={setDay} minDay={dailyRange?.min_date ?? undefined} maxDay={dailyRange?.max_date ?? undefined} />
+        ) : (
+          <MonthStepper month={month} onChange={setMonth} minMonth={stepperMinMonth ?? undefined} maxMonth={stepperMaxMonth ?? undefined} />
+        )}
       </div>
-      <ClimatLegend variable={variable} window={window} month={month} incomplete={monthIncomplete} />
+      <ClimatLegend variable={variable} window={window} month={isDaily ? day : month} incomplete={monthIncomplete} />
       {gridLoading && (
         <div className="absolute bottom-4 right-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-1.5 shadow-lg text-[11px] text-text-secondary">
           {t('climat.loadingGrid')}

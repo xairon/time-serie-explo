@@ -1845,15 +1845,22 @@
       "bilanHydrique": "Bilan hydrique",
       "precipitation": "Précipitations",
       "temperature": "T° à 00h UTC",
-      "etp": "ETP"
+      "etp": "ETP",
+      "tmax": "Tx (max)",
+      "tmin": "Tn (min)",
+      "tmean": "T moy"
     },
     "picker": {
       "variableLabel": "Variable",
-      "windowLabel": "Fenêtre"
+      "windowLabel": "Fenêtre",
+      "dailyTempLabel": "Températures journalières",
+      "dailyTempInfo": "Réanalyse ERA5 — disponible à J-7, ce n'est pas une prévision"
     },
     "stepper": {
       "prevMonth": "Mois précédent",
-      "nextMonth": "Mois suivant"
+      "nextMonth": "Mois suivant",
+      "prevDay": "Jour précédent",
+      "nextDay": "Jour suivant"
     },
     "legend": {
       "window": "Fenêtre {{n}} mois",
@@ -1864,7 +1871,10 @@
       "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",
       "driestSince": "mois le plus sec depuis {{year}}",
       "mostAffected": "Zones les plus touchées :",
-      "indicesUnavailable": "Indices non disponibles pour ce mois"
+      "indicesUnavailable": "Indices non disponibles pour ce mois",
+      "dailyTempUnavailable": "Aucune donnée pour ce jour",
+      "dailyTempSummary_one": "{{variable}} max France : {{max}} °C · {{count}} cellule > 35 °C",
+      "dailyTempSummary_other": "{{variable}} max France : {{max}} °C · {{count}} cellules > 35 °C"
     },
     "loadingGrid": "Chargement de la grille…",
     "pointPanel": {

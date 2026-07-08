@@ -345,6 +345,23 @@ export interface ClimatCompareYears {
   years: Record<string, ClimatCompareYearData>
 }
 
+/** One grid cell from GET /observatory/climat/daily-temp?date&variable=tmax|tmin|tmean —
+ *  TRUE daily statistic (24 hourly steps) from silver.stg_era5_daily_temp_stats,
+ *  not the monthly mart's 00h UTC instant. */
+export interface ClimatDailyTempPoint {
+  latitude: number
+  longitude: number
+  value: number | null
+}
+
+/** Date bounds from GET /observatory/climat/daily-temp-range. Coverage is partial
+ *  (nightly J-7 ingestion + an independent 1950-2025 backfill still running) —
+ *  both fields may be null before the first row lands. */
+export interface ClimatDailyTempRange {
+  min_date: string | null
+  max_date: string | null
+}
+
 export interface StationPercentiles {
   p10: number | null
   p25: number | null

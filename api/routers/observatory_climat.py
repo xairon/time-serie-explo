@@ -37,6 +37,15 @@ _MONTHLY_VARIABLES = {
     "bilan_hydrique": "bilan_hydrique",
 }
 
+# TRUE daily statistics (24 hourly steps, not the 00h UTC instant used by the
+# monthly/index marts) from silver.stg_era5_daily_temp_stats — a Silver staging
+# table (plain latitude/longitude columns, unlike the gold marts' era5_latitude/
+# era5_longitude), populated by a nightly J-7 ingestion + an independent
+# 1950-2025 backfill running in the sibling data-pipeline repo. Coverage is
+# partial — always query /daily-temp-range for the actual min/max date.
+_DAILY_TEMP_VARIABLES = {"tmax": "t2m_max", "tmin": "t2m_min", "tmean": "t2m_mean"}
+DAILY_TEMP_RANGE_TTL = 3600  # 1h — the date window moves daily (nightly J-7 ingestion), not monthly
+
 _WMO_CLASSES = [
     "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT",
 ]
@@ -57,6 +66,15 @@ def _parse_month(value: str) -> DateType:
         return DateType(year, month, 1)
     except (ValueError, IndexError):
         raise HTTPException(422, f"Mois invalide : {value!r} (attendu YYYY-MM)")
+
+
+def _parse_date(value: str) -> DateType:
+    """Parse a ``YYYY-MM-DD`` string into a date. Stricter than ``_parse_month`` —
+    the daily grid has no "truncate to the 1st" convenience, a full day is required."""
+    try:
+        return DateType.fromisoformat(value)
+    except (ValueError, TypeError):
+        raise HTTPException(422, f"Date invalide : {value!r} (attendu YYYY-MM-DD)")
 
 
 def _round_cell(lat: float, lon: float) -> tuple[float, float]:
@@ -167,6 +185,32 @@ def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) ->
         "max_indices_month": str(max_indices) if max_indices else None,
         "max_monthly_complete_month": str(max_monthly_complete) if max_monthly_complete else None,
         "max_monthly_month": str(max_monthly) if max_monthly else None,
+    }
+
+
+def _build_daily_temp_points(rows) -> list[dict]:
+    """Pure formatting: per-cell ``{latitude, longitude, value}`` from
+    ``stg_era5_daily_temp_stats`` rows for one date/variable. Empty input yields
+    an empty list — mirrors ``/grid-monthly``'s "no rows for this month"
+    convention (no 404: with the backfill still running and a J-7 ingestion lag,
+    "no data yet for this date" is an expected response, not an error)."""
+    return [
+        {
+            "latitude": _num(r["latitude"]),
+            "longitude": _num(r["longitude"]),
+            "value": _num(r["value"]),
+        }
+        for r in rows
+    ]
+
+
+def _build_daily_temp_range(min_date, max_date) -> dict:
+    """Pure formatting for GET /daily-temp-range: date bounds as ISO
+    ``YYYY-MM-DD`` strings, None-safe (e.g. before the nightly ingestion's first
+    row lands)."""
+    return {
+        "min_date": str(min_date) if min_date else None,
+        "max_date": str(max_date) if max_date else None,
     }
 
 
@@ -410,6 +454,57 @@ def get_grid_indices(
         GRID_TTL,
         fetch,
     )
+
+
+@router.get("/daily-temp")
+def get_daily_temp(
+    date: str = Query(..., description="Date au format YYYY-MM-DD"),
+    variable: str = Query(..., description="tmax|tmin|tmean"),
+):
+    """Per-cell TRUE daily temperature statistic (ERA5, computed over 24 hourly
+    steps — not the 00h UTC instant used by the monthly/index marts) from
+    ``silver.stg_era5_daily_temp_stats`` for one exact date. No rows for the date
+    -> empty list, same convention as ``/grid-monthly`` (not a 404: coverage is
+    partial while the 1950-2025 backfill runs)."""
+    if variable not in _DAILY_TEMP_VARIABLES:
+        raise HTTPException(
+            422, f"Variable inconnue : {variable!r} (attendu {sorted(_DAILY_TEMP_VARIABLES)})"
+        )
+    day = _parse_date(date)
+    column = _DAILY_TEMP_VARIABLES[variable]
+
+    def fetch():
+        query = f"""
+            SELECT latitude, longitude, {column} AS value
+            FROM silver.stg_era5_daily_temp_stats
+            WHERE time::date = :day
+        """
+        engine = get_brgm_sync_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(text(query), {"day": day}).mappings().all()
+        return _build_daily_temp_points(rows)
+
+    return get_cached("obs_climat_daily_temp", {"date": str(day), "variable": variable}, GRID_TTL, fetch)
+
+
+@router.get("/daily-temp-range")
+def get_daily_temp_range():
+    """Date bounds for the daily-temperature layer (1h cache — the window moves
+    daily as the J-7 nightly ingestion advances, unlike the monthly ``/range``'s
+    24h cache which only moves once a month)."""
+
+    def fetch():
+        engine = get_brgm_sync_engine()
+        with engine.connect() as conn:
+            min_date = conn.execute(
+                text("SELECT min(time::date) FROM silver.stg_era5_daily_temp_stats")
+            ).scalar()
+            max_date = conn.execute(
+                text("SELECT max(time::date) FROM silver.stg_era5_daily_temp_stats")
+            ).scalar()
+        return _build_daily_temp_range(min_date, max_date)
+
+    return get_cached("obs_climat_daily_temp_range", {}, DAILY_TEMP_RANGE_TTL, fetch)
 
 
 @router.get("/situation-summary")

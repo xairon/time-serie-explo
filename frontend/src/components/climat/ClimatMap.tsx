@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { climatMonthlyToSquares, climatIndicesToSquares, climatSelectedCellSquare } from '@/lib/climat-grid'
-import { climatRawColorExpression, climatIndexColorExpression, isClimatIndexVariable } from '@/lib/climat-colors'
+import { climatMonthlyToSquares, climatIndicesToSquares, climatDailyTempToSquares, climatSelectedCellSquare } from '@/lib/climat-grid'
+import { climatRawColorExpression, climatIndexColorExpression, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
-import type { ClimatMonthlyPoint, ClimatIndexPoint } from '@/lib/observatory-types'
+import type { ClimatMonthlyPoint, ClimatIndexPoint, ClimatDailyTempPoint } from '@/lib/observatory-types'
 import type { SelectedCell } from '@/hooks/useClimat'
 
 const FRANCE_CENTER: [number, number] = [2.5, 46.5]
@@ -18,6 +18,8 @@ interface Props {
   variable: ClimatVariable
   monthlyPoints?: ClimatMonthlyPoint[]
   indexPoints?: ClimatIndexPoint[]
+  /** TRUE daily temperature grid (Tx/Tn/Tmoy), one date — only read when `variable` is daily. */
+  dailyPoints?: ClimatDailyTempPoint[]
   /** Called with the clicked cell's centre (rounded to 0.1°) — opens the Point panel (Task B2). */
   onCellClick?: (lat: number, lon: number) => void
   /** Currently open Point panel's cell, outlined on the map for orientation. */
@@ -29,7 +31,7 @@ interface Props {
  *  ObservatoryMap, which is coupled to the station/zone/sensor overlay state (see plan
  *  Task B1: "if ObservatoryMap is too coupled, build a lean ClimatMap"). Reuses the same
  *  base style + squares approach as era5-grid.ts / ObservatoryMap's era5-grid-fill layer. */
-export function ClimatMap({ variable, monthlyPoints, indexPoints, onCellClick, selectedCell }: Props) {
+export function ClimatMap({ variable, monthlyPoints, indexPoints, dailyPoints, onCellClick, selectedCell }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -79,15 +81,18 @@ export function ClimatMap({ variable, monthlyPoints, indexPoints, onCellClick, s
     const map = mapRef.current
     if (!map || !mapLoaded || !map.getLayer(FILL)) return
     const isIndex = isClimatIndexVariable(variable)
+    const isDaily = isClimatDailyVariable(variable)
     const data = isIndex
       ? climatIndicesToSquares(indexPoints ?? [], variable as 'spi' | 'sti')
-      : climatMonthlyToSquares(monthlyPoints ?? [])
+      : isDaily
+        ? climatDailyTempToSquares(dailyPoints ?? [])
+        : climatMonthlyToSquares(monthlyPoints ?? [])
     ;(map.getSource(SRC) as maplibregl.GeoJSONSource).setData(data as any)
     map.setPaintProperty(
       FILL, 'fill-color',
       isIndex ? climatIndexColorExpression(variable as 'spi' | 'sti') as any : climatRawColorExpression(variable) as any,
     )
-  }, [mapLoaded, variable, monthlyPoints, indexPoints])
+  }, [mapLoaded, variable, monthlyPoints, indexPoints, dailyPoints])
 
   useEffect(() => { updateLayer() }, [updateLayer])
 

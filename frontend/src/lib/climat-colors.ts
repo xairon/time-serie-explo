@@ -7,20 +7,37 @@
 // per-field shape used by the Observatory overlay's ERA5GridPoint.
 import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } from './era5-colors'
 
-export type ClimatVariable = 'spi' | 'sti' | 'bilan_hydrique' | 'precipitation' | 'temperature' | 'etp'
+export type ClimatVariable =
+  | 'spi' | 'sti' | 'bilan_hydrique' | 'precipitation' | 'temperature' | 'etp'
+  | 'tmax' | 'tmin' | 'tmean'
 
-export type ClimatVariableKind = 'index' | 'raw'
+export type ClimatVariableKind = 'index' | 'raw' | 'daily'
 
 export interface ClimatVarConfig {
   key: ClimatVariable
   kind: ClimatVariableKind
   /** `variable` query param for GET /observatory/climat/grid-monthly (raw vars only). */
   monthlyParam?: 'temperature' | 'precipitation' | 'etp' | 'bilan_hydrique'
+  /** `variable` query param for GET /observatory/climat/daily-temp (daily vars only). */
+  dailyParam?: 'tmax' | 'tmin' | 'tmean'
   unit: string
   labelKey: string
-  /** Gradient colour stops, raw vars only (index vars use the discrete McKee palette). */
+  /** Gradient colour stops, raw/daily vars only (index vars use the discrete McKee palette). */
   stops: Array<[number, string]>
 }
+
+/** Vivid continuous weather-map ramp for absolute daily °C (Tx/Tn/Tmoy) — a
+ *  classic heatwave-map look (Météo-France/ECMWF style): deep blue for hard
+ *  frost through blue/cyan-green/yellow/orange/red for the ordinary range, dark
+ *  red then purple to flag heatwave-record territory. Deliberately NOT the same
+ *  scale as the monthly `temperature` variable above (that one tops out at 35°C
+ *  since it's a 00h UTC instant, not a true daily max) — Tx routinely exceeds it
+ *  in a French summer canicule. Tn uses the identical ramp (no separate
+ *  cold-only scale, per plan): night lows self-adapt to the cool half of it. */
+export const DAILY_TEMP_STOPS: Array<[number, string]> = [
+  [-10, '#1b2c6b'], [0, '#2e6fba'], [10, '#33b6a6'], [20, '#f7e24c'],
+  [28, '#f2933d'], [34, '#e23b32'], [38, '#a31e22'], [42, '#7a2d8e'],
+]
 
 export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
   spi: {
@@ -54,6 +71,21 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
     unit: 'mm', labelKey: 'climat.variables.etp',
     stops: [[0, '#fff5eb'], [30, '#fdbe85'], [60, '#fd8d3c'], [100, '#e6550d'], [150, '#a63603']],
   },
+  tmax: {
+    key: 'tmax', kind: 'daily', dailyParam: 'tmax',
+    unit: '°C', labelKey: 'climat.variables.tmax',
+    stops: DAILY_TEMP_STOPS,
+  },
+  tmin: {
+    key: 'tmin', kind: 'daily', dailyParam: 'tmin',
+    unit: '°C', labelKey: 'climat.variables.tmin',
+    stops: DAILY_TEMP_STOPS,
+  },
+  tmean: {
+    key: 'tmean', kind: 'daily', dailyParam: 'tmean',
+    unit: '°C', labelKey: 'climat.variables.tmean',
+    stops: DAILY_TEMP_STOPS,
+  },
 }
 
 /** Ordered for the picker UI: SPI first (default, per plan), then STI, then the raw variables. */
@@ -61,11 +93,19 @@ export const CLIMAT_VARIABLE_ORDER: ClimatVariable[] = [
   'spi', 'sti', 'bilan_hydrique', 'precipitation', 'temperature', 'etp',
 ]
 
+/** Ordered for the picker UI's separate "Températures journalières" section (Tx/Tn/Tmoy) —
+ *  kept apart from CLIMAT_VARIABLE_ORDER so the monthly picker stays uncluttered. */
+export const DAILY_TEMP_VARIABLE_ORDER: ClimatVariable[] = ['tmax', 'tmin', 'tmean']
+
 export const CLIMAT_WINDOWS = [1, 3, 6, 12] as const
 export type ClimatWindow = (typeof CLIMAT_WINDOWS)[number]
 
 export function isClimatIndexVariable(v: ClimatVariable): boolean {
   return CLIMAT_VARIABLES[v].kind === 'index'
+}
+
+export function isClimatDailyVariable(v: ClimatVariable): boolean {
+  return CLIMAT_VARIABLES[v].kind === 'daily'
 }
 
 /** MapLibre 'interpolate' fill-color expression reading the generic `value` property. */

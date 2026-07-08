@@ -12,23 +12,29 @@ from fastapi import HTTPException
 from api.routers.observatory_climat import (
     router,
     _parse_month,
+    _parse_date,
     _round_cell,
     _build_situation_summary,
     _build_drought_episodes,
     _build_range,
+    _build_daily_temp_points,
+    _build_daily_temp_range,
     _merge_point_series,
     _merge_compare_years,
     _MONTHLY_VARIABLES,
+    _DAILY_TEMP_VARIABLES,
     WINDOWS,
 )
 
 
-def test_router_mounts_all_eight_climat_paths():
+def test_router_mounts_all_ten_climat_paths():
     paths = {r.path for r in router.routes}
     assert paths == {
         "/api/v1/observatory/climat/range",
         "/api/v1/observatory/climat/grid-monthly",
         "/api/v1/observatory/climat/grid-indices",
+        "/api/v1/observatory/climat/daily-temp",
+        "/api/v1/observatory/climat/daily-temp-range",
         "/api/v1/observatory/climat/situation-summary",
         "/api/v1/observatory/climat/point-series",
         "/api/v1/observatory/climat/point-episodes",
@@ -76,6 +82,64 @@ class TestMonthlyVariables:
             "precipitation_totale", "etp_totale", "bilan_hydrique",
         }
         assert set(_MONTHLY_VARIABLES.values()) == expected_columns
+
+
+class TestParseDate:
+    def test_parses_iso_date(self):
+        assert _parse_date("2026-06-28") == date(2026, 6, 28)
+
+    def test_invalid_format_raises_422(self):
+        with pytest.raises(HTTPException) as exc:
+            _parse_date("not-a-date")
+        assert exc.value.status_code == 422
+
+    def test_year_month_only_raises_422(self):
+        # Unlike _parse_month, /daily-temp requires a full YYYY-MM-DD day.
+        with pytest.raises(HTTPException) as exc:
+            _parse_date("2026-06")
+        assert exc.value.status_code == 422
+
+    def test_invalid_day_number_raises_422(self):
+        with pytest.raises(HTTPException) as exc:
+            _parse_date("2026-06-31")
+        assert exc.value.status_code == 422
+
+    def test_empty_string_raises_422(self):
+        with pytest.raises(HTTPException) as exc:
+            _parse_date("")
+        assert exc.value.status_code == 422
+
+
+class TestDailyTempVariables:
+    def test_maps_tx_tn_tmoy_to_daily_stats_columns(self):
+        assert _DAILY_TEMP_VARIABLES == {"tmax": "t2m_max", "tmin": "t2m_min", "tmean": "t2m_mean"}
+
+
+class TestBuildDailyTempPoints:
+    def test_happy_path_formats_per_cell_value(self):
+        rows = [
+            {"latitude": 47.4, "longitude": 0.7, "value": 32.5},
+            {"latitude": 47.5, "longitude": 0.7, "value": 30.1},
+        ]
+        out = _build_daily_temp_points(rows)
+        assert out == [
+            {"latitude": 47.4, "longitude": 0.7, "value": 32.5},
+            {"latitude": 47.5, "longitude": 0.7, "value": 30.1},
+        ]
+
+    def test_no_rows_for_the_date_yields_empty_list(self):
+        # Mirrors /grid-monthly: no data yet for this date is not a 404.
+        assert _build_daily_temp_points([]) == []
+
+
+class TestBuildDailyTempRange:
+    def test_formats_bounds_as_iso_date_strings(self):
+        out = _build_daily_temp_range(date(2026, 5, 1), date(2026, 6, 30))
+        assert out == {"min_date": "2026-05-01", "max_date": "2026-06-30"}
+
+    def test_none_when_table_is_empty(self):
+        out = _build_daily_temp_range(None, None)
+        assert out == {"min_date": None, "max_date": None}
 
 
 class TestBuildRange:
@@ -392,5 +456,27 @@ class TestParamValidationViaHttp:
         r = client.get(
             "/api/v1/observatory/climat/point-episodes",
             params={"lat": 47.4, "lon": 0.7, "window": 4},
+        )
+        assert r.status_code == 422
+
+    def test_daily_temp_rejects_unknown_variable(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/daily-temp",
+            params={"date": "2026-06-28", "variable": "nope"},
+        )
+        assert r.status_code == 422
+
+    def test_daily_temp_rejects_malformed_date(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/daily-temp",
+            params={"date": "not-a-date", "variable": "tmax"},
         )
         assert r.status_code == 422

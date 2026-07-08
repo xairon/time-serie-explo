@@ -10,6 +10,11 @@ import { MIN_COMPARE_YEARS } from '@/lib/climat-year-select'
 
 const CLIMAT_STALE_TIME = 24 * 60 * 60 * 1000
 
+// Matches the backend's DAILY_TEMP_RANGE_TTL (1h) — the daily-temp date window
+// moves every night (J-7 ingestion), unlike the monthly /range which only moves
+// once a month, so re-checking sooner than the server cache actually matters here.
+const DAILY_TEMP_RANGE_STALE_TIME = 60 * 60 * 1000
+
 /** Fixed window used for the Point-panel drought episodes table (Task B2) — the
  *  standard 3-month "meteorological drought" window, matching the backend default. */
 export const EPISODES_WINDOW = 3
@@ -48,6 +53,32 @@ export function useClimatGridIndices(
     queryKey: ['climat', 'grid-indices', month, window, index],
     queryFn: () => observatoryApi.climat.gridIndices(month!, window, index),
     enabled: enabled && !!month,
+    staleTime: CLIMAT_STALE_TIME,
+  })
+}
+
+/** Date bounds for the daily-temperature layer (Tx/Tn/Tmoy) — coverage is
+ *  partial (nightly J-7 ingestion + an independent 1950-2025 backfill), so the
+ *  DayStepper bounds and default day always come from here, never assumed. */
+export function useClimatDailyTempRange(enabled = true) {
+  return useQuery({
+    queryKey: ['climat', 'daily-temp-range'],
+    queryFn: () => observatoryApi.climat.dailyTempRange(),
+    enabled,
+    staleTime: DAILY_TEMP_RANGE_STALE_TIME,
+  })
+}
+
+/** Per-cell TRUE daily temperature statistic (Tx/Tn/Tmoy, 24 hourly steps) for one date. */
+export function useClimatDailyTemp(
+  day: string | undefined,
+  variable: 'tmax' | 'tmin' | 'tmean',
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['climat', 'daily-temp', day, variable],
+    queryFn: () => observatoryApi.climat.dailyTemp(day!, variable),
+    enabled: enabled && !!day,
     staleTime: CLIMAT_STALE_TIME,
   })
 }

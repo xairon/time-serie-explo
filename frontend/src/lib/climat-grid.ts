@@ -3,7 +3,7 @@
 // grid-monthly returns {latitude, longitude, value, mois_complet} and grid-indices
 // returns {latitude, longitude, spi|sti, index_class}).
 import { ERA5_CELL_HALF, buildSquarePolygon } from './era5-grid'
-import type { ClimatMonthlyPoint, ClimatIndexPoint } from './observatory-types'
+import type { ClimatMonthlyPoint, ClimatIndexPoint, ClimatDailyTempPoint } from './observatory-types'
 
 /** URL of the Climat module Point panel for a given cell, pre-filled via
  *  ?lat&lon (consumed by useSelectedCellParam — 2-decimal fixed, finer than the
@@ -13,9 +13,11 @@ export function climatDeepLink(lat: number, lon: number): string {
   return `/climat?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`
 }
 
-/** Convert grid-monthly points (one raw variable) into squares carrying `value`. Null values are dropped. */
+/** Convert grid-monthly points (one raw variable) into squares carrying `value`. Null values
+ *  are dropped. Also accepts ClimatDailyTempPoint[] (bare {latitude, longitude, value}, no
+ *  mois_complet) — see climatDailyTempToSquares below, which reuses this under a clearer name. */
 export function climatMonthlyToSquares(
-  points: ClimatMonthlyPoint[],
+  points: ClimatMonthlyPoint[] | ClimatDailyTempPoint[],
 ): GeoJSON.FeatureCollection<GeoJSON.Polygon, { value: number }> {
   const h = ERA5_CELL_HALF
   return {
@@ -32,6 +34,14 @@ export function climatMonthlyToSquares(
         }
       }),
   }
+}
+
+/** Convert daily-temp points (Tx/Tn/Tmoy, one date) into squares carrying `value`.
+ *  Reuses climatMonthlyToSquares under a clearer name for daily-temp caller sites. */
+export function climatDailyTempToSquares(
+  points: ClimatDailyTempPoint[],
+): GeoJSON.FeatureCollection<GeoJSON.Polygon, { value: number }> {
+  return climatMonthlyToSquares(points)
 }
 
 /** Outline square for the cell selected on the Situation map (Task B2 Point panel

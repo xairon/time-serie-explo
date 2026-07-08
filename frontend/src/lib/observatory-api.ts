@@ -13,7 +13,7 @@ import type {
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
   ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary, ClimatPointSeries, ClimatDroughtEpisode,
-  ClimatCompareYears, ClimatRange,
+  ClimatCompareYears, ClimatRange, ClimatDailyTempPoint, ClimatDailyTempRange,
 } from './observatory-types'
 
 export const EXPORT_COLUMN_GROUPS = ['identity', 'values', 'meteo', 'index', 'provenance'] as const
@@ -136,6 +136,13 @@ export const observatoryApi = {
       fetchJson<ClimatIndexPoint[]>('/observatory/climat/grid-indices', { month, window: String(window), index }),
     situationSummary: (month: string, window: number) =>
       fetchJson<ClimatSituationSummary>('/observatory/climat/situation-summary', { month, window: String(window) }),
+    // TRUE daily temperature statistics (24 hourly steps, silver.stg_era5_daily_temp_stats)
+    // — distinct from grid-monthly's temperature var (00h UTC instant). Coverage is
+    // partial (nightly J-7 ingestion + an independent 1950-2025 backfill), hence
+    // dailyTempRange to discover the actual min/max date at runtime.
+    dailyTemp: (date: string, variable: 'tmax' | 'tmin' | 'tmean') =>
+      fetchJson<ClimatDailyTempPoint[]>('/observatory/climat/daily-temp', { date, variable }),
+    dailyTempRange: () => fetchJson<ClimatDailyTempRange>('/observatory/climat/daily-temp-range'),
     // Point/Zone view (Task B2) — full history + drought episodes for the grid cell
     // nearest to lat/lon (rounded to 0.1° server-side).
     pointSeries: (lat: number, lon: number) =>

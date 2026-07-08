@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next'
-import { CLIMAT_VARIABLES, climatGradientCss, climatRawDomain, isClimatIndexVariable } from '@/lib/climat-colors'
+import { CLIMAT_VARIABLES, climatGradientCss, climatRawDomain, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
 import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } from '@/lib/era5-colors'
+import { formatDayLabel } from '@/lib/climat-day-stepper'
 
 interface Props {
   variable: ClimatVariable
   window: number
-  /** Active month, 'YYYY-MM'. */
+  /** Active month ('YYYY-MM'), or for daily-temp variables the active day ('YYYY-MM-DD'). */
   month: string
   /** True when the raw-variable grid-monthly response came back with
    *  mois_complet=false for this month (partial current month) — shows a
@@ -14,15 +15,18 @@ interface Props {
   incomplete?: boolean
 }
 
-/** 7-class McKee legend (SPI/STI) or gradient legend (raw variables) for the Climat map. */
+/** 7-class McKee legend (SPI/STI) or gradient legend (raw/daily variables) for the Climat map. */
 export function ClimatLegend({ variable, window, month, incomplete }: Props) {
   const { t, i18n } = useTranslation()
   const cfg = CLIMAT_VARIABLES[variable]
+  const isDaily = isClimatDailyVariable(variable)
 
   const m = month.match(/^(\d{4})-(\d{2})/)
-  const periodLabel = m
-    ? new Intl.DateTimeFormat(i18n.language, { month: 'short', year: 'numeric' }).format(new Date(Number(m[1]), Number(m[2]) - 1, 1))
-    : month
+  const periodLabel = isDaily
+    ? formatDayLabel(month, i18n.language)
+    : m
+      ? new Intl.DateTimeFormat(i18n.language, { month: 'short', year: 'numeric' }).format(new Date(Number(m[1]), Number(m[2]) - 1, 1))
+      : month
 
   if (isClimatIndexVariable(variable)) {
     const isSpi = variable === 'spi'
