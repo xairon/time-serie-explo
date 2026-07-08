@@ -477,7 +477,9 @@ def get_daily_temp(
         query = f"""
             SELECT latitude, longitude, {column} AS value
             FROM silver.stg_era5_daily_temp_stats
-            WHERE time::date = :day
+            -- jamais de fonction/cast sur la colonne de partition (time) : casse
+            -- l'exclusion de chunks TimescaleDB (cf. CLAUDE.md du repo entrepôt)
+            WHERE time >= :day AND time < CAST(:day AS date) + INTERVAL '1 day'
         """
         engine = get_brgm_sync_engine()
         with engine.connect() as conn:
