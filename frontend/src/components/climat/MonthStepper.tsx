@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { addMonths, comparePeriods } from '@/lib/meteo-timeline'
+import { addMonths, comparePeriods } from '@/lib/period-arithmetic'
 
 interface Props {
   /** Current month, 'YYYY-MM'. */
@@ -11,7 +11,7 @@ interface Props {
   maxMonth?: string
 }
 
-/** ‹ month › stepper for the Climat Situation view — pure month arithmetic via meteo-timeline's addMonths. */
+/** ‹ month › stepper for the Climat Situation view — pure month arithmetic via period-arithmetic's addMonths. */
 export function MonthStepper({ month, onChange, minMonth, maxMonth }: Props) {
   const { t, i18n } = useTranslation()
   const min = minMonth?.slice(0, 7)

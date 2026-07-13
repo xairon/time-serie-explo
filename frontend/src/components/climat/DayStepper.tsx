@@ -14,7 +14,7 @@ interface Props {
 /** ‹ day › stepper for the Climat daily-temperature layer (Tx/Tn/Tmoy) —
  *  day-granularity sibling of MonthStepper, same visual style and step logic
  *  (pure date arithmetic via climat-day-stepper's addDays/comparePeriods, the
- *  latter reused as-is from meteo-timeline since ISO date strings already sort
+ *  latter reused as-is from period-arithmetic since ISO date strings already sort
  *  lexicographically). Replaces MonthStepper on the map when a daily-temp
  *  variable is selected (see ClimatPage). */
 export function DayStepper({ day, onChange, minDay, maxDay }: Props) {

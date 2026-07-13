@@ -71,7 +71,6 @@
     "pastasLab": "Pastas Lab",
     "aiLab": "Lab IA",
     "stationDetail": "Détail station",
-    "meteo": "Météo des nappes",
     "admin": "Admin",
     "apiConnected": "API connectée",
     "apiUnavailable": "API indisponible"
@@ -1834,9 +1833,6 @@
       "rsqTooltip": "Coefficient de détermination — proportion de la variance du signal expliquée par le modèle. 1 = parfait, 0 = aucune corrélation linéaire.",
       "maeTooltip": "Erreur absolue moyenne (m) — erreur moyenne de prédiction. Moins sensible aux valeurs extrêmes que la RMSE."
     }
-  },
-  "meteo": {
-    "trend": { "hausse": "en hausse", "stable": "stable", "baisse": "en baisse" }
   },
   "climat": {
     "variables": {

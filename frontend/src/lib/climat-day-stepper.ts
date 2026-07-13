@@ -1,8 +1,8 @@
 // Pure day-arithmetic helpers for the Climat daily-temperature DayStepper — a
-// day-granularity sibling of meteo-timeline's addMonths/comparePeriods. Kept in
-// its own module (like meteo-timeline) so DayStepper stays a thin render layer
+// day-granularity sibling of period-arithmetic's addMonths/comparePeriods. Kept in
+// its own module (like period-arithmetic) so DayStepper stays a thin render layer
 // and the logic is unit-testable without React.
-import { comparePeriods } from './meteo-timeline'
+import { comparePeriods } from './period-arithmetic'
 
 export { comparePeriods }
 

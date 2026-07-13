@@ -71,7 +71,6 @@
     "pastasLab": "Pastas Lab",
     "aiLab": "AI Lab",
     "stationDetail": "Station detail",
-    "meteo": "Groundwater weather",
     "admin": "Admin",
     "apiConnected": "API connected",
     "apiUnavailable": "API unavailable"
@@ -1834,9 +1833,6 @@
       "rsqTooltip": "Coefficient of determination — share of signal variance explained by the model. 1 = perfect, 0 = no linear correlation.",
       "maeTooltip": "Mean absolute error (m) — average prediction error. Less sensitive to extreme values than RMSE."
     }
-  },
-  "meteo": {
-    "trend": { "hausse": "rising", "stable": "stable", "baisse": "falling" }
   },
   "climat": {
     "variables": {
