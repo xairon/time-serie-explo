@@ -156,4 +156,41 @@ describe('PointPanel', () => {
     fireEvent.click(screen.getByText('window-6'))
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
+
+  it('refetches episodes at the new window and threads it through the table and the ongoing highlight', () => {
+    // Distinct episode lists per window prove the table reflects a genuine
+    // refetch (not just the highlight re-reading a static payload): window 3
+    // has an old, closed episode; window 6 has a different, ongoing one.
+    const episodesByWindow: Record<number, ClimatDroughtEpisode[]> = {
+      3: [{ debut: '2026-02-01', fin: '2026-03-01', duree_mois: 1, spi_min: -1.5, deficit_cumule_mm: -50 }],
+      6: [{ debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 }],
+    }
+    const series: ClimatPointSeriesEntry[] = [
+      { ...SERIES[0], spi_3: -0.2, spi_6: -1.9 },
+      { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 }, // last month: calm at window 3, in drought at window 6
+    ]
+    mockSeriesHook.mockReturnValue({ data: { cell: { latitude: 47.4, longitude: 0.7 }, series }, isLoading: false, isError: false })
+    mockEpisodesHook.mockImplementation((_lat: number, _lon: number, window: number) => ({
+      data: episodesByWindow[window] ?? [],
+      isLoading: false,
+      isError: false,
+    }))
+
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+
+    // Initial render: default window (3) — hook called with window 3, table shows the window-3 episode only.
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3)
+    expect(screen.getByText('-50 mm')).toBeInTheDocument()
+    expect(screen.queryByText('-80 mm')).not.toBeInTheDocument()
+    expect(screen.queryByText('En cours')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('window-6'))
+
+    // After the window change: hook re-invoked with the NEW window (refetch), the
+    // table now shows the window-6 episode instead, and the highlight follows spi_6.
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 6)
+    expect(screen.getByText('-80 mm')).toBeInTheDocument()
+    expect(screen.queryByText('-50 mm')).not.toBeInTheDocument()
+    expect(screen.getByText('En cours')).toBeInTheDocument()
+  })
 })

@@ -11,6 +11,11 @@ interface Props {
 
 const DEFAULT_SIZE = 180
 
+/** SSR-safe devicePixelRatio read (jsdom in tests reports 1). */
+function getDpr(): number {
+  return typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1
+}
+
 /** Non-interactive SPI mini-map for one year of the Comparaison "petits multiples"
  *  (Task B3) — a flat canvas render of the grid squares (see climat-minimap.ts for
  *  why: a full MapLibre/WebGL instance per year would be heavy for a ~180px
@@ -24,6 +29,14 @@ export function MiniSpiMap({ points, label, size = DEFAULT_SIZE }: Props) {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return // jsdom in tests has no 2D canvas backend — render is a no-op there.
+    // HiDPI sharpness: size the backing store at CSS size * devicePixelRatio
+    // and scale the context so all drawing below stays in CSS-pixel space —
+    // otherwise these ~180px multiples render soft on retina screens.
+    const dpr = getDpr()
+    canvas.width = size * dpr
+    canvas.height = size * dpr
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, size, size)
     ctx.fillStyle = 'rgba(107, 114, 128, 0.08)'
     ctx.fillRect(0, 0, size, size)
@@ -39,8 +52,9 @@ export function MiniSpiMap({ points, label, size = DEFAULT_SIZE }: Props) {
     <div className="flex flex-col items-center gap-1">
       <canvas
         ref={canvasRef}
-        width={size}
-        height={size}
+        width={size * getDpr()}
+        height={size * getDpr()}
+        style={{ width: size, height: size }}
         data-testid="mini-spi-map"
         aria-label={label}
         role="img"

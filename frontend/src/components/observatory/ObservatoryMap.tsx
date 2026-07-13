@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { StationGeoJSONFeature, WfsLayerId } from '@/lib/observatory-types'
@@ -328,6 +329,8 @@ export function ObservatoryMap({
   era5Granularity = 'daily',
 }: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const navigateRef = useRef(navigate); navigateRef.current = navigate
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const mapLoadedRef = useRef(false)
@@ -800,17 +803,33 @@ export function ObservatoryMap({
         }
         // Deep-link to the Climat module Point panel for this cell (Task C1) —
         // same ?lat&lon convention as useSelectedCellParam (2-decimal fixed).
+        // Kept as a real <a href> (right-click / middle-click / open-in-new-tab
+        // still work) but wired below to navigate via the router on a plain
+        // left click, so it doesn't trigger a full page reload that would
+        // lose the map's state (Task C-finition2).
         const center = cellCenterFromPolygon(f.geometry)
-        const climatLink = center
+        const climatHref = center ? climatDeepLink(center.lat, center.lon) : null
+        const climatLink = climatHref
           ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15)">
-              <a href="${climatDeepLink(center.lat, center.lon)}" style="color:#22d3ee;text-decoration:none;font-weight:600;font-size:11px">${t('observatory.era5.popupClimatLink')}</a>
+              <a href="${climatHref}" data-climat-link="1" style="color:#22d3ee;text-decoration:none;font-weight:600;font-size:11px">${t('observatory.era5.popupClimatLink')}</a>
             </div>`
           : ''
         const html = `<div style="font-size:12px;line-height:1.5">${bodyHtml}${climatLink}</div>`
-        new maplibregl.Popup({ closeButton: true })
+        const popup = new maplibregl.Popup({ closeButton: true })
           .setLngLat(e.lngLat)
           .setHTML(html)
           .addTo(map)
+        if (climatHref) {
+          const link = popup.getElement()?.querySelector<HTMLAnchorElement>('a[data-climat-link]')
+          link?.addEventListener('click', (ev) => {
+            // Let modifier-clicks / middle-clicks fall through to the native
+            // href behaviour (new tab, etc.) — only intercept a plain click.
+            if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return
+            ev.preventDefault()
+            popup.remove()
+            navigateRef.current(climatHref)
+          })
+        }
       })
       map.on('mouseenter', FILL, () => { map.getCanvas().style.cursor = 'pointer' })
       map.on('mouseleave', FILL, () => { map.getCanvas().style.cursor = '' })
