@@ -347,7 +347,7 @@ export interface ClimatCompareYears {
 
 /** One grid cell from GET /observatory/climat/daily-temp?date&variable=tmax|tmin|tmean —
  *  TRUE daily statistic (24 hourly steps) from silver.stg_era5_daily_temp_stats,
- *  not the monthly mart's 00h UTC instant. */
+ *  a single day's Tx/Tn/Tmoy (as opposed to the monthly mart's monthly mean). */
 export interface ClimatDailyTempPoint {
   latitude: number
   longitude: number

@@ -8,7 +8,7 @@ describe('VariablePicker', () => {
 
   it('renders all 6 climat variables with SPI first', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
-    const radios = screen.getAllByRole('radio', { name: /SPI|STI|Bilan|Précip|T°|ETP/ })
+    const radios = screen.getAllByRole('radio', { name: /SPI|STI|Bilan|Précip|Température|ETP/ })
     expect(radios.length).toBeGreaterThanOrEqual(6)
     expect(screen.getByText('SPI (précipitations)')).toBeInTheDocument()
   })

@@ -30,9 +30,9 @@ export interface ClimatVarConfig {
  *  classic heatwave-map look (Météo-France/ECMWF style): deep blue for hard
  *  frost through blue/cyan-green/yellow/orange/red for the ordinary range, dark
  *  red then purple to flag heatwave-record territory. Deliberately NOT the same
- *  scale as the monthly `temperature` variable above (that one tops out at 35°C
- *  since it's a 00h UTC instant, not a true daily max) — Tx routinely exceeds it
- *  in a French summer canicule. Tn uses the identical ramp (no separate
+ *  scale as the monthly `temperature` variable above (that one is a monthly mean
+ *  and tops out at 35°C) — Tx routinely exceeds it in a French summer canicule.
+ *  Tn uses the identical ramp (no separate
  *  cold-only scale, per plan): night lows self-adapt to the cool half of it. */
 export const DAILY_TEMP_STOPS: Array<[number, string]> = [
   [-10, '#1b2c6b'], [0, '#2e6fba'], [10, '#33b6a6'], [20, '#f7e24c'],

@@ -137,7 +137,8 @@ export const observatoryApi = {
     situationSummary: (month: string, window: number) =>
       fetchJson<ClimatSituationSummary>('/observatory/climat/situation-summary', { month, window: String(window) }),
     // TRUE daily temperature statistics (24 hourly steps, silver.stg_era5_daily_temp_stats)
-    // — distinct from grid-monthly's temperature var (00h UTC instant). Coverage is
+    // — per-day Tx/Tn/Tmoy, distinct from grid-monthly's temperature var (a monthly
+    // mean, also aggregated from the same true daily statistics). Coverage is
     // partial (nightly J-7 ingestion + an independent 1950-2025 backfill), hence
     // dailyTempRange to discover the actual min/max date at runtime.
     dailyTemp: (date: string, variable: 'tmax' | 'tmin' | 'tmean') =>
