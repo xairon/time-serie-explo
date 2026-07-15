@@ -1866,7 +1866,7 @@
       "loading": "Loading summary…",
       "droughtPct": "{{pct}}% of the territory in drought (SPI < −1)",
       "driestSince": "driest month since {{year}}",
-      "mostAffected": "Most affected areas:",
+      "distributionAria": "Distribution of the territory by severity class",
       "indicesUnavailable": "Indices unavailable for this month",
       "dailyTempUnavailable": "No data for this day",
       "dailyTempSummary_one": "{{variable}} max France: {{max}} °C · {{count}} cell > 35 °C",

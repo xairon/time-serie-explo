@@ -53,34 +53,10 @@ describe('buildSituationBannerData', () => {
     const data = buildSituationBannerData(makeSummary())
     expect(data.pctSecheresse).toBe('32.5')
     expect(data.driestSinceYear).toBe(2003)
-    expect(data.chips).toEqual([
-      { label: '43.6°N, 3.9°E', latitude: 43.6, longitude: 3.9 },
-      { label: '44.1°N, 4.2°E', latitude: 44.1, longitude: 4.2 },
-    ])
   })
 
   it('surfaces a null driestSinceYear untouched (no historical comparison data)', () => {
     const data = buildSituationBannerData(makeSummary({ driest_since_year: null }))
     expect(data.driestSinceYear).toBeNull()
-  })
-
-  it('returns an empty chip list when the territory has no dry cells', () => {
-    const data = buildSituationBannerData(makeSummary({ top5_cellules_seches: [] }))
-    expect(data.chips).toEqual([])
-  })
-
-  it('formats a west-longitude chip with the locale cardinal (Bretagne, fr default)', () => {
-    const data = buildSituationBannerData(
-      makeSummary({ top5_cellules_seches: [{ latitude: 48.1, longitude: -2.8, spi: -2.3 }] }),
-    )
-    expect(data.chips).toEqual([{ label: '48.1°N, 2.8°O', latitude: 48.1, longitude: -2.8 }])
-  })
-
-  it('formats a west-longitude chip with the English cardinal when locale=en', () => {
-    const data = buildSituationBannerData(
-      makeSummary({ top5_cellules_seches: [{ latitude: 48.1, longitude: -2.8, spi: -2.3 }] }),
-      'en',
-    )
-    expect(data.chips).toEqual([{ label: '48.1°N, 2.8°W', latitude: 48.1, longitude: -2.8 }])
   })
 })

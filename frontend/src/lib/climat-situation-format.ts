@@ -4,22 +4,18 @@
 // or initialising i18next.
 import type { ClimatSituationSummary } from './observatory-types'
 
-export interface SituationBannerChip {
-  label: string
-  latitude: number
-  longitude: number
-}
-
 /** fr/en locale tag — plain string, no i18next dependency (this module stays
  *  React/i18n-free, see buildSituationBannerData below). */
 export type FormatLocale = 'fr' | 'en'
 
 /** "48.2°N, 1.7°E" (east) or "48.2°N, 1.7°O"/"1.7°W" (west, locale-aware) —
- *  coarse lat/lon label for a driest-cell chip (no reverse geocoding yet, per
- *  plan). Mainland France is always north, so the latitude cardinal is fixed;
- *  the longitude cardinal reflects the sign instead of a bare minus, which
- *  reads as a bug to hydro/climate experts (western cells — Bretagne,
- *  Charente — are common in the top-5 driest list). */
+ *  coarse lat/lon label (no reverse geocoding). Not currently consumed by
+ *  SituationBanner (which now shows a classes_pct distribution bar, not
+ *  per-cell driest chips) but kept as a standalone tested utility for any
+ *  future coordinate display. Mainland France is always north, so the
+ *  latitude cardinal is fixed; the longitude cardinal reflects the sign
+ *  instead of a bare minus, which reads as a bug to hydro/climate experts
+ *  (western cells — Bretagne, Charente — are common in the driest list). */
 export function formatLatLon(lat: number, lon: number, locale: FormatLocale = 'fr'): string {
   const lonCardinal = lon < 0 ? (locale === 'en' ? 'W' : 'O') : 'E'
   return `${lat.toFixed(1)}°N, ${Math.abs(lon).toFixed(1)}°${lonCardinal}`
@@ -34,22 +30,15 @@ export interface SituationBannerData {
   pctSecheresse: string
   /** Year to show in "mois le plus sec depuis AAAA" — null when there's no historical comparison data. */
   driestSinceYear: number | null
-  chips: SituationBannerChip[]
 }
 
-/** Derives display-ready fields from the raw API summary — no i18n, no React;
- *  `locale` is a plain 'fr'|'en' tag the caller derives from i18next. */
-export function buildSituationBannerData(
-  summary: ClimatSituationSummary,
-  locale: FormatLocale = 'fr',
-): SituationBannerData {
+/** Derives display-ready fields from the raw API summary — no i18n, no React.
+ *  No `locale` param anymore: the banner now shows a classes_pct distribution
+ *  bar instead of per-cell driest chips, so there's no lat/lon text to
+ *  localise here (see formatLatLon for that, still used/tested standalone). */
+export function buildSituationBannerData(summary: ClimatSituationSummary): SituationBannerData {
   return {
     pctSecheresse: formatDroughtPct(summary.pct_secheresse),
     driestSinceYear: summary.driest_since_year,
-    chips: summary.top5_cellules_seches.map((c) => ({
-      label: formatLatLon(c.latitude, c.longitude, locale),
-      latitude: c.latitude,
-      longitude: c.longitude,
-    })),
   }
 }
