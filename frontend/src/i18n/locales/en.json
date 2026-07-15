@@ -1868,6 +1868,15 @@
       "window": "{{n}}-month window",
       "incompleteMonth": "Incomplete month"
     },
+    "bilanClasses": {
+      "EXTREMEMENT_BAS": "Severe deficit",
+      "TRES_BAS": "Deficit",
+      "BAS": "Slight deficit",
+      "NORMAL": "Balanced",
+      "HAUT": "Slight surplus",
+      "TRES_HAUT": "Surplus",
+      "EXTREMEMENT_HAUT": "Large surplus"
+    },
     "banner": {
       "loading": "Loading summary…",
       "droughtPct": "{{pct}}% of the territory in drought (SPI < −1)",
