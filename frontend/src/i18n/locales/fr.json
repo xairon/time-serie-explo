@@ -1868,6 +1868,15 @@
       "window": "Fenêtre {{n}} mois",
       "incompleteMonth": "Mois incomplet"
     },
+    "bilanClasses": {
+      "EXTREMEMENT_BAS": "Déficit sévère",
+      "TRES_BAS": "Déficit",
+      "BAS": "Léger déficit",
+      "NORMAL": "Équilibré",
+      "HAUT": "Léger surplus",
+      "TRES_HAUT": "Surplus",
+      "EXTREMEMENT_HAUT": "Fort surplus"
+    },
     "banner": {
       "loading": "Chargement de la synthèse…",
       "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",

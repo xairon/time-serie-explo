@@ -51,6 +51,26 @@ export function ClimatLegend({ variable, window, month, incomplete }: Props) {
     )
   }
 
+  if (variable === 'bilan_hydrique') {
+    return (
+      <div className="absolute bottom-4 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none" style={{ maxWidth: '190px' }}>
+        <div className="text-xs font-semibold text-text-primary leading-tight">{t(cfg.labelKey)}</div>
+        <div className="text-[10px] text-text-secondary mt-0.5">{periodLabel}</div>
+        {incomplete && (
+          <div className="text-[9px] font-semibold text-amber-400 mt-0.5">{t('climat.legend.incompleteMonth')}</div>
+        )}
+        <div className="mt-1.5 space-y-0.5">
+          {[...SPI_CLASS_ORDER].reverse().map((cls) => (
+            <div key={cls} className="flex items-center gap-1.5">
+              <span className="w-3 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: SPI_CLASS_COLORS[cls] }} />
+              <span className="text-[9px] text-text-secondary">{t(`climat.bilanClasses.${cls}`, { defaultValue: cls })}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const [minVal, maxVal] = climatRawDomain(variable)
   return (
     <div className="absolute bottom-4 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none" style={{ maxWidth: '190px' }}>
