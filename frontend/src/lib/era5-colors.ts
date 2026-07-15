@@ -88,19 +88,19 @@ export function era5FormatValue(v: Era5Variable, value: number | null): string {
 
 // ---------------------------------------------------------------------------
 // STI (Standardized Temperature Index) — discrete 7-class colour map
-// Temperature-oriented: cold (indigo) → normal (green) → hot (dark red).
-// Inverse of the piezo CLASSIFICATION_COLORS (which use red=low, blue=high).
+// RdBu divergent (inverted SPI): cold (blue) → normal (neutral grey) → hot (red).
+// Hot = red (same convention as SPI dry); cold = blue to match the anomaly palette.
 // ---------------------------------------------------------------------------
 
-/** McKee 7-class colour map keyed by index_class string (temperature-oriented). */
+/** McKee 7-class colour map keyed by index_class string (RdBu inverted, temperature-oriented). */
 export const STI_CLASS_COLORS: Record<string, string> = {
-  EXTREMEMENT_BAS: '#313695',   // indigo — very cold
-  TRES_BAS:        '#4575b4',   // medium blue — cold
-  BAS:             '#74add1',   // light blue — slightly cold
-  NORMAL:          '#10b981',   // green — normal
-  HAUT:            '#f46d43',   // orange — slightly hot
-  TRES_HAUT:       '#d73027',   // red — hot
-  EXTREMEMENT_HAUT:'#7f0000',   // dark red — very hot
+  EXTREMEMENT_BAS: '#2166ac',   // blue — very cold
+  TRES_BAS:        '#67a9cf',   // medium blue — cold
+  BAS:             '#d1e5f0',   // light blue — slightly cold
+  NORMAL:          '#f7f7f7',   // neutral grey — normal
+  HAUT:            '#fddbc7',   // light red — slightly hot
+  TRES_HAUT:       '#ef8a62',   // orange-red — hot
+  EXTREMEMENT_HAUT:'#b2182b',   // dark red — very hot
   UNKNOWN:         '#6b7280',   // grey — unknown / insufficient data
 }
 
@@ -156,19 +156,19 @@ export function era5StiClassMatchExpr(): unknown[] {
 
 // ---------------------------------------------------------------------------
 // SPI (Standardized Precipitation Index, McKee 1993) — discrete 7-class colour map
-// Precipitation-oriented (BrBG diverging): dry (brown) → normal (neutral) → wet (teal).
-// Opposite orientation to the STI (which is cold→hot); shares the same McKee classes.
+// Precipitation-oriented RdBu diverging: dry (red) → normal (neutral) → wet (blue).
+// Dry = red (anomaly colour convention); wet = blue. Normal grey shared with STI.
 // ---------------------------------------------------------------------------
 
-/** McKee 7-class colour map keyed by index_class string (precipitation-oriented). */
+/** McKee 7-class colour map keyed by index_class string (RdBu, precipitation-oriented). */
 export const SPI_CLASS_COLORS: Record<string, string> = {
-  EXTREMEMENT_BAS: '#8c510a',   // dark brown — extreme drought
-  TRES_BAS:        '#bf812d',   // brown — severe dry
-  BAS:             '#dfc27d',   // tan — moderately dry
-  NORMAL:          '#f5f5f5',   // neutral — near normal
-  HAUT:            '#80cdc1',   // light teal — moderately wet
-  TRES_HAUT:       '#35978f',   // teal — very wet
-  EXTREMEMENT_HAUT:'#01665e',   // dark teal — extremely wet
+  EXTREMEMENT_BAS: '#b2182b',   // dark red — extreme drought
+  TRES_BAS:        '#ef8a62',   // orange-red — severe dry
+  BAS:             '#fddbc7',   // light red — moderately dry
+  NORMAL:          '#f7f7f7',   // neutral grey — near normal
+  HAUT:            '#d1e5f0',   // light blue — moderately wet
+  TRES_HAUT:       '#67a9cf',   // medium blue — very wet
+  EXTREMEMENT_HAUT:'#2166ac',   // dark blue — extremely wet
   UNKNOWN:         '#6b7280',   // grey — unknown / insufficient data
 }
 
