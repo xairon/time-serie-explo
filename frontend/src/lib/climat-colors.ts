@@ -126,6 +126,25 @@ export function climatIndexColorExpression(variable: 'spi' | 'sti'): unknown[] {
   return expr
 }
 
+/** MapLibre 'step' fill-color expression mapping `value` (mm) to the 7 discrete
+ *  presentation classes — thresholds aligned EXACTLY with classifyBilan's bands
+ *  (climat-scale.ts: <-150 / [-150,-75) / [-75,-20) / [-20,20] / (20,75] / (75,150] / >150)
+ *  and colours from SPI_CLASS_COLORS (era5-colors.ts), so the bilan hydrique map matches
+ *  the Task 5 legend instead of a continuous gradient. */
+export function climatBilanColorExpression(): unknown[] {
+  const C = SPI_CLASS_COLORS
+  return [
+    'step', ['get', 'value'],
+    C.EXTREMEMENT_BAS,          // value < -150
+    -150, C.TRES_BAS,
+    -75, C.BAS,
+    -20, C.NORMAL,
+    20, C.HAUT,
+    75, C.TRES_HAUT,
+    150, C.EXTREMEMENT_HAUT,
+  ]
+}
+
 /** CSS linear-gradient for the raw-variable legend (stops positioned proportionally over [min, max]). */
 export function climatGradientCss(variable: ClimatVariable): string {
   const stops = CLIMAT_VARIABLES[variable].stops
