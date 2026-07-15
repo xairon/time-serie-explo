@@ -29,8 +29,10 @@ describe('VariablePicker', () => {
   it('shows the window selector for SPI/STI', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByText('Fenêtre')).toBeInTheDocument()
+    // Window buttons now carry a labelled accessible name (e.g. "12 — Nappe (12 mois)")
+    // instead of the bare number, so we match on the leading number.
     for (const w of ['1', '3', '6', '12']) {
-      expect(screen.getByRole('radio', { name: w })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: new RegExp(`^${w} —`) })).toBeInTheDocument()
     }
   })
 
@@ -42,7 +44,7 @@ describe('VariablePicker', () => {
   it('calls onWindowChange when a window button is clicked', () => {
     const onWindowChange = vi.fn()
     render(<VariablePicker variable="sti" onVariableChange={() => {}} window={3} onWindowChange={onWindowChange} />)
-    fireEvent.click(screen.getByRole('radio', { name: '12' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^12 —/ }))
     expect(onWindowChange).toHaveBeenCalledWith(12)
   })
 
@@ -66,5 +68,17 @@ describe('VariablePicker', () => {
     render(<VariablePicker variable="spi" onVariableChange={onVariableChange} window={3} onWindowChange={() => {}} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Tn (min)' }))
     expect(onVariableChange).toHaveBeenCalledWith('tmin')
+  })
+
+  it('groupe les variables en Anomalie et Absolu', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByText('Anomalie')).toBeInTheDocument()
+    expect(screen.getByText('Valeur absolue')).toBeInTheDocument()
+  })
+
+  it('labellise les fenêtres SPI (court terme / saisonnier / long terme / nappe)', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByRole('radio', { name: /Court terme/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Nappe/ })).toBeInTheDocument()
   })
 })
