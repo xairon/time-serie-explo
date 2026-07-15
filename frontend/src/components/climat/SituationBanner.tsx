@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { ClimatSituationSummary } from '@/lib/observatory-types'
 import { buildSituationBannerData } from '@/lib/climat-situation-format'
+import { SPI_CLASS_ORDER, SPI_CLASS_COLORS } from '@/lib/era5-colors'
 
 interface Props {
   summary: ClimatSituationSummary | undefined
@@ -8,11 +9,14 @@ interface Props {
 }
 
 /** Territory-wide synthesis banner: "X % du territoire en sécheresse (SPI < −1) ·
- *  mois le plus sec depuis AAAA · zones les plus touchées : …" — fed by
- *  GET /observatory/climat/situation-summary. Text shaping lives in
- *  climat-situation-format.ts (unit-tested independently of this component). */
+ *  mois le plus sec depuis AAAA" + a stacked bar showing the 7-class SPI
+ *  distribution (`summary.classes_pct`, driest → wettest via SPI_CLASS_ORDER) —
+ *  fed by GET /observatory/climat/situation-summary. No raw lat/lon is
+ *  rendered anymore (replaces the old "zones les plus touchées" chips).
+ *  Text shaping lives in climat-situation-format.ts (unit-tested
+ *  independently of this component). */
 export function SituationBanner({ summary, isLoading }: Props) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
 
   if (isLoading || !summary) {
     return (
@@ -32,7 +36,8 @@ export function SituationBanner({ summary, isLoading }: Props) {
     )
   }
 
-  const data = buildSituationBannerData(summary, i18n.language?.startsWith('en') ? 'en' : 'fr')
+  const data = buildSituationBannerData(summary)
+  const classes = SPI_CLASS_ORDER.filter((c) => (summary.classes_pct[c] ?? 0) > 0)
 
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-2xl bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-4 py-2.5 shadow-lg">
@@ -45,19 +50,19 @@ export function SituationBanner({ summary, isLoading }: Props) {
           </>
         )}
       </div>
-      {data.chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          <span className="text-[10px] text-text-secondary">{t('climat.banner.mostAffected')}</span>
-          {data.chips.map((chip) => (
-            <span
-              key={chip.label}
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-hover text-text-secondary border border-white/10"
-            >
-              {chip.label}
-            </span>
-          ))}
-        </div>
-      )}
+      <div
+        role="img"
+        aria-label={t('climat.banner.distributionAria')}
+        className="flex w-full h-2.5 mt-2 rounded-full overflow-hidden bg-bg-hover"
+      >
+        {classes.map((c) => (
+          <span
+            key={c}
+            title={`${summary.classes_pct[c]} %`}
+            style={{ width: `${summary.classes_pct[c]}%`, background: SPI_CLASS_COLORS[c] }}
+          />
+        ))}
+      </div>
     </div>
   )
 }

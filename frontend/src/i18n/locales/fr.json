@@ -1866,7 +1866,7 @@
       "loading": "Chargement de la synthèse…",
       "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",
       "driestSince": "mois le plus sec depuis {{year}}",
-      "mostAffected": "Zones les plus touchées :",
+      "distributionAria": "Distribution du territoire par classe de sévérité",
       "indicesUnavailable": "Indices non disponibles pour ce mois",
       "dailyTempUnavailable": "Aucune donnée pour ce jour",
       "dailyTempSummary_one": "{{variable}} max France : {{max}} °C · {{count}} cellule > 35 °C",
