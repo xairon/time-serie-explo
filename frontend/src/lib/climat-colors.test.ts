@@ -3,6 +3,7 @@ import {
   CLIMAT_VARIABLES, DAILY_TEMP_STOPS, DAILY_TEMP_VARIABLE_ORDER,
   isClimatDailyVariable, isClimatIndexVariable,
   climatRawColorExpression, climatGradientCss, climatRawDomain, climatFormatValue,
+  climatBilanColorExpression,
 } from './climat-colors'
 
 describe('DAILY_TEMP_STOPS', () => {
@@ -105,5 +106,42 @@ describe('climatFormatValue for a daily-temp variable', () => {
   it('returns the placeholder for null/undefined', () => {
     expect(climatFormatValue('tmax', null)).toBe('—')
     expect(climatFormatValue('tmean', undefined)).toBe('—')
+  })
+})
+
+describe('climatBilanColorExpression', () => {
+  it('produit une expression MapLibre step/case non vide', () => {
+    const expr = climatBilanColorExpression()
+    expect(Array.isArray(expr)).toBe(true)
+    expect(JSON.stringify(expr)).toContain('#b2182b') // déficit sévère présent
+    expect(JSON.stringify(expr)).toContain('#f7f7f7') // neutre présent
+  })
+
+  it('is a MapLibre "step" expression reading the generic `value` property', () => {
+    const expr = climatBilanColorExpression() as unknown[]
+    expect(expr[0]).toBe('step')
+    expect(expr[1]).toEqual(['get', 'value'])
+  })
+
+  it('stop thresholds are exactly aligned with classifyBilan bands (-150/-75/-20/20/75/150)', () => {
+    const expr = climatBilanColorExpression() as unknown[]
+    // header (2) + base output (1) + 6 x (stop, output)
+    expect(expr.length).toBe(2 + 1 + 6 * 2)
+    const thresholds = [expr[3], expr[5], expr[7], expr[9], expr[11], expr[13]]
+    expect(thresholds).toEqual([-150, -75, -20, 20, 75, 150])
+  })
+
+  it('colours follow SPI_CLASS_COLORS driest to wettest', () => {
+    const expr = climatBilanColorExpression() as unknown[]
+    expect(expr).toEqual([
+      'step', ['get', 'value'],
+      '#b2182b',
+      -150, '#ef8a62',
+      -75, '#fddbc7',
+      -20, '#f7f7f7',
+      20, '#d1e5f0',
+      75, '#67a9cf',
+      150, '#2166ac',
+    ])
   })
 })
