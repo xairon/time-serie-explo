@@ -1,37 +1,46 @@
 # CI GitLab — build + push de l'image Docker du FRONTEND Junon.
 #
-# Fournie clé en main pour la DSI : à chaque push sur `main` touchant le
-# frontend, l'image est construite (deploy/frontend/Dockerfile) et poussée sur
-# le Container Registry du projet. Le déploiement Kubernetes (manifests dans
-# deploy/frontend/k8s/) n'a plus qu'à tirer l'image `:latest` (ou le tag SHA).
+# Fusion : le « contrat » infra DSN/DSI (runner k8s, kaniko interne, tag =
+# numéro de pipeline surveillé par ArgoCD image-updater) + le packaging réel de
+# ce dépôt (Dockerfile de déploiement `deploy/frontend/Dockerfile`, contexte =
+# racine). L'image est poussée sur le Container Registry DE CE PROJET
+# (`time-serie-explo`) ; c'est ce registry que l'image-updater doit surveiller.
 #
-# Aucune variable à configurer : $CI_REGISTRY*, $CI_REGISTRY_IMAGE et le
-# token de job sont fournis automatiquement par GitLab.
-# Runner : kaniko (pas besoin de Docker privilégié → compatible runners K8s).
+# $CI_REGISTRY*, $CI_REGISTRY_IMAGE et le token de job sont fournis par GitLab.
+
+variables:
+  KANIKO_VERSION: "1.24.0"
 
 stages:
   - build
 
 build-frontend:
   stage: build
+  tags:
+    - k8s                       # ← cible les runners K8s de la DSI (repris de la MR d'Olivier)
   image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    # Registry kaniko interne DSI (les runners K8s n'ont pas forcément accès à gcr.io)
+    name: gitlab.univ-tours.fr:5050/kaniko/executor:v${KANIKO_VERSION}-debug
     entrypoint: [""]
   rules:
-    # Ne (re)construit que si le frontend ou son packaging change, sur main.
+    # Ne construit que sur `main` (= prod) et si le frontend/son packaging change.
     - if: '$CI_COMMIT_BRANCH == "main"'
       changes:
         - frontend/**/*
         - deploy/frontend/**/*
+        - nginx/**/*
         - .gitlab-ci.yml
   before_script:
+    # Auth explicite au registry du projet (marche même sans DOCKER_AUTH_CONFIG global)
     - mkdir -p /kaniko/.docker
     - |
       echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
         > /kaniko/.docker/config.json
   script:
+    # Tag = numéro de pipeline (croissant) surveillé par ArgoCD image-updater,
+    # + `latest` par commodité. Image = racine du registry projet (pas de sous-chemin).
     - /kaniko/executor
       --context "$CI_PROJECT_DIR"
       --dockerfile "$CI_PROJECT_DIR/deploy/frontend/Dockerfile"
-      --destination "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA"
-      --destination "$CI_REGISTRY_IMAGE/frontend:latest"
+      --destination "$CI_REGISTRY_IMAGE:$CI_PIPELINE_IID"
+      --destination "$CI_REGISTRY_IMAGE:latest"
