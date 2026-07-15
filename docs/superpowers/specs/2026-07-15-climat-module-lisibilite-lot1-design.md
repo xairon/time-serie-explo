@@ -17,7 +17,7 @@ Problèmes constatés (audit code + retour utilisateur) :
   - Conflit transverse avec l'IPS piézo : **rouge = nappe basse** (piézo) vs **rouge = chaud** (STI climat).
 - **Hétérogénéité de traitement** : SPI/STI en 7 classes nommées ; bilan/précip/temp/ETP en gradients continus sans classes ni repères de sévérité.
 - **Seuil incohérent** : le bandeau compte « SPI < −1 » alors que la carte classe en McKee à −0.84/−1.28 → le « % sécheresse » ne correspond à aucune frontière de la légende.
-- **Dette technique** : `ClimatPage.tsx` est un god-component d'état ; logique couleur dupliquée (`climat-colors.ts` ⇄ `era5-colors.ts`) ; classification z→classe dupliquée frontend (`classifyIndex`) / backend (`classify_index`), synchronisée à la main.
+- **Dette technique** : `ClimatPage.tsx` est un god-component d'état ; classification z→classe **dupliquée** frontend (`classifyIndex`, `era5-colors.ts`) / backend (`classify_index`, `era5_anomaly.py`), synchronisée à la main par commentaire ; **trois systèmes de classes incompatibles** coexistent (SPI/STI McKee UPPER `±0.84/1.28/1.75` labels i18n · IPS piézo snake_case `±0.25/0.84/1.28` labels en dur `ips.ts` · `territory_situation` backend). Le mapping classe→couleur SPI/STI est en revanche **à source unique** (`era5-colors.ts`, ré-importé par `climat-colors.ts`) — le problème n'est pas la duplication mais l'**incohérence sémantique** des palettes.
 
 ## 2. Public cible & décision produit (cadrage validé)
 
@@ -75,7 +75,7 @@ On conserve la carte grille 0.1° plein écran + le drawer point (la partie qui 
 
 - **Séparation nette classification (backend) / présentation (frontend)** — c'est ce qui tue la double source de vérité :
   - **Classification = backend seul** (`api/era5_anomaly.py`). Les **seuils** (WMO SPI/STI, bandes mm du bilan) vivent uniquement là. Le backend renvoie déjà `index_class` sur `/grid-indices` ; on étend ce principe (classe renvoyée aussi pour le bilan et, à terme, les indicateurs concernés). Le frontend **supprime** `classifyIndex` — il ne re-classe plus jamais.
-  - **Présentation = frontend seul** : nouveau module `frontend/src/lib/climat-scale.ts` exposant l'**enum des 7 classes + `classToColor` + `classToLabel` (clé i18n)** — pas de seuils, pas de `classify()`. Il **fusionne** `climat-colors.ts` et `era5-colors.ts` (fin de la double source de vérité couleur). Le front reçoit une classe de l'API et la mappe en couleur/label.
+  - **Présentation = frontend seul** : nouveau module `frontend/src/lib/climat-scale.ts` exposant l'**enum des 7 classes + `classToColor` + `classToLabel` (clé i18n)** — pas de seuils, pas de `classify()`. Le front reçoit une classe de l'API et la mappe en couleur/label. Les palettes de classe existent déjà (à source unique) dans `era5-colors.ts` : le travail est de les **repeindre pour cohérence sémantique** (voir §4.2) et de les héberger dans ce module de présentation, pas de dé-dupliquer. Les labels nommés existent déjà en i18n (`observatory.spi|sti.*`).
 - **Découpe du god-component** : extraire l'état (variable/fenêtre/mois/jour/cellule) dans un hook `useClimatState` ; chaque overlay (barre de synthèse, picker, légende, drawer) devient un composant focalisé consommant l'état + le module d'échelle. Suppression des ternaires imbriqués index/raw/daily au profit d'un résolveur de famille explicite.
 - **Contrat partagé IPS ↔ Climat** : extraire l'enum de classes + la palette + les labels dans un module réutilisable par `lib/ips.ts` et `lib/climat-scale.ts`. `lib/ips.ts` conserve ses seuils BRGM mais consomme la palette partagée.
 
