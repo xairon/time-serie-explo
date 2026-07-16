@@ -1,4 +1,4 @@
-# Climat — sort de l'ETP & échelle de la température mensuelle
+# Climat — les cartes sont des indices, les valeurs absolues sont des chiffres
 
 **Date** : 2026-07-16
 **Statut** : design validé, prêt pour plan d'implémentation
@@ -7,130 +7,121 @@
 
 ## 1. Contexte & problème
 
-Retour utilisateur direct après la livraison du Lot 1, sur deux couches de la famille « Absolu » :
+Retour utilisateur direct après la livraison du Lot 1 :
 
-1. **« Pourquoi on affiche l'ETP ? On s'en fout non ? »**
-2. **« Les cartes de température sont inutiles : pour juin c'est juste rouge uni, sans info. »**
+1. « Pourquoi on affiche l'ETP ? On s'en fout non ? »
+2. « Les cartes de température sont inutiles : pour juin c'est juste rouge uni, sans info. »
+3. « N'invente rien, utilise toujours des index. »
 
-### 1.1 Diagnostic technique
+### 1.1 Diagnostic
 
-Le point 2 est **fondé et structurel**. La couche `temperature` utilise une échelle **fixe −10 → +35 °C** (`climat-colors.ts:67`), dimensionnée pour l'année entière. Or en juin la France s'étale sur ~15→22 °C, soit **~15 % de la rampe** : toute la variance spatiale tombe dans une seule tranche de couleur. Le défaut est général — *une échelle absolue annuelle écrase la variance spatiale d'un mois donné* — et il se reproduit à chaque mois.
+Le point 2 est **fondé et structurel**. La couche `temperature` utilise une échelle fixe **−10 → +35 °C** (`climat-colors.ts:67`), dimensionnée pour l'année entière. Or, mesuré sur l'entrepôt (`gold.fct_era5_monthly_grid`, 11 496 mailles × 30 ans), la France de juin s'étale sur **12 → 22 °C** (p5/p95, 1991-2020) : **~22 % de la rampe**. Toute la variance spatiale tombe dans une tranche de couleur. Le défaut se reproduit chaque mois.
 
-Nuance importante, vérifiée : **le défaut ne touche que la mensuelle.**
+Le point 1 (ETP) n'est pas un bug mais un problème d'usage : l'ETP est une **quantité intermédiaire**, dont le sens n'existe que relativement à la précipitation — c'est-à-dire dans le bilan hydrique, déjà exposé.
 
-- `precipitation` (0→200 mm fixe) va bien : la précip mensuelle parcourt réellement cette plage entre régions.
-- Les journalières `tmax`/`tmin`/`tmean` utilisent `DAILY_TEMP_STOPS` (−10→42 °C), rampe calibrée météo (28 °C orange, 34 °C rouge, 38 °C rouge sombre). Un Tx de juin à 30-38 °C **montre** de la structure. Leur caractère absolu est **voulu** : un jour à 35 °C doit être rouge partout et toujours, c'est ce qui les rend comparables d'un jour à l'autre.
+### 1.2 La fausse piste, et pourquoi le point 3 la tue
 
-Le point 1 (ETP) n'est pas un bug mais une question d'usage : l'ETP est une **quantité intermédiaire**. Seule, une carte d'ETP ne dit rien d'exploitable ; son sens n'existe que **relativement à la précipitation** — c'est-à-dire dans le bilan hydrique, qui est déjà exposé.
+Une première version de ce design proposait de **ré-ancrer** l'échelle de température sur un domaine climatologique par mois (juin → [12, 22]). Elle a été **rejetée**, et c'est le cœur de la décision :
 
-### 1.2 Ce que disait le Lot 1
+- Ré-ancrer une rampe par mois transforme la couleur en **encodage relatif au mois** — « plus chaud que la moyenne nationale de juin ». Or *un encodage relatif à la climatologie du mois, c'est la définition d'un indice*.
+- Cet indice serait **maison** : un p5/p95 national, grossier, non standard. Le **STI** fait déjà exactement ce travail, mais **rigoureusement** : z-score **par maille** contre la référence 1991-2020, seuils **WMO/McKee**.
+- Dériver proprement les bornes d'un indicateur inventé ne le rend pas standard : **ça reste un indicateur inventé**.
 
-Le Lot 1 avait **déjà identifié la redondance** (§4.1) : « précip et température brutes sont quasi redondantes avec SPI et STI (leurs versions standardisées via la climatologie déjà calculée) ». Il a néanmoins choisi de **garder les 6 indicateurs**, en rangeant les absolus en « contexte, à la demande ». Le présent document **révise ce choix pour l'ETP uniquement**, sur retour utilisateur.
+Conclusion : toute tentative de rendre lisible une carte mensuelle en valeur absolue **revient à réinventer un STI en moins bon**. La carte absolue mensuelle n'a pas de design défendable — il ne faut donc pas la réparer, il faut la retirer.
 
-## 2. Cadrage produit (validé)
+## 2. Décision — la règle transverse
 
-**Rôle du module Climat : observatoire climatique complet.** L'utilisateur veut aussi les faits bruts (« il a fait 32 °C », « il est tombé 40 mm), pas seulement l'anomalie. Conséquence directe : on **répare** la carte mensuelle de température **au lieu de la supprimer**, et on garde les journalières.
+Doctrine projet (énoncée par l'utilisateur, transverse à junon — cf. l'IPS/SPLI piézo) :
 
-Ce cadrage exclut deux options écartées :
+> **Soit un vrai indicateur** (IPS, SPLI, SPI, STI… : standard reconnu, seuils publiés),
+> **soit une vraie valeur** (la mesure, en °C ou en mm).
+> **Jamais un intermédiaire inventé.**
 
-- *Tout ramener au STI* (supprimer les températures absolues) — rejeté : le module n'est pas qu'un détecteur d'anomalies.
-- *Classes nommées par mois pour la température* — rejeté : on perdrait le « il a fait 18,3 °C », et le STI **est déjà** la version en classes.
+C'est exactement le trou dans lequel tombait l'échelle ré-ancrée de §1.2 : ni un vrai indicateur (pas de z-score par maille, pas de seuils WMO — juste un p5/p95 national bricolé), ni une vraie valeur (la couleur ne signifiait plus rien en absolu, 12 °C virant au violet en juin). Un entre-deux qui ment sur les deux tableaux.
 
-## 3. Décision 1 — ETP : couche carte → chiffre au point
+Appliquée au support, la doctrine se traduit ainsi :
 
-L'ETP quitte le picker et réapparaît là où elle a du sens : **en explication du bilan hydrique**, à l'endroit où l'utilisateur se pose la question.
+> **Une carte choroplèthe répond à « où est-ce anormal ? » → ce sont des indicateurs.
+> Un nombre répond à « combien ? » → c'est la vraie valeur, dans le PointPanel.**
 
-**Retraits** (`climat-colors.ts`, `VariablePicker.tsx`) :
+Le module confondait les deux dans une même couche ; c'est la cause racine des trois retours. On sépare.
 
-- `'etp'` du type `ClimatVariable`, de `CLIMAT_VARIABLES`, de `CLIMAT_VARIABLE_ORDER`, et de `ABSOLUTE_VARS` (`VariablePicker.tsx:20`).
-- Le paramètre `etp` reste supporté côté API (`observatory_climat.py`, mapping `"etp": "etp_totale"`) : **on ne casse rien**, on cesse simplement de l'exposer comme couche. Aucune modification backend.
-
-**Ajout** (`PointPanel.tsx`) : un bloc « bilan du mois » alimenté par la série **déjà chargée** par `useClimatPointSeries`. Vérifié : `ClimatPointSeriesEntry` (`observatory-types.ts:282`) contient déjà `precipitation_totale`, `etp_totale`, `bilan_hydrique` → **coût backend nul**.
-
-```
-Précipitations    40 mm
-ETP              120 mm
-Bilan hydrique   −80 mm   (déficit)
-```
-
-La classe du bilan (`déficit` / `équilibré` / `surplus`) réutilise `classifyBilan` (`climat-scale.ts`) — pas de nouveau système de classes.
-
-**Gestion des `null`** : le mois courant est souvent partiel (`mois_complet=false`) et les champs peuvent être `null`. Le bloc affiche `—` par champ manquant via `climatFormatValue`, sans masquer le bloc entier.
-
-## 4. Décision 2 — Température mensuelle : échelle climatologique par mois
-
-**Principe** : **ré-ancrer le domaine sur le mois affiché**, et adapter le langage de couleur en conséquence.
-
-### 4.0 Règle transverse : le langage de couleur suit la sémantique du domaine
-
-C'est le cœur du design, et il corrige une incohérence détectée en relecture (l'ancienne §5.1) :
-
-> - **Domaine absolu fixe → couleurs à sémantique absolue** (rampe météo arc-en-ciel). Un jour à 35 °C est rouge, partout, toujours.
-> - **Domaine ré-ancré par mois → encodage relatif → rampe séquentielle**, pâle → soutenu. La couleur dit « plus frais / plus chaud *dans ce mois* » ; ce sont la **légende et le point** qui portent la valeur absolue.
-
-**Pourquoi c'est obligatoire, et pas une préférence** : ré-ancrer une rampe à sémantique absolue lui fait dire des faussetés. Avec la rampe actuelle ré-ancrée, juin [12, 26] peindrait **12 °C en violet** (couleur du grand froid) et **26 °C en magenta** (couleur du record) ; janvier [−2, 12] peindrait **12 °C en rouge**, alors que 12 °C en janvier est *doux*. Une rampe séquentielle mono-teinte n'a pas ce défaut : « pâle → soutenu » ne prétend rien sur le froid absolu.
-
-Cette règle **unifie** le module au lieu d'y créer des exceptions :
-
-| Couche | Domaine | Langage de couleur |
+| | Carte | Chiffre au point |
 |---|---|---|
-| `tmax` / `tmin` / `tmean` (journalières) | absolu fixe (−10→42) | arc-en-ciel météo — **inchangé, et désormais justifié** |
-| `temperature` (mensuelle) | ré-ancré par mois | **séquentielle mono-teinte** |
-| `precipitation` | absolu fixe (0→200) | séquentielle mono-teinte — inchangé |
+| SPI, STI, bilan hydrique | ✅ indices / classes nommées | ✅ (déjà) |
+| Précipitation, Température, ETP | ✂ **retirées** | ✅ **nouveau bloc** |
+| Tx / Tn / T moy (journalières) | ✅ **conservées** (voir §2.1) | — |
 
-Elle **rend caduc** l'écart signalé face au Lot 1 §4.1 (« séquentielle mono-teinte, désaturée » pour la famille Absolu) : la mensuelle s'y conforme désormais, non par obéissance mais parce que le ré-ancrage l'exige. Aucun amendement du Lot 1 n'est nécessaire sur ce point.
+**Cadrage produit préservé** : le module reste un *observatoire climatique complet*. L'utilisateur veut toujours les faits bruts (« il a fait 18,3 °C », « il est tombé 40 mm) — ils ne disparaissent pas, ils **changent de support** : du dégradé illisible vers un chiffre exact, là où on le lit vraiment.
+
+### 2.1 Les journalières : l'exception qui confirme la règle
+
+`tmax` / `tmin` / `tmean` restent en carte, et c'est **cohérent, pas dérogatoire** :
+
+- Leur domaine est **réellement absolu et fixe** (`DAILY_TEMP_STOPS`, −10→42 °C) : un jour à 35 °C est rouge **partout et toujours**. Aucun ré-ancrage, donc aucun indice déguisé.
+- Elles sont **comparables d'un jour à l'autre** — c'est précisément la propriété que le ré-ancrage détruisait.
+- **Aucun indice journalier standardisé n'existe** dans l'entrepôt : il n'y a pas d'alternative « index » à leur opposer.
+
+La règle est donc : *domaine absolu fixe → carte absolue légitime ; domaine qui devrait être ré-ancré → utiliser l'indice standard qui existe déjà*.
+
+## 3. Changements
+
+### 3.1 Type & configuration (`lib/climat-colors.ts`)
+
+`ClimatVariable` perd `'precipitation'`, `'temperature'`, `'etp'` :
 
 ```ts
-TEMP_RAMP_COLORS: string[]                        // rampe séquentielle mono-teinte, sans valeurs
-TEMP_MONTHLY_DOMAIN: Record<number, [number, number]>  // 1..12 → [min, max]
-climatTempStops(month: string): Array<[number, string]>
+export type ClimatVariable = 'spi' | 'sti' | 'bilan_hydrique' | 'tmax' | 'tmin' | 'tmean'
 ```
 
-**Choix des teintes** : rampe séquentielle chaude (« plus chaud = plus soutenu »), perceptuellement régulière et lisible en déficience de vision des couleurs — donc **pas** un dérivé de `jet`/arc-en-ciel, qui crée des bandes fantômes et n'est pas monotone en luminance. Les valeurs exactes des stops sont à fixer à l'implémentation **en s'appuyant sur le skill `dataviz`** (palettes séquentielles, validation du contraste) plutôt qu'à l'intuition.
+Retraits correspondants dans `CLIMAT_VARIABLES` et `CLIMAT_VARIABLE_ORDER` (qui devient `['spi', 'sti', 'bilan_hydrique']`). Le type union étant exhaustif, **`tsc` attrape toute occurrence oubliée** — un retrait incomplet casse le build plutôt que de passer en silence.
 
-Les couleurs sont réparties uniformément sur `[min, max]` du mois calendaire extrait de `month` (`'YYYY-MM'`).
+Effet de bord assumé : la voie « raw gradient » (`climatRawColorExpression`, `climatGradientCss`, `climatRawDomain`) ne sert plus que les **journalières** ; `bilan_hydrique` garde sa voie discrète (`climatBilanColorExpression`). Aucune signature ne change — le paramètre `month` envisagé dans la version précédente n'a plus lieu d'être.
 
-**Changements de signature** — `climatRawColorExpression(variable, month)`, `climatGradientCss(variable, month)`, `climatRawDomain(variable, month)`. `ClimatMap` et `ClimatLegend` ont déjà `month` en portée ; les autres variables ignorent le paramètre (domaine fixe inchangé).
+### 3.2 Picker (`components/climat/VariablePicker.tsx`)
 
-**Propriétés obtenues** :
+La famille « Valeur absolue » **disparaît** : suppression de `ABSOLUTE_VARS` (ligne 20) et de son `renderVariableGroup(...)` (ligne 59). Restent le groupe *Anomalie* et la section *Températures journalières*. La clé i18n `climat.picker.familyAbsolute` devient inutilisée et est **supprimée** (fr + en).
 
-- Structure spatiale lisible **toute l'année** (Bretagne fraîche vs Provence chaude, en juin comme en janvier).
-- **Juin 2026 comparable à juin 2003** : même mois → même échelle, toutes années. Sert directement `CompareYearsSection`, qui existe déjà.
-- Comparaison **inter-mois** cassée (juin vs janvier) — assumé : c'est le rôle du **STI**, déjà présent.
+### 3.3 PointPanel — bloc « bilan du mois » (`components/climat/PointPanel.tsx`)
 
-**Saturation** : les valeurs hors domaine se clampent aux couleurs extrêmes (comportement naturel de `interpolate`). Un juin exceptionnel tape le haut de rampe — **c'est l'information, pas un bug**. La légende l'assume en affichant `≤ 12` / `≥ 26` plutôt que des bornes sèches.
+Nouveau bloc alimenté par la série **déjà chargée** par `useClimatPointSeries`. Vérifié : `ClimatPointSeriesEntry` (`observatory-types.ts:282`) contient déjà `precipitation_totale`, `etp_totale`, `bilan_hydrique`, `temperature_moyenne` → **coût backend nul**.
 
-Cette notation `≤`/`≥` s'applique **à la seule couche `temperature`**, dont le domaine est désormais serré autour du mois et donc réellement saturable. Les autres variables à dégradé gardent leurs bornes affichées telles quelles (`precipitation` : la borne 200 mm est un maximum de confort rarement atteint, pas un seuil de saturation signifiant ; les journalières : rampe météo inchangée). Élargir la notation aux autres couches serait un changement de périmètre non demandé.
+```
+Bilan du mois — juin 2026
+  Température      18,3 °C
+  Précipitations     40 mm
+  ETP               120 mm
+  Bilan hydrique    −80 mm   (Déficit)
+```
 
-### 4.1 Provenance des 12 domaines (point non négociable)
+- **Mois affiché** : le dernier de la série (le plus récent), cohérent avec le titre « Bilan du mois ». `PointPanel` ne reçoit pas le mois de la carte et on **n'ajoute pas** de prop pour ça (YAGNI — la carte a son propre `MonthStepper`, le panneau est une fiche de lieu).
+- **Classe du bilan** : réutilise `classifyBilan` (`lib/climat-scale.ts`) + `SPI_CLASS_COLORS` — aucun nouveau système de classes.
+- **Valeurs `null`** (mois partiel) : `climatFormatValue` rend déjà `—`. Le bloc reste affiché.
 
-Les bornes **ne sont pas inventées**. Elles sont dérivées **une fois** par requête sur l'entrepôt — p5/p95 de `temperature_moyenne` par mois calendaire sur la référence **1991-2020**, sur l'emprise France — puis figées en constantes dans `climat-colors.ts`, accompagnées d'un commentaire indiquant **l'origine, la date de calcul et la requête de régénération**.
+`PrecipNormalChart` est **conservé** : c'est déjà le fait « précipitation » au point, sous forme de graphe vs normale.
 
-Justification du figement (plutôt qu'un calcul à la volée) : le cadrage exige une échelle **identique d'une année sur l'autre** pour un même mois. Une échelle recalculée à chaque requête serait adaptative — l'option explicitement rejetée (l'échelle bougerait, deux cartes ne se compareraient plus, et l'utilisateur sur-interpréterait un simple ré-étalonnage).
+## 4. Hors périmètre
 
-Le choix p5/p95 (et non min/max) évite qu'une seule maille extrême n'écrase la rampe pour tout le pays.
+- SPI / STI / bilan hydrique en classes : livrés au Lot 1, **on ne touche pas**.
+- Journalières `tmax` / `tmin` / `tmean`, `DailyTempBanner`, `DayStepper` : **on ne touche pas** (§2.1).
+- API / entrepôt : les paramètres `temperature`, `precipitation`, `etp` de `/grid-monthly` restent supportés côté serveur — simplement plus appelés. **Aucune modification backend**, aucun nettoyage d'endpoint (YAGNI).
+- Agrégation par territoire, noms de lieux → **Lot 2**.
 
-## 5. Hors périmètre
+## 5. Réconciliation avec le Lot 1
 
-- `precipitation` (0→200 mm) : plage réellement parcourue, **on ne touche pas**.
-- Journalières `tmax`/`tmin`/`tmean` : rampe absolue **volontairement** comparable d'un jour à l'autre, **on ne touche pas**.
-- SPI/STI, bilan hydrique en classes : livrés au Lot 1, **on ne touche pas**.
-- Agrégation par territoire, noms de lieux → **Lot 2** (spec dédié).
+Le Lot 1 (§4.1) rangeait les 6 indicateurs en deux familles et prescrivait pour les absolus une échelle « séquentielle mono-teinte, désaturée ». Il avait **lui-même relevé la redondance** : « précip et température brutes sont quasi redondantes avec SPI et STI (leurs versions standardisées via la climatologie déjà calculée) ».
 
-### 5.1 Point tranché (ex-point ouvert)
-
-La première version de ce spec laissait ouvert le sort de la rampe `temperature` : garder l'arc-en-ciel (et amender le Lot 1 §4.1, qui prescrit « séquentielle mono-teinte, désaturée » pour les absolus), ou l'appliquer.
-
-**Tranché en faveur de la rampe séquentielle** — voir §4.0. Le motif n'est pas doctrinal mais logique : le ré-ancrage par mois est **incompatible** avec une rampe à sémantique absolue, qui peindrait 12 °C en violet en juin et 12 °C en rouge en janvier. Le Lot 1 §4.1 se trouve donc respecté sans amendement, et les journalières gardent leur arc-en-ciel sans devenir une exception — les deux découlent de la même règle.
+Ce document **pousse ce constat à sa conclusion** : si les brutes sont redondantes avec leurs versions standardisées, elles n'ont pas à occuper une couche de carte. La famille « Absolu » du Lot 1 est donc **supprimée**, pas redessinée. Le §4.1 du Lot 1 est amendé en conséquence.
 
 ## 6. Tests
 
-- `climat-colors.test.ts` : domaine de juin ≠ domaine de janvier ; stops ordonnés et bornés au domaine du mois ; clamp hors domaine ; les variables non-température ignorent le paramètre `month`.
-- `PointPanel.test.tsx` : le bloc affiche P/ETP/bilan ; gère les `null` d'un mois partiel sans disparaître.
-- Non-régression : `'etp'` n'apparaît plus dans le picker ; les journalières et la précip sont inchangées.
+- `climat-colors.test.ts` : `CLIMAT_VARIABLE_ORDER` ne contient que les 3 indices ; les tests existants portant sur `'precipitation'` / `'temperature'` sont supprimés ; les tests journalières (`'tmax'`, `'tmean'`, `'tmin'`) et `climatBilanColorExpression` restent **inchangés**.
+- `VariablePicker.test.tsx` : la famille « Valeur absolue » n'est plus rendue ; les 3 indices et les 3 journalières le sont.
+- `PointPanel.test.tsx` : le bloc affiche T/P/ETP/bilan + la classe du bilan ; gère les `null` d'un mois partiel sans disparaître.
 - **`npm run build` obligatoire** : vitest ne typecheck pas — seul `tsc -b` attrape les erreurs de type, et c'est lui qui casse le build de l'image Docker et la CI (leçon du 2026-07-16).
 
 ## 7. Risques
 
-- **Faible.** Périmètre confiné : les 7 consommateurs de `climat-colors` sont tous dans `components/climat/` + `hooks/useClimatState` + `pages/ClimatPage`. Vérifié : **Pastas et Observatory n'importent pas `climat-colors`** (les occurrences `tmax`/`tmean` y sont des noms de séries d'entrée de modèle, sans rapport) → aucun risque de régression hors module.
-- Le retrait de `'etp'` du type `ClimatVariable` est attrapé à la compilation par `tsc` (union exhaustive) — toute occurrence oubliée casse le build plutôt que de passer en silence.
+- **Faible.** Périmètre confiné : les consommateurs de `climat-colors` sont tous dans `components/climat/` + `hooks/useClimatState` + `pages/ClimatPage`. Vérifié : **Pastas et Observatory n'importent pas `climat-colors`** (leurs occurrences `tmax`/`tmean` sont des noms de séries d'entrée de modèle, sans rapport) → aucune régression hors module.
+- Le rétrécissement du type `ClimatVariable` est attrapé à la compilation (union exhaustive).
+- **État par défaut : vérifié, aucun risque.** `useClimatState:9` initialise `useState<ClimatVariable>('spi')` — un `useState` simple, sans persistance URL ni localStorage. Aucune valeur retirée ne peut donc être restaurée au chargement, et aucun repli n'est nécessaire.
