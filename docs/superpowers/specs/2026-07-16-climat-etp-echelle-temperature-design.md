@@ -59,13 +59,34 @@ La classe du bilan (`déficit` / `équilibré` / `surplus`) réutilise `classify
 
 ## 4. Décision 2 — Température mensuelle : échelle climatologique par mois
 
-**Principe** : garder la rampe actuelle (mêmes couleurs → cohérence visuelle avec l'existant) et la **ré-ancrer sur le mois affiché**.
+**Principe** : **ré-ancrer le domaine sur le mois affiché**, et adapter le langage de couleur en conséquence.
+
+### 4.0 Règle transverse : le langage de couleur suit la sémantique du domaine
+
+C'est le cœur du design, et il corrige une incohérence détectée en relecture (l'ancienne §5.1) :
+
+> - **Domaine absolu fixe → couleurs à sémantique absolue** (rampe météo arc-en-ciel). Un jour à 35 °C est rouge, partout, toujours.
+> - **Domaine ré-ancré par mois → encodage relatif → rampe séquentielle**, pâle → soutenu. La couleur dit « plus frais / plus chaud *dans ce mois* » ; ce sont la **légende et le point** qui portent la valeur absolue.
+
+**Pourquoi c'est obligatoire, et pas une préférence** : ré-ancrer une rampe à sémantique absolue lui fait dire des faussetés. Avec la rampe actuelle ré-ancrée, juin [12, 26] peindrait **12 °C en violet** (couleur du grand froid) et **26 °C en magenta** (couleur du record) ; janvier [−2, 12] peindrait **12 °C en rouge**, alors que 12 °C en janvier est *doux*. Une rampe séquentielle mono-teinte n'a pas ce défaut : « pâle → soutenu » ne prétend rien sur le froid absolu.
+
+Cette règle **unifie** le module au lieu d'y créer des exceptions :
+
+| Couche | Domaine | Langage de couleur |
+|---|---|---|
+| `tmax` / `tmin` / `tmean` (journalières) | absolu fixe (−10→42) | arc-en-ciel météo — **inchangé, et désormais justifié** |
+| `temperature` (mensuelle) | ré-ancré par mois | **séquentielle mono-teinte** |
+| `precipitation` | absolu fixe (0→200) | séquentielle mono-teinte — inchangé |
+
+Elle **rend caduc** l'écart signalé face au Lot 1 §4.1 (« séquentielle mono-teinte, désaturée » pour la famille Absolu) : la mensuelle s'y conforme désormais, non par obéissance mais parce que le ré-ancrage l'exige. Aucun amendement du Lot 1 n'est nécessaire sur ce point.
 
 ```ts
-TEMP_RAMP_COLORS: string[]                        // la rampe, sans valeurs
+TEMP_RAMP_COLORS: string[]                        // rampe séquentielle mono-teinte, sans valeurs
 TEMP_MONTHLY_DOMAIN: Record<number, [number, number]>  // 1..12 → [min, max]
 climatTempStops(month: string): Array<[number, string]>
 ```
+
+**Choix des teintes** : rampe séquentielle chaude (« plus chaud = plus soutenu »), perceptuellement régulière et lisible en déficience de vision des couleurs — donc **pas** un dérivé de `jet`/arc-en-ciel, qui crée des bandes fantômes et n'est pas monotone en luminance. Les valeurs exactes des stops sont à fixer à l'implémentation **en s'appuyant sur le skill `dataviz`** (palettes séquentielles, validation du contraste) plutôt qu'à l'intuition.
 
 Les couleurs sont réparties uniformément sur `[min, max]` du mois calendaire extrait de `month` (`'YYYY-MM'`).
 
@@ -96,16 +117,11 @@ Le choix p5/p95 (et non min/max) évite qu'une seule maille extrême n'écrase l
 - SPI/STI, bilan hydrique en classes : livrés au Lot 1, **on ne touche pas**.
 - Agrégation par territoire, noms de lieux → **Lot 2** (spec dédié).
 
-### 5.1 Point ouvert (à trancher à la relecture)
+### 5.1 Point tranché (ex-point ouvert)
 
-Le Lot 1 (§4.1) prescrit pour la famille « Absolu » une échelle **« séquentielle mono-teinte, désaturée »**, afin qu'elle ne concurrence pas visuellement les indicateurs d'anomalie. Or la rampe `temperature` actuelle est un **arc-en-ciel** (violet→bleu→vert→jaune→orange→rouge→magenta) : cette partie du Lot 1 n'a apparemment pas été appliquée aux absolus.
+La première version de ce spec laissait ouvert le sort de la rampe `temperature` : garder l'arc-en-ciel (et amender le Lot 1 §4.1, qui prescrit « séquentielle mono-teinte, désaturée » pour les absolus), ou l'appliquer.
 
-Le présent design **ré-ancre le domaine sans retoucher les teintes** — il ne résout donc pas cet écart, il le laisse en l'état. Deux issues possibles, à choisir explicitement :
-
-- **(a)** Garder l'arc-en-ciel (statu quo, conforme aux conventions des cartes météo) et **amender le Lot 1 §4.1** pour acter que la température absolue y échappe.
-- **(b)** Appliquer le Lot 1 : passer la température absolue en séquentielle désaturée — cohérent avec la doctrine, mais s'éloigne des cartes météo usuelles et élargit le périmètre.
-
-Ne pas trancher laisserait une contradiction documentaire entre les deux specs.
+**Tranché en faveur de la rampe séquentielle** — voir §4.0. Le motif n'est pas doctrinal mais logique : le ré-ancrage par mois est **incompatible** avec une rampe à sémantique absolue, qui peindrait 12 °C en violet en juin et 12 °C en rouge en janvier. Le Lot 1 §4.1 se trouve donc respecté sans amendement, et les journalières gardent leur arc-en-ciel sans devenir une exception — les deux découlent de la même règle.
 
 ## 6. Tests
 
