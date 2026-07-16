@@ -95,8 +95,10 @@ Bilan du mois — juin 2026
 ```
 
 - **Mois affiché** : le dernier de la série (le plus récent), cohérent avec le titre « Bilan du mois ». `PointPanel` ne reçoit pas le mois de la carte et on **n'ajoute pas** de prop pour ça (YAGNI — la carte a son propre `MonthStepper`, le panneau est une fiche de lieu).
-- **Classe du bilan** : réutilise `classifyBilan` (`lib/climat-scale.ts`) + `SPI_CLASS_COLORS` — aucun nouveau système de classes.
-- **Valeurs `null`** (mois partiel) : `climatFormatValue` rend déjà `—`. Le bloc reste affiché.
+- **Classe du bilan** : réutilise `classifyBilan` (`lib/climat-scale.ts`) + les libellés i18n `climat.bilanClasses.*` + `SPI_CLASS_COLORS` — aucun nouveau système de classes.
+- **Formatage** : `climatFormatValue` **n'est pas utilisable ici** — il indexe `CLIMAT_VARIABLES[variable]`, or `temperature`/`precipitation`/`etp` quittent l'union (§3.1). Le bloc utilise un **formateur local** au PointPanel, qui rend `—` sur `null`/`NaN`.
+- **Valeurs `null`** (mois partiel) : chaque ligne rend `—` indépendamment ; le bloc reste affiché.
+- **Libellés i18n** : les clés `climat.variables.temperature` / `.etp` / `.bilanHydrique` **restent** dans `fr.json`/`en.json` (elles ne sont plus atteintes via `CLIMAT_VARIABLES` mais référencées directement). Ne pas les supprimer.
 
 `PrecipNormalChart` est **conservé** : c'est déjà le fait « précipitation » au point, sous forme de graphe vs normale.
 
