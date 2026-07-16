@@ -1901,7 +1901,9 @@
       "indexLabel": "Indice",
       "period5y": "5 ans",
       "period10y": "10 ans",
-      "periodMax": "Historique complet"
+      "periodMax": "Historique complet",
+      "balanceTitle": "Bilan du mois",
+      "balanceHint": "Valeurs mesurées sur la maille ERA5 la plus proche."
     },
     "episodes": {
       "title": "Épisodes de sécheresse",

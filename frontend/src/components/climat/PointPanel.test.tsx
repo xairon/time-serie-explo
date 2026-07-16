@@ -193,4 +193,39 @@ describe('PointPanel', () => {
     expect(screen.queryByText('-50 mm')).not.toBeInTheDocument()
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
+
+  it('affiche le bilan du mois avec les vraies valeurs du dernier mois', () => {
+    vi.mocked(useClimatPointSeries).mockReturnValue({
+      data: { series: [
+        { month: '2026-05', temperature_moyenne: 15.1, precipitation_totale: 70,
+          etp_totale: 90, bilan_hydrique: -20 },
+        { month: '2026-06', temperature_moyenne: 18.3, precipitation_totale: 40,
+          etp_totale: 120, bilan_hydrique: -80 },
+      ] },
+      isLoading: false, isError: false,
+    } as any)
+
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+
+    expect(screen.getByText('18.3 °C')).toBeInTheDocument()
+    expect(screen.getByText('40 mm')).toBeInTheDocument()
+    expect(screen.getByText('120 mm')).toBeInTheDocument()
+    expect(screen.getByText('−80 mm')).toBeInTheDocument()   // U+2212, pas un tiret ASCII
+    expect(screen.getByText('Déficit')).toBeInTheDocument()   // classifyBilan(-80) -> TRES_BAS
+  })
+
+  it('rend « — » sur les champs nuls d’un mois partiel sans masquer le bloc', () => {
+    vi.mocked(useClimatPointSeries).mockReturnValue({
+      data: { series: [
+        { month: '2026-07', temperature_moyenne: null, precipitation_totale: null,
+          etp_totale: null, bilan_hydrique: null },
+      ] },
+      isLoading: false, isError: false,
+    } as any)
+
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+
+    expect(screen.getByText('Bilan du mois')).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(4)
+  })
 })

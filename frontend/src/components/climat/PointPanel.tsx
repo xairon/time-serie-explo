@@ -4,6 +4,8 @@ import { X, Download } from 'lucide-react'
 import { useClimatPointSeries, useClimatPointEpisodes, EPISODES_WINDOW } from '@/hooks/useClimat'
 import { observatoryApi } from '@/lib/observatory-api'
 import { findCurrentEpisode, findLastEntryWithSpi } from '@/lib/climat-episodes'
+import { classifyBilan } from '@/lib/climat-scale'
+import { era5SpiClassColor } from '@/lib/era5-colors'
 import type { ClimatPointSeriesEntry } from '@/lib/observatory-types'
 import { PrecipNormalChart } from './PrecipNormalChart'
 import { ClimatIndexChart } from './ClimatIndexChart'
@@ -14,6 +16,21 @@ interface Props {
   lat: number
   lon: number
   onClose: () => void
+}
+
+/** Formateur local du bloc « bilan du mois ». `climatFormatValue` ne convient pas :
+ *  il indexe CLIMAT_VARIABLES, dont temperature/precipitation/etp ont été retirés
+ *  (ce ne sont plus des couches). Rend le vrai chiffre, ou — s'il manque. */
+function fmtValue(v: number | null | undefined, unit: string, digits = 0): string {
+  if (v == null || Number.isNaN(v)) return '—'
+  return `${v.toFixed(digits)} ${unit}`
+}
+
+/** Idem, mais signé avec un vrai U+2212 (cohérent avec climatFormatValue). */
+function fmtSigned(v: number | null | undefined, unit: string): string {
+  if (v == null || Number.isNaN(v)) return '—'
+  const s = Math.abs(Math.round(v)).toString()
+  return `${v < 0 ? `−${s}` : `+${s}`} ${unit}`
 }
 
 /** Point/Zone side panel (Task B2) — opened when a grid cell is clicked on the
@@ -36,6 +53,11 @@ export function PointPanel({ lat, lon, onClose }: Props) {
   }, [onClose])
 
   const series = pointData?.series ?? []
+  // Dernier mois de la série = le plus récent. Le panneau est une fiche de lieu :
+  // il ne suit pas le MonthStepper de la carte (pas de prop `month` — YAGNI).
+  const lastEntry = series.length > 0 ? series[series.length - 1] : undefined
+  const bilan = lastEntry?.bilan_hydrique
+  const bilanClass = bilan != null && !Number.isNaN(bilan) ? classifyBilan(bilan) : undefined
   // The series' last entry is usually the partial current month, which has no
   // SPI/STI yet (null) — scan backward for the last entry that actually has
   // spi_<indexWindow>, so the "ongoing" highlight doesn't silently go dead in
@@ -86,6 +108,40 @@ export function PointPanel({ lat, lon, onClose }: Props) {
 
           {!seriesLoading && !seriesError && (
             <>
+              {lastEntry && (
+                <div>
+                  <h3 className="text-sm font-semibold text-text-primary mb-2">
+                    {t('climat.pointPanel.balanceTitle')}
+                  </h3>
+                  <dl className="rounded-lg border border-white/10 divide-y divide-white/5">
+                    {[
+                      { k: 'climat.variables.temperature', v: fmtValue(lastEntry.temperature_moyenne, '°C', 1) },
+                      { k: 'climat.variables.precipitation', v: fmtValue(lastEntry.precipitation_totale, 'mm') },
+                      { k: 'climat.variables.etp', v: fmtValue(lastEntry.etp_totale, 'mm') },
+                    ].map(({ k, v }) => (
+                      <div key={k} className="flex items-center justify-between px-3 py-1.5">
+                        <dt className="text-xs text-text-secondary">{t(k)}</dt>
+                        <dd className="text-xs font-medium text-text-primary tabular-nums">{v}</dd>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-3 py-1.5">
+                      <dt className="text-xs text-text-secondary">{t('climat.variables.bilanHydrique')}</dt>
+                      <dd className="text-xs font-medium text-text-primary tabular-nums flex items-center gap-1.5">
+                        {fmtSigned(bilan, 'mm')}
+                        {bilanClass && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: `${era5SpiClassColor(bilanClass)}33`, color: era5SpiClassColor(bilanClass) }}
+                          >
+                            {t(`climat.bilanClasses.${bilanClass}`, { defaultValue: bilanClass })}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-[10px] text-text-secondary mt-1">{t('climat.pointPanel.balanceHint')}</p>
+                </div>
+              )}
               <PrecipNormalChart series={series} />
               <ClimatIndexChart series={series} window={indexWindow} onWindowChange={setIndexWindow} />
               <div>

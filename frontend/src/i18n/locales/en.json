@@ -1901,7 +1901,9 @@
       "indexLabel": "Index",
       "period5y": "5 years",
       "period10y": "10 years",
-      "periodMax": "Full history"
+      "periodMax": "Full history",
+      "balanceTitle": "Monthly balance",
+      "balanceHint": "Values measured on the nearest ERA5 cell."
     },
     "episodes": {
       "title": "Drought episodes",
