@@ -83,7 +83,6 @@ export function ClimatLegend({ variable, window, month, incomplete }: Props) {
         <div className="h-2.5 rounded" style={{ background: climatGradientCss(variable) }} />
         <div className="relative flex justify-between text-[9px] text-text-secondary mt-0.5">
           <span>{String(minVal).replace('-', '−')} {cfg.unit}</span>
-          {variable === 'bilan_hydrique' && <span className="absolute left-1/2 -translate-x-1/2">0</span>}
           <span>+{maxVal} {cfg.unit}</span>
         </div>
       </div>
