@@ -39,7 +39,7 @@ function fmtSigned(v: number | null | undefined, unit: string): string {
  *  (ClimatIndexChart), drought episodes (EpisodesTable), a direct CSV export link,
  *  and the Comparaison section (CompareYearsSection, Task B3). */
 export function PointPanel({ lat, lon, onClose }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data: pointData, isLoading: seriesLoading, isError: seriesError } = useClimatPointSeries(lat, lon)
   // Window selector lives here (not inside ClimatIndexChart) so the episodes table
   // below follows the same window the SPI/STI chart is showing (Task C3).
@@ -57,7 +57,19 @@ export function PointPanel({ lat, lon, onClose }: Props) {
   // il ne suit pas le MonthStepper de la carte (pas de prop `month` — YAGNI).
   const lastEntry = series.length > 0 ? series[series.length - 1] : undefined
   const bilan = lastEntry?.bilan_hydrique
-  const bilanClass = bilan != null && !Number.isNaN(bilan) ? classifyBilan(bilan) : undefined
+  // `mois_complet === false` (strict — `null` means "unknown", not "incomplete")
+  // flags the last entry as the partial current month. classifyBilan's bands are
+  // calibrated on a FULL month's P−ETP: feeding it a partial cumulative would
+  // fabricate a class (the invented-indicator the module's doctrine forbids), so
+  // the class is suppressed while the raw running total is still shown as-is.
+  const bilanIncomplete = lastEntry?.mois_complet === false
+  const bilanClass = bilan != null && !Number.isNaN(bilan) && !bilanIncomplete ? classifyBilan(bilan) : undefined
+  const balanceMonthMatch = lastEntry?.month.match(/^(\d{4})-(\d{2})/)
+  const balanceMonthLabel = balanceMonthMatch
+    ? new Intl.DateTimeFormat(i18n.language, { month: 'short', year: 'numeric' }).format(
+        new Date(Number(balanceMonthMatch[1]), Number(balanceMonthMatch[2]) - 1, 1),
+      )
+    : (lastEntry?.month ?? '')
   // The series' last entry is usually the partial current month, which has no
   // SPI/STI yet (null) — scan backward for the last entry that actually has
   // spi_<indexWindow>, so the "ongoing" highlight doesn't silently go dead in
@@ -111,8 +123,11 @@ export function PointPanel({ lat, lon, onClose }: Props) {
               {lastEntry && (
                 <div>
                   <h3 className="text-sm font-semibold text-text-primary mb-2">
-                    {t('climat.pointPanel.balanceTitle')}
+                    {t('climat.pointPanel.balanceTitle', { month: balanceMonthLabel })}
                   </h3>
+                  {bilanIncomplete && (
+                    <div className="text-[10px] font-semibold text-amber-400 mb-1">{t('climat.legend.incompleteMonth')}</div>
+                  )}
                   <dl className="rounded-lg border border-white/10 divide-y divide-white/5">
                     {[
                       { k: 'climat.variables.temperature', v: fmtValue(lastEntry.temperature_moyenne, '°C', 1) },

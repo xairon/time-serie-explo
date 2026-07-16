@@ -1902,7 +1902,7 @@
       "period5y": "5 ans",
       "period10y": "10 ans",
       "periodMax": "Historique complet",
-      "balanceTitle": "Bilan du mois",
+      "balanceTitle": "Bilan du mois — {{month}}",
       "balanceHint": "Valeurs mesurées sur la maille ERA5 la plus proche."
     },
     "episodes": {

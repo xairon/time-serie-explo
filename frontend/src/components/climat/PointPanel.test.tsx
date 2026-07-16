@@ -215,7 +215,7 @@ describe('PointPanel', () => {
     expect(screen.getByText('Déficit')).toBeInTheDocument()   // classifyBilan(-80) -> TRES_BAS
   })
 
-  it('rend « — » sur les champs nuls d’un mois partiel sans masquer le bloc', () => {
+  it('rend « — » sur les champs nuls sans masquer le bloc', () => {
     vi.mocked(useClimatPointSeries).mockReturnValue({
       data: { series: [
         { month: '2026-07', temperature_moyenne: null, precipitation_totale: null,
@@ -227,7 +227,30 @@ describe('PointPanel', () => {
 
     render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
 
-    expect(screen.getByText('Bilan du mois')).toBeInTheDocument()
+    expect(screen.getByText('Bilan du mois — juil. 2026')).toBeInTheDocument()
     expect(screen.getAllByText('—')).toHaveLength(4)
+  })
+
+  it('signale un mois partiel réel (mois_complet: false) sans afficher la classe du bilan', () => {
+    // Cas réel (capturé en prod le 2026-07-16) : le mois courant a de vraies
+    // valeurs cumulées (pas des null) mais mois_complet=false — la valeur du
+    // bilan doit rester visible (un cumul réel est une vraie valeur) tandis que
+    // la classe ("Déficit"), calibrée sur un P−ETP de mois complet, doit
+    // disparaître pour ne pas fabriquer un indicateur sur un demi-mois.
+    vi.mocked(useClimatPointSeries).mockReturnValue({
+      data: { series: [
+        { month: '2026-07', temperature_moyenne: 24.9, precipitation_totale: 0,
+          etp_totale: 119, bilan_hydrique: -118, mois_complet: false },
+      ] },
+      isLoading: false, isError: false,
+    } as any)
+    mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
+
+    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+
+    expect(screen.getByText('Bilan du mois — juil. 2026')).toBeInTheDocument()
+    expect(screen.getByText('Mois incomplet')).toBeInTheDocument()
+    expect(screen.getByText('−118 mm')).toBeInTheDocument()
+    expect(screen.queryByText('Déficit')).not.toBeInTheDocument()
   })
 })

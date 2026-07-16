@@ -1902,7 +1902,7 @@
       "period5y": "5 years",
       "period10y": "10 years",
       "periodMax": "Full history",
-      "balanceTitle": "Monthly balance",
+      "balanceTitle": "Monthly balance — {{month}}",
       "balanceHint": "Values measured on the nearest ERA5 cell."
     },
     "episodes": {

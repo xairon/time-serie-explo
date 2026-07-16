@@ -69,13 +69,8 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
   },
 }
 
-/** Ordered for the picker UI: SPI first (default), then STI, then the water balance.
- *  Les valeurs absolues mensuelles (précip/température/ETP) ne sont plus des couches :
- *  une carte porte un indicateur, un nombre porte la valeur (cf. spec 2026-07-16). */
-export const CLIMAT_VARIABLE_ORDER: ClimatVariable[] = ['spi', 'sti', 'bilan_hydrique']
-
 /** Ordered for the picker UI's separate "Températures journalières" section (Tx/Tn/Tmoy) —
- *  kept apart from CLIMAT_VARIABLE_ORDER so the monthly picker stays uncluttered. */
+ *  kept apart from the monthly variables so the monthly picker stays uncluttered. */
 export const DAILY_TEMP_VARIABLE_ORDER: ClimatVariable[] = ['tmax', 'tmin', 'tmean']
 
 export const CLIMAT_WINDOWS = [1, 3, 6, 12] as const
