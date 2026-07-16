@@ -204,6 +204,7 @@ describe('PointPanel', () => {
       ] },
       isLoading: false, isError: false,
     } as any)
+    mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
 
     render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
 
@@ -222,6 +223,7 @@ describe('PointPanel', () => {
       ] },
       isLoading: false, isError: false,
     } as any)
+    mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
 
     render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
 
