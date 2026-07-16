@@ -1852,7 +1852,6 @@
       "dailyTempLabel": "Températures journalières",
       "dailyTempInfo": "Réanalyse ERA5 — disponible à J-7, ce n'est pas une prévision",
       "familyAnomaly": "Anomalie",
-      "familyAbsolute": "Valeur absolue",
       "window1": "Court terme (1 mois)",
       "window3": "Saisonnier (3 mois)",
       "window6": "Long terme (6 mois)",

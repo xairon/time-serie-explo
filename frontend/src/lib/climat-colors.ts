@@ -1,14 +1,13 @@
 // Colour scales for the Climat module (Lot 2) — variable picker on the Situation view.
 // SPI/STI reuse the existing 7-class McKee palette from era5-colors.ts (same thresholds,
 // same warehouse classification via api/era5_anomaly.py::classify_index — no duplication
-// of the class→colour mapping). The raw variables (temperature/precipitation/etp/bilan
-// hydrique) get their own monthly-scaled gradients here because the Climat endpoints
-// (api/routers/observatory_climat.py) return a generic `value` property, not the
-// per-field shape used by the Observatory overlay's ERA5GridPoint.
+// of the class→colour mapping). Le bilan hydrique et les températures journalières
+// (Tx/Tn/Tmoy) gardent leurs échelles ici car les endpoints Climat
+// (api/routers/observatory_climat.py) renvoient une propriété générique `value`.
 import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } from './era5-colors'
 
 export type ClimatVariable =
-  | 'spi' | 'sti' | 'bilan_hydrique' | 'precipitation' | 'temperature' | 'etp'
+  | 'spi' | 'sti' | 'bilan_hydrique'
   | 'tmax' | 'tmin' | 'tmean'
 
 export type ClimatVariableKind = 'index' | 'raw' | 'daily'
@@ -17,7 +16,7 @@ export interface ClimatVarConfig {
   key: ClimatVariable
   kind: ClimatVariableKind
   /** `variable` query param for GET /observatory/climat/grid-monthly (raw vars only). */
-  monthlyParam?: 'temperature' | 'precipitation' | 'etp' | 'bilan_hydrique'
+  monthlyParam?: 'bilan_hydrique'
   /** `variable` query param for GET /observatory/climat/daily-temp (daily vars only). */
   dailyParam?: 'tmax' | 'tmin' | 'tmean'
   unit: string
@@ -56,21 +55,6 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
     // Climatic water balance P − ETP (mm/month). Divergent: deficit = red/brown, surplus = blue.
     stops: [[-150, '#b2182b'], [-75, '#ef8a62'], [-20, '#fddbc7'], [0, '#f7f7f7'], [20, '#d1e5f0'], [75, '#67a9cf'], [150, '#2166ac']],
   },
-  precipitation: {
-    key: 'precipitation', kind: 'raw', monthlyParam: 'precipitation',
-    unit: 'mm', labelKey: 'climat.variables.precipitation',
-    stops: [[0, '#f7fbff'], [20, '#c6dbef'], [60, '#6baed6'], [120, '#2171b5'], [200, '#08306b']],
-  },
-  temperature: {
-    key: 'temperature', kind: 'raw', monthlyParam: 'temperature',
-    unit: '°C', labelKey: 'climat.variables.temperature',
-    stops: [[-10, '#3b2d8c'], [-5, '#3d6fd0'], [0, '#4aa3e0'], [5, '#7fd0e8'], [10, '#9fdfa8'], [15, '#e6e36a'], [20, '#f4b942'], [25, '#ef7d2f'], [30, '#df3b2c'], [35, '#c01f8a']],
-  },
-  etp: {
-    key: 'etp', kind: 'raw', monthlyParam: 'etp',
-    unit: 'mm', labelKey: 'climat.variables.etp',
-    stops: [[0, '#fff5eb'], [30, '#fdbe85'], [60, '#fd8d3c'], [100, '#e6550d'], [150, '#a63603']],
-  },
   tmax: {
     key: 'tmax', kind: 'daily', dailyParam: 'tmax',
     unit: '°C', labelKey: 'climat.variables.tmax',
@@ -88,10 +72,10 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
   },
 }
 
-/** Ordered for the picker UI: SPI first (default, per plan), then STI, then the raw variables. */
-export const CLIMAT_VARIABLE_ORDER: ClimatVariable[] = [
-  'spi', 'sti', 'bilan_hydrique', 'precipitation', 'temperature', 'etp',
-]
+/** Ordered for the picker UI: SPI first (default), then STI, then the water balance.
+ *  Les valeurs absolues mensuelles (précip/température/ETP) ne sont plus des couches :
+ *  une carte porte un indicateur, un nombre porte la valeur (cf. spec 2026-07-16). */
+export const CLIMAT_VARIABLE_ORDER: ClimatVariable[] = ['spi', 'sti', 'bilan_hydrique']
 
 /** Ordered for the picker UI's separate "Températures journalières" section (Tx/Tn/Tmoy) —
  *  kept apart from CLIMAT_VARIABLE_ORDER so the monthly picker stays uncluttered. */

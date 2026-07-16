@@ -6,11 +6,17 @@ import { VariablePicker } from './VariablePicker'
 describe('VariablePicker', () => {
   beforeAll(async () => { await i18n.changeLanguage('fr') })
 
-  it('renders all 6 climat variables with SPI first', () => {
+  it('renders only the 3 index variables, SPI first, and no absolute family', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
-    const radios = screen.getAllByRole('radio', { name: /SPI|STI|Bilan|Précip|Température|ETP/ })
-    expect(radios.length).toBeGreaterThanOrEqual(6)
-    expect(screen.getByText('SPI (précipitations)')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'STI (température)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Bilan hydrique' })).toBeInTheDocument()
+    // La famille « Valeur absolue » a été retirée (doctrine : cartes = indicateurs).
+    expect(screen.queryByRole('radio', { name: 'Précipitations' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Température' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'ETP' })).not.toBeInTheDocument()
+    // Les journalières restent (domaine absolu fixe, cf. spec §2.1).
+    expect(screen.getByRole('radio', { name: 'Tx (max)' })).toBeInTheDocument()
   })
 
   it('marks the active variable as checked', () => {
@@ -37,7 +43,7 @@ describe('VariablePicker', () => {
   })
 
   it('hides the window selector for raw variables', () => {
-    render(<VariablePicker variable="precipitation" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    render(<VariablePicker variable="bilan_hydrique" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.queryByText('Fenêtre')).not.toBeInTheDocument()
   })
 
@@ -70,10 +76,10 @@ describe('VariablePicker', () => {
     expect(onVariableChange).toHaveBeenCalledWith('tmin')
   })
 
-  it('groupe les variables en Anomalie et Absolu', () => {
+  it('groupe les variables sous Anomalie, sans famille Absolu', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByText('Anomalie')).toBeInTheDocument()
-    expect(screen.getByText('Valeur absolue')).toBeInTheDocument()
+    expect(screen.queryByText('Valeur absolue')).not.toBeInTheDocument()
   })
 
   it('labellise les fenêtres SPI (court terme / saisonnier / long terme / nappe)', () => {

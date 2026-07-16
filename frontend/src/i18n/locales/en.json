@@ -1852,7 +1852,6 @@
       "dailyTempLabel": "Daily temperatures",
       "dailyTempInfo": "ERA5 reanalysis — available at D-7, this is not a forecast",
       "familyAnomaly": "Anomaly",
-      "familyAbsolute": "Absolute value",
       "window1": "Short term (1 month)",
       "window3": "Seasonal (3 months)",
       "window6": "Long term (6 months)",

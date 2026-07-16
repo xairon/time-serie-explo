@@ -66,8 +66,8 @@ describe('isClimatDailyVariable / isClimatIndexVariable', () => {
   })
 
   it('classifies the monthly raw variables as neither index nor daily', () => {
-    expect(isClimatDailyVariable('temperature')).toBe(false)
-    expect(isClimatIndexVariable('temperature')).toBe(false)
+    expect(isClimatDailyVariable('bilan_hydrique')).toBe(false)
+    expect(isClimatIndexVariable('bilan_hydrique')).toBe(false)
   })
 })
 

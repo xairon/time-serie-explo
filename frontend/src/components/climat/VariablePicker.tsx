@@ -14,10 +14,11 @@ interface Props {
 }
 
 /** SPI/STI/bilan hydrique are deviations from a 1991-2020 normal — "is this month
- *  unusual?". Kept in their own family, visually separated from the raw physical
- *  quantities below (precipitation/temperature/etp — "what actually happened?"). */
+ *  unusual?". Ce sont les seules couches mensuelles : les valeurs absolues
+ *  (précipitation/température/ETP) sont des CHIFFRES dans le PointPanel, pas des
+ *  cartes (cf. spec 2026-07-16 — une carte porte un indicateur, un nombre porte
+ *  la valeur). Les journalières ci-dessous font exception : domaine absolu fixe. */
 const ANOMALY_VARS: ClimatVariable[] = ['spi', 'sti', 'bilan_hydrique']
-const ABSOLUTE_VARS: ClimatVariable[] = ['precipitation', 'temperature', 'etp']
 
 /** Variable + window picker for the Climat Situation view. Window selector only
  *  applies to SPI/STI (the raw variables have no rolling-window concept here). */
@@ -56,7 +57,6 @@ export function VariablePicker({ variable, onVariableChange, window, onWindowCha
   return (
     <div className="bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg p-2 shadow-lg flex flex-col gap-2">
       {renderVariableGroup(ANOMALY_VARS, 'climat.picker.familyAnomaly')}
-      {renderVariableGroup(ABSOLUTE_VARS, 'climat.picker.familyAbsolute')}
       <div
         className="flex flex-wrap items-center gap-1 border-t border-white/10 pt-2"
         role="radiogroup"
