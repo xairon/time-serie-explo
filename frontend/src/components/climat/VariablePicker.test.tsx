@@ -56,7 +56,7 @@ describe('VariablePicker', () => {
 
   it('renders the daily-temp section with Tx/Tn/T moy', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
-    expect(screen.getByText('Températures journalières')).toBeInTheDocument()
+    expect(screen.getByText('Données journalières')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Tx (max)' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Tn (min)' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'T moy' })).toBeInTheDocument()
@@ -86,5 +86,10 @@ describe('VariablePicker', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByRole('radio', { name: /Court terme/ })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Nappe/ })).toBeInTheDocument()
+  })
+
+  it('propose la pluie parmi les journalières', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByRole('radio', { name: 'Pluie (jour)' })).toBeInTheDocument()
   })
 })

@@ -1845,12 +1845,12 @@
       "tmax": "Tx (max)",
       "tmin": "Tn (min)",
       "tmean": "T moy",
-      "precipDaily": "Pluie journalière"
+      "precipDaily": "Pluie (jour)"
     },
     "picker": {
       "variableLabel": "Variable",
       "windowLabel": "Fenêtre",
-      "dailyTempLabel": "Températures journalières",
+      "dailyTempLabel": "Données journalières",
       "dailyTempInfo": "Réanalyse ERA5 — disponible à J-7, ce n'est pas une prévision",
       "familyAnomaly": "Anomalie",
       "window1": "Court terme (1 mois)",
@@ -1866,7 +1866,8 @@
     },
     "legend": {
       "window": "Fenêtre {{n}} mois",
-      "incompleteMonth": "Mois incomplet"
+      "incompleteMonth": "Mois incomplet",
+      "precipDryClass": "< 0,1"
     },
     "bilanClasses": {
       "EXTREMEMENT_BAS": "Déficit sévère",

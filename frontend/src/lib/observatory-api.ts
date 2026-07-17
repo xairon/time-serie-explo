@@ -144,6 +144,9 @@ export const observatoryApi = {
     dailyTemp: (date: string, variable: 'tmax' | 'tmin' | 'tmean') =>
       fetchJson<ClimatDailyTempPoint[]>('/observatory/climat/daily-temp', { date, variable }),
     dailyTempRange: () => fetchJson<ClimatDailyTempRange>('/observatory/climat/daily-temp-range'),
+    dailyPrecip: (date: string) =>
+      fetchJson<ClimatDailyTempPoint[]>('/observatory/climat/daily-precip', { date }),
+    dailyPrecipRange: () => fetchJson<ClimatDailyTempRange>('/observatory/climat/daily-precip-range'),
     // Point/Zone view (Task B2) — full history + drought episodes for the grid cell
     // nearest to lat/lon (rounded to 0.1° server-side).
     pointSeries: (lat: number, lon: number) =>

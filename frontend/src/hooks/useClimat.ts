@@ -83,6 +83,27 @@ export function useClimatDailyTemp(
   })
 }
 
+/** Bornes de dates de la couche pluie — endpoint distinct de la température :
+ *  les couvertures divergent (mesuré : temp 2026-07-10, pluie 2026-07-12). */
+export function useClimatDailyPrecipRange(enabled = true) {
+  return useQuery({
+    queryKey: ['climat', 'daily-precip-range'],
+    queryFn: () => observatoryApi.climat.dailyPrecipRange(),
+    enabled,
+    staleTime: DAILY_TEMP_RANGE_STALE_TIME,
+  })
+}
+
+/** Cumul de pluie journalier par maille (mm) pour une date. */
+export function useClimatDailyPrecip(day: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['climat', 'daily-precip', day],
+    queryFn: () => observatoryApi.climat.dailyPrecip(day!),
+    enabled: enabled && !!day,
+    staleTime: CLIMAT_STALE_TIME,
+  })
+}
+
 /** Territory-wide synthesis (7-class breakdown, % drought, driest-since-year, top-5 driest cells). */
 export function useClimatSituationSummary(month: string | undefined, window: number, enabled: boolean) {
   return useQuery({

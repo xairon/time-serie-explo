@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { CLIMAT_VARIABLES, climatGradientCss, climatRawDomain, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
+import { CLIMAT_VARIABLES, climatGradientCss, climatRawDomain, isClimatIndexVariable, isClimatDailyVariable, PRECIP_DAILY_BOUNDS, PRECIP_DAILY_COLORS } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
 import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } from '@/lib/era5-colors'
 import { formatDayLabel } from '@/lib/climat-day-stepper'
@@ -66,6 +66,32 @@ export function ClimatLegend({ variable, window, month, incomplete }: Props) {
               <span className="text-[9px] text-text-secondary">{t(`climat.bilanClasses.${cls}`, { defaultValue: cls })}</span>
             </div>
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (variable === 'precip_daily') {
+    // Bornes en mm, sans noms de classes : contrairement au SPI (où « Très sec »
+    // porte l'information, le z-score étant illisible), ici la valeur EST le sens.
+    return (
+      <div className="absolute bottom-4 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none" style={{ maxWidth: '190px' }}>
+        <div className="text-xs font-semibold text-text-primary leading-tight">{t(cfg.labelKey)}</div>
+        <div className="text-[10px] text-text-secondary mt-0.5">{periodLabel}</div>
+        <div className="mt-1.5 space-y-0.5">
+          {[...PRECIP_DAILY_COLORS].map((color, i) => {
+            const label = i === 0
+              ? t('climat.legend.precipDryClass')
+              : i === PRECIP_DAILY_COLORS.length - 1
+                ? `≥ ${PRECIP_DAILY_BOUNDS[i - 1]}`
+                : `${PRECIP_DAILY_BOUNDS[i - 1]} – ${PRECIP_DAILY_BOUNDS[i]}`
+            return (
+              <div key={color} className="flex items-center gap-1.5">
+                <span className="w-3 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                <span className="text-[9px] text-text-secondary">{label} {cfg.unit}</span>
+              </div>
+            )
+          }).reverse()}
         </div>
       </div>
     )

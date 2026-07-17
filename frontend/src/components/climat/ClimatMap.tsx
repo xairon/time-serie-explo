@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { climatMonthlyToSquares, climatIndicesToSquares, climatDailyTempToSquares, climatSelectedCellSquare } from '@/lib/climat-grid'
-import { climatRawColorExpression, climatIndexColorExpression, climatBilanColorExpression, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
+import { climatRawColorExpression, climatIndexColorExpression, climatBilanColorExpression, climatPrecipDailyColorExpression, isClimatIndexVariable, isClimatDailyVariable } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
 import type { ClimatMonthlyPoint, ClimatIndexPoint, ClimatDailyTempPoint } from '@/lib/observatory-types'
 import type { SelectedCell } from '@/hooks/useClimat'
@@ -94,7 +94,9 @@ export function ClimatMap({ variable, monthlyPoints, indexPoints, dailyPoints, o
         ? climatIndexColorExpression(variable as 'spi' | 'sti') as any
         : variable === 'bilan_hydrique'
           ? climatBilanColorExpression() as any
-          : climatRawColorExpression(variable) as any,
+          : variable === 'precip_daily'
+            ? climatPrecipDailyColorExpression() as any
+            : climatRawColorExpression(variable) as any,
     )
   }, [mapLoaded, variable, monthlyPoints, indexPoints, dailyPoints])
 

@@ -1845,12 +1845,12 @@
       "tmax": "Tx (max)",
       "tmin": "Tn (min)",
       "tmean": "T avg",
-      "precipDaily": "Daily rainfall"
+      "precipDaily": "Rainfall (day)"
     },
     "picker": {
       "variableLabel": "Variable",
       "windowLabel": "Window",
-      "dailyTempLabel": "Daily temperatures",
+      "dailyTempLabel": "Daily data",
       "dailyTempInfo": "ERA5 reanalysis — available at D-7, this is not a forecast",
       "familyAnomaly": "Anomaly",
       "window1": "Short term (1 month)",
@@ -1866,7 +1866,8 @@
     },
     "legend": {
       "window": "{{n}}-month window",
-      "incompleteMonth": "Incomplete month"
+      "incompleteMonth": "Incomplete month",
+      "precipDryClass": "< 0.1"
     },
     "bilanClasses": {
       "EXTREMEMENT_BAS": "Severe deficit",

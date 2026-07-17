@@ -10,7 +10,7 @@ import { DailyTempBanner } from '@/components/climat/DailyTempBanner'
 import { PointPanel } from '@/components/climat/PointPanel'
 import {
   useClimatGridMonthly, useClimatGridIndices, useClimatSituationSummary, useClimatRange, useSelectedCellParam,
-  useClimatDailyTempRange, useClimatDailyTemp,
+  useClimatDailyTempRange, useClimatDailyTemp, useClimatDailyPrecip, useClimatDailyPrecipRange,
 } from '@/hooks/useClimat'
 import { useClimatState } from '@/hooks/useClimatState'
 import { CLIMAT_VARIABLES } from '@/lib/climat-colors'
@@ -35,10 +35,13 @@ export default function ClimatPage() {
     if (range?.max_indices_month && !s.month) s.setMonth(range.max_indices_month.slice(0, 7))
   }, [range, s.month])
 
-  // Daily-temp layer (Tx/Tn/Tmoy) — separate date bounds from the monthly range
-  // above: coverage is partial (nightly J-7 ingestion + an independent
-  // 1950-2025 backfill still running), default day = the most recent covered.
-  const { data: dailyRange } = useClimatDailyTempRange()
+  // Les deux couches journalières ont des couvertures DIFFÉRENTES (mesuré :
+  // température -> 2026-07-10, pluie -> 2026-07-12) : chacune sa plage, sinon le
+  // DayStepper masquerait les jours de pluie les plus récents.
+  const isPrecipDaily = s.variable === 'precip_daily'
+  const { data: tempRange } = useClimatDailyTempRange()
+  const { data: precipRange } = useClimatDailyPrecipRange()
+  const dailyRange = isPrecipDaily ? precipRange : tempRange
   useEffect(() => {
     if (dailyRange?.max_date && !s.day) s.setDay(resolveDefaultDay(dailyRange.max_date))
   }, [dailyRange, s.day])
@@ -58,9 +61,16 @@ export default function ClimatPage() {
   const { data: indexPoints, isLoading: indexLoading } = useClimatGridIndices(
     s.month, s.window, s.variable as 'spi' | 'sti', s.isIndex && !!s.month,
   )
-  const { data: dailyPoints, isLoading: dailyLoading } = useClimatDailyTemp(
-    s.day, dailyParam ?? 'tmax', s.isDaily && !!s.day,
+  // Les deux couches journalières lisent des tables différentes (mart température
+  // vs stg_era5_timeseries) : deux hooks, dont un seul est activé à la fois.
+  const { data: tempPoints, isLoading: tempLoading } = useClimatDailyTemp(
+    s.day, dailyParam ?? 'tmax', s.isDaily && !isPrecipDaily && !!s.day,
   )
+  const { data: precipPoints, isLoading: precipLoading } = useClimatDailyPrecip(
+    s.day, s.isDaily && isPrecipDaily,
+  )
+  const dailyPoints = isPrecipDaily ? precipPoints : tempPoints
+  const dailyLoading = isPrecipDaily ? precipLoading : tempLoading
   const { data: summary, isLoading: summaryLoading } = useClimatSituationSummary(s.month, s.window, !s.isDaily && !!s.month)
 
   const gridLoading = s.isDaily ? dailyLoading : s.isIndex ? indexLoading : monthlyLoading
