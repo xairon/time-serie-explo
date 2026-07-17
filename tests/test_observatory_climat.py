@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 from fastapi import HTTPException
 
+from api.era5_anomaly import DROUGHT_SPI_THRESHOLD, _STI_THRESHOLDS
 from api.routers.observatory_climat import (
     router,
     _parse_month,
@@ -193,10 +194,39 @@ class TestBuildSituationSummary:
         assert out["n_cells"] == 8
         assert abs(sum(out["classes_pct"].values()) - 100.0) < 1e-6
 
-    def test_pct_secheresse_counts_spi_below_minus_one(self):
-        spis = [-2.0, -1.5, -0.5, 0.0]  # 2 of 4 are < -1
+    def test_pct_secheresse_is_readable_off_the_class_bar(self):
+        """Le % du bandeau doit se retrouver à l'œil sur la barre de synthèse :
+        il vaut exactement la somme des 3 classes les plus sèches. L'ancien seuil
+        -1.0 coupait au milieu de la classe BAS ([-1.28, -0.84)), ce qui rendait
+        le % invérifiable contre la légende affichée juste à côté."""
+        # -0.9 est « Modérément sec » (BAS) tout en étant > -1.0 : c'est lui qui
+        # sépare l'ancien seuil du nouveau (ancien -> 33.33 %, nouveau -> 50 %).
+        spis = [-2.0, -1.5, -0.9, -0.5, 0.0, 1.0]
         out = _build_situation_summary(self._rows(spis), [], date(2026, 6, 1), 3)
-        assert out["pct_secheresse"] == 50.0
+        cp = out["classes_pct"]
+        dry_classes = cp["EXTREMEMENT_BAS"] + cp["TRES_BAS"] + cp["BAS"]
+        # Tolérance : chaque classe est arrondie INDÉPENDAMMENT à 2 décimales, donc la
+        # somme des arrondis dérive de l'arrondi de la somme (ici 16.67*3 = 50.01 vs
+        # 50.0). L'écart est borné par 3 * 0.005 et invisible à l'affichage — mais il
+        # existe, et l'égalité stricte serait fausse.
+        assert out["pct_secheresse"] == pytest.approx(dry_classes, abs=0.02)
+        assert out["pct_secheresse"] == pytest.approx(50.0)  # 3 cellules sur 6
+
+    def test_pct_secheresse_excludes_the_normal_boundary_exactly(self):
+        """-0.84 appartient à NORMAL (convention lo <= z < hi de classify_index),
+        donc il ne compte PAS comme sécheresse. Sans ça, le % dépasserait la somme
+        des classes sèches et l'invariant ci-dessus casserait au bord."""
+        out = _build_situation_summary(self._rows([-0.84, -0.85]), [], date(2026, 6, 1), 3)
+        assert out["classes_pct"]["NORMAL"] == 50.0
+        assert out["classes_pct"]["BAS"] == 50.0
+        assert out["pct_secheresse"] == 50.0  # seul -0.85 compte
+
+    def test_drought_threshold_is_the_normal_class_lower_boundary(self):
+        """Le seuil n'est pas un nombre libre : c'est la frontière basse de la
+        classe NORMAL, donc une limite visible sur la légende. Ce test casse si
+        quelqu'un déplace l'un sans l'autre."""
+        normal_lo = next(lo for lo, _hi, cls in _STI_THRESHOLDS if cls == "NORMAL")
+        assert DROUGHT_SPI_THRESHOLD == normal_lo
 
     def test_top5_returns_the_five_driest_cells_sorted_ascending(self):
         spis = [0.5, -3.0, -1.0, -2.5, 1.0, -0.2, -2.0]

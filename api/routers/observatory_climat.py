@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 
 from api.database import get_brgm_sync_engine
-from api.era5_anomaly import classify_index
+from api.era5_anomaly import classify_index, DROUGHT_SPI_THRESHOLD
 from dashboard.utils.cache import get_cached
 
 router = APIRouter(prefix="/api/v1/observatory/climat", tags=["observatory-climat"])
@@ -90,8 +90,14 @@ def _validate_window(window: int) -> None:
 
 
 def _build_situation_summary(rows, year_rows, month_start: DateType, window: int) -> dict:
-    """Pure aggregation: 7-class WMO breakdown, % en sécheresse, rang du mois vs.
-    l'historique, top-5 des cellules les plus sèches.
+    """Pure aggregation: 7-class WMO breakdown, part du territoire ≤ Modérément sec,
+    rang du mois vs. l'historique, top-5 des cellules les plus sèches.
+
+    ``pct_secheresse`` compte les cellules sous DROUGHT_SPI_THRESHOLD (-0.84), la
+    frontière basse de NORMAL : le chiffre est donc la somme des 3 classes les plus
+    sèches, vérifiable à l'œil sur la barre de distribution (à l'arrondi près, chaque
+    classe étant arrondie indépendamment). Rien à voir avec le seuil d'ÉVÉNEMENT des
+    épisodes (-1.0, définition WMO — cf. _build_drought_episodes).
 
     Args:
         rows: dicts ``{era5_latitude, era5_longitude, spi}`` for the requested month/window
@@ -124,7 +130,7 @@ def _build_situation_summary(rows, year_rows, month_start: DateType, window: int
     for v in values:
         counts[classify_index(v)] += 1
     classes_pct = {c: round(n / n_cells * 100, 2) for c, n in counts.items()}
-    n_drought = sum(1 for v in values if v < -1.0)
+    n_drought = sum(1 for v in values if v < DROUGHT_SPI_THRESHOLD)
     pct_drought = round(n_drought / n_cells * 100, 2)
     current_median = median(values)
 
@@ -256,6 +262,13 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
 
 def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
     """Pure gaps-and-islands grouping: consecutive CALENDAR months with SPI < -1
+
+    Le seuil -1.0 est VOLONTAIRE et ne doit pas être aligné sur DROUGHT_SPI_THRESHOLD
+    (-0.84) : c'est la définition WMO de l'ÉVÉNEMENT de sécheresse (« le SPI est
+    continûment négatif et atteint -1.0 ou moins »), un standard distinct des classes
+    de sévérité équiprobables qui, elles, pilotent le bandeau. Deux concepts, deux
+    seuils, tous deux standards — les confondre remplacerait un standard par une
+    convention maison.
     form one drought episode.
 
     Island key = ``month_ordinal - rank`` where ``rank`` is the 1-based position
@@ -514,8 +527,8 @@ def get_situation_summary(
     month: str = Query(..., description="Mois au format YYYY-MM"),
     window: int = Query(3, description="Fenêtre en mois (1, 3, 6 ou 12)"),
 ):
-    """Territory-wide aggregates for a month/window: 7-class WMO breakdown, % en
-    sécheresse (SPI < -1), rang du mois vs. l'historique 1950→présent, top-5 des
+    """Territory-wide aggregates for a month/window: 7-class WMO breakdown, part du
+    territoire ≤ Modérément sec (SPI < -0.84), rang du mois vs. l'historique 1950→présent, top-5 des
     cellules les plus sèches. ``available`` is False (all other numeric fields
     zeroed/None) when no cell has an SPI for this month/window yet — e.g. the
     partial current month — so the front never mistakes "no data" for a real 0%."""

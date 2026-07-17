@@ -1878,7 +1878,7 @@
     },
     "banner": {
       "loading": "Chargement de la synthèse…",
-      "droughtPct": "{{pct}} % du territoire en sécheresse (SPI < −1)",
+      "droughtPct": "{{pct}} % du territoire ≤ Modérément sec",
       "driestSince": "mois le plus sec depuis {{year}}",
       "distributionAria": "Distribution du territoire par classe de sévérité",
       "indicesUnavailable": "Indices non disponibles pour ce mois",

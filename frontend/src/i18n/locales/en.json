@@ -1878,7 +1878,7 @@
     },
     "banner": {
       "loading": "Loading summary…",
-      "droughtPct": "{{pct}}% of the territory in drought (SPI < −1)",
+      "droughtPct": "{{pct}}% of the territory ≤ Moderately dry",
       "driestSince": "driest month since {{year}}",
       "distributionAria": "Distribution of the territory by severity class",
       "indicesUnavailable": "Indices unavailable for this month",

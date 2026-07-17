@@ -14,7 +14,7 @@ const summary: ClimatSituationSummary = {
 describe('SituationBanner', () => {
   beforeAll(async () => { await i18n.changeLanguage('fr') })
 
-  it('affiche le % en sécheresse et la barre de distribution', () => {
+  it('affiche le % du territoire ≤ Modérément sec et la barre de distribution', () => {
     render(<SituationBanner summary={summary} isLoading={false} />)
     expect(screen.getByText(/45\s*%/)).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /distribution/i })).toBeInTheDocument()
