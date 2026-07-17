@@ -14,6 +14,17 @@ describe('DayStepper', () => {
     expect(screen.getByText('28 juin 2026')).toBeInTheDocument()
   })
 
+  // Régression : ClimatPage rend le DayStepper dès que la variable est journalière,
+  // sans attendre que /daily-temp-range ait fixé le jour par défaut. Le stepper
+  // recevait donc day='' au premier rendu, addDays levait, et React Router affichait
+  // « Unexpected Application Error! invalid date » à la place de toute la page.
+  // MonthStepper tolère déjà month='' — les deux steppers doivent se comporter pareil.
+  it('ne fait pas tomber la page quand le jour n’est pas encore connu', async () => {
+    await i18n.changeLanguage('fr')
+    expect(() => render(<DayStepper day="" onChange={() => {}} />)).not.toThrow()
+    expect(screen.getByRole('button', { name: 'Jour précédent' })).toBeInTheDocument()
+  })
+
   describe('in English', () => {
     beforeAll(async () => { await i18n.changeLanguage('en') })
 

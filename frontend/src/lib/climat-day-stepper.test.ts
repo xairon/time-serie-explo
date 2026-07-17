@@ -2,6 +2,25 @@ import { describe, it, expect } from 'vitest'
 import { addDays, comparePeriods, resolveDefaultDay, formatDayLabel } from './climat-day-stepper'
 
 describe('addDays', () => {
+  // Régression : `day` vaut '' tant que /daily-temp-range n'a pas répondu — un état
+  // que ce module CONNAÎT (resolveDefaultDay retourne '' par conception) et contre
+  // lequel formatDayLabel se garde déjà. addDays était la seule fonction du fichier
+  // à ne pas le faire : ''.split('-').map(Number) donnait [0], d'où
+  // new Date(Date.UTC(0, NaN, undefined)) = Invalid Date, et .toISOString() levait
+  // une RangeError qui faisait tomber TOUTE la page /climat (écran « Unexpected
+  // Application Error! invalid date ») dès qu'on sélectionnait Tx/Tn/T moy avant que
+  // la plage ne soit revenue.
+  it('ne lève pas et rend l’entrée telle quelle quand le jour n’est pas renseigné', () => {
+    expect(() => addDays('', 1)).not.toThrow()
+    expect(addDays('', 1)).toBe('')
+    expect(addDays('', -1)).toBe('')
+  })
+
+  it('ne lève pas sur une date malformée', () => {
+    expect(() => addDays('pas-une-date', 1)).not.toThrow()
+    expect(addDays('2026-06', 1)).toBe('2026-06')
+  })
+
   it('steps forward one day within a month', () => {
     expect(addDays('2026-06-15', 1)).toBe('2026-06-16')
   })

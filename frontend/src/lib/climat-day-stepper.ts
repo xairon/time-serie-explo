@@ -7,10 +7,18 @@ import { comparePeriods } from './period-arithmetic'
 export { comparePeriods }
 
 /** Add `delta` days to a 'YYYY-MM-DD' date string, returning 'YYYY-MM-DD'.
- *  Uses UTC internally so DST transitions never shift the day. */
+ *  Uses UTC internally so DST transitions never shift the day.
+ *
+ *  Rend l'entrée telle quelle si ce n'est pas une date complète — même garde que
+ *  `formatDayLabel` ci-dessous, et pour la même raison : le jour vaut '' tant que
+ *  /daily-temp-range n'a pas répondu (cf. `resolveDefaultDay`, qui retourne ''
+ *  par conception). Sans cette garde, ''.split('-').map(Number) donnait [0], d'où
+ *  Date.UTC(0, NaN, undefined) = Invalid Date et un .toISOString() qui LEVAIT —
+ *  faisant tomber toute la page /climat au lieu d'afficher un stepper inerte. */
 export function addDays(dateStr: string, delta: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const dt = new Date(Date.UTC(y, m - 1, d))
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return dateStr
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
   dt.setUTCDate(dt.getUTCDate() + delta)
   return dt.toISOString().slice(0, 10)
 }
