@@ -6,7 +6,7 @@ import { MonthStepper } from '@/components/climat/MonthStepper'
 import { DayStepper } from '@/components/climat/DayStepper'
 import { ClimatLegend } from '@/components/climat/ClimatLegend'
 import { SituationBanner } from '@/components/climat/SituationBanner'
-import { DailyTempBanner } from '@/components/climat/DailyTempBanner'
+import { DailyBanner } from '@/components/climat/DailyBanner'
 import { PointPanel } from '@/components/climat/PointPanel'
 import {
   useClimatGridMonthly, useClimatGridIndices, useClimatSituationSummary, useClimatRange, useSelectedCellParam,
@@ -105,7 +105,7 @@ export default function ClimatPage() {
         selectedCell={selectedCell}
       />
       {s.isDaily ? (
-        <DailyTempBanner variable={s.variable} points={dailyPoints} isLoading={dailyLoading} />
+        <DailyBanner variable={s.variable} points={dailyPoints} isLoading={dailyLoading} />
       ) : (
         <SituationBanner summary={summary} isLoading={summaryLoading} />
       )}

@@ -1886,7 +1886,9 @@
       "indicesUnavailable": "Indices unavailable for this month",
       "dailyTempUnavailable": "No data for this day",
       "dailyTempSummary_one": "{{variable}} max France: {{max}} °C · {{count}} cell > 35 °C",
-      "dailyTempSummary_other": "{{variable}} max France: {{max}} °C · {{count}} cells > 35 °C"
+      "dailyTempSummary_other": "{{variable}} max France: {{max}} °C · {{count}} cells > 35 °C",
+      "dailyPrecipSummary_one": "{{variable}} max France: {{max}} mm · {{count}} cell ≥ 50 mm",
+      "dailyPrecipSummary_other": "{{variable}} max France: {{max}} mm · {{count}} cells ≥ 50 mm"
     },
     "loadingGrid": "Loading grid…",
     "pointPanel": {
