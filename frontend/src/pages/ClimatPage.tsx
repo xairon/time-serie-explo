@@ -101,7 +101,16 @@ export default function ClimatPage() {
           {t('climat.loadingGrid')}
         </div>
       )}
-      {selectedCell && <PointPanel lat={selectedCell.lat} lon={selectedCell.lon} onClose={clearSelectedCell} />}
+      {/* `month` suit la période active, comme ClimatLegend juste au-dessus : en mode
+          journalier c'est le mois du jour affiché, sinon le mois du MonthStepper. */}
+      {selectedCell && (
+        <PointPanel
+          lat={selectedCell.lat}
+          lon={selectedCell.lon}
+          month={s.isDaily ? s.day.slice(0, 7) : s.month}
+          onClose={clearSelectedCell}
+        />
+      )}
     </div>
   )
 }

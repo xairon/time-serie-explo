@@ -15,6 +15,9 @@ import { CompareYearsSection } from './CompareYearsSection'
 interface Props {
   lat: number
   lon: number
+  /** Mois affiché par la carte ('YYYY-MM'), pour que le bloc « bilan du mois » suive
+   *  le MonthStepper au lieu de rester sur le dernier mois connu. */
+  month: string
   onClose: () => void
 }
 
@@ -38,7 +41,7 @@ function fmtSigned(v: number | null | undefined, unit: string): string {
  *  Composes: précip vs normale (PrecipNormalChart), SPI/STI multi-window
  *  (ClimatIndexChart), drought episodes (EpisodesTable), a direct CSV export link,
  *  and the Comparaison section (CompareYearsSection, Task B3). */
-export function PointPanel({ lat, lon, onClose }: Props) {
+export function PointPanel({ lat, lon, month, onClose }: Props) {
   const { t, i18n } = useTranslation()
   const { data: pointData, isLoading: seriesLoading, isError: seriesError } = useClimatPointSeries(lat, lon)
   // Window selector lives here (not inside ClimatIndexChart) so the episodes table
@@ -53,9 +56,12 @@ export function PointPanel({ lat, lon, onClose }: Props) {
   }, [onClose])
 
   const series = pointData?.series ?? []
-  // Dernier mois de la série = le plus récent. Le panneau est une fiche de lieu :
-  // il ne suit pas le MonthStepper de la carte (pas de prop `month` — YAGNI).
-  const lastEntry = series.length > 0 ? series[series.length - 1] : undefined
+  // Le bloc suit le mois affiché par la carte : sinon la carte montre mai pendant que
+  // le panneau annonce « Bilan du mois — juin », et les deux se contredisent à l'écran.
+  // `slice(0, 7)` des deux côtés car l'API renvoie 'YYYY-MM-DD' et l'état porte 'YYYY-MM'.
+  // Mois absent de la série (hors couverture de la maille) → bloc masqué, pas de valeurs
+  // trompeuses tirées d'un autre mois.
+  const lastEntry = series.find((e) => e.month.slice(0, 7) === month.slice(0, 7))
   const bilan = lastEntry?.bilan_hydrique
   // `mois_complet === false` (strict — `null` means "unknown", not "incomplete")
   // flags the last entry as the partial current month. classifyBilan's bands are

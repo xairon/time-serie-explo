@@ -47,7 +47,7 @@ describe('PointPanel', () => {
 
   it('shows the title and formatted coordinates', () => {
     mockSuccess()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.getByText('Analyse du point')).toBeInTheDocument()
     expect(screen.getByText('47.40° N, 0.70° E')).toBeInTheDocument()
   })
@@ -55,7 +55,7 @@ describe('PointPanel', () => {
   it('calls onClose when the close button is clicked', () => {
     mockSuccess()
     const onClose = vi.fn()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={onClose} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: 'Fermer' }))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -63,14 +63,14 @@ describe('PointPanel', () => {
   it('calls onClose on Escape', () => {
     mockSuccess()
     const onClose = vi.fn()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={onClose} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('renders a direct download link to the CSV export', () => {
     mockSuccess()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     const link = screen.getByRole('link', { name: /Exporter en CSV/ })
     expect(link).toHaveAttribute('href', expect.stringContaining('/observatory/climat/export-point.csv?lat=47.4&lon=0.7'))
     expect(link).toHaveAttribute('download')
@@ -78,7 +78,7 @@ describe('PointPanel', () => {
 
   it('renders the charts and episodes table once data is loaded', () => {
     mockSuccess()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.getByTestId('precip-chart')).toBeInTheDocument()
     expect(screen.getByTestId('index-chart')).toBeInTheDocument()
     expect(screen.getByText('Épisodes de sécheresse')).toBeInTheDocument()
@@ -86,28 +86,28 @@ describe('PointPanel', () => {
 
   it('renders the Comparaison section regardless of the point-series load state', () => {
     mockSuccess()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.getByTestId('compare-section')).toBeInTheDocument()
   })
 
   it('shows a loading state while the series is loading', () => {
     mockSeriesHook.mockReturnValue({ data: undefined, isLoading: true, isError: false })
     mockEpisodesHook.mockReturnValue({ data: undefined, isLoading: true, isError: false })
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.queryByTestId('precip-chart')).not.toBeInTheDocument()
   })
 
   it('shows an error message when the point series fails to load', () => {
     mockSeriesHook.mockReturnValue({ data: undefined, isLoading: false, isError: true })
     mockEpisodesHook.mockReturnValue({ data: undefined, isLoading: false, isError: false })
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.getByText('Impossible de charger les données de ce point.')).toBeInTheDocument()
     expect(screen.queryByTestId('precip-chart')).not.toBeInTheDocument()
   })
 
   it('highlights the ongoing episode when the last month is in drought (spi_3 < -1)', () => {
     mockSuccess()
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     // SERIES' last entry (2026-05) has spi_3 = -1.8 and EPISODES' last episode ends 2026-05-01.
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
@@ -115,7 +115,7 @@ describe('PointPanel', () => {
   it('does not highlight any episode when the last month is not in drought', () => {
     const calmSeries = SERIES.map((s, i) => (i === SERIES.length - 1 ? { ...s, spi_3: 0.2 } : s))
     mockSuccess(calmSeries)
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.queryByText('En cours')).not.toBeInTheDocument()
   })
 
@@ -131,7 +131,7 @@ describe('PointPanel', () => {
       { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -1.8, deficit_cumule_mm: -90.5 },
     ]
     mockSuccess(seriesWithPartialMonth, episodesEndingOnLastRealMonth)
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     // A naive `series[series.length - 1]` read would see 2026-06's null spi_3
     // and never highlight anything — this must still fire.
     expect(screen.getByText('En cours')).toBeInTheDocument()
@@ -150,7 +150,7 @@ describe('PointPanel', () => {
       { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 },
     ]
     mockSuccess(series, episodes)
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
     expect(screen.queryByText('En cours')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('window-6'))
@@ -176,7 +176,7 @@ describe('PointPanel', () => {
       isError: false,
     }))
 
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
 
     // Initial render: default window (3) — hook called with window 3, table shows the window-3 episode only.
     expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3)
@@ -194,25 +194,56 @@ describe('PointPanel', () => {
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
 
-  it('affiche le bilan du mois avec les vraies valeurs du dernier mois', () => {
+  const TWO_MONTH_SERIES = [
+    { month: '2026-05', temperature_moyenne: 15.1, precipitation_totale: 70,
+      etp_totale: 90, bilan_hydrique: -20 },
+    { month: '2026-06', temperature_moyenne: 18.3, precipitation_totale: 40,
+      etp_totale: 120, bilan_hydrique: -80 },
+  ]
+
+  it('affiche le bilan du mois avec les vraies valeurs du mois affiché', () => {
     vi.mocked(useClimatPointSeries).mockReturnValue({
-      data: { series: [
-        { month: '2026-05', temperature_moyenne: 15.1, precipitation_totale: 70,
-          etp_totale: 90, bilan_hydrique: -20 },
-        { month: '2026-06', temperature_moyenne: 18.3, precipitation_totale: 40,
-          etp_totale: 120, bilan_hydrique: -80 },
-      ] },
-      isLoading: false, isError: false,
+      data: { series: TWO_MONTH_SERIES }, isLoading: false, isError: false,
     } as any)
     mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
 
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-06" onClose={() => {}} />)
 
     expect(screen.getByText('18.3 °C')).toBeInTheDocument()
     expect(screen.getByText('40 mm')).toBeInTheDocument()
     expect(screen.getByText('120 mm')).toBeInTheDocument()
     expect(screen.getByText('−80 mm')).toBeInTheDocument()   // U+2212, pas un tiret ASCII
     expect(screen.getByText('Déficit')).toBeInTheDocument()   // classifyBilan(-80) -> TRES_BAS
+  })
+
+  // Le panneau doit suivre le MonthStepper de la carte : sinon la carte montre mai
+  // pendant que le panneau annonce « Bilan du mois — juin », et les deux se
+  // contredisent à l'écran. Il affichait auparavant la dernière entrée de la série.
+  it('suit le mois sélectionné sur la carte, pas le dernier de la série', () => {
+    vi.mocked(useClimatPointSeries).mockReturnValue({
+      data: { series: TWO_MONTH_SERIES }, isLoading: false, isError: false,
+    } as any)
+    mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
+
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+
+    expect(screen.getByText('15.1 °C')).toBeInTheDocument()
+    expect(screen.getByText('70 mm')).toBeInTheDocument()
+    expect(screen.getByText('−20 mm')).toBeInTheDocument()
+    // …et surtout PAS les valeurs de juin, qui est pourtant le dernier mois connu
+    expect(screen.queryByText('18.3 °C')).not.toBeInTheDocument()
+    expect(screen.queryByText('40 mm')).not.toBeInTheDocument()
+  })
+
+  it('masque le bloc quand le mois affiché n’a pas de données sur cette maille', () => {
+    vi.mocked(useClimatPointSeries).mockReturnValue({
+      data: { series: TWO_MONTH_SERIES }, isLoading: false, isError: false,
+    } as any)
+    mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
+
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-01" onClose={() => {}} />)
+
+    expect(screen.queryByText(/Bilan du mois/)).not.toBeInTheDocument()
   })
 
   it('rend « — » sur les champs nuls sans masquer le bloc', () => {
@@ -225,7 +256,7 @@ describe('PointPanel', () => {
     } as any)
     mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
 
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-07" onClose={() => {}} />)
 
     expect(screen.getByText('Bilan du mois — juil. 2026')).toBeInTheDocument()
     expect(screen.getAllByText('—')).toHaveLength(4)
@@ -246,7 +277,7 @@ describe('PointPanel', () => {
     } as any)
     mockEpisodesHook.mockReturnValue({ data: [], isLoading: false, isError: false })
 
-    render(<PointPanel lat={47.4} lon={0.7} onClose={() => {}} />)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-07" onClose={() => {}} />)
 
     expect(screen.getByText('Bilan du mois — juil. 2026')).toBeInTheDocument()
     expect(screen.getByText('Mois incomplet')).toBeInTheDocument()

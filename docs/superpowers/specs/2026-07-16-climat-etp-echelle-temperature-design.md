@@ -94,7 +94,9 @@ Bilan du mois — juin 2026
   Bilan hydrique    −80 mm   (Déficit)
 ```
 
-- **Mois affiché** : le dernier de la série (le plus récent), cohérent avec le titre « Bilan du mois ». `PointPanel` ne reçoit pas le mois de la carte et on **n'ajoute pas** de prop pour ça (YAGNI — la carte a son propre `MonthStepper`, le panneau est une fiche de lieu).
+- **Mois affiché** : celui de la carte. `PointPanel` reçoit une prop `month` et cherche l'entrée correspondante dans la série.
+
+  *Correction du 2026-07-17 — la première version de ce spec disait l'inverse* (« le dernier de la série […] on n'ajoute pas de prop pour ça — YAGNI »). C'était faux : sans le mois, la carte affiche mai pendant que le panneau annonce « Bilan du mois — juil. », et les deux se contredisent à l'écran. Le panneau suit donc la période active, exactement comme `ClimatLegend` le fait déjà (`month={s.isDaily ? s.day : s.month}`) ; en mode journalier il prend le mois du jour affiché. Mois absent de la série pour cette maille → bloc masqué, plutôt que des valeurs tirées d'un autre mois.
 - **Classe du bilan** : réutilise `classifyBilan` (`lib/climat-scale.ts`) + les libellés i18n `climat.bilanClasses.*` + `SPI_CLASS_COLORS` — aucun nouveau système de classes.
 - **Formatage** : `climatFormatValue` **n'est pas utilisable ici** — il indexe `CLIMAT_VARIABLES[variable]`, or `temperature`/`precipitation`/`etp` quittent l'union (§3.1). Le bloc utilise un **formateur local** au PointPanel, qui rend `—` sur `null`/`NaN`.
 - **Valeurs `null`** (mois partiel) : chaque ligne rend `—` indépendamment ; le bloc reste affiché.
