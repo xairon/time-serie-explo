@@ -43,7 +43,19 @@ export default function ClimatPage() {
   const { data: precipRange } = useClimatDailyPrecipRange()
   const dailyRange = isPrecipDaily ? precipRange : tempRange
   useEffect(() => {
-    if (dailyRange?.max_date && !s.day) s.setDay(resolveDefaultDay(dailyRange.max_date))
+    if (!dailyRange?.max_date) return
+    if (!s.day) {
+      s.setDay(resolveDefaultDay(dailyRange.max_date))
+      return
+    }
+    // La plage change quand l'utilisateur bascule pluie <-> température : un jour
+    // valide dans l'ancienne plage peut se retrouver hors de la nouvelle (couvertures
+    // différentes), auquel cas on le ramène dans les bornes plutôt que de le laisser
+    // échoué (carte vide, « Suivant » grisé).
+    const maxDate = dailyRange.max_date.slice(0, 10)
+    const minDate = dailyRange.min_date?.slice(0, 10)
+    if (s.day > maxDate) s.setDay(maxDate)
+    else if (minDate && s.day < minDate) s.setDay(minDate)
   }, [dailyRange, s.day])
 
   const monthlyParam = CLIMAT_VARIABLES[s.variable].monthlyParam
