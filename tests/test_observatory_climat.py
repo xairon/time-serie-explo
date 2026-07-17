@@ -18,8 +18,9 @@ from api.routers.observatory_climat import (
     _build_situation_summary,
     _build_drought_episodes,
     _build_range,
-    _build_daily_temp_points,
-    _build_daily_temp_range,
+    _build_daily_points,
+    _build_daily_range,
+    _DAILY_PRECIP_SQL,
     _merge_point_series,
     _merge_compare_years,
     _MONTHLY_VARIABLES,
@@ -28,7 +29,7 @@ from api.routers.observatory_climat import (
 )
 
 
-def test_router_mounts_all_ten_climat_paths():
+def test_router_mounts_all_twelve_climat_paths():
     paths = {r.path for r in router.routes}
     assert paths == {
         "/api/v1/observatory/climat/range",
@@ -36,6 +37,8 @@ def test_router_mounts_all_ten_climat_paths():
         "/api/v1/observatory/climat/grid-indices",
         "/api/v1/observatory/climat/daily-temp",
         "/api/v1/observatory/climat/daily-temp-range",
+        "/api/v1/observatory/climat/daily-precip",
+        "/api/v1/observatory/climat/daily-precip-range",
         "/api/v1/observatory/climat/situation-summary",
         "/api/v1/observatory/climat/point-series",
         "/api/v1/observatory/climat/point-episodes",
@@ -116,13 +119,13 @@ class TestDailyTempVariables:
         assert _DAILY_TEMP_VARIABLES == {"tmax": "t2m_max", "tmin": "t2m_min", "tmean": "t2m_mean"}
 
 
-class TestBuildDailyTempPoints:
+class TestBuildDailyPoints:
     def test_happy_path_formats_per_cell_value(self):
         rows = [
             {"latitude": 47.4, "longitude": 0.7, "value": 32.5},
             {"latitude": 47.5, "longitude": 0.7, "value": 30.1},
         ]
-        out = _build_daily_temp_points(rows)
+        out = _build_daily_points(rows)
         assert out == [
             {"latitude": 47.4, "longitude": 0.7, "value": 32.5},
             {"latitude": 47.5, "longitude": 0.7, "value": 30.1},
@@ -130,16 +133,16 @@ class TestBuildDailyTempPoints:
 
     def test_no_rows_for_the_date_yields_empty_list(self):
         # Mirrors /grid-monthly: no data yet for this date is not a 404.
-        assert _build_daily_temp_points([]) == []
+        assert _build_daily_points([]) == []
 
 
-class TestBuildDailyTempRange:
+class TestBuildDailyRange:
     def test_formats_bounds_as_iso_date_strings(self):
-        out = _build_daily_temp_range(date(2026, 5, 1), date(2026, 6, 30))
+        out = _build_daily_range(date(2026, 5, 1), date(2026, 6, 30))
         assert out == {"min_date": "2026-05-01", "max_date": "2026-06-30"}
 
     def test_none_when_table_is_empty(self):
-        out = _build_daily_temp_range(None, None)
+        out = _build_daily_range(None, None)
         assert out == {"min_date": None, "max_date": None}
 
 
@@ -510,3 +513,36 @@ class TestParamValidationViaHttp:
             params={"date": "not-a-date", "variable": "tmax"},
         )
         assert r.status_code == 422
+
+
+class TestDailyPrecip:
+    def test_build_daily_points_formats_cells(self):
+        rows = [{"latitude": 47.4, "longitude": 0.7, "value": 12.5}]
+        assert _build_daily_points(rows) == [{"latitude": 47.4, "longitude": 0.7, "value": 12.5}]
+
+    def test_build_daily_points_empty_input_yields_empty_list(self):
+        # Pas de 404 : "aucune donnée pour ce jour" est une réponse attendue
+        # (couverture partielle), pas une erreur. Même convention que /grid-monthly.
+        assert _build_daily_points([]) == []
+
+    def test_build_daily_range_is_none_safe(self):
+        assert _build_daily_range(None, None) == {"min_date": None, "max_date": None}
+
+    def test_daily_precip_reads_silver_never_bronze(self):
+        # bronze.era5_france_timeseries a les mêmes colonnes, la même plage et le
+        # même nombre de lignes que silver, mais 22 985 mailles au lieu de 11 496
+        # (doublons flottants ERA5). Y taper donnerait une grille désalignée sans
+        # aucun signal visible.
+        assert "silver.stg_era5_timeseries" in _DAILY_PRECIP_SQL
+        assert "bronze" not in _DAILY_PRECIP_SQL
+
+    def test_daily_precip_never_casts_the_partition_column(self):
+        # Régression PERF, mesurée : un cast/une fonction sur `time` casse
+        # l'exclusion de chunks TimescaleDB — 413 ms -> 69 032 ms (×167) sur les
+        # 321 M de lignes de la table.
+        assert "time::date" not in _DAILY_PRECIP_SQL
+        assert "date(time)" not in _DAILY_PRECIP_SQL
+        assert "CAST(time" not in _DAILY_PRECIP_SQL.replace(" ", "")
+        # la forme correcte : borne basse >= et borne haute < jour+1
+        assert "time >= :day" in _DAILY_PRECIP_SQL
+        assert "INTERVAL '1 day'" in _DAILY_PRECIP_SQL

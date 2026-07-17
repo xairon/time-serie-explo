@@ -194,9 +194,9 @@ def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) ->
     }
 
 
-def _build_daily_temp_points(rows) -> list[dict]:
-    """Pure formatting: per-cell ``{latitude, longitude, value}`` from
-    ``stg_era5_daily_temp_stats`` rows for one date/variable. Empty input yields
+def _build_daily_points(rows) -> list[dict]:
+    """Pure formatting: per-cell ``{latitude, longitude, value}`` rows for one
+    date (température ou pluie — le formatage est identique). Empty input yields
     an empty list — mirrors ``/grid-monthly``'s "no rows for this month"
     convention (no 404: with the backfill still running and a J-7 ingestion lag,
     "no data yet for this date" is an expected response, not an error)."""
@@ -210,10 +210,10 @@ def _build_daily_temp_points(rows) -> list[dict]:
     ]
 
 
-def _build_daily_temp_range(min_date, max_date) -> dict:
-    """Pure formatting for GET /daily-temp-range: date bounds as ISO
-    ``YYYY-MM-DD`` strings, None-safe (e.g. before the nightly ingestion's first
-    row lands)."""
+def _build_daily_range(min_date, max_date) -> dict:
+    """Pure formatting for daily-layer range endpoints (température ou pluie —
+    le formatage est identique): date bounds as ISO ``YYYY-MM-DD`` strings,
+    None-safe (e.g. before the nightly ingestion's first row lands)."""
     return {
         "min_date": str(min_date) if min_date else None,
         "max_date": str(max_date) if max_date else None,
@@ -497,7 +497,7 @@ def get_daily_temp(
         engine = get_brgm_sync_engine()
         with engine.connect() as conn:
             rows = conn.execute(text(query), {"day": day}).mappings().all()
-        return _build_daily_temp_points(rows)
+        return _build_daily_points(rows)
 
     return get_cached("obs_climat_daily_temp", {"date": str(day), "variable": variable}, GRID_TTL, fetch)
 
@@ -517,9 +517,68 @@ def get_daily_temp_range():
             max_date = conn.execute(
                 text("SELECT max(time::date) FROM silver.stg_era5_daily_temp_stats")
             ).scalar()
-        return _build_daily_temp_range(min_date, max_date)
+        return _build_daily_range(min_date, max_date)
 
     return get_cached("obs_climat_daily_temp_range", {}, DAILY_TEMP_RANGE_TTL, fetch)
+
+
+# SQL sorti en constante pour être testable : deux régressions coûteuses s'y
+# cachent (la source silver vs bronze, et l'absence de cast sur `time`), et un
+# test qui lit la chaîne les attrape sans toucher l'entrepôt.
+_DAILY_PRECIP_SQL = """
+    SELECT latitude, longitude, total_precipitation AS value
+    FROM silver.stg_era5_timeseries
+    -- jamais de fonction/cast sur la colonne de partition (time) : casse
+    -- l'exclusion de chunks TimescaleDB. Mesuré sur cette table (321 M lignes) :
+    -- ce prédicat = 413 ms, un cast sur la colonne elle-meme = 69 032 ms (x167).
+    -- silver, jamais l'autre couche : celle-ci porte 22 985 mailles au lieu de
+    -- 11 496 (doublons flottants ERA5) et serait désalignée de la carte.
+    WHERE time >= :day AND time < CAST(:day AS date) + INTERVAL '1 day'
+"""
+
+
+@router.get("/daily-precip")
+def get_daily_precip(
+    date: str = Query(..., description="Date au format YYYY-MM-DD"),
+):
+    """Cumul de précipitation journalier par maille (ERA5, mm) depuis
+    ``silver.stg_era5_timeseries`` pour une date exacte. Aucune ligne pour la date
+    -> liste vide, même convention que ``/daily-temp`` et ``/grid-monthly`` (pas de
+    404 : la couverture avance avec l'ingestion, "pas encore de données" est une
+    réponse attendue)."""
+    day = _parse_date(date)
+
+    def fetch():
+        engine = get_brgm_sync_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(text(_DAILY_PRECIP_SQL), {"day": day}).mappings().all()
+        return _build_daily_points(rows)
+
+    return get_cached("obs_climat_daily_precip", {"date": str(day)}, GRID_TTL, fetch)
+
+
+@router.get("/daily-precip-range")
+def get_daily_precip_range():
+    """Bornes de dates de la couche pluie journalière. Endpoint distinct de
+    ``/daily-temp-range`` parce que les couvertures DIVERGENT (mesuré : température
+    -> 2026-07-10, pluie -> 2026-07-12) : réutiliser celle de la température
+    masquerait les jours de pluie les plus récents.
+
+    ``min(time)::date`` et non ``min(time::date)`` : caster la colonne empêche
+    d'utiliser l'index/les métadonnées de chunk — mesuré 224 ms contre 3 036 ms."""
+
+    def fetch():
+        engine = get_brgm_sync_engine()
+        with engine.connect() as conn:
+            min_date = conn.execute(
+                text("SELECT min(time)::date FROM silver.stg_era5_timeseries")
+            ).scalar()
+            max_date = conn.execute(
+                text("SELECT max(time)::date FROM silver.stg_era5_timeseries")
+            ).scalar()
+        return _build_daily_range(min_date, max_date)
+
+    return get_cached("obs_climat_daily_precip_range", {}, DAILY_TEMP_RANGE_TTL, fetch)
 
 
 @router.get("/situation-summary")
