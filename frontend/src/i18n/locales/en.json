@@ -1844,7 +1844,8 @@
       "etp": "PET",
       "tmax": "Tx (max)",
       "tmin": "Tn (min)",
-      "tmean": "T avg"
+      "tmean": "T avg",
+      "precipDaily": "Daily rainfall"
     },
     "picker": {
       "variableLabel": "Variable",

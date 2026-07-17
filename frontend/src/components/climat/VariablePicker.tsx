@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import {
-  CLIMAT_VARIABLES, CLIMAT_WINDOWS, DAILY_TEMP_VARIABLE_ORDER,
+  CLIMAT_VARIABLES, CLIMAT_WINDOWS, DAILY_VARIABLE_ORDER,
   isClimatIndexVariable,
 } from '@/lib/climat-colors'
 import type { ClimatVariable } from '@/lib/climat-colors'
@@ -66,7 +66,7 @@ export function VariablePicker({ variable, onVariableChange, window, onWindowCha
           {t('climat.picker.dailyTempLabel')}
           <InfoTip text={t('climat.picker.dailyTempInfo')} />
         </span>
-        {DAILY_TEMP_VARIABLE_ORDER.map((v) => (
+        {DAILY_VARIABLE_ORDER.map((v) => (
           <button
             key={v}
             type="button"

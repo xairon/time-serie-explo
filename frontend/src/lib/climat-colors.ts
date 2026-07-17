@@ -8,7 +8,7 @@ import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } 
 
 export type ClimatVariable =
   | 'spi' | 'sti' | 'bilan_hydrique'
-  | 'tmax' | 'tmin' | 'tmean'
+  | 'tmax' | 'tmin' | 'tmean' | 'precip_daily'
 
 export type ClimatVariableKind = 'index' | 'raw' | 'daily'
 
@@ -33,6 +33,27 @@ export interface ClimatVarConfig {
 export const DAILY_TEMP_STOPS: Array<[number, string]> = [
   [-10, '#1b2c6b'], [0, '#2e6fba'], [10, '#33b6a6'], [20, '#f7e24c'],
   [28, '#f2933d'], [34, '#e23b32'], [38, '#a31e22'], [42, '#7a2d8e'],
+]
+
+/** Bornes de classes de la pluie journalière (mm), convention des cartes météo
+ *  (Météo-France/ECMWF). FIXES et ABSOLUES : 20 mm c'est 20 mm, en janvier comme
+ *  en juillet — deux jours restent comparables. Ne JAMAIS les ré-ancrer sur le
+ *  jour affiché : la couleur deviendrait un encodage relatif, c'est-à-dire un
+ *  indice maison (cf. spec 2026-07-16, l'erreur commise puis rejetée sur la
+ *  température mensuelle).
+ *
+ *  Pourquoi non linéaires : mesuré sur la grille France, une rampe linéaire 0-50
+ *  place 71 % du territoire dans ses 5 premiers % un jour ordinaire (la moitié
+ *  des mailles est sous 1 mm). Les classes rendent la carte lisible sans toucher
+ *  au domaine. Couvre le 0 -> 98,8 mm réellement observé ; au-delà de 50 mm, la
+ *  saturation dans la classe haute EST l'information. */
+export const PRECIP_DAILY_BOUNDS: number[] = [0.1, 1, 2, 5, 10, 20, 50]
+
+/** ColorBrewer Blues 8 classes — séquentielle mono-teinte, monotone en luminance,
+ *  sûre en déficience de vision des couleurs. La première est quasi blanche : elle
+ *  porte le « sec » (< 0,1 mm). */
+export const PRECIP_DAILY_COLORS: string[] = [
+  '#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#084594',
 ]
 
 export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
@@ -67,11 +88,16 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
     unit: '°C', labelKey: 'climat.variables.tmean',
     stops: DAILY_TEMP_STOPS,
   },
+  precip_daily: {
+    key: 'precip_daily', kind: 'daily',
+    unit: 'mm', labelKey: 'climat.variables.precipDaily',
+    stops: [],   // classes discrètes, pas de dégradé — cf. climatPrecipDailyColorExpression
+  },
 }
 
-/** Ordered for the picker UI's separate "Températures journalières" section (Tx/Tn/Tmoy) —
- *  kept apart from the monthly variables so the monthly picker stays uncluttered. */
-export const DAILY_TEMP_VARIABLE_ORDER: ClimatVariable[] = ['tmax', 'tmin', 'tmean']
+/** Ordered for the picker's "Données journalières" section (Tx/Tn/Tmoy + pluie) —
+ *  kept apart from CLIMAT_VARIABLE_ORDER so the monthly picker stays uncluttered. */
+export const DAILY_VARIABLE_ORDER: ClimatVariable[] = ['tmax', 'tmin', 'tmean', 'precip_daily']
 
 export const CLIMAT_WINDOWS = [1, 3, 6, 12] as const
 export type ClimatWindow = (typeof CLIMAT_WINDOWS)[number]
@@ -119,6 +145,15 @@ export function climatBilanColorExpression(): unknown[] {
     75, C.TRES_HAUT,
     150, C.EXTREMEMENT_HAUT,
   ]
+}
+
+/** MapLibre 'step' : classe discrète depuis `value` (mm), bornes alignées EXACTEMENT
+ *  sur PRECIP_DAILY_BOUNDS pour que la carte et la légende ne puissent pas diverger.
+ *  Même mécanisme que climatBilanColorExpression. */
+export function climatPrecipDailyColorExpression(): unknown[] {
+  const expr: unknown[] = ['step', ['get', 'value'], PRECIP_DAILY_COLORS[0]]
+  PRECIP_DAILY_BOUNDS.forEach((b, i) => expr.push(b, PRECIP_DAILY_COLORS[i + 1]))
+  return expr
 }
 
 /** CSS linear-gradient for the raw-variable legend (stops positioned proportionally over [min, max]). */

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  CLIMAT_VARIABLES, DAILY_TEMP_STOPS, DAILY_TEMP_VARIABLE_ORDER,
+  CLIMAT_VARIABLES, DAILY_TEMP_STOPS,
   isClimatDailyVariable, isClimatIndexVariable,
   climatRawColorExpression, climatGradientCss, climatRawDomain, climatFormatValue,
   climatBilanColorExpression,
+  PRECIP_DAILY_BOUNDS, PRECIP_DAILY_COLORS, climatPrecipDailyColorExpression, DAILY_VARIABLE_ORDER,
 } from './climat-colors'
 
 describe('DAILY_TEMP_STOPS', () => {
@@ -43,12 +44,6 @@ describe('tmax/tmin/tmean share the identical daily-temp ramp', () => {
     expect(CLIMAT_VARIABLES.tmax.dailyParam).toBe('tmax')
     expect(CLIMAT_VARIABLES.tmin.dailyParam).toBe('tmin')
     expect(CLIMAT_VARIABLES.tmean.dailyParam).toBe('tmean')
-  })
-})
-
-describe('DAILY_TEMP_VARIABLE_ORDER', () => {
-  it('lists exactly tmax, tmin, tmean', () => {
-    expect(DAILY_TEMP_VARIABLE_ORDER).toEqual(['tmax', 'tmin', 'tmean'])
   })
 })
 
@@ -143,5 +138,34 @@ describe('climatBilanColorExpression', () => {
       75, '#67a9cf',
       150, '#2166ac',
     ])
+  })
+})
+
+describe('pluie journalière — classes météo fixes', () => {
+  it('a 8 classes pour 7 bornes', () => {
+    expect(PRECIP_DAILY_BOUNDS).toEqual([0.1, 1, 2, 5, 10, 20, 50])
+    expect(PRECIP_DAILY_COLORS).toHaveLength(PRECIP_DAILY_BOUNDS.length + 1)
+  })
+
+  it('produit une expression step alignée EXACTEMENT sur les bornes', () => {
+    // Le domaine est absolu et fixe : aucune borne ne dépend du jour affiché.
+    // Ré-ancrer par jour/saison ferait de la couleur un encodage relatif, donc
+    // un indice maison — interdit par la doctrine.
+    const expr = climatPrecipDailyColorExpression() as unknown[]
+    expect(expr[0]).toBe('step')
+    expect(expr[1]).toEqual(['get', 'value'])
+    expect(expr[2]).toBe(PRECIP_DAILY_COLORS[0])       // valeur < 0.1 -> classe sèche
+    // puis (borne, couleur) alternés
+    PRECIP_DAILY_BOUNDS.forEach((b, i) => {
+      expect(expr[3 + i * 2]).toBe(b)
+      expect(expr[4 + i * 2]).toBe(PRECIP_DAILY_COLORS[i + 1])
+    })
+    expect(expr).toHaveLength(3 + PRECIP_DAILY_BOUNDS.length * 2)
+  })
+
+  it('range la pluie parmi les variables journalières, pas les indices', () => {
+    expect(DAILY_VARIABLE_ORDER).toEqual(['tmax', 'tmin', 'tmean', 'precip_daily'])
+    expect(isClimatDailyVariable('precip_daily')).toBe(true)
+    expect(isClimatIndexVariable('precip_daily')).toBe(false)
   })
 })

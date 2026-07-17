@@ -1844,7 +1844,8 @@
       "etp": "ETP",
       "tmax": "Tx (max)",
       "tmin": "Tn (min)",
-      "tmean": "T moy"
+      "tmean": "T moy",
+      "precipDaily": "Pluie journalière"
     },
     "picker": {
       "variableLabel": "Variable",
