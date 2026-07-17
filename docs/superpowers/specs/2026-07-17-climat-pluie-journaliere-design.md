@@ -19,7 +19,9 @@ Deux choses distinctes s'y cachent, et une seule est un défaut.
 
 ### 1.2 Le vrai défaut : la pluie journalière existe et n'est pas exposée
 
-Vérifié sur l'entrepôt : `silver.stg_era5_timeseries` porte `temperature_2m`, **`total_precipitation`** et `potential_evaporation` au **pas journalier**, du **1950-01-02 au 2026-07-12**, sur la grille France.
+Vérifié sur l'entrepôt : `silver.stg_era5_timeseries` porte `temperature_2m`, **`total_precipitation`** et `potential_evaporation` au **pas journalier**, du **1950-01-02 au 2026-07-12**, sur la grille France — **321 324 696 lignes, 11 496 mailles**, et un seul pas de temps distinct observé (`1 day`), donc granularité journalière établie et non inférée.
+
+**⚠️ Source obligatoire : `silver`, jamais `bronze`.** `bronze.era5_france_timeseries` porte exactement les mêmes colonnes, la même plage et le **même nombre de lignes** (321 324 696) — mais **22 985 mailles distinctes au lieu de 11 496**, soit le double. C'est le bug connu de précision des coordonnées ERA5 (doublons flottants entre backfill et incrémental) que la couche silver corrige en arrondissant. Taper `bronze` donnerait une grille désalignée de la carte et des mailles fantômes, sans qu'aucun signal évident ne l'indique.
 
 Unités et sémantique **vérifiées** (le doute méritait d'être levé, ERA5 exprimant nativement `tp` en mètres) :
 
@@ -107,6 +109,7 @@ Cache : `GRID_TTL` pour la couche, 1 h pour la plage — mêmes valeurs que leur
 
 ## 7. Risques
 
-- **Perf** : le seul risque sérieux. `stg_era5_timeseries` est ~30× plus grosse que le mart température. Mitigé par l'exclusion de chunks (§4) + le cache `GRID_TTL`. À **mesurer** à l'implémentation : la requête d'un jour doit rester de l'ordre de `/daily-temp` ; si elle dérape, c'est que le prédicat casse l'exclusion de chunks.
-- **Grille** : nul. Vérifié — 11 496 mailles, identiques à celles des marts gold et du journalier température (jointure exacte, 11 496 communes).
+- **Perf** : le seul risque sérieux. `stg_era5_timeseries` pèse **321 324 696 lignes** (mesuré). Mitigé par l'exclusion de chunks (§4) + le cache `GRID_TTL`. À **mesurer** à l'implémentation : la requête d'un jour doit rester de l'ordre de `/daily-temp` ; si elle dérape, c'est que le prédicat casse l'exclusion de chunks.
+- **Mauvaise source** : réel et sournois. Voir §1.2 — `bronze.era5_france_timeseries` est un leurre parfait (mêmes colonnes, même volume, même plage) qui livre 22 985 mailles désalignées. **Toujours `silver`.**
+- **Grille** : nul. Vérifié — 11 496 mailles côté silver, identiques à celles des marts gold et du journalier température (jointure exacte, 11 496 communes).
 - **Périmètre** : le renommage `DAILY_TEMP_VARIABLE_ORDER` → `DAILY_VARIABLE_ORDER` touche le picker et ses tests ; `tsc` attrape toute occurrence oubliée.
