@@ -15,6 +15,11 @@ describe('ClimatLegend — pluie journalière', () => {
     expect(screen.getByText('< 0,1 mm')).toBeInTheDocument()
     // Classe la plus haute, distincte de la classe sèche.
     expect(screen.getByText('≥ 50 mm')).toBeInTheDocument()
+    // Bande INTERMÉDIAIRE : c'est elle qui a laissé passer la régression où le
+    // template literal brut rendait "0.1" (point) à côté du "0,1" (virgule) rendu
+    // par i18n pour la classe sèche — seules les deux bandes extrêmes étaient
+    // testées avant ce correctif.
+    expect(screen.getByText('1 – 2 mm')).toBeInTheDocument()
     expect(screen.queryByText(/faible|modéré|fort/i)).not.toBeInTheDocument()
   })
 })

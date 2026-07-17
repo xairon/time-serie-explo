@@ -514,20 +514,23 @@ class TestParamValidationViaHttp:
         )
         assert r.status_code == 422
 
+    def test_daily_precip_rejects_malformed_date(self):
+        from fastapi.testclient import TestClient
+        from api.main import app
+
+        client = TestClient(app)
+        r = client.get(
+            "/api/v1/observatory/climat/daily-precip",
+            params={"date": "not-a-date"},
+        )
+        assert r.status_code == 422
+
 
 class TestDailyPrecip:
-    def test_build_daily_points_formats_cells(self):
-        rows = [{"latitude": 47.4, "longitude": 0.7, "value": 12.5}]
-        assert _build_daily_points(rows) == [{"latitude": 47.4, "longitude": 0.7, "value": 12.5}]
-
-    def test_build_daily_points_empty_input_yields_empty_list(self):
-        # Pas de 404 : "aucune donnée pour ce jour" est une réponse attendue
-        # (couverture partielle), pas une erreur. Même convention que /grid-monthly.
-        assert _build_daily_points([]) == []
-
-    def test_build_daily_range_is_none_safe(self):
-        assert _build_daily_range(None, None) == {"min_date": None, "max_date": None}
-
+    # test_build_daily_points_formats_cells, test_build_daily_points_empty_input_yields_empty_list
+    # et test_build_daily_range_is_none_safe étaient des doublons de
+    # TestBuildDailyPoints/TestBuildDailyRange (plus haut dans ce fichier) : /daily-precip
+    # réutilise _build_daily_points/_build_daily_range telles quelles, déjà couvertes là-bas.
     def test_daily_precip_reads_silver_never_bronze(self):
         # bronze.era5_france_timeseries a les mêmes colonnes, la même plage et le
         # même nombre de lignes que silver, mais 22 985 mailles au lieu de 11 496

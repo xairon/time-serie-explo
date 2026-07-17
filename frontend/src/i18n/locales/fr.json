@@ -1867,7 +1867,7 @@
     "legend": {
       "window": "Fenêtre {{n}} mois",
       "incompleteMonth": "Mois incomplet",
-      "precipDryClass": "< 0,1"
+      "precipDryClass": "< {{v}}"
     },
     "bilanClasses": {
       "EXTREMEMENT_BAS": "Déficit sévère",
@@ -1887,8 +1887,8 @@
       "dailyTempUnavailable": "Aucune donnée pour ce jour",
       "dailyTempSummary_one": "{{variable}} max France : {{max}} °C · {{count}} cellule > 35 °C",
       "dailyTempSummary_other": "{{variable}} max France : {{max}} °C · {{count}} cellules > 35 °C",
-      "dailyPrecipSummary_one": "{{variable}} max France : {{max}} mm · {{count}} cellule ≥ 50 mm",
-      "dailyPrecipSummary_other": "{{variable}} max France : {{max}} mm · {{count}} cellules ≥ 50 mm"
+      "dailyPrecipSummary_one": "{{variable}} max France : {{max}} mm · {{count}} cellule ≥ {{threshold}} mm",
+      "dailyPrecipSummary_other": "{{variable}} max France : {{max}} mm · {{count}} cellules ≥ {{threshold}} mm"
     },
     "loadingGrid": "Chargement de la grille…",
     "pointPanel": {

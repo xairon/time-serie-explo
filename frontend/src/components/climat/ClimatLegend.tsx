@@ -80,11 +80,16 @@ export function ClimatLegend({ variable, window, month, incomplete }: Props) {
         <div className="text-[10px] text-text-secondary mt-0.5">{periodLabel}</div>
         <div className="mt-1.5 space-y-0.5">
           {[...PRECIP_DAILY_COLORS].map((color, i) => {
+            // Formatage localisé pour TOUTES les bornes (y compris la classe
+            // sèche, via i18n) : un template literal brut rendrait "0.1" (point)
+            // alors que i18n rend "0,1" (virgule) pour la même valeur — deux
+            // orthographes du même nombre sur deux lignes adjacentes en français.
+            const fmt = (n: number) => n.toLocaleString(i18n.language, { maximumFractionDigits: 1 })
             const label = i === 0
-              ? t('climat.legend.precipDryClass')
+              ? t('climat.legend.precipDryClass', { v: fmt(PRECIP_DAILY_BOUNDS[0]) })
               : i === PRECIP_DAILY_COLORS.length - 1
-                ? `≥ ${PRECIP_DAILY_BOUNDS[i - 1]}`
-                : `${PRECIP_DAILY_BOUNDS[i - 1]} – ${PRECIP_DAILY_BOUNDS[i]}`
+                ? `≥ ${fmt(PRECIP_DAILY_BOUNDS[i - 1])}`
+                : `${fmt(PRECIP_DAILY_BOUNDS[i - 1])} – ${fmt(PRECIP_DAILY_BOUNDS[i])}`
             return (
               <div key={color} className="flex items-center gap-1.5">
                 <span className="w-3 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />

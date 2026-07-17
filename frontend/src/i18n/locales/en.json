@@ -1867,7 +1867,7 @@
     "legend": {
       "window": "{{n}}-month window",
       "incompleteMonth": "Incomplete month",
-      "precipDryClass": "< 0.1"
+      "precipDryClass": "< {{v}}"
     },
     "bilanClasses": {
       "EXTREMEMENT_BAS": "Severe deficit",
@@ -1887,8 +1887,8 @@
       "dailyTempUnavailable": "No data for this day",
       "dailyTempSummary_one": "{{variable}} max France: {{max}} °C · {{count}} cell > 35 °C",
       "dailyTempSummary_other": "{{variable}} max France: {{max}} °C · {{count}} cells > 35 °C",
-      "dailyPrecipSummary_one": "{{variable}} max France: {{max}} mm · {{count}} cell ≥ 50 mm",
-      "dailyPrecipSummary_other": "{{variable}} max France: {{max}} mm · {{count}} cells ≥ 50 mm"
+      "dailyPrecipSummary_one": "{{variable}} max France: {{max}} mm · {{count}} cell ≥ {{threshold}} mm",
+      "dailyPrecipSummary_other": "{{variable}} max France: {{max}} mm · {{count}} cells ≥ {{threshold}} mm"
     },
     "loadingGrid": "Loading grid…",
     "pointPanel": {

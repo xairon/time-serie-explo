@@ -511,11 +511,17 @@ def get_daily_temp_range():
     def fetch():
         engine = get_brgm_sync_engine()
         with engine.connect() as conn:
+            # min(time)::date, jamais min(time::date) : caster la colonne de
+            # partition empêche l'exclusion de chunks TimescaleDB (même
+            # anti-pattern que /daily-precip-range, douze lignes plus bas).
+            # Équivalent car date() est monotone non décroissante : min(dates) ==
+            # date(min(time)), idem pour max. Mesuré sur cette table
+            # (stg_era5_daily_temp_stats) : ~18-19 s -> ~0,2-0,6 s.
             min_date = conn.execute(
-                text("SELECT min(time::date) FROM silver.stg_era5_daily_temp_stats")
+                text("SELECT min(time)::date FROM silver.stg_era5_daily_temp_stats")
             ).scalar()
             max_date = conn.execute(
-                text("SELECT max(time::date) FROM silver.stg_era5_daily_temp_stats")
+                text("SELECT max(time)::date FROM silver.stg_era5_daily_temp_stats")
             ).scalar()
         return _build_daily_range(min_date, max_date)
 

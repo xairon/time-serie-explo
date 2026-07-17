@@ -96,7 +96,7 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
 }
 
 /** Ordered for the picker's "Données journalières" section (Tx/Tn/Tmoy + pluie) —
- *  kept apart from CLIMAT_VARIABLE_ORDER so the monthly picker stays uncluttered. */
+ *  kept separate from the monthly/index variables so their picker stays uncluttered. */
 export const DAILY_VARIABLE_ORDER: ClimatVariable[] = ['tmax', 'tmin', 'tmean', 'precip_daily']
 
 export const CLIMAT_WINDOWS = [1, 3, 6, 12] as const
@@ -170,6 +170,11 @@ export function climatGradientCss(variable: ClimatVariable): string {
 /** [min, max] domain of the raw-variable gradient (for legend bounds). */
 export function climatRawDomain(variable: ClimatVariable): [number, number] {
   const stops = CLIMAT_VARIABLES[variable].stops
+  // Garde : precip_daily (et tout futur "kind: daily" à classes discrètes) a
+  // stops=[] par construction (cf. climatPrecipDailyColorExpression) — sans ce
+  // garde-fou, stops[0][0] plante. Ce module a déjà vu cette classe de bug deux
+  // fois (addDays('') sur cette même page il y a peu).
+  if (stops.length === 0) return [0, 0]
   return [stops[0][0], stops[stops.length - 1][0]]
 }
 

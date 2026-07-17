@@ -168,4 +168,12 @@ describe('pluie journalière — classes météo fixes', () => {
     expect(isClimatDailyVariable('precip_daily')).toBe(true)
     expect(isClimatIndexVariable('precip_daily')).toBe(false)
   })
+
+  it('climatRawDomain does not throw on precip_daily (stops: [], classes discrètes)', () => {
+    // precip_daily n'a pas de dégradé continu (stops: []) : climatRawDomain ne
+    // doit jamais y être appelé en pratique, mais le garde-fou doit tenir quand
+    // même — cf. le commentaire dans climat-colors.ts.
+    expect(() => climatRawDomain('precip_daily')).not.toThrow()
+    expect(climatRawDomain('precip_daily')).toEqual([0, 0])
+  })
 })

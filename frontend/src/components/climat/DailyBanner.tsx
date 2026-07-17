@@ -47,6 +47,7 @@ export function DailyBanner({ variable, points, isLoading }: Props) {
           variable: t(CLIMAT_VARIABLES[variable].labelKey),
           max: data.maxValueLabel,
           count: data.countAboveThreshold,
+          threshold: TOP_PRECIP,
         })}
       </span>
     </div>
