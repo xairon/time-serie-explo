@@ -14,10 +14,15 @@ const summary: ClimatSituationSummary = {
 describe('SituationBanner', () => {
   beforeAll(async () => { await i18n.changeLanguage('fr') })
 
-  it('affiche le % du territoire ≤ Modérément sec et la barre de distribution', () => {
+  it('affiche la barre de distribution mais plus de phrase de synthèse', () => {
     render(<SituationBanner summary={summary} isLoading={false} />)
-    expect(screen.getByText(/45\s*%/)).toBeInTheDocument()
+    // La barre 7 classes reste — c'est un graphique, pas du texte narré.
     expect(screen.getByRole('img', { name: /distribution/i })).toBeInTheDocument()
+    // La phrase auto-générée est retirée (« faisait trop LLM ») : ni le %,
+    // ni le « mois le plus sec depuis AAAA ».
+    expect(screen.queryByText(/45\s*%/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/du territoire/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/depuis/i)).not.toBeInTheDocument()
   })
 
   it("n'affiche plus de coordonnées lat/lon brutes", () => {

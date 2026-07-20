@@ -1880,15 +1880,8 @@
     },
     "banner": {
       "loading": "Loading summary…",
-      "droughtPct": "{{pct}}% of the territory ≤ Moderately dry",
-      "driestSince": "driest month since {{year}}",
       "distributionAria": "Distribution of the territory by severity class",
-      "indicesUnavailable": "Indices unavailable for this month",
-      "dailyTempUnavailable": "No data for this day",
-      "dailyTempSummary_one": "{{variable}} max France: {{max}} °C · {{count}} cell > 35 °C",
-      "dailyTempSummary_other": "{{variable}} max France: {{max}} °C · {{count}} cells > 35 °C",
-      "dailyPrecipSummary_one": "{{variable}} max France: {{max}} mm · {{count}} cell ≥ {{threshold}} mm",
-      "dailyPrecipSummary_other": "{{variable}} max France: {{max}} mm · {{count}} cells ≥ {{threshold}} mm"
+      "indicesUnavailable": "Indices unavailable for this month"
     },
     "loadingGrid": "Loading grid…",
     "pointPanel": {

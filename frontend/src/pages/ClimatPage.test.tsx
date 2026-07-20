@@ -17,7 +17,6 @@ const { TEMP_RANGE, PRECIP_RANGE } = vi.hoisted(() => ({
 
 vi.mock('@/components/climat/ClimatMap', () => ({ ClimatMap: () => <div data-testid="climat-map" /> }))
 vi.mock('@/components/climat/SituationBanner', () => ({ SituationBanner: () => <div data-testid="situation-banner" /> }))
-vi.mock('@/components/climat/DailyBanner', () => ({ DailyBanner: () => <div data-testid="daily-banner" /> }))
 vi.mock('@/components/climat/PointPanel', () => ({ PointPanel: () => <div data-testid="point-panel" /> }))
 vi.mock('@/components/climat/ClimatLegend', () => ({ ClimatLegend: () => <div data-testid="climat-legend" /> }))
 

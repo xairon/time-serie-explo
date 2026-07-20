@@ -1,6 +1,5 @@
 // Pure helpers for the Point-panel drought episodes table (Task B2, EpisodesTable.tsx).
-// Kept separate from the component so the logic is unit-testable without rendering
-// (mirrors the climat-situation-format.ts pattern used by SituationBanner).
+// Kept separate from the component so the logic is unit-testable without rendering.
 import type { ClimatDroughtEpisode, ClimatPointSeriesEntry } from './observatory-types'
 
 export type EpisodeSortKey = 'debut' | 'duree_mois'

@@ -27,7 +27,8 @@ describe('climat i18n key parity (fr vs en)', () => {
       'variables.tmax', 'variables.tmin', 'variables.tmean',
       'picker.dailyTempLabel', 'picker.dailyTempInfo',
       'stepper.prevDay', 'stepper.nextDay',
-      'banner.dailyTempUnavailable', 'banner.dailyTempSummary_one', 'banner.dailyTempSummary_other',
+      // Les clés banner.dailyTemp* ont été retirées avec le bandeau journalier
+      // (synthèse narrée supprimée, 2026-07-17) — plus rien à garder ici pour lui.
     ]
     for (const key of newKeys) {
       expect(frKeys.has(key), `missing fr key: climat.${key}`).toBe(true)

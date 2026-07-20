@@ -1880,15 +1880,8 @@
     },
     "banner": {
       "loading": "Chargement de la synthèse…",
-      "droughtPct": "{{pct}} % du territoire ≤ Modérément sec",
-      "driestSince": "mois le plus sec depuis {{year}}",
       "distributionAria": "Distribution du territoire par classe de sévérité",
-      "indicesUnavailable": "Indices non disponibles pour ce mois",
-      "dailyTempUnavailable": "Aucune donnée pour ce jour",
-      "dailyTempSummary_one": "{{variable}} max France : {{max}} °C · {{count}} cellule > 35 °C",
-      "dailyTempSummary_other": "{{variable}} max France : {{max}} °C · {{count}} cellules > 35 °C",
-      "dailyPrecipSummary_one": "{{variable}} max France : {{max}} mm · {{count}} cellule ≥ {{threshold}} mm",
-      "dailyPrecipSummary_other": "{{variable}} max France : {{max}} mm · {{count}} cellules ≥ {{threshold}} mm"
+      "indicesUnavailable": "Indices non disponibles pour ce mois"
     },
     "loadingGrid": "Chargement de la grille…",
     "pointPanel": {
