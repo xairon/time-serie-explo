@@ -12,7 +12,7 @@ import type {
   HydroSiteSiblings,
   PiezoBdlisaSiblings,
   ObsPastasSummary, ObsPastasTimeseriesPoint, ObsPastasSGIPoint, ObsPastasCoverage,
-  ClimatMonthlyPoint, ClimatIndexPoint, ClimatSituationSummary, ClimatPointSeries, ClimatDroughtEpisode,
+  ClimatMonthlyPoint, ClimatIndexPoint, ClimatPointSeries, ClimatDroughtEpisode,
   ClimatCompareYears, ClimatRange, ClimatDailyTempPoint, ClimatDailyTempRange,
 } from './observatory-types'
 
@@ -134,8 +134,6 @@ export const observatoryApi = {
       fetchJson<ClimatMonthlyPoint[]>('/observatory/climat/grid-monthly', { month, variable }),
     gridIndices: (month: string, window: number, index: 'spi' | 'sti') =>
       fetchJson<ClimatIndexPoint[]>('/observatory/climat/grid-indices', { month, window: String(window), index }),
-    situationSummary: (month: string, window: number) =>
-      fetchJson<ClimatSituationSummary>('/observatory/climat/situation-summary', { month, window: String(window) }),
     // TRUE daily temperature statistics (24 hourly steps, silver.stg_era5_daily_temp_stats)
     // — per-day Tx/Tn/Tmoy, distinct from grid-monthly's temperature var (a monthly
     // mean, also aggregated from the same true daily statistics). Coverage is

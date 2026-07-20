@@ -3,7 +3,7 @@
 No statistics are recomputed here: everything (monthly aggregates, 1991-2020
 normals, SPI/STI) already lives in the BRGM warehouse gold marts
 (``fct_era5_monthly_grid``, ``fct_era5_climatology_grid``, ``fct_era5_indices_grid``).
-This router is a thin read layer with simple aggregates (percentages, medians,
+This router is a thin read layer with simple aggregates (per-cell values,
 gaps-and-islands) and a 24h Redis cache, mirroring ``observatory_era5.py``.
 """
 from __future__ import annotations
@@ -12,14 +12,13 @@ import csv
 import io
 from collections import defaultdict
 from datetime import date as DateType
-from statistics import median
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import text
 
 from api.database import get_brgm_sync_engine
-from api.era5_anomaly import classify_index, DROUGHT_SPI_THRESHOLD
+from api.era5_anomaly import classify_index
 from dashboard.utils.cache import get_cached
 
 router = APIRouter(prefix="/api/v1/observatory/climat", tags=["observatory-climat"])
@@ -45,10 +44,6 @@ _MONTHLY_VARIABLES = {
 # partial — always query /daily-temp-range for the actual min/max date.
 _DAILY_TEMP_VARIABLES = {"tmax": "t2m_max", "tmin": "t2m_min", "tmean": "t2m_mean"}
 DAILY_TEMP_RANGE_TTL = 3600  # 1h — the date window moves daily (nightly J-7 ingestion), not monthly
-
-_WMO_CLASSES = [
-    "EXTREMEMENT_BAS", "TRES_BAS", "BAS", "NORMAL", "HAUT", "TRES_HAUT", "EXTREMEMENT_HAUT",
-]
 
 
 def _num(v):
@@ -87,90 +82,6 @@ def _validate_window(window: int) -> None:
     in this router — a silent fallback to 3 would hide a client-side bug."""
     if window not in WINDOWS:
         raise HTTPException(422, f"Fenêtre invalide : {window!r} (attendu {WINDOWS})")
-
-
-def _build_situation_summary(rows, year_rows, month_start: DateType, window: int) -> dict:
-    """Pure aggregation: 7-class WMO breakdown, part du territoire ≤ Modérément sec,
-    rang du mois vs. l'historique, top-5 des cellules les plus sèches.
-
-    ``pct_secheresse`` compte les cellules sous DROUGHT_SPI_THRESHOLD (-0.84), la
-    frontière basse de NORMAL : le chiffre est donc la somme des 3 classes les plus
-    sèches, vérifiable à l'œil sur la barre de distribution (à l'arrondi près, chaque
-    classe étant arrondie indépendamment). Rien à voir avec le seuil d'ÉVÉNEMENT des
-    épisodes (-1.0, définition WMO — cf. _build_drought_episodes).
-
-    Args:
-        rows: dicts ``{era5_latitude, era5_longitude, spi}`` for the requested month/window
-            (spi non-null).
-        year_rows: dicts ``{yr, median_spi}`` — the spatial median SPI for every year sharing
-            the requested month's calendar month (same window), used to rank the current month.
-        month_start: first-of-month date of the requested month.
-        window: window length in months.
-    """
-    if not rows:
-        return {
-            "month": str(month_start),
-            "window": window,
-            "n_cells": 0,
-            "classes_pct": {c: 0.0 for c in _WMO_CLASSES},
-            "pct_secheresse": 0.0,
-            "median_spi": None,
-            "driest_since_year": None,
-            "is_driest_on_record": False,
-            "top5_cellules_seches": [],
-            # Explicit flag so the front never confuses "no indices computed yet for
-            # this month" (e.g. the daily-grid partial current month) with a real
-            # 0%-drought reading — see ClimatPage/SituationBanner.
-            "available": False,
-        }
-
-    values = [float(r["spi"]) for r in rows]
-    n_cells = len(values)
-    counts = {c: 0 for c in _WMO_CLASSES}
-    for v in values:
-        counts[classify_index(v)] += 1
-    classes_pct = {c: round(n / n_cells * 100, 2) for c, n in counts.items()}
-    n_drought = sum(1 for v in values if v < DROUGHT_SPI_THRESHOLD)
-    pct_drought = round(n_drought / n_cells * 100, 2)
-    current_median = median(values)
-
-    by_year = {int(r["yr"]): float(r["median_spi"]) for r in year_rows}
-    current_year = month_start.year
-    driest_since_year = None
-    is_driest_on_record = True
-    for yr in sorted((y for y in by_year if y < current_year), reverse=True):
-        if by_year[yr] <= current_median:
-            driest_since_year = yr + 1
-            is_driest_on_record = False
-            break
-    if is_driest_on_record and by_year:
-        earlier_years = [y for y in by_year if y < current_year]
-        driest_since_year = min(earlier_years) if earlier_years else current_year
-
-    top5 = sorted(
-        (
-            {
-                "latitude": _num(r["era5_latitude"]),
-                "longitude": _num(r["era5_longitude"]),
-                "spi": float(r["spi"]),
-            }
-            for r in rows
-        ),
-        key=lambda d: d["spi"],
-    )[:5]
-
-    return {
-        "month": str(month_start),
-        "window": window,
-        "n_cells": n_cells,
-        "classes_pct": classes_pct,
-        "pct_secheresse": pct_drought,
-        "median_spi": round(current_median, 3),
-        "driest_since_year": driest_since_year,
-        "is_driest_on_record": is_driest_on_record,
-        "top5_cellules_seches": top5,
-        "available": True,
-    }
 
 
 def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) -> dict:
@@ -263,12 +174,9 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
 def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
     """Pure gaps-and-islands grouping: consecutive CALENDAR months with SPI < -1
 
-    Le seuil -1.0 est VOLONTAIRE et ne doit pas être aligné sur DROUGHT_SPI_THRESHOLD
-    (-0.84) : c'est la définition WMO de l'ÉVÉNEMENT de sécheresse (« le SPI est
-    continûment négatif et atteint -1.0 ou moins »), un standard distinct des classes
-    de sévérité équiprobables qui, elles, pilotent le bandeau. Deux concepts, deux
-    seuils, tous deux standards — les confondre remplacerait un standard par une
-    convention maison.
+    Le seuil -1.0 est VOLONTAIRE : c'est la définition WMO de l'ÉVÉNEMENT de
+    sécheresse (« le SPI est continûment négatif et atteint -1.0 ou moins »). Un
+    standard reconnu, à ne pas remplacer par une convention maison.
     form one drought episode.
 
     Island key = ``month_ordinal - rank`` where ``rank`` is the 1-based position
@@ -585,53 +493,6 @@ def get_daily_precip_range():
         return _build_daily_range(min_date, max_date)
 
     return get_cached("obs_climat_daily_precip_range", {}, DAILY_TEMP_RANGE_TTL, fetch)
-
-
-@router.get("/situation-summary")
-def get_situation_summary(
-    month: str = Query(..., description="Mois au format YYYY-MM"),
-    window: int = Query(3, description="Fenêtre en mois (1, 3, 6 ou 12)"),
-):
-    """Territory-wide aggregates for a month/window: 7-class WMO breakdown, part du
-    territoire ≤ Modérément sec (SPI < -0.84), rang du mois vs. l'historique 1950→présent, top-5 des
-    cellules les plus sèches. ``available`` is False (all other numeric fields
-    zeroed/None) when no cell has an SPI for this month/window yet — e.g. the
-    partial current month — so the front never mistakes "no data" for a real 0%."""
-    _validate_window(window)
-    month_start = _parse_month(month)
-
-    def fetch():
-        engine = get_brgm_sync_engine()
-        with engine.connect() as conn:
-            rows = conn.execute(
-                text(
-                    "SELECT era5_latitude, era5_longitude, spi FROM gold.fct_era5_indices_grid"
-                    " WHERE month = :month AND fenetre = :window AND spi IS NOT NULL"
-                ),
-                {"month": month_start, "window": window},
-            ).mappings().all()
-            year_rows = []
-            if rows:
-                year_rows = conn.execute(
-                    text(
-                        """
-                        SELECT EXTRACT(YEAR FROM month)::int AS yr,
-                               PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY spi) AS median_spi
-                        FROM gold.fct_era5_indices_grid
-                        WHERE fenetre = :window AND EXTRACT(MONTH FROM month) = :cal_month
-                          AND spi IS NOT NULL
-                        GROUP BY EXTRACT(YEAR FROM month)
-                        ORDER BY yr
-                        """
-                    ),
-                    {"window": window, "cal_month": month_start.month},
-                ).mappings().all()
-
-        return _build_situation_summary(rows, year_rows, month_start, window)
-
-    return get_cached(
-        "obs_climat_situation_summary", {"month": str(month_start), "window": window}, GRID_TTL, fetch
-    )
 
 
 @router.get("/point-series")

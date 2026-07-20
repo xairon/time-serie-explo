@@ -1878,11 +1878,6 @@
       "TRES_HAUT": "Surplus",
       "EXTREMEMENT_HAUT": "Fort surplus"
     },
-    "banner": {
-      "loading": "Chargement de la synthèse…",
-      "distributionAria": "Distribution du territoire par classe de sévérité",
-      "indicesUnavailable": "Indices non disponibles pour ce mois"
-    },
     "loadingGrid": "Chargement de la grille…",
     "pointPanel": {
       "title": "Analyse du point",

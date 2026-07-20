@@ -1878,11 +1878,6 @@
       "TRES_HAUT": "Surplus",
       "EXTREMEMENT_HAUT": "Large surplus"
     },
-    "banner": {
-      "loading": "Loading summary…",
-      "distributionAria": "Distribution of the territory by severity class",
-      "indicesUnavailable": "Indices unavailable for this month"
-    },
     "loadingGrid": "Loading grid…",
     "pointPanel": {
       "title": "Point analysis",

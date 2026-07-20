@@ -247,23 +247,6 @@ export interface ClimatIndexPoint {
   index_class: string
 }
 
-/** Territory-wide aggregate from GET /observatory/climat/situation-summary.
- *  `available` is false when no cell has an SPI for this month/window yet (e.g.
- *  the partial current month) — all other numeric fields are then zeroed/None
- *  and must NOT be rendered as a real 0% drought reading. */
-export interface ClimatSituationSummary {
-  month: string
-  window: number
-  n_cells: number
-  classes_pct: Record<string, number>
-  pct_secheresse: number
-  median_spi: number | null
-  driest_since_year: number | null
-  is_driest_on_record: boolean
-  top5_cellules_seches: Array<{ latitude: number; longitude: number; spi: number }>
-  available: boolean
-}
-
 /** Month bounds from GET /observatory/climat/range — split by data availability
  *  because the indices mart (SPI/STI) only ever contains complete calendar
  *  months while the raw monthly mart may include a partial current month

@@ -5,10 +5,9 @@ import { VariablePicker } from '@/components/climat/VariablePicker'
 import { MonthStepper } from '@/components/climat/MonthStepper'
 import { DayStepper } from '@/components/climat/DayStepper'
 import { ClimatLegend } from '@/components/climat/ClimatLegend'
-import { SituationBanner } from '@/components/climat/SituationBanner'
 import { PointPanel } from '@/components/climat/PointPanel'
 import {
-  useClimatGridMonthly, useClimatGridIndices, useClimatSituationSummary, useClimatRange, useSelectedCellParam,
+  useClimatGridMonthly, useClimatGridIndices, useClimatRange, useSelectedCellParam,
   useClimatDailyTempRange, useClimatDailyTemp, useClimatDailyPrecip, useClimatDailyPrecipRange,
 } from '@/hooks/useClimat'
 import { useClimatState } from '@/hooks/useClimatState'
@@ -82,7 +81,6 @@ export default function ClimatPage() {
   )
   const dailyPoints = isPrecipDaily ? precipPoints : tempPoints
   const dailyLoading = isPrecipDaily ? precipLoading : tempLoading
-  const { data: summary, isLoading: summaryLoading } = useClimatSituationSummary(s.month, s.window, !s.isDaily && !!s.month)
 
   const gridLoading = s.isDaily ? dailyLoading : s.isIndex ? indexLoading : monthlyLoading
   // At least one cell came back flagged mois_complet=false (the raw-variable
@@ -103,9 +101,6 @@ export default function ClimatPage() {
         onCellClick={selectCell}
         selectedCell={selectedCell}
       />
-      {/* Pas de synthèse en journalier : la carte, la légende et le DayStepper
-          suffisent. En SPI/STI/bilan, la barre de distribution reste. */}
-      {!s.isDaily && <SituationBanner summary={summary} isLoading={summaryLoading} />}
       <div className="absolute top-16 left-3 z-10 flex flex-col gap-2">
         <VariablePicker variable={s.variable} onVariableChange={s.setVariable} window={s.window} onWindowChange={s.setWindow} />
         {s.isDaily ? (

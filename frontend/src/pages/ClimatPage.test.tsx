@@ -16,14 +16,12 @@ const { TEMP_RANGE, PRECIP_RANGE } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/components/climat/ClimatMap', () => ({ ClimatMap: () => <div data-testid="climat-map" /> }))
-vi.mock('@/components/climat/SituationBanner', () => ({ SituationBanner: () => <div data-testid="situation-banner" /> }))
 vi.mock('@/components/climat/PointPanel', () => ({ PointPanel: () => <div data-testid="point-panel" /> }))
 vi.mock('@/components/climat/ClimatLegend', () => ({ ClimatLegend: () => <div data-testid="climat-legend" /> }))
 
 vi.mock('@/hooks/useClimat', () => ({
   useClimatGridMonthly: vi.fn().mockReturnValue({ data: [], isLoading: false }),
   useClimatGridIndices: vi.fn().mockReturnValue({ data: [], isLoading: false }),
-  useClimatSituationSummary: vi.fn().mockReturnValue({ data: undefined, isLoading: false }),
   useClimatRange: vi.fn().mockReturnValue({
     data: { max_indices_month: '2026-06', max_monthly_month: '2026-07', min_month: '1950-01' },
   }),

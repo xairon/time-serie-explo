@@ -9,13 +9,11 @@ from datetime import date
 import pytest
 from fastapi import HTTPException
 
-from api.era5_anomaly import DROUGHT_SPI_THRESHOLD, _STI_THRESHOLDS
 from api.routers.observatory_climat import (
     router,
     _parse_month,
     _parse_date,
     _round_cell,
-    _build_situation_summary,
     _build_drought_episodes,
     _build_range,
     _build_daily_points,
@@ -29,7 +27,7 @@ from api.routers.observatory_climat import (
 )
 
 
-def test_router_mounts_all_twelve_climat_paths():
+def test_router_mounts_all_eleven_climat_paths():
     paths = {r.path for r in router.routes}
     assert paths == {
         "/api/v1/observatory/climat/range",
@@ -39,7 +37,6 @@ def test_router_mounts_all_twelve_climat_paths():
         "/api/v1/observatory/climat/daily-temp-range",
         "/api/v1/observatory/climat/daily-precip",
         "/api/v1/observatory/climat/daily-precip-range",
-        "/api/v1/observatory/climat/situation-summary",
         "/api/v1/observatory/climat/point-series",
         "/api/v1/observatory/climat/point-episodes",
         "/api/v1/observatory/climat/compare-years",
@@ -170,95 +167,6 @@ class TestBuildRange:
             "max_monthly_complete_month": None,
             "max_monthly_month": None,
         }
-
-
-class TestBuildSituationSummary:
-    def _rows(self, spis):
-        return [{"era5_latitude": 45.0 + i * 0.1, "era5_longitude": 2.0, "spi": v} for i, v in enumerate(spis)]
-
-    def test_empty_rows_yields_zeroed_summary(self):
-        out = _build_situation_summary([], [], date(2026, 6, 1), 3)
-        assert out["n_cells"] == 0
-        assert out["median_spi"] is None
-        assert out["is_driest_on_record"] is False
-        assert out["top5_cellules_seches"] == []
-        assert sum(out["classes_pct"].values()) == 0.0
-        # No SPI computed for this month/window yet (e.g. the partial current
-        # month) — must be flagged explicitly, not read as a real 0% drought.
-        assert out["available"] is False
-
-    def test_non_empty_rows_yields_available_true(self):
-        out = _build_situation_summary(self._rows([-2.0, -0.5]), [], date(2026, 6, 1), 3)
-        assert out["available"] is True
-
-    def test_classes_pct_sums_to_100(self):
-        spis = [-2.0, -1.5, -0.5, 0.0, 0.5, 1.5, 2.0, -1.2]
-        out = _build_situation_summary(self._rows(spis), [], date(2026, 6, 1), 3)
-        assert out["n_cells"] == 8
-        assert abs(sum(out["classes_pct"].values()) - 100.0) < 1e-6
-
-    def test_pct_secheresse_is_readable_off_the_class_bar(self):
-        """Le % du bandeau doit se retrouver à l'œil sur la barre de synthèse :
-        il vaut exactement la somme des 3 classes les plus sèches. L'ancien seuil
-        -1.0 coupait au milieu de la classe BAS ([-1.28, -0.84)), ce qui rendait
-        le % invérifiable contre la légende affichée juste à côté."""
-        # -0.9 est « Modérément sec » (BAS) tout en étant > -1.0 : c'est lui qui
-        # sépare l'ancien seuil du nouveau (ancien -> 33.33 %, nouveau -> 50 %).
-        spis = [-2.0, -1.5, -0.9, -0.5, 0.0, 1.0]
-        out = _build_situation_summary(self._rows(spis), [], date(2026, 6, 1), 3)
-        cp = out["classes_pct"]
-        dry_classes = cp["EXTREMEMENT_BAS"] + cp["TRES_BAS"] + cp["BAS"]
-        # Tolérance : chaque classe est arrondie INDÉPENDAMMENT à 2 décimales, donc la
-        # somme des arrondis dérive de l'arrondi de la somme (ici 16.67*3 = 50.01 vs
-        # 50.0). L'écart est borné par 3 * 0.005 et invisible à l'affichage — mais il
-        # existe, et l'égalité stricte serait fausse.
-        assert out["pct_secheresse"] == pytest.approx(dry_classes, abs=0.02)
-        assert out["pct_secheresse"] == pytest.approx(50.0)  # 3 cellules sur 6
-
-    def test_pct_secheresse_excludes_the_normal_boundary_exactly(self):
-        """-0.84 appartient à NORMAL (convention lo <= z < hi de classify_index),
-        donc il ne compte PAS comme sécheresse. Sans ça, le % dépasserait la somme
-        des classes sèches et l'invariant ci-dessus casserait au bord."""
-        out = _build_situation_summary(self._rows([-0.84, -0.85]), [], date(2026, 6, 1), 3)
-        assert out["classes_pct"]["NORMAL"] == 50.0
-        assert out["classes_pct"]["BAS"] == 50.0
-        assert out["pct_secheresse"] == 50.0  # seul -0.85 compte
-
-    def test_drought_threshold_is_the_normal_class_lower_boundary(self):
-        """Le seuil n'est pas un nombre libre : c'est la frontière basse de la
-        classe NORMAL, donc une limite visible sur la légende. Ce test casse si
-        quelqu'un déplace l'un sans l'autre."""
-        normal_lo = next(lo for lo, _hi, cls in _STI_THRESHOLDS if cls == "NORMAL")
-        assert DROUGHT_SPI_THRESHOLD == normal_lo
-
-    def test_top5_returns_the_five_driest_cells_sorted_ascending(self):
-        spis = [0.5, -3.0, -1.0, -2.5, 1.0, -0.2, -2.0]
-        out = _build_situation_summary(self._rows(spis), [], date(2026, 6, 1), 3)
-        top5_values = [c["spi"] for c in out["top5_cellules_seches"]]
-        assert top5_values == sorted(spis)[:5]
-        assert len(out["top5_cellules_seches"]) == 5
-
-    def test_driest_on_record_when_no_year_was_as_dry(self):
-        rows = self._rows([-2.5, -2.5])  # median -2.5
-        year_rows = [
-            {"yr": 2020, "median_spi": -1.0},
-            {"yr": 2015, "median_spi": -0.5},
-        ]
-        out = _build_situation_summary(rows, year_rows, date(2026, 6, 1), 3)
-        assert out["is_driest_on_record"] is True
-        assert out["driest_since_year"] == 2015  # earliest year in the record
-
-    def test_driest_since_year_finds_the_last_year_as_dry_or_drier(self):
-        rows = self._rows([-1.0, -1.0])  # current median -1.0
-        year_rows = [
-            {"yr": 2020, "median_spi": -0.2},
-            {"yr": 1990, "median_spi": -1.5},  # as dry or drier than current
-            {"yr": 1976, "median_spi": -2.0},
-        ]
-        out = _build_situation_summary(rows, year_rows, date(2026, 6, 1), 3)
-        assert out["is_driest_on_record"] is False
-        # 1990 was as dry/drier -> driest since 1991 (the year right after)
-        assert out["driest_since_year"] == 1991
 
 
 class TestBuildDroughtEpisodes:
@@ -468,16 +376,6 @@ class TestParamValidationViaHttp:
         client = TestClient(app)
         r = client.get(
             "/api/v1/observatory/climat/grid-indices", params={"month": "2026-06", "window": 4}
-        )
-        assert r.status_code == 422
-
-    def test_situation_summary_rejects_invalid_window(self):
-        from fastapi.testclient import TestClient
-        from api.main import app
-
-        client = TestClient(app)
-        r = client.get(
-            "/api/v1/observatory/climat/situation-summary", params={"month": "2026-06", "window": 4}
         )
         assert r.status_code == 422
 

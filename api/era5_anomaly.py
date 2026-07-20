@@ -26,18 +26,6 @@ _STI_THRESHOLDS = [
     (1.75, float("inf"), "EXTREMEMENT_HAUT"),
 ]
 
-# Frontière basse de la classe NORMAL : un territoire est compté « ≤ Modérément sec »
-# dès que son SPI passe sous ce seuil. Ce n'est PAS un nombre libre — c'est une limite
-# visible sur la légende, ce qui rend le % du bandeau vérifiable à l'œil contre la barre
-# de classes affichée à côté (l'ancien -1.0 tombait au milieu de la classe BAS
-# [-1.28, -0.84) et ne correspondait à aucune frontière).
-#
-# À ne pas confondre avec le seuil d'ÉVÉNEMENT de sécheresse des épisodes
-# (observatory_climat._build_drought_episodes), qui reste à -1.0 : c'est la définition
-# WMO de l'événement (« le SPI est continûment négatif et atteint -1.0 ou moins »),
-# un standard distinct de ces classes de sévérité équiprobables.
-DROUGHT_SPI_THRESHOLD = -0.84
-
 
 def classify_index(z) -> str:
     """Classify a standardized index value (z-score) into the 7 McKee/WMO class strings.

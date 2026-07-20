@@ -104,16 +104,6 @@ export function useClimatDailyPrecip(day: string | undefined, enabled: boolean) 
   })
 }
 
-/** Territory-wide synthesis (7-class breakdown, % drought, driest-since-year, top-5 driest cells). */
-export function useClimatSituationSummary(month: string | undefined, window: number, enabled: boolean) {
-  return useQuery({
-    queryKey: ['climat', 'situation-summary', month, window],
-    queryFn: () => observatoryApi.climat.situationSummary(month!, window),
-    enabled: enabled && !!month,
-    staleTime: CLIMAT_STALE_TIME,
-  })
-}
-
 export interface SelectedCell { lat: number; lon: number }
 
 /** Selected-cell state for the Point/Zone panel (Task B2), round-tripped through the
