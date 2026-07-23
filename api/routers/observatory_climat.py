@@ -84,6 +84,15 @@ def _validate_window(window: int) -> None:
         raise HTTPException(422, f"Fenêtre invalide : {window!r} (attendu {WINDOWS})")
 
 
+_GRID_INDICES = ("spi", "sti", "spei")
+
+
+def _assert_index(index: str) -> None:
+    """Reject an unknown grid index with 422 — mirrors ``_validate_window``."""
+    if index not in _GRID_INDICES:
+        raise HTTPException(422, f"Indice inconnu : {index!r} (attendu {_GRID_INDICES})")
+
+
 def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) -> dict:
     """Pure formatting for GET /range: month bounds as ISO ``YYYY-MM-DD`` strings
     (None-safe — e.g. before the first backfill).
@@ -339,12 +348,11 @@ def get_grid_monthly(
 def get_grid_indices(
     month: str = Query(..., description="Mois au format YYYY-MM"),
     window: int = Query(3, description="Fenêtre en mois (1, 3, 6 ou 12)"),
-    index: str = Query("spi", description="spi ou sti"),
+    index: str = Query("spi", description="spi, sti ou spei"),
 ):
-    """Per-cell SPI or STI value from ``fct_era5_indices_grid`` for the given month/window."""
+    """Per-cell SPI, STI or SPEI value from ``fct_era5_indices_grid`` for the given month/window."""
     _validate_window(window)
-    if index not in ("spi", "sti"):
-        raise HTTPException(422, f"Indice inconnu : {index!r} (attendu spi ou sti)")
+    _assert_index(index)
     month_start = _parse_month(month)
 
     def fetch():

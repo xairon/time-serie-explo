@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 from fastapi import HTTPException
 
+from api.routers import observatory_climat
 from api.routers.observatory_climat import (
     router,
     _parse_month,
@@ -335,6 +336,17 @@ class TestMergeCompareYears:
         ]
         out = _merge_compare_years([], [], spi_rows, [2003])
         assert out[2003]["spi_3"] == [{"mois": 1, "spi": -1.5}, {"mois": 2, "spi": -1.8}]
+
+
+def test_assert_index_accepts_all_three():
+    for ok in ("spi", "sti", "spei"):
+        observatory_climat._assert_index(ok)  # must NOT raise
+
+
+def test_assert_index_rejects_unknown():
+    with pytest.raises(HTTPException) as exc:
+        observatory_climat._assert_index("bogus")
+    assert exc.value.status_code == 422
 
 
 class TestParamValidationViaHttp:
