@@ -10,6 +10,8 @@ interface Props {
   isLoading: boolean
   /** The episode still ongoing (see findCurrentEpisode), highlighted in the table. */
   currentEpisode?: ClimatDroughtEpisode
+  /** Active drought index (SPI/SPEI toggle in PointPanel), drives the min column header. */
+  index?: 'spi' | 'spei'
 }
 
 function formatMonth(iso: string, locale: string): string {
@@ -21,7 +23,7 @@ function formatMonth(iso: string, locale: string): string {
 /** Drought episodes table (Task B2) — début/fin/durée/SPI min/déficit, sortable by
  *  duration or start date, with the ongoing episode (if any) highlighted. Data comes
  *  from GET /observatory/climat/point-episodes (useClimatPointEpisodes). */
-export function EpisodesTable({ episodes, isLoading, currentEpisode }: Props) {
+export function EpisodesTable({ episodes, isLoading, currentEpisode, index = 'spi' }: Props) {
   const { t, i18n } = useTranslation()
   const [sortKey, setSortKey] = useState<EpisodeSortKey>('duree_mois')
   const [direction, setDirection] = useState<SortDirection>('desc')
@@ -68,7 +70,7 @@ export function EpisodesTable({ episodes, isLoading, currentEpisode }: Props) {
             <SortHeader label={t('climat.episodes.start')} sortKeyValue="debut" />
             <th scope="col" className="text-left font-medium text-text-secondary px-2 py-1.5">{t('climat.episodes.end')}</th>
             <SortHeader label={t('climat.episodes.duration')} sortKeyValue="duree_mois" align="right" />
-            <th scope="col" className="text-right font-medium text-text-secondary px-2 py-1.5">{t('climat.episodes.spiMin')}</th>
+            <th scope="col" className="text-right font-medium text-text-secondary px-2 py-1.5">{t(`climat.episodes.${index}Min`)}</th>
             <th scope="col" className="text-right font-medium text-text-secondary px-2 py-1.5">{t('climat.episodes.deficit')}</th>
           </tr>
         </thead>

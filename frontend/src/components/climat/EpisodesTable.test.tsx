@@ -66,4 +66,16 @@ describe('EpisodesTable', () => {
     expect(screen.getByText('-2.10')).toBeInTheDocument()
     expect(screen.getByText('-180 mm')).toBeInTheDocument()
   })
+
+  it('shows the SPI min header by default', () => {
+    render(<EpisodesTable episodes={EPISODES} isLoading={false} />)
+    expect(screen.getByText('SPI min')).toBeInTheDocument()
+    expect(screen.queryByText('Min SPEI')).not.toBeInTheDocument()
+  })
+
+  it('shows the SPEI min header when index="spei"', () => {
+    render(<EpisodesTable episodes={EPISODES} isLoading={false} index="spei" />)
+    expect(screen.getByText('Min SPEI')).toBeInTheDocument()
+    expect(screen.queryByText('SPI min')).not.toBeInTheDocument()
+  })
 })

@@ -1906,6 +1906,7 @@
       "end": "Fin",
       "duration": "Durée (mois)",
       "spiMin": "SPI min",
+      "speiMin": "Min SPEI",
       "deficit": "Déficit (mm)",
       "empty": "Aucun épisode de sécheresse recensé sur cette période.",
       "ongoing": "En cours"

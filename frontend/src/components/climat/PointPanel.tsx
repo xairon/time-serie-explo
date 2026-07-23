@@ -191,7 +191,7 @@ export function PointPanel({ lat, lon, month, onClose }: Props) {
                     ))}
                   </div>
                 </div>
-                <EpisodesTable episodes={episodes ?? []} isLoading={episodesLoading && !episodesError} currentEpisode={currentEpisode} />
+                <EpisodesTable episodes={episodes ?? []} isLoading={episodesLoading && !episodesError} currentEpisode={currentEpisode} index={episodeIndex} />
                 {episodesError && <p className="text-xs text-red-400 mt-1">{t('climat.pointPanel.loadFailed')}</p>}
               </div>
             </>
