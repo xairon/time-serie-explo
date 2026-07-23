@@ -259,8 +259,8 @@ class TestMergePointSeries:
         ]
         clim_rows = [{"mois_calendaire": 6, "precip_moyenne": 60.0, "temp_moyenne": 17.0}]
         indices_rows = [
-            {"month": date(2026, 6, 1), "fenetre": 1, "spi": -0.5, "sti": 0.3},
-            {"month": date(2026, 6, 1), "fenetre": 3, "spi": -1.2, "sti": 0.1},
+            {"month": date(2026, 6, 1), "fenetre": 1, "spi": -0.5, "sti": 0.3, "spei": -0.4},
+            {"month": date(2026, 6, 1), "fenetre": 3, "spi": -1.2, "sti": 0.1, "spei": -1.1},
         ]
         series = _merge_point_series(monthly_rows, clim_rows, indices_rows)
         assert len(series) == 1
@@ -272,6 +272,9 @@ class TestMergePointSeries:
         assert entry["spi_3"] == -1.2
         assert entry["spi_6"] is None
         assert entry["sti_12"] is None
+        assert entry["spei_1"] == -0.4
+        assert entry["spei_3"] == -1.1
+        assert entry["spei_6"] is None
 
     def test_missing_climatology_leaves_normals_none(self):
         monthly_rows = [
@@ -287,6 +290,20 @@ class TestMergePointSeries:
         for w in WINDOWS:
             assert series[0][f"spi_{w}"] is None
             assert series[0][f"sti_{w}"] is None
+            assert series[0][f"spei_{w}"] is None
+
+    def test_merge_point_series_includes_spei(self):
+        monthly = [{"mois": date(2026, 6, 1),
+                    "temperature_moyenne": 18.0, "temperature_min": 10.0,
+                    "temperature_max": 26.0, "precipitation_totale": 40.0,
+                    "etp_totale": 120.0, "bilan_hydrique": -80.0,
+                    "nb_jours": 30, "mois_complet": True}]
+        clim = []
+        indices = [{"month": date(2026, 6, 1),
+                    "fenetre": 3, "spi": -1.2, "sti": 0.5, "spei": -1.5}]
+        out = _merge_point_series(monthly, clim, indices)
+        assert out[0]["spei_3"] == -1.5
+        assert out[0]["spei_1"] is None      # window absent → None, like spi/sti
 
 
 class TestMergeCompareYears:

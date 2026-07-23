@@ -145,6 +145,7 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
         fen = int(r["fenetre"])
         indices_by_month[key][f"spi_{fen}"] = _num(r["spi"])
         indices_by_month[key][f"sti_{fen}"] = _num(r["sti"])
+        indices_by_month[key][f"spei_{fen}"] = _num(r["spei"])
 
     series = []
     for r in monthly_rows:
@@ -167,6 +168,7 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
         for fen in WINDOWS:
             entry[f"spi_{fen}"] = idx.get(f"spi_{fen}")
             entry[f"sti_{fen}"] = idx.get(f"sti_{fen}")
+            entry[f"spei_{fen}"] = idx.get(f"spei_{fen}")
         series.append(entry)
     return series
 
@@ -548,7 +550,7 @@ def get_point_series(
             ).mappings().all()
 
             indices_query = (
-                "SELECT month, fenetre, spi, sti FROM gold.fct_era5_indices_grid"
+                "SELECT month, fenetre, spi, sti, spei FROM gold.fct_era5_indices_grid"
                 " WHERE era5_latitude = :lat AND era5_longitude = :lon"
             )
             i_params: dict = {"lat": cell_lat, "lon": cell_lon}
@@ -729,7 +731,7 @@ def export_point_csv(
                 return None
             indices_rows = conn.execute(
                 text(
-                    "SELECT month, fenetre, spi, sti FROM gold.fct_era5_indices_grid"
+                    "SELECT month, fenetre, spi, sti, spei FROM gold.fct_era5_indices_grid"
                     " WHERE era5_latitude = :lat AND era5_longitude = :lon"
                 ),
                 {"lat": cell_lat, "lon": cell_lon},
@@ -741,6 +743,7 @@ def export_point_csv(
             fen = int(r["fenetre"])
             indices_by_month[key][f"spi_{fen}"] = _num(r["spi"])
             indices_by_month[key][f"sti_{fen}"] = _num(r["sti"])
+            indices_by_month[key][f"spei_{fen}"] = _num(r["spei"])
 
         buf = io.StringIO()
         fieldnames = (
@@ -750,6 +753,7 @@ def export_point_csv(
             ]
             + [f"spi_{w}" for w in WINDOWS]
             + [f"sti_{w}" for w in WINDOWS]
+            + [f"spei_{w}" for w in WINDOWS]
         )
         writer = csv.DictWriter(buf, fieldnames=fieldnames)
         writer.writeheader()
@@ -770,6 +774,7 @@ def export_point_csv(
             for w in WINDOWS:
                 row[f"spi_{w}"] = idx.get(f"spi_{w}")
                 row[f"sti_{w}"] = idx.get(f"sti_{w}")
+                row[f"spei_{w}"] = idx.get(f"spei_{w}")
             writer.writerow(row)
         return buf.getvalue()
 
