@@ -18,7 +18,7 @@ interface Props {
  *  (précipitation/température/ETP) sont des CHIFFRES dans le PointPanel, pas des
  *  cartes (cf. spec 2026-07-16 — une carte porte un indicateur, un nombre porte
  *  la valeur). Les journalières ci-dessous font exception : domaine absolu fixe. */
-const ANOMALY_VARS: ClimatVariable[] = ['spi', 'sti', 'bilan_hydrique']
+const ANOMALY_VARS: ClimatVariable[] = ['spi', 'sti', 'spei', 'bilan_hydrique']
 
 /** Variable + window picker for the Climat Situation view. Window selector only
  *  applies to SPI/STI (the raw variables have no rolling-window concept here). */

@@ -47,6 +47,14 @@ describe('climatIndicesToSquares', () => {
     )
     expect(fc.features).toHaveLength(0)
   })
+
+  it('reads the requested index key (spei) independently of a stray spi field', () => {
+    const fc = climatIndicesToSquares(
+      [{ latitude: 45, longitude: 5, spei: -0.9, spi: null, index_class: 'BAS' }],
+      'spei',
+    )
+    expect(fc.features[0].properties).toEqual({ value: -0.9, index_class: 'BAS' })
+  })
 })
 
 describe('climatSelectedCellSquare', () => {

@@ -83,7 +83,7 @@ export function ClimatMap({ variable, monthlyPoints, indexPoints, dailyPoints, o
     const isIndex = isClimatIndexVariable(variable)
     const isDaily = isClimatDailyVariable(variable)
     const data = isIndex
-      ? climatIndicesToSquares(indexPoints ?? [], variable as 'spi' | 'sti')
+      ? climatIndicesToSquares(indexPoints ?? [], variable as 'spi' | 'sti' | 'spei')
       : isDaily
         ? climatDailyTempToSquares(dailyPoints ?? [])
         : climatMonthlyToSquares(monthlyPoints ?? [])
@@ -91,7 +91,7 @@ export function ClimatMap({ variable, monthlyPoints, indexPoints, dailyPoints, o
     map.setPaintProperty(
       FILL, 'fill-color',
       isIndex
-        ? climatIndexColorExpression(variable as 'spi' | 'sti') as any
+        ? climatIndexColorExpression(variable as 'spi' | 'sti' | 'spei') as any
         : variable === 'bilan_hydrique'
           ? climatBilanColorExpression() as any
           : variable === 'precip_daily'

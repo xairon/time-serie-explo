@@ -1838,6 +1838,7 @@
     "variables": {
       "spi": "SPI (précipitations)",
       "sti": "STI (température)",
+      "spei": "SPEI (précip. − ETP)",
       "bilanHydrique": "Bilan hydrique",
       "precipitation": "Précipitations",
       "temperature": "Température",

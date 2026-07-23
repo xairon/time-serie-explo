@@ -29,8 +29,8 @@ const mockSeriesHook = useClimatPointSeries as unknown as ReturnType<typeof vi.f
 const mockEpisodesHook = useClimatPointEpisodes as unknown as ReturnType<typeof vi.fn>
 
 const SERIES: ClimatPointSeriesEntry[] = [
-  { month: '2026-04-01', temperature_moyenne: 12, temperature_min: 8, temperature_max: 16, precipitation_totale: 40, etp_totale: 50, bilan_hydrique: -10, nb_jours: 30, mois_complet: true, precipitation_normale: 60, temperature_normale: 11, spi_1: -0.2, sti_1: 0.1, spi_3: -1.4, sti_3: 0.3, spi_6: -0.9, sti_6: 0.2, spi_12: -0.5, sti_12: 0.1 },
-  { month: '2026-05-01', temperature_moyenne: 14, temperature_min: 9, temperature_max: 18, precipitation_totale: 20, etp_totale: 60, bilan_hydrique: -40, nb_jours: 31, mois_complet: true, precipitation_normale: 55, temperature_normale: 13, spi_1: -1.6, sti_1: 0.4, spi_3: -1.8, sti_3: 0.5, spi_6: -1.1, sti_6: 0.3, spi_12: -0.6, sti_12: 0.2 },
+  { month: '2026-04-01', temperature_moyenne: 12, temperature_min: 8, temperature_max: 16, precipitation_totale: 40, etp_totale: 50, bilan_hydrique: -10, nb_jours: 30, mois_complet: true, precipitation_normale: 60, temperature_normale: 11, spi_1: -0.2, sti_1: 0.1, spei_1: -0.1, spi_3: -1.4, sti_3: 0.3, spei_3: -1.0, spi_6: -0.9, sti_6: 0.2, spei_6: -0.7, spi_12: -0.5, sti_12: 0.1, spei_12: -0.4 },
+  { month: '2026-05-01', temperature_moyenne: 14, temperature_min: 9, temperature_max: 18, precipitation_totale: 20, etp_totale: 60, bilan_hydrique: -40, nb_jours: 31, mois_complet: true, precipitation_normale: 55, temperature_normale: 13, spi_1: -1.6, sti_1: 0.4, spei_1: -1.3, spi_3: -1.8, sti_3: 0.5, spei_3: -1.5, spi_6: -1.1, sti_6: 0.3, spei_6: -0.9, spi_12: -0.6, sti_12: 0.2, spei_12: -0.5 },
 ]
 
 const EPISODES: ClimatDroughtEpisode[] = [

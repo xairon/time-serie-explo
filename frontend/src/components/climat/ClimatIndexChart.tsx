@@ -38,14 +38,18 @@ const PERIODS = [
  *  endpoint call — the 4 windows are already in the payload). */
 export function ClimatIndexChart({ series, window, onWindowChange }: Props) {
   const { t, i18n } = useTranslation()
-  const [index, setIndex] = useState<'spi' | 'sti'>('spi')
+  const [index, setIndex] = useState<'spi' | 'sti' | 'spei'>('spi')
   const [period, setPeriod] = useState<number>(120)
   const localeTag = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR'
 
-  const order = index === 'spi' ? SPI_CLASS_ORDER : STI_CLASS_ORDER
-  const colors = index === 'spi' ? SPI_CLASS_COLORS : STI_CLASS_COLORS
-  const ns = index === 'spi' ? 'observatory.spi' : 'observatory.sti'
-  const fieldKey = (index === 'spi' ? `spi_${window}` : `sti_${window}`) as keyof ClimatPointSeriesEntry
+  // STI (temperature) uses the STI palette/namespace; SPI and SPEI are both drought
+  // indices (negative = dry) and share the SPI palette/namespace (Task 8 — mirrors
+  // climatIndexColorExpression/ClimatLegend, never STI's temperature palette).
+  const isStd = index === 'sti'
+  const order = isStd ? STI_CLASS_ORDER : SPI_CLASS_ORDER
+  const colors = isStd ? STI_CLASS_COLORS : SPI_CLASS_COLORS
+  const ns = isStd ? 'observatory.sti' : 'observatory.spi'
+  const fieldKey = `${index}_${window}` as keyof ClimatPointSeriesEntry
 
   const filtered = useMemo(() => {
     if (period === Infinity) return series
@@ -71,13 +75,13 @@ export function ClimatIndexChart({ series, window, onWindowChange }: Props) {
     <div>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex gap-1" role="radiogroup" aria-label={t('climat.pointPanel.indexLabel')}>
-          {(['spi', 'sti'] as const).map((k) => (
+          {(['spi', 'sti', 'spei'] as const).map((k) => (
             <button
               key={k} type="button" role="radio" aria-checked={index === k}
               onClick={() => setIndex(k)}
               className={`text-xs px-2.5 py-1 rounded-md transition-colors ${index === k ? 'bg-accent-cyan/20 text-accent-cyan' : 'text-text-secondary hover:text-text-primary'}`}
             >
-              {t(k === 'spi' ? 'climat.variables.spi' : 'climat.variables.sti')}
+              {t(`climat.variables.${k}`)}
             </button>
           ))}
         </div>

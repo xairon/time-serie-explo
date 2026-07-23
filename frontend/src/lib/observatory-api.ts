@@ -132,7 +132,7 @@ export const observatoryApi = {
     range: () => fetchJson<ClimatRange>('/observatory/climat/range'),
     gridMonthly: (month: string, variable: string) =>
       fetchJson<ClimatMonthlyPoint[]>('/observatory/climat/grid-monthly', { month, variable }),
-    gridIndices: (month: string, window: number, index: 'spi' | 'sti') =>
+    gridIndices: (month: string, window: number, index: 'spi' | 'sti' | 'spei') =>
       fetchJson<ClimatIndexPoint[]>('/observatory/climat/grid-indices', { month, window: String(window), index }),
     // TRUE daily temperature statistics (24 hourly steps, silver.stg_era5_daily_temp_stats)
     // — per-day Tx/Tn/Tmoy, distinct from grid-monthly's temperature var (a monthly

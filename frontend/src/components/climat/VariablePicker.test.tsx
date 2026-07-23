@@ -6,10 +6,11 @@ import { VariablePicker } from './VariablePicker'
 describe('VariablePicker', () => {
   beforeAll(async () => { await i18n.changeLanguage('fr') })
 
-  it('renders only the 3 index variables, SPI first, and no absolute family', () => {
+  it('renders only the 4 index variables, SPI first, and no absolute family', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'STI (température)' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Bilan hydrique' })).toBeInTheDocument()
     // La famille « Valeur absolue » a été retirée (doctrine : cartes = indicateurs).
     expect(screen.queryByRole('radio', { name: 'Précipitations' })).not.toBeInTheDocument()
@@ -91,5 +92,15 @@ describe('VariablePicker', () => {
   it('propose la pluie parmi les journalières', () => {
     render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByRole('radio', { name: 'Pluie (jour)' })).toBeInTheDocument()
+  })
+
+  it('renders SPEI in the Anomalie group', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toBeInTheDocument()
+  })
+
+  it('shows the window selector when SPEI is active', () => {
+    render(<VariablePicker variable="spei" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    expect(screen.getByText('Fenêtre')).toBeInTheDocument()
   })
 })

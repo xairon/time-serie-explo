@@ -42,11 +42,11 @@ export function useClimatGridMonthly(month: string | undefined, variable: string
   })
 }
 
-/** Per-cell SPI or STI for one month/window. */
+/** Per-cell SPI, STI or SPEI for one month/window. */
 export function useClimatGridIndices(
   month: string | undefined,
   window: number,
-  index: 'spi' | 'sti',
+  index: 'spi' | 'sti' | 'spei',
   enabled: boolean,
 ) {
   return useQuery({

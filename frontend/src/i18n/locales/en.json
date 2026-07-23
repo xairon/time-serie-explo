@@ -1838,6 +1838,7 @@
     "variables": {
       "spi": "SPI (precipitation)",
       "sti": "STI (temperature)",
+      "spei": "SPEI (precip. − PET)",
       "bilanHydrique": "Water balance",
       "precipitation": "Precipitation",
       "temperature": "Temperature",

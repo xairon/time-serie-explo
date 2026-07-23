@@ -59,10 +59,10 @@ export function climatSelectedCellSquare(lat: number, lon: number): GeoJSON.Feat
   }
 }
 
-/** Convert grid-indices points (SPI or STI) into squares carrying `value` + `index_class`. */
+/** Convert grid-indices points (SPI, STI or SPEI) into squares carrying `value` + `index_class`. */
 export function climatIndicesToSquares(
   points: ClimatIndexPoint[],
-  index: 'spi' | 'sti',
+  index: 'spi' | 'sti' | 'spei',
 ): GeoJSON.FeatureCollection<GeoJSON.Polygon, { value: number; index_class: string }> {
   const h = ERA5_CELL_HALF
   return {
