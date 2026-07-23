@@ -87,7 +87,7 @@ export function EpisodesTable({ episodes, isLoading, currentEpisode }: Props) {
                   )}
                 </td>
                 <td className="px-2 py-1.5 text-right font-mono text-text-primary">{ep.duree_mois}</td>
-                <td className="px-2 py-1.5 text-right font-mono text-text-primary">{ep.spi_min.toFixed(2)}</td>
+                <td className="px-2 py-1.5 text-right font-mono text-text-primary">{ep.index_min.toFixed(2)}</td>
                 <td className="px-2 py-1.5 text-right font-mono text-text-primary">{Math.round(ep.deficit_cumule_mm)} mm</td>
               </tr>
             )

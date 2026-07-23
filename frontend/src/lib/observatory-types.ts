@@ -296,7 +296,7 @@ export interface ClimatDroughtEpisode {
   debut: string
   fin: string
   duree_mois: number
-  spi_min: number
+  index_min: number
   deficit_cumule_mm: number
 }
 

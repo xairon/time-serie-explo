@@ -28,6 +28,10 @@ from api.routers.observatory_climat import (
 )
 
 
+def _rows(key, vals):
+    return [{"month": date(2026, m, 1), key: v} for m, v in vals]
+
+
 def test_router_mounts_all_eleven_climat_paths():
     paths = {r.path for r in router.routes}
     assert paths == {
@@ -186,7 +190,7 @@ class TestBuildDroughtEpisodes:
         assert out[0]["debut"] == "2020-01-01"
         assert out[0]["fin"] == "2020-03-01"
         assert out[0]["duree_mois"] == 3
-        assert out[0]["spi_min"] == -2.0
+        assert out[0]["index_min"] == -2.0
 
     def test_missing_month_in_the_middle_splits_into_two_episodes(self):
         # 2020-03 is simply absent (e.g. its SPI was NULL and filtered upstream) —
@@ -247,6 +251,19 @@ class TestBuildDroughtEpisodes:
         spi_rows = self._spi(((2020, 1), -1.5))
         out = _build_drought_episodes(spi_rows, [], [])
         assert out[0]["deficit_cumule_mm"] == 0.0
+
+    def test_episodes_generic_over_spei(self):
+        # 3 consecutive months < -1 → one episode, keyed by 'spei'
+        rows = _rows("spei", [(4, -1.2), (5, -1.6), (6, -0.9), (7, -2.1)])
+        eps = _build_drought_episodes(rows, [], [], index_key="spei")
+        assert len(eps) == 2  # (apr-may) and (jul)
+        assert eps[0]["duree_mois"] == 2
+        assert eps[0]["index_min"] == -1.6
+
+    def test_episodes_default_key_is_spi(self):
+        rows = _rows("spi", [(4, -1.5), (5, -1.5)])
+        eps = _build_drought_episodes(rows, [], [])
+        assert eps[0]["index_min"] == -1.5
 
 
 class TestMergePointSeries:

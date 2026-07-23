@@ -93,6 +93,16 @@ def _assert_index(index: str) -> None:
         raise HTTPException(422, f"Indice inconnu : {index!r} (attendu {_GRID_INDICES})")
 
 
+_EPISODE_INDICES = ("spi", "spei")
+
+
+def _assert_episode_index(index: str) -> None:
+    """Reject an unknown episode index with 422 — episodes are drought-only
+    (spi/spei), unlike ``_assert_index`` which also allows sti for grid layers."""
+    if index not in _EPISODE_INDICES:
+        raise HTTPException(422, f"Indice d'épisode invalide : {index!r} (attendu spi ou spei)")
+
+
 def _build_range(max_indices, max_monthly_complete, max_monthly, min_monthly) -> dict:
     """Pure formatting for GET /range: month bounds as ISO ``YYYY-MM-DD`` strings
     (None-safe — e.g. before the first backfill).
@@ -182,11 +192,12 @@ def _merge_point_series(monthly_rows, clim_rows, indices_rows) -> list[dict]:
     return series
 
 
-def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
-    """Pure gaps-and-islands grouping: consecutive CALENDAR months with SPI < -1
+def _build_drought_episodes(index_rows, monthly_rows, clim_rows, index_key="spi") -> list[dict]:
+    """Pure gaps-and-islands grouping: consecutive CALENDAR months with index < -1
+    (``index_key`` is ``"spi"`` or ``"spei"`` — episodes are drought-only)
 
     Le seuil -1.0 est VOLONTAIRE : c'est la définition WMO de l'ÉVÉNEMENT de
-    sécheresse (« le SPI est continûment négatif et atteint -1.0 ou moins »). Un
+    sécheresse (« l'indice est continûment négatif et atteint -1.0 ou moins »). Un
     standard reconnu, à ne pas remplacer par une convention maison.
     form one drought episode.
 
@@ -195,27 +206,29 @@ def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
     equivalent of the SQL idiom
     ``month - ROW_NUMBER() OVER (ORDER BY month) * INTERVAL '1 month'``.
     Consecutive calendar months keep the same key; any missing month (an absent
-    row, or a NULL SPI filtered out upstream) shifts the key and therefore
+    row, or a NULL index filtered out upstream) shifts the key and therefore
     breaks the episode — un mois manquant casse l'épisode, robuste aux trous de
     série (a mid-series gap no longer silently merges two distinct droughts).
 
     Args:
-        spi_rows: dicts ``{month, spi}`` for one cell/window, ``spi`` may be
-            non-drought or already spi-not-null filtered upstream.
+        index_rows: dicts ``{month, <index_key>}`` for one cell/window, the
+            index may be non-drought or already not-null filtered upstream.
         monthly_rows: dicts ``{mois, precipitation_totale}`` for the same cell,
             used to compute the cumulative rainfall deficit per episode.
         clim_rows: dicts ``{mois_calendaire, precip_moyenne}`` (window-1
             climatology), the calendar-month normal subtracted from
             ``precipitation_totale``.
+        index_key: which column to read off ``index_rows`` — ``"spi"``
+            (default, backward compatible) or ``"spei"``.
     """
     normal_by_month = {int(r["mois_calendaire"]): _num(r["precip_moyenne"]) for r in clim_rows}
     precip_by_month = {r["mois"]: _num(r["precipitation_totale"]) for r in monthly_rows}
 
     drought = sorted(
         (
-            {"month": r["month"], "spi": float(r["spi"])}
-            for r in spi_rows
-            if r["spi"] is not None and float(r["spi"]) < -1.0
+            {"month": r["month"], "value": float(r[index_key])}
+            for r in index_rows
+            if r[index_key] is not None and float(r[index_key]) < -1.0
         ),
         key=lambda r: r["month"],
     )
@@ -241,7 +254,7 @@ def _build_drought_episodes(spi_rows, monthly_rows, clim_rows) -> list[dict]:
                 "debut": str(debut),
                 "fin": str(fin),
                 "duree_mois": len(members),
-                "spi_min": round(min(m["spi"] for m in members), 3),
+                "index_min": round(min(m["value"] for m in members), 3),
                 "deficit_cumule_mm": round(sum(deficit_terms), 1),
             }
         )
@@ -594,13 +607,15 @@ def get_point_episodes(
     lat: float = Query(..., description="Latitude"),
     lon: float = Query(..., description="Longitude"),
     window: int = Query(3, description="Fenêtre en mois (1, 3, 6 ou 12)"),
+    index: str = Query("spi", description="spi ou spei"),
 ):
     """Drought episodes at the nearest cell: consecutive CALENDAR months with
-    SPI < -1 for the given window. The SQL below only fetches raw rows —
-    grouping is CALENDAR-aware gaps-and-islands done in ``_build_drought_episodes``
-    (see its docstring for the island-keying idiom), so a missing month never
-    silently merges two distinct episodes."""
+    the chosen index (spi ou spei) < -1 for the given window. The SQL below
+    only fetches raw rows — grouping is CALENDAR-aware gaps-and-islands done in
+    ``_build_drought_episodes`` (see its docstring for the island-keying idiom),
+    so a missing month never silently merges two distinct episodes."""
     _validate_window(window)
+    _assert_episode_index(index)
     cell_lat, cell_lon = _round_cell(lat, lon)
 
     def fetch():
@@ -615,11 +630,11 @@ def get_point_episodes(
             ).first()
             if exists is None:
                 return None
-            spi_rows = conn.execute(
+            idx_rows = conn.execute(
                 text(
-                    "SELECT month, spi FROM gold.fct_era5_indices_grid"
+                    f"SELECT month, {index} FROM gold.fct_era5_indices_grid"
                     " WHERE era5_latitude = :lat AND era5_longitude = :lon"
-                    " AND fenetre = :window AND spi IS NOT NULL ORDER BY month"
+                    f" AND fenetre = :window AND {index} IS NOT NULL ORDER BY month"
                 ),
                 {"lat": cell_lat, "lon": cell_lon, "window": window},
             ).mappings().all()
@@ -637,10 +652,13 @@ def get_point_episodes(
                 ),
                 {"lat": cell_lat, "lon": cell_lon},
             ).mappings().all()
-        return _build_drought_episodes(spi_rows, monthly_rows, clim_rows)
+        return _build_drought_episodes(idx_rows, monthly_rows, clim_rows, index_key=index)
 
     result = get_cached(
-        "obs_climat_point_episodes", {"lat": cell_lat, "lon": cell_lon, "window": window}, GRID_TTL, fetch
+        "obs_climat_point_episodes",
+        {"lat": cell_lat, "lon": cell_lon, "window": window, "index": index},
+        GRID_TTL,
+        fetch,
     )
     if result is None:
         raise HTTPException(404, f"Cellule climatique introuvable pour lat={lat}, lon={lon}")

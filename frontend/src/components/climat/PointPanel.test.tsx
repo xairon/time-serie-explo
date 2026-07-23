@@ -34,7 +34,7 @@ const SERIES: ClimatPointSeriesEntry[] = [
 ]
 
 const EPISODES: ClimatDroughtEpisode[] = [
-  { debut: '2026-03-01', fin: '2026-05-01', duree_mois: 3, spi_min: -1.8, deficit_cumule_mm: -90.5 },
+  { debut: '2026-03-01', fin: '2026-05-01', duree_mois: 3, index_min: -1.8, deficit_cumule_mm: -90.5 },
 ]
 
 function mockSuccess(series = SERIES, episodes = EPISODES) {
@@ -128,7 +128,7 @@ describe('PointPanel', () => {
       { ...SERIES[SERIES.length - 1], month: '2026-06-01', spi_1: null, spi_3: null, spi_6: null, spi_12: null },
     ]
     const episodesEndingOnLastRealMonth: ClimatDroughtEpisode[] = [
-      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -1.8, deficit_cumule_mm: -90.5 },
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -1.8, deficit_cumule_mm: -90.5 },
     ]
     mockSuccess(seriesWithPartialMonth, episodesEndingOnLastRealMonth)
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
@@ -147,7 +147,7 @@ describe('PointPanel', () => {
       { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 },
     ]
     const episodes: ClimatDroughtEpisode[] = [
-      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 },
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 },
     ]
     mockSuccess(series, episodes)
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
@@ -162,8 +162,8 @@ describe('PointPanel', () => {
     // refetch (not just the highlight re-reading a static payload): window 3
     // has an old, closed episode; window 6 has a different, ongoing one.
     const episodesByWindow: Record<number, ClimatDroughtEpisode[]> = {
-      3: [{ debut: '2026-02-01', fin: '2026-03-01', duree_mois: 1, spi_min: -1.5, deficit_cumule_mm: -50 }],
-      6: [{ debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 }],
+      3: [{ debut: '2026-02-01', fin: '2026-03-01', duree_mois: 1, index_min: -1.5, deficit_cumule_mm: -50 }],
+      6: [{ debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 }],
     }
     const series: ClimatPointSeriesEntry[] = [
       { ...SERIES[0], spi_3: -0.2, spi_6: -1.9 },

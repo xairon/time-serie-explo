@@ -5,8 +5,8 @@ import { EpisodesTable } from './EpisodesTable'
 import type { ClimatDroughtEpisode } from '@/lib/observatory-types'
 
 const EPISODES: ClimatDroughtEpisode[] = [
-  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, spi_min: -2.1, deficit_cumule_mm: -180.4 },
-  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, spi_min: -1.9, deficit_cumule_mm: -120.0 },
+  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, index_min: -2.1, deficit_cumule_mm: -180.4 },
+  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, index_min: -1.9, deficit_cumule_mm: -120.0 },
 ]
 
 function rows() {
