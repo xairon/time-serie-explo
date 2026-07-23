@@ -103,4 +103,20 @@ describe('VariablePicker', () => {
     render(<VariablePicker variable="spei" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
     expect(screen.getByText('Fenêtre')).toBeInTheDocument()
   })
+
+  it('shows an info tooltip next to SPEI explaining the ETP caveat', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    const speiButton = screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })
+    const infoTip = speiButton.nextElementSibling as HTMLElement
+    expect(infoTip).not.toBeNull()
+    fireEvent.mouseEnter(infoTip)
+    expect(screen.getByText(/pas un Penman-Monteith FAO-56/)).toBeInTheDocument()
+  })
+
+  it('does not show an info tooltip next to the other anomaly variables', () => {
+    render(<VariablePicker variable="spi" onVariableChange={() => {}} window={3} onWindowChange={() => {}} />)
+    const spiButton = screen.getByRole('radio', { name: 'SPI (précipitations)' })
+    // SPI is directly followed by the STI radio button, not an InfoTip span.
+    expect(spiButton.nextElementSibling?.tagName).toBe('BUTTON')
+  })
 })

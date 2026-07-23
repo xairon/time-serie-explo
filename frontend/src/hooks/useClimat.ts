@@ -156,15 +156,22 @@ export function useClimatPointSeries(lat: number | undefined, lon: number | unde
   })
 }
 
-/** Drought episodes (consecutive calendar months with SPI < -1) for the grid cell
- *  nearest lat/lon. `window` defaults to EPISODES_WINDOW (3 months) but threads the
- *  SPI/STI chart's window selector (ClimatIndexChart, Task B2/C3) so the episodes
+/** Drought episodes (consecutive calendar months with SPI/SPEI < -1) for the grid
+ *  cell nearest lat/lon. `window` defaults to EPISODES_WINDOW (3 months) but threads
+ *  the SPI/STI chart's window selector (ClimatIndexChart, Task B2/C3) so the episodes
  *  table follows whichever window the user is looking at — the backend endpoint
- *  accepts &window= for any of the 4 standard windows. */
-export function useClimatPointEpisodes(lat: number | undefined, lon: number | undefined, window: number = EPISODES_WINDOW) {
+ *  accepts &window= for any of the 4 standard windows. `index` (spi|spei, default spi)
+ *  lets the Point-panel episodes table switch which drought index drives the table
+ *  (Task 9) — independent of ClimatIndexChart's own spi/sti/spei toggle. */
+export function useClimatPointEpisodes(
+  lat: number | undefined,
+  lon: number | undefined,
+  window: number = EPISODES_WINDOW,
+  index: 'spi' | 'spei' = 'spi',
+) {
   return useQuery({
-    queryKey: ['climat', 'point-episodes', lat, lon, window],
-    queryFn: () => observatoryApi.climat.pointEpisodes(lat!, lon!, window),
+    queryKey: ['climat', 'point-episodes', lat, lon, window, index],
+    queryFn: () => observatoryApi.climat.pointEpisodes(lat!, lon!, window, index),
     enabled: lat != null && lon != null,
     staleTime: CLIMAT_STALE_TIME,
   })

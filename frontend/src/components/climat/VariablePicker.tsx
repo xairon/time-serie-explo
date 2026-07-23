@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   CLIMAT_VARIABLES, CLIMAT_WINDOWS, DAILY_VARIABLE_ORDER,
@@ -35,20 +36,22 @@ export function VariablePicker({ variable, onVariableChange, window, onWindowCha
       <legend className="text-[10px] text-text-secondary mr-1">{t(legendKey)}</legend>
       <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t(legendKey)}>
         {vars.map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={v === variable}
-            onClick={() => onVariableChange(v)}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
-              v === variable
-                ? 'bg-accent-cyan/20 text-accent-cyan'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
-            }`}
-          >
-            {t(CLIMAT_VARIABLES[v].labelKey)}
-          </button>
+          <Fragment key={v}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={v === variable}
+              onClick={() => onVariableChange(v)}
+              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                v === variable
+                  ? 'bg-accent-cyan/20 text-accent-cyan'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+              }`}
+            >
+              {t(CLIMAT_VARIABLES[v].labelKey)}
+            </button>
+            {v === 'spei' && <InfoTip text={t('climat.picker.speiInfo')} />}
+          </Fragment>
         ))}
       </div>
     </fieldset>

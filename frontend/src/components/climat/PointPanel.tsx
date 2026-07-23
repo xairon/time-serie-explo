@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X, Download } from 'lucide-react'
 import { useClimatPointSeries, useClimatPointEpisodes, EPISODES_WINDOW } from '@/hooks/useClimat'
 import { observatoryApi } from '@/lib/observatory-api'
-import { findCurrentEpisode, findLastEntryWithSpi } from '@/lib/climat-episodes'
+import { findCurrentEpisode, findLastEntryWithIndex } from '@/lib/climat-episodes'
 import { classifyBilan } from '@/lib/climat-scale'
 import { era5SpiClassColor } from '@/lib/era5-colors'
 import type { ClimatPointSeriesEntry } from '@/lib/observatory-types'
@@ -47,7 +47,11 @@ export function PointPanel({ lat, lon, month, onClose }: Props) {
   // Window selector lives here (not inside ClimatIndexChart) so the episodes table
   // below follows the same window the SPI/STI chart is showing (Task C3).
   const [indexWindow, setIndexWindow] = useState<number>(EPISODES_WINDOW)
-  const { data: episodes, isLoading: episodesLoading, isError: episodesError } = useClimatPointEpisodes(lat, lon, indexWindow)
+  // SPI/SPEI toggle for the episodes table (Task 9) — episodes are drought-only
+  // (never STI), and this is INDEPENDENT of ClimatIndexChart's own spi/sti/spei
+  // toggle (that one drives the time-series chart, not the episodes table).
+  const [episodeIndex, setEpisodeIndex] = useState<'spi' | 'spei'>('spi')
+  const { data: episodes, isLoading: episodesLoading, isError: episodesError } = useClimatPointEpisodes(lat, lon, indexWindow, episodeIndex)
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -77,14 +81,14 @@ export function PointPanel({ lat, lon, month, onClose }: Props) {
       )
     : (lastEntry?.month ?? '')
   // The series' last entry is usually the partial current month, which has no
-  // SPI/STI yet (null) — scan backward for the last entry that actually has
-  // spi_<indexWindow>, so the "ongoing" highlight doesn't silently go dead in
-  // production (see findLastEntryWithSpi). Also reads the window-specific field
-  // so the highlight stays consistent with whichever window the episodes table
-  // was fetched at (see findCurrentEpisode).
-  const lastSpiEntry = findLastEntryWithSpi(series, indexWindow)
-  const lastEntrySpi = lastSpiEntry?.[`spi_${indexWindow}` as keyof ClimatPointSeriesEntry] as number | null | undefined
-  const currentEpisode = findCurrentEpisode(episodes ?? [], lastSpiEntry?.month, lastEntrySpi)
+  // SPI/STI/SPEI yet (null) — scan backward for the last entry that actually has
+  // <episodeIndex>_<indexWindow>, so the "ongoing" highlight doesn't silently go
+  // dead in production (see findLastEntryWithIndex). Also reads the window- and
+  // index-specific field so the highlight stays consistent with whichever
+  // window/index the episodes table was fetched at (see findCurrentEpisode).
+  const lastIdxEntry = findLastEntryWithIndex(series, indexWindow, episodeIndex)
+  const lastEntryVal = lastIdxEntry?.[`${episodeIndex}_${indexWindow}` as keyof ClimatPointSeriesEntry] as number | null | undefined
+  const currentEpisode = findCurrentEpisode(episodes ?? [], lastIdxEntry?.month, lastEntryVal)
 
   return (
     <>
@@ -166,7 +170,27 @@ export function PointPanel({ lat, lon, month, onClose }: Props) {
               <PrecipNormalChart series={series} />
               <ClimatIndexChart series={series} window={indexWindow} onWindowChange={setIndexWindow} />
               <div>
-                <h3 className="text-sm font-semibold text-text-primary mb-2">{t('climat.episodes.title')}</h3>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-text-primary">{t('climat.episodes.title')}</h3>
+                  <div className="flex gap-1" role="radiogroup" aria-label={t('climat.episodes.indexLabel')}>
+                    {(['spi', 'spei'] as const).map((idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        role="radio"
+                        aria-checked={episodeIndex === idx}
+                        onClick={() => setEpisodeIndex(idx)}
+                        className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                          episodeIndex === idx
+                            ? 'bg-accent-cyan/20 text-accent-cyan'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+                        }`}
+                      >
+                        {t(`climat.variables.${idx}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <EpisodesTable episodes={episodes ?? []} isLoading={episodesLoading && !episodesError} currentEpisode={currentEpisode} />
                 {episodesError && <p className="text-xs text-red-400 mt-1">{t('climat.pointPanel.loadFailed')}</p>}
               </div>

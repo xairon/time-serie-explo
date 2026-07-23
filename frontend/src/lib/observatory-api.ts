@@ -149,9 +149,9 @@ export const observatoryApi = {
     // nearest to lat/lon (rounded to 0.1° server-side).
     pointSeries: (lat: number, lon: number) =>
       fetchJson<ClimatPointSeries>('/observatory/climat/point-series', { lat: String(lat), lon: String(lon) }),
-    pointEpisodes: (lat: number, lon: number, window: number) =>
+    pointEpisodes: (lat: number, lon: number, window: number, index: 'spi' | 'spei' = 'spi') =>
       fetchJson<ClimatDroughtEpisode[]>('/observatory/climat/point-episodes', {
-        lat: String(lat), lon: String(lon), window: String(window),
+        lat: String(lat), lon: String(lon), window: String(window), index,
       }),
     // Comparaison view (Task B3) — per-year cumulative rainfall + 3-month SPI series
     // for the grid cell nearest lat/lon, over the requested years (2-15 accepted

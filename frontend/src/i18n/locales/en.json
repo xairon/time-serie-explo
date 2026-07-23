@@ -1853,6 +1853,7 @@
       "windowLabel": "Window",
       "dailyTempLabel": "Daily data",
       "dailyTempInfo": "ERA5 reanalysis — available at D-7, this is not a forecast",
+      "speiInfo": "Standardized water-balance index (precipitation − PET), 1-to-12-month scale, 1991-2020 reference. Negative = drought. PET is estimated from ERA5-Land, not a Penman-Monteith FAO-56 reference.",
       "familyAnomaly": "Anomaly",
       "window1": "Short term (1 month)",
       "window3": "Seasonal (3 months)",
@@ -1900,6 +1901,7 @@
     },
     "episodes": {
       "title": "Drought episodes",
+      "indexLabel": "Index",
       "start": "Start",
       "end": "End",
       "duration": "Duration (months)",

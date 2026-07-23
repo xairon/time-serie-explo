@@ -170,7 +170,7 @@ describe('PointPanel', () => {
       { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 }, // last month: calm at window 3, in drought at window 6
     ]
     mockSeriesHook.mockReturnValue({ data: { cell: { latitude: 47.4, longitude: 0.7 }, series }, isLoading: false, isError: false })
-    mockEpisodesHook.mockImplementation((_lat: number, _lon: number, window: number) => ({
+    mockEpisodesHook.mockImplementation((_lat: number, _lon: number, window: number, _index: 'spi' | 'spei') => ({
       data: episodesByWindow[window] ?? [],
       isLoading: false,
       isError: false,
@@ -179,7 +179,7 @@ describe('PointPanel', () => {
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
 
     // Initial render: default window (3) — hook called with window 3, table shows the window-3 episode only.
-    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spi')
     expect(screen.getByText('-50 mm')).toBeInTheDocument()
     expect(screen.queryByText('-80 mm')).not.toBeInTheDocument()
     expect(screen.queryByText('En cours')).not.toBeInTheDocument()
@@ -188,9 +188,48 @@ describe('PointPanel', () => {
 
     // After the window change: hook re-invoked with the NEW window (refetch), the
     // table now shows the window-6 episode instead, and the highlight follows spi_6.
-    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 6)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 6, 'spi')
     expect(screen.getByText('-80 mm')).toBeInTheDocument()
     expect(screen.queryByText('-50 mm')).not.toBeInTheDocument()
+    expect(screen.getByText('En cours')).toBeInTheDocument()
+  })
+
+  it('renders an SPI/SPEI toggle for the episodes table', () => {
+    mockSuccess()
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(screen.getByRole('radiogroup', { name: 'Indice' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('calls useClimatPointEpisodes with index="spei" once the SPEI toggle is clicked', () => {
+    mockSuccess()
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spi')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' }))
+
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spei')
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('judges the ongoing highlight on spei_<window> once the SPEI toggle is selected', () => {
+    // spi_3 is calm (no highlight) but spei_3 is in drought — proves the
+    // highlight and the hook call both follow the selected index, not a
+    // hardcoded 'spi'.
+    const series: ClimatPointSeriesEntry[] = [
+      { ...SERIES[0], spi_3: -0.2, spei_3: -1.9 },
+      { ...SERIES[1], spi_3: 0.3, spei_3: -2.1 },
+    ]
+    const episodes: ClimatDroughtEpisode[] = [
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 },
+    ]
+    mockSuccess(series, episodes)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(screen.queryByText('En cours')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' }))
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
 
