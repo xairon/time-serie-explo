@@ -110,7 +110,8 @@ describe('VariablePicker', () => {
     const infoTip = speiButton.nextElementSibling as HTMLElement
     expect(infoTip).not.toBeNull()
     fireEvent.mouseEnter(infoTip)
-    expect(screen.getByText(/pas un Penman-Monteith FAO-56/)).toBeInTheDocument()
+    // L'ETP est une ET0 Hargreaves (FAO-56) depuis le 2026-07-24 — plus la PEV d'ERA5-Land.
+    expect(screen.getByText(/Hargreaves/)).toBeInTheDocument()
   })
 
   it('does not show an info tooltip next to the other anomaly variables', () => {
