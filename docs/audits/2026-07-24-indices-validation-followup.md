@@ -22,15 +22,16 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 
 → **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
 
-**SPEI — mesure définitive après bascule GLO** (référence complète 1991-2020, backfill de
-41 960 400 lignes en 50,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
-saturation ≈ 0,045 % — soit **en dessous du SPI**. Le critère d'acceptation fixé *avant* la
-mesure est atteint.
+**SPEI — mesure définitive** (référence complète 1991-2020, après les DEUX bascules :
+loi GLO puis ETP Hargreaves ; backfill de 41 960 400 lignes en 48,7 min) : moyenne nulle à la
+2ᵉ décimale, écart-type **0,999-1,013**, saturation **0,024 % en moyenne** — soit nettement
+**en dessous du SPI**. Le critère d'acceptation fixé *avant* la mesure est atteint sur les
+quatre fenêtres.
 
 Point clé : le `n` est passé de 3,65 / 3,02 / 2,91 / 2,78 M (log-logistique, couverture
-inégale selon la fenêtre) à **~4,14 M sur les quatre fenêtres** — la couverture est
-désormais uniforme. La calibration est donc non seulement préservée mais mesurée sur
-l'intégralité du domaine.
+inégale selon la fenêtre) à **~4,14 M sur les quatre fenêtres** — couverture uniforme à
+**100 %**. La calibration est donc non seulement préservée mais mesurée sur l'intégralité
+du domaine.
 
 **SPI et STI vérifiés inchangés** après le rebuild (mêmes moyennes/écarts-types au millième
 qu'avant la bascule) : le backfill ne les a pas perturbés.
@@ -67,10 +68,11 @@ qu'une gaussienne. Sans conséquence opérationnelle (les seuils McKee restent c
 du STI), mais à ne pas interpréter comme une anomalie de sécheresse : c'est une propriété de
 la transformation GLO→normale près des bornes de classes.
 
-**Contrôle de cohérence déjà fait (mois récents)** : la calibration suit correctement les
-entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3), avril −1,41
-(−152,0 vs −78,7), juin −2,10 (−242,6, hors de toute la plage 1991-2020 : précip 49 mm
-+ ETP 292 mm, deux records). Le pic de juin est donc **météorologique, pas artefactuel**.
+**Contrôle de cohérence sur les mois récents** : la calibration suit les entrées brutes.
+Juin 2026 reste le mois le plus sec de l'échantillon (précipitations 49 mm, les plus basses
+de la série) et ressort à une médiane SPEI w3 de **−1,94** — sévère, et **météorologique,
+pas artefactuel**. (Les valeurs de ce contrôle antérieures à la bascule ETP — médiane −2,16,
+ETP 292 mm — reposaient sur la PEV et ne sont plus comparables : cf. §4.)
 
 ---
 
