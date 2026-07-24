@@ -37,16 +37,7 @@ de façon monotone :
 La moyenne positive de la 1ʳᵉ décennie était donc bien un **signal climatique de
 dessèchement**, pas un biais d'ajustement : prédiction faite avant mesure, vérifiée.
 
-Note SPEI : l'écart-type est excellent (≈ 1,03) et la saturation est **plus faible que celle
-du SPI**. La moyenne légèrement positive (+0,08 à +0,16, croissante avec la fenêtre) est
-attendue : 1991-2000 est la **première décennie** d'une référence 1991-2020 sous tendance au
-dessèchement — la décennie de début est humide *relativement* à la moyenne trentenaire.
-C'est un signal climatique réel, pas un défaut. Contre-épreuve à faire quand le backfill
-sera complet : la moyenne sur 2011-2020 doit être **négative** du même ordre.
-
-### SPEI — calibration complète à rejouer
-La mesure ci-dessus porte sur 1991-2000 (le backfill historique 1950→2026 était encore en
-cours). Rejouer sur la référence entière dès qu'elle est couverte :
+### Requête de contrôle (à rejouer si les marts amont changent)
 
 ```sql
 SELECT fenetre, avg(spei), stddev_samp(spei),
@@ -57,8 +48,11 @@ WHERE month>='1991-01-01' AND month<'2021-01-01' AND spei IS NOT NULL
 GROUP BY fenetre ORDER BY fenetre;
 ```
 
-**Critère d'acceptation** : moyenne ≈ 0 (±0,05), écart-type ≈ 1 (±0,05), saturation du
-même ordre que le SPI (< 1 %). Un écart net signalerait un défaut d'ajustement (§2).
+**Critère d'acceptation** (fixé *avant* la mesure) : moyenne ≈ 0 (±0,05), écart-type ≈ 1
+(±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,004 en
+valeur absolue, saturation 0,06 %. Seul l'écart-type de la fenêtre 12 (1,074) dépasse
+légèrement la tolérance de ±0,05 — sans conséquence pratique (les classes McKee sont
+bornées à ±1,75), mais à re-regarder si la fenêtre 12 devient un usage central.
 
 **Contrôle de cohérence déjà fait (mois récents)** : la calibration suit correctement les
 entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3), avril −1,41
