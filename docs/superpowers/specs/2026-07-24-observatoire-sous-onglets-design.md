@@ -55,15 +55,29 @@ les stations piézo dans une carte unique) est la version « puissante », mais 
 On corrige donc **le défaut d'architecture de l'information** (peu coûteux, réversible) et on
 **diffère le pari coûteux** (carte partagée) jusqu'à ce qu'un besoin réel le justifie.
 
-**`/meteo` reste hors périmètre** : c'est délibérément un clone BRGM plein écran, hors
-`Layout` (cf. `project-meteo-clone-fidele`). Il ne rentre pas dans les sous-onglets.
+**`/meteo` : sans objet.** Vérifié dans `routes.tsx:44` — la route est aujourd'hui un simple
+`<Navigate to="/" replace />` : le clone plein écran autonome a été retiré. Rien à intégrer
+ni à préserver de ce côté (la mémoire projet décrivant `/meteo` comme une page vivante est
+périmée).
 
 ## 3. Changements
 
 ### 3.1 Routage
 
-- L'Observatoire porte des routes enfants : `/` (Nappes & rivières, index) et
-  `/climat` **rendu à l'intérieur de l'Observatoire** plutôt qu'en page sœur.
+Technique retenue : une **route de layout sans `path`** (pathless) qui enveloppe les deux
+routes existantes, sur le modèle déjà en place pour `PastasLayout` (`routes.tsx:63-68`) :
+
+```jsx
+{
+  element: <SW><ObservatoryShell /></SW>,
+  children: [
+    { path: '/',       element: <SW><ObservatoryPage /></SW> },
+    { path: '/climat', element: <SW><ClimatPage /></SW> },
+  ],
+}
+```
+
+Les deux URL restent **strictement identiques** ; seule la coquille qui les entoure change.
 - **`/climat` reste une URL valide et inchangée** — c'est déjà un lien profond utilisé
   (deep-link depuis la popup de maille de l'Observatoire, cf. README §Climat). Aucune
   redirection, aucun lien cassé : seule la *coquille* qui l'entoure change.
