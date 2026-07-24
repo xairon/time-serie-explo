@@ -57,8 +57,8 @@ GROUP BY fenetre ORDER BY fenetre;
 ```
 
 **Critère d'acceptation** (fixé *avant* la mesure) : moyenne ≈ 0 (±0,05), écart-type ≈ 1
-(±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,004 en
-valeur absolue, saturation 0,06 %. Seul l'écart-type de la fenêtre 12 (1,074) dépasse
+(±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,003 en
+valeur absolue, saturation 0,045 %. Seul l'écart-type de la fenêtre 12 (1,069) dépasse
 légèrement la tolérance de ±0,05 — sans conséquence pratique (les classes McKee sont
 bornées à ±1,75), mais à re-regarder si la fenêtre 12 devient un usage central.
 
