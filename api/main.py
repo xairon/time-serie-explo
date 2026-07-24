@@ -60,8 +60,19 @@ async def lifespan(app: FastAPI):
     async def _warm_sectors():
         for _t in ("piezo", "hydro"):
             try:
-                await asyncio.to_thread(observatory_situation.get_sector_situation, type=_t)
-                await asyncio.to_thread(observatory_situation.get_sector_timeline, type=_t)
+                # Valeurs explicites OBLIGATOIRES : ces fonctions sont appelées en direct,
+                # hors du routeur, donc FastAPI ne résout PAS les défauts `Query(...)`.
+                # Sans elles, `month`/`network` arrivent en objets Query et partent tels
+                # quels dans le SQL → DataError « invalid input syntax for type date:
+                # "annotation=Union[str, NoneType] ... alias='month'..." » au démarrage.
+                await asyncio.to_thread(
+                    observatory_situation.get_sector_situation,
+                    type=_t, month=None, network="all",
+                )
+                await asyncio.to_thread(
+                    observatory_situation.get_sector_timeline,
+                    type=_t, network="all",
+                )
             except Exception:
                 logger.warning("sector warm-up failed for %s", _t, exc_info=True)
         try:
