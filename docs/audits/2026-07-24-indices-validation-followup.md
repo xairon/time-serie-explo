@@ -18,21 +18,29 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 |---|---|---|---|---|---|
 | **SPI** | 1/3/6/12 | −0,008 → +0,002 | 0,985 – 1,031 | 0,00 – 0,04 | 0,05 – 0,51 % |
 | **STI** | 1/3/6/12 | 0,000 | 0,983 | −0,09 – −0,02 | 0,00 – 0,04 % |
-| **SPEI** | 1/3/6/12 | **+0,001 → −0,004** | 1,033 – 1,074 | 0,01 – 0,02 | 0,055 – 0,063 % |
+| **SPEI** *(loi GLO)* | 1/3/6/12 | **+0,001 → +0,003** | 1,032 – 1,069 | 0,02 – 0,04 | 0,043 – 0,048 % |
 
 → **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
 
-**SPEI — mesure définitive sur la référence complète 1991-2020** (backfill terminé :
-41 960 400 lignes en 48,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
-saturation ≈ 0,06 % (au niveau ou en dessous du SPI). Le critère d'acceptation fixé *avant*
-la mesure est atteint.
+**SPEI — mesure définitive après bascule GLO** (référence complète 1991-2020, backfill de
+41 960 400 lignes en 50,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
+saturation ≈ 0,045 % — soit **en dessous du SPI**. Le critère d'acceptation fixé *avant* la
+mesure est atteint.
+
+Point clé : le `n` est passé de 3,65 / 3,02 / 2,91 / 2,78 M (log-logistique, couverture
+inégale selon la fenêtre) à **~4,14 M sur les quatre fenêtres** — la couverture est
+désormais uniforme. La calibration est donc non seulement préservée mais mesurée sur
+l'intégralité du domaine.
+
+**SPI et STI vérifiés inchangés** après le rebuild (mêmes moyennes/écarts-types au millième
+qu'avant la bascule) : le backfill ne les a pas perturbés.
 
 **Contre-épreuve de la tendance — CONFIRMÉE.** La moyenne par décennie (fenêtre 1) décroît
 de façon monotone :
 
 | décennie | 1990s | 2000s | 2010s | 2020s |
 |---|---|---|---|---|
-| moyenne SPEI | **+0,083** | −0,005 | **−0,038** | **−0,273** |
+| moyenne SPEI | **+0,079** | +0,005 | **−0,040** | **−0,301** |
 
 La moyenne positive de la 1ʳᵉ décennie était donc bien un **signal climatique de
 dessèchement**, pas un biais d'ajustement : prédiction faite avant mesure, vérifiée.
@@ -61,12 +69,13 @@ entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3),
 
 ---
 
-## 2. β sans borne supérieure — VÉRIFIÉ, AUCUNE CORRECTION NÉCESSAIRE
+## 2. β sans borne supérieure — SANS OBJET (paramètre disparu avec la bascule GLO)
 
-> **Conclusion (mesurée le 2026-07-24)** : l'inquiétude théorique ci-dessous est **infirmée
-> par les données**. Aucun correctif n'est appliqué. Ne pas « corriger » ce point sans
-> refaire la mesure — ajouter une borne supprimerait 9,4 % de mailles qui fonctionnent
-> parfaitement.
+> **Doublement clos.** (a) L'inquiétude était déjà **infirmée par les données** (encadré
+> ci-dessous) ; (b) depuis la bascule vers la logistique généralisée (§3bis), le paramètre
+> `β` **n'existe plus** — il est remplacé par `k = −τ₃`, borné par construction à |k| < 1.
+> La question ne peut donc plus se poser. Section conservée pour la traçabilité du
+> raisonnement.
 >
 > Sur la référence (1991-2000, fenêtre 1, `spei` non nul), en séparant les mailles selon β :
 >
@@ -221,7 +230,7 @@ chantier data distinct.
       | théorie N(0,1) | 4,0 | 6,0 | 10,0 | **59,9** | 10,0 | 6,0 | 4,0 |
       | SPI | 4,6 | 6,2 | 9,5 | 58,9 | 11,1 | 6,4 | 3,4 |
       | STI | 3,1 | 6,8 | 10,8 | 58,9 | 9,7 | 6,7 | 4,1 |
-      | **SPEI** | 4,6 | **7,5** | 10,8 | **53,5** | 11,4 | **8,3** | 3,9 |
+      | **SPEI** (GLO) | 4,8 | **7,6** | 10,5 | **53,5** | 11,7 | **8,2** | 3,8 |
 
       SPI et STI collent à la théorie. Le **SPEI est légèrement sur-dispersé** : classe
       NORMAL à 53,5 % au lieu de 59,9 %, au profit des classes « très sec » / « très
