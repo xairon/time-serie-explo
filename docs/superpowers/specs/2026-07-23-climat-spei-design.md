@@ -40,7 +40,19 @@ température (lecture instantanée 00:00 UTC). **C'est faux, et la spec le docum
 Conclusion : `bilan_hydrique` mensuel est **déjà correct**. Le SPEI est **buildable
 immédiatement, mono-lot**, sans prérequis warehouse.
 
-### 1.2 Caveat de données (à afficher, pas un blocage)
+### 1.2 ⚠️ AMENDEMENT DU 2026-07-24 — l'ETP est passée à Hargreaves
+
+Le texte ci-dessous décrivait l'usage de la PEV d'ERA5-Land comme ETP, jugé « acceptable ».
+**C'était une erreur, corrigée depuis** : mesurée, la PEV vaut **2,15× l'ET0 de référence**
+(1 756 vs 818 mm/an) et mettait la France en déficit hydrique permanent (−793 mm/an au lieu
+de +150). `etp_totale` est désormais une **ET0 Hargreaves (FAO-56)** calculée depuis les
+Tmin/Tmax journaliers vrais, ce qui aligne le SPEI sur la littérature d'attribution
+(World Weather Attribution : « ERA5 + Hargreaves »). Effet mesuré : calibration améliorée
+(sd 0,999-1,013 contre 1,032-1,069), couverture 100 %, tendance décennale moins amplifiée.
+Détail : `docs/audits/2026-07-24-indices-validation-followup.md` §4 et
+`hubeau_data_integration/docs/ERA5.md`.
+
+### 1.2bis Caveat d'origine (conservé pour traçabilité — PÉRIMÉ)
 
 `potential_evaporation` d'ERA5-Land est une estimation d'ET potentielle **grossière** — ce
 n'est **pas** un Penman-Monteith FAO-56. Le SPEI hérite de cette approximation. C'est
