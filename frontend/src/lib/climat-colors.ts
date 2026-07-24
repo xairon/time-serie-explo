@@ -7,7 +7,7 @@
 import { SPI_CLASS_COLORS, SPI_CLASS_ORDER, STI_CLASS_COLORS, STI_CLASS_ORDER } from './era5-colors'
 
 export type ClimatVariable =
-  | 'spi' | 'sti' | 'bilan_hydrique'
+  | 'spi' | 'sti' | 'spei' | 'bilan_hydrique'
   | 'tmax' | 'tmin' | 'tmean' | 'precip_daily'
 
 export type ClimatVariableKind = 'index' | 'raw' | 'daily'
@@ -67,6 +67,11 @@ export const CLIMAT_VARIABLES: Record<ClimatVariable, ClimatVarConfig> = {
     unit: 'σ', labelKey: 'climat.variables.sti',
     stops: [],
   },
+  spei: {
+    key: 'spei', kind: 'index',
+    unit: 'σ', labelKey: 'climat.variables.spei',
+    stops: [],
+  },
   bilan_hydrique: {
     key: 'bilan_hydrique', kind: 'raw', monthlyParam: 'bilan_hydrique',
     unit: 'mm', labelKey: 'climat.variables.bilanHydrique',
@@ -118,10 +123,13 @@ export function climatRawColorExpression(variable: ClimatVariable): unknown[] {
   return expr
 }
 
-/** MapLibre 'match' fill-color expression mapping `index_class` to the SPI/STI palette. */
-export function climatIndexColorExpression(variable: 'spi' | 'sti'): unknown[] {
-  const order = variable === 'spi' ? SPI_CLASS_ORDER : STI_CLASS_ORDER
-  const colors = variable === 'spi' ? SPI_CLASS_COLORS : STI_CLASS_COLORS
+/** MapLibre 'match' fill-color expression mapping `index_class` to the SPI/STI/SPEI palette.
+ *  Only 'sti' (temperature) uses the STI palette; 'spi' and 'spei' are both drought
+ *  indices (negative = dry) and share the SPI palette. */
+export function climatIndexColorExpression(variable: 'spi' | 'sti' | 'spei'): unknown[] {
+  const useStd = variable === 'sti'
+  const order = useStd ? STI_CLASS_ORDER : SPI_CLASS_ORDER
+  const colors = useStd ? STI_CLASS_COLORS : SPI_CLASS_COLORS
   const expr: unknown[] = ['match', ['get', 'index_class']]
   for (const cls of order) expr.push(cls, colors[cls])
   expr.push(colors.UNKNOWN)
@@ -181,7 +189,7 @@ export function climatRawDomain(variable: ClimatVariable): [number, number] {
 export function climatFormatValue(variable: ClimatVariable, value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '—'
   const cfg = CLIMAT_VARIABLES[variable]
-  if (variable === 'spi' || variable === 'sti') {
+  if (variable === 'spi' || variable === 'sti' || variable === 'spei') {
     const s = Math.abs(value).toFixed(1)
     return `${value < 0 ? `−${s}` : `+${s}`} ${cfg.unit}`
   }

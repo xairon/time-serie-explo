@@ -69,7 +69,7 @@ export default function ClimatPage() {
     s.month, monthlyParam ?? '', !s.isIndex && !s.isDaily && !!s.month,
   )
   const { data: indexPoints, isLoading: indexLoading } = useClimatGridIndices(
-    s.month, s.window, s.variable as 'spi' | 'sti', s.isIndex && !!s.month,
+    s.month, s.window, s.variable as 'spi' | 'sti' | 'spei', s.isIndex && !!s.month,
   )
   // Les deux couches journalières lisent des tables différentes (mart température
   // vs stg_era5_timeseries) : deux hooks, dont un seul est activé à la fois.

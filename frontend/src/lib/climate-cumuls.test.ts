@@ -18,8 +18,8 @@ function entry(
     mois_complet: complet,
     precipitation_normale: normale,
     temperature_normale: null,
-    spi_1: null, sti_1: null, spi_3: null, sti_3: null,
-    spi_6: null, sti_6: null, spi_12: null, sti_12: null,
+    spi_1: null, sti_1: null, spei_1: null, spi_3: null, sti_3: null, spei_3: null,
+    spi_6: null, sti_6: null, spei_6: null, spi_12: null, sti_12: null, spei_12: null,
   }
 }
 

@@ -29,12 +29,12 @@ const mockSeriesHook = useClimatPointSeries as unknown as ReturnType<typeof vi.f
 const mockEpisodesHook = useClimatPointEpisodes as unknown as ReturnType<typeof vi.fn>
 
 const SERIES: ClimatPointSeriesEntry[] = [
-  { month: '2026-04-01', temperature_moyenne: 12, temperature_min: 8, temperature_max: 16, precipitation_totale: 40, etp_totale: 50, bilan_hydrique: -10, nb_jours: 30, mois_complet: true, precipitation_normale: 60, temperature_normale: 11, spi_1: -0.2, sti_1: 0.1, spi_3: -1.4, sti_3: 0.3, spi_6: -0.9, sti_6: 0.2, spi_12: -0.5, sti_12: 0.1 },
-  { month: '2026-05-01', temperature_moyenne: 14, temperature_min: 9, temperature_max: 18, precipitation_totale: 20, etp_totale: 60, bilan_hydrique: -40, nb_jours: 31, mois_complet: true, precipitation_normale: 55, temperature_normale: 13, spi_1: -1.6, sti_1: 0.4, spi_3: -1.8, sti_3: 0.5, spi_6: -1.1, sti_6: 0.3, spi_12: -0.6, sti_12: 0.2 },
+  { month: '2026-04-01', temperature_moyenne: 12, temperature_min: 8, temperature_max: 16, precipitation_totale: 40, etp_totale: 50, bilan_hydrique: -10, nb_jours: 30, mois_complet: true, precipitation_normale: 60, temperature_normale: 11, spi_1: -0.2, sti_1: 0.1, spei_1: -0.1, spi_3: -1.4, sti_3: 0.3, spei_3: -1.0, spi_6: -0.9, sti_6: 0.2, spei_6: -0.7, spi_12: -0.5, sti_12: 0.1, spei_12: -0.4 },
+  { month: '2026-05-01', temperature_moyenne: 14, temperature_min: 9, temperature_max: 18, precipitation_totale: 20, etp_totale: 60, bilan_hydrique: -40, nb_jours: 31, mois_complet: true, precipitation_normale: 55, temperature_normale: 13, spi_1: -1.6, sti_1: 0.4, spei_1: -1.3, spi_3: -1.8, sti_3: 0.5, spei_3: -1.5, spi_6: -1.1, sti_6: 0.3, spei_6: -0.9, spi_12: -0.6, sti_12: 0.2, spei_12: -0.5 },
 ]
 
 const EPISODES: ClimatDroughtEpisode[] = [
-  { debut: '2026-03-01', fin: '2026-05-01', duree_mois: 3, spi_min: -1.8, deficit_cumule_mm: -90.5 },
+  { debut: '2026-03-01', fin: '2026-05-01', duree_mois: 3, index_min: -1.8, deficit_cumule_mm: -90.5 },
 ]
 
 function mockSuccess(series = SERIES, episodes = EPISODES) {
@@ -128,7 +128,7 @@ describe('PointPanel', () => {
       { ...SERIES[SERIES.length - 1], month: '2026-06-01', spi_1: null, spi_3: null, spi_6: null, spi_12: null },
     ]
     const episodesEndingOnLastRealMonth: ClimatDroughtEpisode[] = [
-      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -1.8, deficit_cumule_mm: -90.5 },
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -1.8, deficit_cumule_mm: -90.5 },
     ]
     mockSuccess(seriesWithPartialMonth, episodesEndingOnLastRealMonth)
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
@@ -147,7 +147,7 @@ describe('PointPanel', () => {
       { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 },
     ]
     const episodes: ClimatDroughtEpisode[] = [
-      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 },
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 },
     ]
     mockSuccess(series, episodes)
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
@@ -162,15 +162,15 @@ describe('PointPanel', () => {
     // refetch (not just the highlight re-reading a static payload): window 3
     // has an old, closed episode; window 6 has a different, ongoing one.
     const episodesByWindow: Record<number, ClimatDroughtEpisode[]> = {
-      3: [{ debut: '2026-02-01', fin: '2026-03-01', duree_mois: 1, spi_min: -1.5, deficit_cumule_mm: -50 }],
-      6: [{ debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, spi_min: -2.1, deficit_cumule_mm: -80 }],
+      3: [{ debut: '2026-02-01', fin: '2026-03-01', duree_mois: 1, index_min: -1.5, deficit_cumule_mm: -50 }],
+      6: [{ debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 }],
     }
     const series: ClimatPointSeriesEntry[] = [
       { ...SERIES[0], spi_3: -0.2, spi_6: -1.9 },
       { ...SERIES[1], spi_3: 0.3, spi_6: -2.1 }, // last month: calm at window 3, in drought at window 6
     ]
     mockSeriesHook.mockReturnValue({ data: { cell: { latitude: 47.4, longitude: 0.7 }, series }, isLoading: false, isError: false })
-    mockEpisodesHook.mockImplementation((_lat: number, _lon: number, window: number) => ({
+    mockEpisodesHook.mockImplementation((_lat: number, _lon: number, window: number, _index: 'spi' | 'spei') => ({
       data: episodesByWindow[window] ?? [],
       isLoading: false,
       isError: false,
@@ -179,7 +179,7 @@ describe('PointPanel', () => {
     render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
 
     // Initial render: default window (3) — hook called with window 3, table shows the window-3 episode only.
-    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spi')
     expect(screen.getByText('-50 mm')).toBeInTheDocument()
     expect(screen.queryByText('-80 mm')).not.toBeInTheDocument()
     expect(screen.queryByText('En cours')).not.toBeInTheDocument()
@@ -188,9 +188,48 @@ describe('PointPanel', () => {
 
     // After the window change: hook re-invoked with the NEW window (refetch), the
     // table now shows the window-6 episode instead, and the highlight follows spi_6.
-    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 6)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 6, 'spi')
     expect(screen.getByText('-80 mm')).toBeInTheDocument()
     expect(screen.queryByText('-50 mm')).not.toBeInTheDocument()
+    expect(screen.getByText('En cours')).toBeInTheDocument()
+  })
+
+  it('renders an SPI/SPEI toggle for the episodes table', () => {
+    mockSuccess()
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(screen.getByRole('radiogroup', { name: 'Indice' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('calls useClimatPointEpisodes with index="spei" once the SPEI toggle is clicked', () => {
+    mockSuccess()
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spi')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' }))
+
+    expect(mockEpisodesHook).toHaveBeenLastCalledWith(47.4, 0.7, 3, 'spei')
+    expect(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'SPI (précipitations)' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('judges the ongoing highlight on spei_<window> once the SPEI toggle is selected', () => {
+    // spi_3 is calm (no highlight) but spei_3 is in drought — proves the
+    // highlight and the hook call both follow the selected index, not a
+    // hardcoded 'spi'.
+    const series: ClimatPointSeriesEntry[] = [
+      { ...SERIES[0], spi_3: -0.2, spei_3: -1.9 },
+      { ...SERIES[1], spi_3: 0.3, spei_3: -2.1 },
+    ]
+    const episodes: ClimatDroughtEpisode[] = [
+      { debut: '2026-04-01', fin: '2026-05-01', duree_mois: 2, index_min: -2.1, deficit_cumule_mm: -80 },
+    ]
+    mockSuccess(series, episodes)
+    render(<PointPanel lat={47.4} lon={0.7} month="2026-05" onClose={() => {}} />)
+    expect(screen.queryByText('En cours')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SPEI (précip. − ETP)' }))
     expect(screen.getByText('En cours')).toBeInTheDocument()
   })
 

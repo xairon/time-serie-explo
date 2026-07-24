@@ -5,8 +5,8 @@ import { EpisodesTable } from './EpisodesTable'
 import type { ClimatDroughtEpisode } from '@/lib/observatory-types'
 
 const EPISODES: ClimatDroughtEpisode[] = [
-  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, spi_min: -2.1, deficit_cumule_mm: -180.4 },
-  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, spi_min: -1.9, deficit_cumule_mm: -120.0 },
+  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, index_min: -2.1, deficit_cumule_mm: -180.4 },
+  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, index_min: -1.9, deficit_cumule_mm: -120.0 },
 ]
 
 function rows() {
@@ -65,5 +65,17 @@ describe('EpisodesTable', () => {
     render(<EpisodesTable episodes={[EPISODES[0]]} isLoading={false} />)
     expect(screen.getByText('-2.10')).toBeInTheDocument()
     expect(screen.getByText('-180 mm')).toBeInTheDocument()
+  })
+
+  it('shows the SPI min header by default', () => {
+    render(<EpisodesTable episodes={EPISODES} isLoading={false} />)
+    expect(screen.getByText('SPI min')).toBeInTheDocument()
+    expect(screen.queryByText('Min SPEI')).not.toBeInTheDocument()
+  })
+
+  it('shows the SPEI min header when index="spei"', () => {
+    render(<EpisodesTable episodes={EPISODES} isLoading={false} index="spei" />)
+    expect(screen.getByText('Min SPEI')).toBeInTheDocument()
+    expect(screen.queryByText('SPI min')).not.toBeInTheDocument()
   })
 })

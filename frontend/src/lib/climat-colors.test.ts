@@ -5,7 +5,9 @@ import {
   climatRawColorExpression, climatGradientCss, climatRawDomain, climatFormatValue,
   climatBilanColorExpression,
   PRECIP_DAILY_BOUNDS, PRECIP_DAILY_COLORS, climatPrecipDailyColorExpression, DAILY_VARIABLE_ORDER,
+  climatIndexColorExpression,
 } from './climat-colors'
+import { SPI_CLASS_COLORS } from './era5-colors'
 
 describe('DAILY_TEMP_STOPS', () => {
   it('has the exact 8 documented °C -> color stops', () => {
@@ -175,5 +177,24 @@ describe('pluie journalière — classes météo fixes', () => {
     // même — cf. le commentaire dans climat-colors.ts.
     expect(() => climatRawDomain('precip_daily')).not.toThrow()
     expect(climatRawDomain('precip_daily')).toEqual([0, 0])
+  })
+})
+
+describe('SPEI variable', () => {
+  it('is an index variable in σ', () => {
+    expect(CLIMAT_VARIABLES.spei.kind).toBe('index')
+    expect(CLIMAT_VARIABLES.spei.unit).toBe('σ')
+    expect(isClimatIndexVariable('spei')).toBe(true)
+  })
+
+  it('uses the SPI drought palette, not STI', () => {
+    const expr = climatIndexColorExpression('spei')
+    // 'match' expression contains the SPI extreme-low colour
+    expect(JSON.stringify(expr)).toContain(SPI_CLASS_COLORS.EXTREMEMENT_BAS)
+  })
+
+  it('formats as signed sigma', () => {
+    expect(climatFormatValue('spei', -1.5)).toBe('−1.5 σ')
+    expect(climatFormatValue('spei', 0.8)).toBe('+0.8 σ')
   })
 })

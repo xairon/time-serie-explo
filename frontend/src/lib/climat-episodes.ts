@@ -36,21 +36,22 @@ export function findCurrentEpisode(
   return episodes.find((e) => e.fin === lastMonth)
 }
 
-/** Last series entry with a non-null `spi_<window>` value — mirrors the
+/** Last series entry with a non-null `<index>_<window>` value — mirrors the
  *  backward-scan pattern of `latestSpiPoint` in climate-cumuls.ts, but keyed on
- *  whichever SPI window the caller is currently displaying (1/3/6/12), since
- *  point-series entries carry one spi_* field per window rather than a single
- *  `spi` field.
+ *  whichever index (SPI or SPEI) and window the caller is currently displaying
+ *  (1/3/6/12), since point-series entries carry one `spi_<n>` and one `spei_<n>`
+ *  field per window rather than a single `spi`/`spei` field.
  *
  *  The series' last entry is normally the partial current month, for which
- *  no SPI/STI has been computed yet (null) — reading `series[length-1]`
+ *  no SPI/STI/SPEI has been computed yet (null) — reading `series[length-1]`
  *  directly for the "épisode en cours" highlight would then always miss it in
  *  production. */
-export function findLastEntryWithSpi(
+export function findLastEntryWithIndex(
   series: ClimatPointSeriesEntry[],
   window: number,
+  index: 'spi' | 'spei' = 'spi',
 ): ClimatPointSeriesEntry | undefined {
-  const key = `spi_${window}` as keyof ClimatPointSeriesEntry
+  const key = `${index}_${window}` as keyof ClimatPointSeriesEntry
   for (let i = series.length - 1; i >= 0; i--) {
     if (series[i][key] != null) return series[i]
   }

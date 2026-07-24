@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 from fastapi import HTTPException
 
+from api.routers import observatory_climat
 from api.routers.observatory_climat import (
     router,
     _parse_month,
@@ -25,6 +26,10 @@ from api.routers.observatory_climat import (
     _DAILY_TEMP_VARIABLES,
     WINDOWS,
 )
+
+
+def _rows(key, vals):
+    return [{"month": date(2026, m, 1), key: v} for m, v in vals]
 
 
 def test_router_mounts_all_eleven_climat_paths():
@@ -185,7 +190,7 @@ class TestBuildDroughtEpisodes:
         assert out[0]["debut"] == "2020-01-01"
         assert out[0]["fin"] == "2020-03-01"
         assert out[0]["duree_mois"] == 3
-        assert out[0]["spi_min"] == -2.0
+        assert out[0]["index_min"] == -2.0
 
     def test_missing_month_in_the_middle_splits_into_two_episodes(self):
         # 2020-03 is simply absent (e.g. its SPI was NULL and filtered upstream) —
@@ -247,6 +252,19 @@ class TestBuildDroughtEpisodes:
         out = _build_drought_episodes(spi_rows, [], [])
         assert out[0]["deficit_cumule_mm"] == 0.0
 
+    def test_episodes_generic_over_spei(self):
+        # 3 consecutive months < -1 → one episode, keyed by 'spei'
+        rows = _rows("spei", [(4, -1.2), (5, -1.6), (6, -0.9), (7, -2.1)])
+        eps = _build_drought_episodes(rows, [], [], index_key="spei")
+        assert len(eps) == 2  # (apr-may) and (jul)
+        assert eps[0]["duree_mois"] == 2
+        assert eps[0]["index_min"] == -1.6
+
+    def test_episodes_default_key_is_spi(self):
+        rows = _rows("spi", [(4, -1.5), (5, -1.5)])
+        eps = _build_drought_episodes(rows, [], [])
+        assert eps[0]["index_min"] == -1.5
+
 
 class TestMergePointSeries:
     def test_joins_monthly_climatology_and_indices_by_month(self):
@@ -259,8 +277,8 @@ class TestMergePointSeries:
         ]
         clim_rows = [{"mois_calendaire": 6, "precip_moyenne": 60.0, "temp_moyenne": 17.0}]
         indices_rows = [
-            {"month": date(2026, 6, 1), "fenetre": 1, "spi": -0.5, "sti": 0.3},
-            {"month": date(2026, 6, 1), "fenetre": 3, "spi": -1.2, "sti": 0.1},
+            {"month": date(2026, 6, 1), "fenetre": 1, "spi": -0.5, "sti": 0.3, "spei": -0.4},
+            {"month": date(2026, 6, 1), "fenetre": 3, "spi": -1.2, "sti": 0.1, "spei": -1.1},
         ]
         series = _merge_point_series(monthly_rows, clim_rows, indices_rows)
         assert len(series) == 1
@@ -272,6 +290,9 @@ class TestMergePointSeries:
         assert entry["spi_3"] == -1.2
         assert entry["spi_6"] is None
         assert entry["sti_12"] is None
+        assert entry["spei_1"] == -0.4
+        assert entry["spei_3"] == -1.1
+        assert entry["spei_6"] is None
 
     def test_missing_climatology_leaves_normals_none(self):
         monthly_rows = [
@@ -287,6 +308,20 @@ class TestMergePointSeries:
         for w in WINDOWS:
             assert series[0][f"spi_{w}"] is None
             assert series[0][f"sti_{w}"] is None
+            assert series[0][f"spei_{w}"] is None
+
+    def test_merge_point_series_includes_spei(self):
+        monthly = [{"mois": date(2026, 6, 1),
+                    "temperature_moyenne": 18.0, "temperature_min": 10.0,
+                    "temperature_max": 26.0, "precipitation_totale": 40.0,
+                    "etp_totale": 120.0, "bilan_hydrique": -80.0,
+                    "nb_jours": 30, "mois_complet": True}]
+        clim = []
+        indices = [{"month": date(2026, 6, 1),
+                    "fenetre": 3, "spi": -1.2, "sti": 0.5, "spei": -1.5}]
+        out = _merge_point_series(monthly, clim, indices)
+        assert out[0]["spei_3"] == -1.5
+        assert out[0]["spei_1"] is None      # window absent → None, like spi/sti
 
 
 class TestMergeCompareYears:
@@ -318,6 +353,17 @@ class TestMergeCompareYears:
         ]
         out = _merge_compare_years([], [], spi_rows, [2003])
         assert out[2003]["spi_3"] == [{"mois": 1, "spi": -1.5}, {"mois": 2, "spi": -1.8}]
+
+
+def test_assert_index_accepts_all_three():
+    for ok in ("spi", "sti", "spei"):
+        observatory_climat._assert_index(ok)  # must NOT raise
+
+
+def test_assert_index_rejects_unknown():
+    with pytest.raises(HTTPException) as exc:
+        observatory_climat._assert_index("bogus")
+    assert exc.value.status_code == 422
 
 
 class TestParamValidationViaHttp:

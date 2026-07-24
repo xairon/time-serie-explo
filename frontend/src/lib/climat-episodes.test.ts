@@ -1,24 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { sortEpisodes, findCurrentEpisode, findLastEntryWithSpi } from './climat-episodes'
+import { sortEpisodes, findCurrentEpisode, findLastEntryWithIndex } from './climat-episodes'
 import type { ClimatDroughtEpisode, ClimatPointSeriesEntry } from './observatory-types'
 
-/** Minimal point-series entry — only the fields findLastEntryWithSpi reads. */
+/** Minimal point-series entry — only the fields findLastEntryWithIndex reads. */
 function entry(month: string, overrides: Partial<ClimatPointSeriesEntry> = {}): ClimatPointSeriesEntry {
   return {
     month,
     temperature_moyenne: null, temperature_min: null, temperature_max: null,
     precipitation_totale: null, etp_totale: null, bilan_hydrique: null, nb_jours: null,
     mois_complet: true, precipitation_normale: null, temperature_normale: null,
-    spi_1: null, sti_1: null, spi_3: null, sti_3: null,
-    spi_6: null, sti_6: null, spi_12: null, sti_12: null,
+    spi_1: null, sti_1: null, spei_1: null, spi_3: null, sti_3: null, spei_3: null,
+    spi_6: null, sti_6: null, spei_6: null, spi_12: null, sti_12: null, spei_12: null,
     ...overrides,
   }
 }
 
 const EPISODES: ClimatDroughtEpisode[] = [
-  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, spi_min: -2.1, deficit_cumule_mm: -180.4 },
-  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, spi_min: -1.9, deficit_cumule_mm: -120.0 },
-  { debut: '2022-05-01', fin: '2022-09-01', duree_mois: 5, spi_min: -2.4, deficit_cumule_mm: -200.7 },
+  { debut: '1976-04-01', fin: '1976-08-01', duree_mois: 5, index_min: -2.1, deficit_cumule_mm: -180.4 },
+  { debut: '2003-06-01', fin: '2003-09-01', duree_mois: 4, index_min: -1.9, deficit_cumule_mm: -120.0 },
+  { debut: '2022-05-01', fin: '2022-09-01', duree_mois: 5, index_min: -2.4, deficit_cumule_mm: -200.7 },
 ]
 
 describe('sortEpisodes', () => {
@@ -78,10 +78,10 @@ describe('findCurrentEpisode', () => {
   })
 })
 
-describe('findLastEntryWithSpi', () => {
-  it('returns the last entry when its spi_<window> is non-null', () => {
+describe('findLastEntryWithIndex', () => {
+  it('returns the last entry when its spi_<window> is non-null (default index)', () => {
     const series = [entry('2026-04-01', { spi_3: -0.5 }), entry('2026-05-01', { spi_3: -1.6 })]
-    expect(findLastEntryWithSpi(series, 3)?.month).toBe('2026-05-01')
+    expect(findLastEntryWithIndex(series, 3)?.month).toBe('2026-05-01')
   })
 
   it('scans backward past a trailing null spi_<window> (the partial current month)', () => {
@@ -90,22 +90,35 @@ describe('findLastEntryWithSpi', () => {
       entry('2026-05-01', { spi_3: -1.6 }),
       entry('2026-06-01', { spi_3: null }), // partial current month: no SPI yet
     ]
-    expect(findLastEntryWithSpi(series, 3)?.month).toBe('2026-05-01')
+    expect(findLastEntryWithIndex(series, 3)?.month).toBe('2026-05-01')
   })
 
   it('reads the field matching the requested window, not a different one', () => {
     // spi_3 is null throughout (no 3-month episode yet); spi_6 has a real value.
     const series = [entry('2026-04-01', { spi_3: null, spi_6: -0.5 }), entry('2026-05-01', { spi_3: null, spi_6: -1.9 })]
-    expect(findLastEntryWithSpi(series, 3)).toBeUndefined()
-    expect(findLastEntryWithSpi(series, 6)?.month).toBe('2026-05-01')
+    expect(findLastEntryWithIndex(series, 3)).toBeUndefined()
+    expect(findLastEntryWithIndex(series, 6)?.month).toBe('2026-05-01')
   })
 
   it('returns undefined when every entry has a null spi_<window>', () => {
     const series = [entry('2026-04-01', { spi_3: null }), entry('2026-05-01', { spi_3: null })]
-    expect(findLastEntryWithSpi(series, 3)).toBeUndefined()
+    expect(findLastEntryWithIndex(series, 3)).toBeUndefined()
   })
 
   it('returns undefined for an empty series', () => {
-    expect(findLastEntryWithSpi([], 3)).toBeUndefined()
+    expect(findLastEntryWithIndex([], 3)).toBeUndefined()
+  })
+
+  it('reads spei_<window> when index is "spei", not spi_<window>', () => {
+    // spi_3 and spei_3 deliberately disagree on the last entry: spi_3 is calm
+    // (>= -1, would be "not in drought") while spei_3 is null on that same
+    // entry but non-null on the prior one — proving the function follows the
+    // `index` argument rather than defaulting back to spi_3.
+    const series = [
+      entry('2026-04-01', { spi_3: -1.8, spei_3: -2.0 }),
+      entry('2026-05-01', { spi_3: 0.3, spei_3: null }),
+    ]
+    expect(findLastEntryWithIndex(series, 3, 'spei')?.month).toBe('2026-04-01')
+    expect(findLastEntryWithIndex(series, 3, 'spi')?.month).toBe('2026-05-01')
   })
 })

@@ -237,12 +237,13 @@ export interface ClimatMonthlyPoint {
   mois_complet: boolean | null
 }
 
-/** One grid cell from GET /observatory/climat/grid-indices?index=spi|sti — only the requested index key is present. */
+/** One grid cell from GET /observatory/climat/grid-indices?index=spi|sti|spei — only the requested index key is present. */
 export interface ClimatIndexPoint {
   latitude: number
   longitude: number
   spi?: number | null
   sti?: number | null
+  spei?: number | null
   /** McKee 7-class string (server always returns a non-null index for cells present in the response). */
   index_class: string
 }
@@ -276,12 +277,16 @@ export interface ClimatPointSeriesEntry {
   temperature_normale: number | null
   spi_1: number | null
   sti_1: number | null
+  spei_1: number | null
   spi_3: number | null
   sti_3: number | null
+  spei_3: number | null
   spi_6: number | null
   sti_6: number | null
+  spei_6: number | null
   spi_12: number | null
   sti_12: number | null
+  spei_12: number | null
 }
 
 /** GET /observatory/climat/point-series response — the full history for the nearest cell. */
@@ -296,7 +301,7 @@ export interface ClimatDroughtEpisode {
   debut: string
   fin: string
   duree_mois: number
-  spi_min: number
+  index_min: number
   deficit_cumule_mm: number
 }
 

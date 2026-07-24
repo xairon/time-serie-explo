@@ -29,10 +29,13 @@ export function ClimatLegend({ variable, window, month, incomplete }: Props) {
       : month
 
   if (isClimatIndexVariable(variable)) {
-    const isSpi = variable === 'spi'
-    const order = isSpi ? SPI_CLASS_ORDER : STI_CLASS_ORDER
-    const colors = isSpi ? SPI_CLASS_COLORS : STI_CLASS_COLORS
-    const ns = isSpi ? 'observatory.spi' : 'observatory.sti'
+    // SPI and SPEI are both drought indices (negative = dry) and share the SPI
+    // palette/namespace; only STI (temperature) uses the STI palette (Task 8 —
+    // mirrors climatIndexColorExpression, never STI's temperature palette).
+    const isDrought = variable === 'spi' || variable === 'spei'
+    const order = isDrought ? SPI_CLASS_ORDER : STI_CLASS_ORDER
+    const colors = isDrought ? SPI_CLASS_COLORS : STI_CLASS_COLORS
+    const ns = isDrought ? 'observatory.spi' : 'observatory.sti'
     return (
       <div className="absolute bottom-4 left-3 z-10 bg-bg-card/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-lg pointer-events-none" style={{ maxWidth: '190px' }}>
         <div className="text-xs font-semibold text-text-primary leading-tight">{t(cfg.labelKey)}</div>
