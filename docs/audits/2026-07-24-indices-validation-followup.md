@@ -2,7 +2,7 @@
 
 **Date** : 2026-07-24
 **Origine** : déploiement du SPEI (cf. `docs/superpowers/specs/2026-07-23-climat-spei-design.md`).
-**Statut** : SPI ✅ · STI ✅ · SPEI ✅ calibré (référence complète) · β sans objet ✅ · bug warm corrigé ✅ · ⚠️ **couverture SPEI incomplète et groupée (§3bis) = point ouvert principal**
+**Statut** : SPI ✅ · STI ✅ · SPEI ✅ · β sans objet ✅ · bug warm corrigé ✅ · couverture SPEI ✅ **résolue** (log-logistique → logistique généralisée, 74,6 % → 100 %)
 
 Objectif : s'assurer que les indices sont **calculés correctement** et **font sens**, et
 recenser les bugs à corriger.
@@ -18,21 +18,29 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 |---|---|---|---|---|---|
 | **SPI** | 1/3/6/12 | −0,008 → +0,002 | 0,985 – 1,031 | 0,00 – 0,04 | 0,05 – 0,51 % |
 | **STI** | 1/3/6/12 | 0,000 | 0,983 | −0,09 – −0,02 | 0,00 – 0,04 % |
-| **SPEI** | 1/3/6/12 | **+0,001 → −0,004** | 1,033 – 1,074 | 0,01 – 0,02 | 0,055 – 0,063 % |
+| **SPEI** *(loi GLO)* | 1/3/6/12 | **+0,001 → +0,003** | 1,032 – 1,069 | 0,02 – 0,04 | 0,043 – 0,048 % |
 
 → **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
 
-**SPEI — mesure définitive sur la référence complète 1991-2020** (backfill terminé :
-41 960 400 lignes en 48,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
-saturation ≈ 0,06 % (au niveau ou en dessous du SPI). Le critère d'acceptation fixé *avant*
-la mesure est atteint.
+**SPEI — mesure définitive après bascule GLO** (référence complète 1991-2020, backfill de
+41 960 400 lignes en 50,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
+saturation ≈ 0,045 % — soit **en dessous du SPI**. Le critère d'acceptation fixé *avant* la
+mesure est atteint.
+
+Point clé : le `n` est passé de 3,65 / 3,02 / 2,91 / 2,78 M (log-logistique, couverture
+inégale selon la fenêtre) à **~4,14 M sur les quatre fenêtres** — la couverture est
+désormais uniforme. La calibration est donc non seulement préservée mais mesurée sur
+l'intégralité du domaine.
+
+**SPI et STI vérifiés inchangés** après le rebuild (mêmes moyennes/écarts-types au millième
+qu'avant la bascule) : le backfill ne les a pas perturbés.
 
 **Contre-épreuve de la tendance — CONFIRMÉE.** La moyenne par décennie (fenêtre 1) décroît
 de façon monotone :
 
 | décennie | 1990s | 2000s | 2010s | 2020s |
 |---|---|---|---|---|
-| moyenne SPEI | **+0,083** | −0,005 | **−0,038** | **−0,273** |
+| moyenne SPEI | **+0,079** | +0,005 | **−0,040** | **−0,301** |
 
 La moyenne positive de la 1ʳᵉ décennie était donc bien un **signal climatique de
 dessèchement**, pas un biais d'ajustement : prédiction faite avant mesure, vérifiée.
@@ -49,8 +57,8 @@ GROUP BY fenetre ORDER BY fenetre;
 ```
 
 **Critère d'acceptation** (fixé *avant* la mesure) : moyenne ≈ 0 (±0,05), écart-type ≈ 1
-(±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,004 en
-valeur absolue, saturation 0,06 %. Seul l'écart-type de la fenêtre 12 (1,074) dépasse
+(±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,003 en
+valeur absolue, saturation 0,045 %. Seul l'écart-type de la fenêtre 12 (1,069) dépasse
 légèrement la tolérance de ±0,05 — sans conséquence pratique (les classes McKee sont
 bornées à ±1,75), mais à re-regarder si la fenêtre 12 devient un usage central.
 
@@ -61,12 +69,13 @@ entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3),
 
 ---
 
-## 2. β sans borne supérieure — VÉRIFIÉ, AUCUNE CORRECTION NÉCESSAIRE
+## 2. β sans borne supérieure — SANS OBJET (paramètre disparu avec la bascule GLO)
 
-> **Conclusion (mesurée le 2026-07-24)** : l'inquiétude théorique ci-dessous est **infirmée
-> par les données**. Aucun correctif n'est appliqué. Ne pas « corriger » ce point sans
-> refaire la mesure — ajouter une borne supprimerait 9,4 % de mailles qui fonctionnent
-> parfaitement.
+> **Doublement clos.** (a) L'inquiétude était déjà **infirmée par les données** (encadré
+> ci-dessous) ; (b) depuis la bascule vers la logistique généralisée (§3bis), le paramètre
+> `β` **n'existe plus** — il est remplacé par `k = −τ₃`, borné par construction à |k| < 1.
+> La question ne peut donc plus se poser. Section conservée pour la traçabilité du
+> raisonnement.
 >
 > Sur la référence (1991-2000, fenêtre 1, `spei` non nul), en séparant les mailles selon β :
 >
@@ -139,10 +148,30 @@ cache visé n'est pas préchauffé → première requête utilisateur plus lente
 
 ---
 
-## 3bis. ⚠️ LE VRAI PROBLÈME RESTANT — couverture SPEI incomplète et **groupée géographiquement**
+## 3bis. ✅ RÉSOLU — couverture SPEI incomplète (cause trouvée, loi corrigée)
 
-**Sévérité : moyenne-haute. C'est le point le plus important de cet audit** — plus que la
-piste β (§2), qui s'est révélée sans objet.
+> **Résolu le 2026-07-24.** Cause identifiée puis corrigée : la log-logistique ne peut pas
+> représenter les bilans hydriques à **asymétrie négative**. Remplacée par la **logistique
+> généralisée (GLO)**. Détail complet et démonstration dans
+> `docs/superpowers/specs/2026-07-23-climat-spei-design.md` §2.0.
+>
+> **Instrumentation** (ajoutée pour trancher, conservée) : `fit_reference_frame` compte
+> désormais les rejets **par motif** et les journalise par fenêtre — plus de troncature
+> silencieuse.
+>
+> | | avant (log-logistique) | après (GLO) |
+> |---|---|---|
+> | ajustement réussi | 74,6 % | **100,0 %** (zéro rejet) |
+> | `spei` en carte (juin 2026) | 75 % | **99,2 %** |
+> | motifs de rejet | 100 % `beta_hors_domaine` | — |
+>
+> **Non-régression prouvée** : sur les 35 614 mailles déjà ajustées avant, écart max
+> **0,000** et corrélation **1,0000** entre ancienne et nouvelle valeur. Changement
+> purement additif.
+
+**Analyse initiale conservée pour mémoire.** Sévérité alors estimée moyenne-haute — c'était
+bien le point le plus important de cet audit, plus que la piste β (§2) qui s'est révélée sans
+objet.
 
 Le SPEI n'est calculé que sur une fraction des mailles, contre 100 % pour le SPI :
 
@@ -190,7 +219,7 @@ chantier data distinct.
 
 ## 5. Reste à vérifier
 
-- [ ] **PRIORITÉ — couverture SPEI (§3bis)** : instrumenter les motifs de rejet, puis décider.
+- [x] **Couverture SPEI (§3bis)** : instrumentée, cause trouvée (asymétrie négative), loi remplacée par la GLO → 100 %.
 
 - [x] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
       « moyenne 2011-2020 négative » : **les deux confirmés** (§1).
@@ -201,7 +230,7 @@ chantier data distinct.
       | théorie N(0,1) | 4,0 | 6,0 | 10,0 | **59,9** | 10,0 | 6,0 | 4,0 |
       | SPI | 4,6 | 6,2 | 9,5 | 58,9 | 11,1 | 6,4 | 3,4 |
       | STI | 3,1 | 6,8 | 10,8 | 58,9 | 9,7 | 6,7 | 4,1 |
-      | **SPEI** | 4,6 | **7,5** | 10,8 | **53,5** | 11,4 | **8,3** | 3,9 |
+      | **SPEI** (GLO) | 4,8 | **7,6** | 10,5 | **53,5** | 11,7 | **8,2** | 3,8 |
 
       SPI et STI collent à la théorie. Le **SPEI est légèrement sur-dispersé** : classe
       NORMAL à 53,5 % au lieu de 59,9 %, au profit des classes « très sec » / « très

@@ -65,7 +65,56 @@ Pour une cellule 0.1°, une fenêtre `N ∈ {1,3,6,12}` mois finissant au mois `
   `dashboard/utils/drought.py` / `classify_index` de `api/era5_anomaly.py`) : ±0.84, ±1.28,
   ±1.75. Sémantique **sécheresse** (comme le SPI) : négatif = sec, positif = humide.
 
-### 2.1 Fit log-logistique par L-moments (implémentation maison)
+### 2.0 ⚠️ AMENDEMENT DU 2026-07-24 — la loi retenue est finalement la **logistique généralisée (GLO)**
+
+La §2.1 ci-dessous décrit le choix **initial** (log-logistique 3 paramètres). Il a été
+**remplacé après mise en production**, sur constat mesuré. On garde le texte d'origine pour
+la traçabilité de la décision.
+
+**Ce qu'on a observé** : la log-logistique n'ajustait que **74,6 %** des couples
+cellule × mois × fenêtre. Instrumentation des motifs de rejet (ajoutée pour l'occasion) :
+**100 % des rejets** venaient de la garde `β ≤ 1`, et **zéro** d'un manque de données
+(`n_annees_insuffisant = 0` partout).
+
+**La cause, démontrée** : avec la convention PWM utilisée, `β = 1/τ₃` (τ₃ = L-asymétrie). Or
+|τ₃| < 1 pour toute distribution réelle, donc `β ≤ 1` signifie nécessairement **β < 0, donc
+τ₃ < 0**. Vérifié empiriquement, séparation parfaite :
+
+| | n | τ₃ min | médiane | max | % τ₃ < 0 |
+|---|---|---|---|---|---|
+| acceptés | 100 578 | 0,000 | 0,086 | 0,379 | **0,0 %** |
+| rejetés | 37 374 | −0,308 | −0,050 | −0,000 | **100,0 %** |
+
+La log-logistique est une loi à **asymétrie positive** : elle ne peut structurellement pas
+représenter les mailles dont le bilan hydrique est à asymétrie négative. Ce n'était donc ni
+un bug ni un défaut de données, mais une **loi trop étroite**.
+
+**Le correctif** : la **logistique généralisée (GLO)**, dont le paramètre de forme
+`k = −τ₃` accepte les deux signes. Ce n'est pas un changement de famille opportuniste :
+c'est la loi qu'utilise l'implémentation de référence (paquet R `SPEI` → `parglo`).
+Estimateurs de Hosking :
+
+```
+k = −τ₃
+α = λ₂ / (Γ(1+k)·Γ(1−k))
+ξ = λ₁ − α·(1/k − π/sin(kπ))
+F(x) = 1 / (1 + (1 − k(x−ξ)/α)^(1/k))        (cas limite k≈0 : logistique)
+```
+
+**Résultats mesurés après bascule** :
+- couverture de l'ajustement : **74,6 % → 100,0 %** sur les 4 fenêtres, **zéro rejet** de
+  quelque motif que ce soit ;
+- couverture du `spei` en carte (juin 2026) : **75 % → 99,2 %** (le reliquat = valeurs du
+  mois hors du support ajusté, comportement légitime) ;
+- **non-régression prouvée** : sur les 35 614 mailles que l'ancienne loi ajustait déjà,
+  écart médian **0,000**, p95 **0,000**, max **0,000**, corrélation **1,0000**. La GLO redonne
+  exactement les mêmes valeurs là où la log-logistique fonctionnait — les deux coïncident sur
+  le domaine τ₃ > 0. Le changement est donc **purement additif**.
+
+Colonnes de la table de référence : `ll_alpha/ll_beta/ll_gamma` → `glo_alpha/glo_k/glo_xi`
+(les anciennes colonnes sont conservées, non supprimées, pour ne rien détruire en prod).
+
+### 2.1 Fit log-logistique par L-moments (implémentation maison) — *choix initial, remplacé (cf. §2.0)*
 
 **Décision** : implémentation **maison** (numpy/scipy), **aucune dépendance externe** —
 cohérent avec `drought.py` qui refuse explicitement la dépendance `spei`. `climate-indices`
