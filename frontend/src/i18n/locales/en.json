@@ -1856,7 +1856,7 @@
       "windowLabel": "Window",
       "dailyTempLabel": "Daily data",
       "dailyTempInfo": "ERA5 reanalysis — available at D-7, this is not a forecast",
-      "speiInfo": "Standardized water-balance index (precipitation − PET), 1-to-12-month scale, 1991-2020 reference. Negative = drought. PET is estimated from ERA5-Land, not a Penman-Monteith FAO-56 reference.",
+      "speiInfo": "Standardized water-balance index (precipitation − PET), 1-to-12-month scale, 1991-2020 reference. Negative = drought. PET is a reference evapotranspiration computed with the Hargreaves equation (FAO-56) from ERA5 daily temperatures — the FAO-recommended fallback when radiation, wind and humidity are unavailable, and the method used in climate-attribution studies.",
       "familyAnomaly": "Anomaly",
       "window1": "Short term (1 month)",
       "window3": "Seasonal (3 months)",

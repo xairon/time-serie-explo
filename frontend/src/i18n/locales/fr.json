@@ -1856,7 +1856,7 @@
       "windowLabel": "Fenêtre",
       "dailyTempLabel": "Données journalières",
       "dailyTempInfo": "Réanalyse ERA5 — disponible à J-7, ce n'est pas une prévision",
-      "speiInfo": "Indice standardisé du bilan hydrique (précipitations − ETP), échelle 1 à 12 mois, référence 1991-2020. Négatif = sécheresse. L'ETP est estimée depuis ERA5-Land, pas un Penman-Monteith FAO-56.",
+      "speiInfo": "Indice standardisé du bilan hydrique (précipitations − ETP), échelle 1 à 12 mois, référence 1991-2020. Négatif = sécheresse. L'ETP est une évapotranspiration de référence calculée par la formule de Hargreaves (FAO-56) à partir des températures journalières ERA5 — le repli recommandé par la FAO quand le rayonnement, le vent et l'humidité ne sont pas disponibles, et la méthode employée par la littérature d'attribution climatique.",
       "familyAnomaly": "Anomalie",
       "window1": "Court terme (1 mois)",
       "window3": "Saisonnier (3 mois)",
