@@ -10,6 +10,7 @@ function RedirectWithParams({ to }: { to: string }) {
   return <Navigate to={qs ? `${to}?${qs}` : to} replace />
 }
 
+const ObservatoryShell = lazy(() => import('./pages/ObservatoryShell'))
 const ObservatoryPage = lazy(() => import('./pages/ObservatoryPage'))
 const ClimatPage = lazy(() => import('./pages/ClimatPage'))
 const StationPage = lazy(() => import('./pages/StationPage'))
@@ -47,10 +48,18 @@ export const router = createBrowserRouter([
   {
     element: <SessionGate><Layout /></SessionGate>,
     children: [
-      // Observatory (home)
-      { path: '/', element: <SW><ObservatoryPage /></SW> },
+      // Observatory (home) — a pathless layout route wraps the two
+      // compartments (Nappes & rivières / Climat) behind a shared sub-tab
+      // bar (ObservatoryShell). Both URLs stay byte-identical — /climat is
+      // an existing deep-link target (Observatory map cell popup).
+      {
+        element: <SW><ObservatoryShell /></SW>,
+        children: [
+          { path: '/', element: <SW><ObservatoryPage /></SW> },
+          { path: '/climat', element: <SW><ClimatPage /></SW> },
+        ],
+      },
       { path: '/observatory', element: <Navigate to="/" replace /> },
-      { path: '/climat', element: <SW><ClimatPage /></SW> },
       { path: '/station/*', element: <SW><StationPage /></SW> },
 
       // Cross-station comparison

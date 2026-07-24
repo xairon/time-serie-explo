@@ -110,6 +110,9 @@
   },
   "observatory": {
     "title": "Observatoire",
+    "tabs": {
+      "groundwater": "Nappes & rivières"
+    },
     "stations": "Stations",
     "piezo": "Piézomètre",
     "hydro": "Hydrométrie",
