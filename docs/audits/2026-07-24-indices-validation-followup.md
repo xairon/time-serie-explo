@@ -194,7 +194,22 @@ chantier data distinct.
 
 - [x] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
       « moyenne 2011-2020 négative » : **les deux confirmés** (§1).
-- [ ] Fréquence des 7 classes McKee vs attendu théorique, pour les 3 indices.
+- [x] **Fréquence des 7 classes McKee vs théorie** (fenêtre 3, référence 1991-2020, en %) :
+
+      | | ExtBas | TrèsBas | Bas | NORMAL | Haut | TrèsHaut | ExtHaut |
+      |---|---|---|---|---|---|---|---|
+      | théorie N(0,1) | 4,0 | 6,0 | 10,0 | **59,9** | 10,0 | 6,0 | 4,0 |
+      | SPI | 4,6 | 6,2 | 9,5 | 58,9 | 11,1 | 6,4 | 3,4 |
+      | STI | 3,1 | 6,8 | 10,8 | 58,9 | 9,7 | 6,7 | 4,1 |
+      | **SPEI** | 4,6 | **7,5** | 10,8 | **53,5** | 11,4 | **8,3** | 3,9 |
+
+      SPI et STI collent à la théorie. Le **SPEI est légèrement sur-dispersé** : classe
+      NORMAL à 53,5 % au lieu de 59,9 %, au profit des classes « très sec » / « très
+      humide » (+1,5 et +2,3 pts). C'est **cohérent avec son écart-type mesuré (1,038)** :
+      une distribution un peu plus large peuple davantage les queues. Conséquence produit à
+      connaître : **le SPEI signalera « très sec » un peu plus souvent que le SPI**, ce qui
+      est en partie l'effet recherché (il intègre l'ETP) mais en partie un artefact de
+      dispersion. Non bloquant ; à re-mesurer si l'ajustement change (§3bis).
 - [x] **Cohérence de signe SPEI ↔ `bilan_hydrique`** : `corr = +0,353` sur 1 094 818 lignes
       (fenêtre 1, 1991-2000). Correctement signée. La corrélation est modérée et non proche
       de 1 **par construction** : le SPEI est standardisé par maille ET par mois calendaire,
