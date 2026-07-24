@@ -35,20 +35,52 @@ uv run alembic upgrade head
 uv run python -m scripts.create_admin       # create an admin account
 ```
 
-## Production deployment
+## Deployed environments
 
-The canonical deployment is described under **`deploy/`**:
+There are **two distinct Docker Compose projects** on the `dib` server. Getting the project
+name wrong recreates containers in the *other* environment, so always pass it explicitly for
+dev.
 
-- `deploy/dib-backend/` — backend stack (API + Postgres + Redis + MLflow) via
-  Docker Compose. Copy `.env.example` to `.env` and fill in the secrets.
-- `deploy/frontend/` — static frontend (nginx) deployed on Kubernetes
-  (`deploy/frontend/k8s/`), proxying `/api/` to the backend.
+| | Compose project | Files | Containers | Ports |
+|---|---|---|---|---|
+| **Production** | `time-serie-explo` | `docker-compose.yml` + `docker-compose.cuda.yml` (via `COMPOSE_FILE` in `.env`) | `junon-backend`, `junon-frontend` | 49514 / 49513 |
+| **Dev** | `junon-dev` | `docker-compose.dev.yml` only | `junon-*-dev` | 49516 / 49518 |
 
-See `deploy/README.md`, `deploy/frontend/README.md`, and the matching
-`.env.example` for up-to-date details.
+### Production (live stack on `dib`)
 
-> Note: the combined root `docker-compose.yml` is kept for development; in
-> production, use the separate stacks under `deploy/`.
+```bash
+# from the repo root, on main
+docker compose up -d --build backend frontend
+```
+
+> **Never pass `-f` here.** `.env` sets
+> `COMPOSE_FILE=docker-compose.yml:docker-compose.cuda.yml`; overriding it with an explicit
+> `-f` drops the CUDA overlay and the backend loses the GPU. Service names are
+> `backend`/`frontend` — *not* the container names `junon-backend`/`junon-frontend`.
+
+### Dev
+
+```bash
+docker compose -p junon-dev -f docker-compose.dev.yml up -d --build backend-dev frontend-dev
+```
+
+> **`-p junon-dev` is mandatory.** Without it the project falls back to the directory name
+> (`time-serie-explo`) and you would recreate **production** containers. This is the one
+> exception to the "never pass `-f`" rule above, which applies to production only.
+> Dev has its own Redis (`junon-redis-dev`) — purge its cache separately.
+
+### Kubernetes target (`deploy/`)
+
+`deploy/` holds the stacks for the DSI Kubernetes target, driven by GitLab CI → registry →
+ArgoCD image-updater:
+
+- `deploy/dib-backend/` — backend stack (API + Postgres + Redis + MLflow)
+- `deploy/frontend/` — static frontend (nginx), `deploy/frontend/k8s/`, proxying `/api/`
+
+See `deploy/README.md`, `deploy/frontend/README.md` and the matching `.env.example`.
+
+> These are **not** what currently serves the live `dib` instance — that is the root
+> Compose project above. Don't assume `deploy/` is the running production.
 
 ## GDPR / retention
 

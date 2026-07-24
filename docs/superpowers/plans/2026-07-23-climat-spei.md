@@ -1,5 +1,14 @@
 # SPEI (Climat) Implementation Plan
 
+> ⚠️ **Document historique — exécuté, puis partiellement dépassé.**
+> Ce plan a été intégralement exécuté (9 tâches, mergées et déployées le 2026-07-24). Mais la
+> **loi d'ajustement qu'il décrit — la log-logistique — a depuis été remplacée par la
+> logistique généralisée (GLO)**, car elle ne couvrait que 74,6 % des mailles.
+> Ne pas s'appuyer sur les formules ni sur les noms de colonnes (`ll_alpha/ll_beta/ll_gamma`)
+> de ce plan : voir `docs/superpowers/specs/2026-07-23-climat-spei-design.md` §2.0 pour la
+> méthode en vigueur, et `docs/audits/2026-07-24-indices-validation-followup.md` pour la
+> validation. Conservé pour la traçabilité de la démarche.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add the SPEI (Standardized Precipitation-Evapotranspiration Index) as a third grid drought index in the `/climat` module — standardizing the already-present monthly water balance `D = P − ETP`.
