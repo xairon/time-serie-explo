@@ -2,7 +2,7 @@
 
 **Date** : 2026-07-24
 **Origine** : déploiement du SPEI (cf. `docs/superpowers/specs/2026-07-23-climat-spei-design.md`).
-**Statut** : SPI ✅ · STI ✅ · SPEI ✅ calibré (référence complète) · β sans objet ✅ · bug warm corrigé ✅ · ⚠️ **couverture SPEI incomplète et groupée (§3bis) = point ouvert principal**
+**Statut** : SPI ✅ · STI ✅ · SPEI ✅ · β sans objet ✅ · bug warm corrigé ✅ · couverture SPEI ✅ **résolue** (log-logistique → logistique généralisée, 74,6 % → 100 %)
 
 Objectif : s'assurer que les indices sont **calculés correctement** et **font sens**, et
 recenser les bugs à corriger.
@@ -139,10 +139,30 @@ cache visé n'est pas préchauffé → première requête utilisateur plus lente
 
 ---
 
-## 3bis. ⚠️ LE VRAI PROBLÈME RESTANT — couverture SPEI incomplète et **groupée géographiquement**
+## 3bis. ✅ RÉSOLU — couverture SPEI incomplète (cause trouvée, loi corrigée)
 
-**Sévérité : moyenne-haute. C'est le point le plus important de cet audit** — plus que la
-piste β (§2), qui s'est révélée sans objet.
+> **Résolu le 2026-07-24.** Cause identifiée puis corrigée : la log-logistique ne peut pas
+> représenter les bilans hydriques à **asymétrie négative**. Remplacée par la **logistique
+> généralisée (GLO)**. Détail complet et démonstration dans
+> `docs/superpowers/specs/2026-07-23-climat-spei-design.md` §2.0.
+>
+> **Instrumentation** (ajoutée pour trancher, conservée) : `fit_reference_frame` compte
+> désormais les rejets **par motif** et les journalise par fenêtre — plus de troncature
+> silencieuse.
+>
+> | | avant (log-logistique) | après (GLO) |
+> |---|---|---|
+> | ajustement réussi | 74,6 % | **100,0 %** (zéro rejet) |
+> | `spei` en carte (juin 2026) | 75 % | **99,2 %** |
+> | motifs de rejet | 100 % `beta_hors_domaine` | — |
+>
+> **Non-régression prouvée** : sur les 35 614 mailles déjà ajustées avant, écart max
+> **0,000** et corrélation **1,0000** entre ancienne et nouvelle valeur. Changement
+> purement additif.
+
+**Analyse initiale conservée pour mémoire.** Sévérité alors estimée moyenne-haute — c'était
+bien le point le plus important de cet audit, plus que la piste β (§2) qui s'est révélée sans
+objet.
 
 Le SPEI n'est calculé que sur une fraction des mailles, contre 100 % pour le SPI :
 
@@ -190,7 +210,7 @@ chantier data distinct.
 
 ## 5. Reste à vérifier
 
-- [ ] **PRIORITÉ — couverture SPEI (§3bis)** : instrumenter les motifs de rejet, puis décider.
+- [x] **Couverture SPEI (§3bis)** : instrumentée, cause trouvée (asymétrie négative), loi remplacée par la GLO → 100 %.
 
 - [x] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
       « moyenne 2011-2020 négative » : **les deux confirmés** (§1).
