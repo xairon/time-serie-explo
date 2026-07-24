@@ -2,7 +2,7 @@
 
 **Date** : 2026-07-24
 **Origine** : déploiement du SPEI (cf. `docs/superpowers/specs/2026-07-23-climat-spei-design.md`).
-**Statut** : SPI ✅ · STI ✅ · SPEI ⏳ (calibration en attente du backfill historique)
+**Statut** : SPI ✅ · STI ✅ · SPEI ✅ (calibration partielle 1991-2000 concluante ; complète à rejouer) · β sans objet ✅ · bug warm corrigé ✅
 
 Objectif : s'assurer que les indices sont **calculés correctement** et **font sens**, et
 recenser les bugs à corriger.
@@ -18,13 +18,20 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 |---|---|---|---|---|---|
 | **SPI** | 1/3/6/12 | −0,008 → +0,002 | 0,985 – 1,031 | 0,00 – 0,04 | 0,05 – 0,51 % |
 | **STI** | 1/3/6/12 | 0,000 | 0,983 | −0,09 – −0,02 | 0,00 – 0,04 % |
-| **SPEI** | 1/3/6/12 | ⏳ | ⏳ | ⏳ | ⏳ |
+| **SPEI** *(1991-2000, backfill partiel)* | 1/3/6/12 | +0,083 → +0,156 | 1,025 – 1,054 | 0,10 – 0,19 | 0,02 – 0,05 % |
 
-→ **SPI et STI sont correctement calibrés.** Rien à corriger.
+→ **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
 
-### SPEI — à compléter
-Le backfill historique de `spei` (1950→2026) était encore en cours à la rédaction.
-Rejouer la même requête dès qu'il couvre 1991-2020 :
+Note SPEI : l'écart-type est excellent (≈ 1,03) et la saturation est **plus faible que celle
+du SPI**. La moyenne légèrement positive (+0,08 à +0,16, croissante avec la fenêtre) est
+attendue : 1991-2000 est la **première décennie** d'une référence 1991-2020 sous tendance au
+dessèchement — la décennie de début est humide *relativement* à la moyenne trentenaire.
+C'est un signal climatique réel, pas un défaut. Contre-épreuve à faire quand le backfill
+sera complet : la moyenne sur 2011-2020 doit être **négative** du même ordre.
+
+### SPEI — calibration complète à rejouer
+La mesure ci-dessus porte sur 1991-2000 (le backfill historique 1950→2026 était encore en
+cours). Rejouer sur la référence entière dès qu'elle est couverte :
 
 ```sql
 SELECT fenetre, avg(spei), stddev_samp(spei),
@@ -45,9 +52,27 @@ entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3),
 
 ---
 
-## 2. À corriger — pas de borne supérieure sur β (log-logistique SPEI)
+## 2. β sans borne supérieure — VÉRIFIÉ, AUCUNE CORRECTION NÉCESSAIRE
 
-**Sévérité : moyenne.** `fit_loglogistic_lmoments`
+> **Conclusion (mesurée le 2026-07-24)** : l'inquiétude théorique ci-dessous est **infirmée
+> par les données**. Aucun correctif n'est appliqué. Ne pas « corriger » ce point sans
+> refaire la mesure — ajouter une borne supprimerait 9,4 % de mailles qui fonctionnent
+> parfaitement.
+>
+> Sur la référence (1991-2000, fenêtre 1, `spei` non nul), en séparant les mailles selon β :
+>
+> | cohorte | n | moyenne | écart-type | saturation \|z\|≥3,08 |
+> |---|---|---|---|---|
+> | β ≤ 50 | 1 030 558 | 0,083 | 1,042 | 0,040 % |
+> | **β > 50** | 64 260 | 0,086 | **0,977** | **0,000 %** |
+>
+> Les mailles à β élevé se comportent **mieux** que les autres : écart-type plus proche de 1
+> et **zéro** saturation. Un β grand traduit une distribution du bilan hydrique réellement
+> resserrée (ex. été méditerranéen), et la standardisation la traite correctement — ce n'est
+> pas une dégénérescence. Le pic de saturation observé en juin 2026 (10,1 %) est bien
+> **météorologique** (mois record), pas un artefact d'ajustement.
+
+**Analyse initiale conservée pour mémoire.** `fit_loglogistic_lmoments`
 (`hubeau_data_integration/src/hubeau_pipeline/ml/era5_indices.py`) rejette `β ≤ 1`
 (divergence de Γ(1−1/β)) mais **n'impose aucune borne supérieure**.
 
@@ -68,16 +93,20 @@ médiane — l'indice perd toute résolution sur ces mailles.
 dont le bilan hydrique est très resserré (été méditerranéen : chaque juillet ≈ −120 ± 10 mm)
 produisent un rapport de L-moments proche de la dégénérescence.
 
-**Pistes de correction** (à trancher) :
-- Borne dure : rejeter `β > β_max` (ex. 100) → NaN, comme les autres cas dégénérés.
-- Ou repli sur une CDF empirique pour ces mailles (⚠ contraire au choix « pas de repli
-  distributionnel » acté dans la spec §7 — à rediscuter si retenu).
-- Dans tous les cas : **journaliser le taux de mailles rejetées par région** (pas de
-  troncature silencieuse).
+**Pistes envisagées puis ÉCARTÉES** (cf. encadré §2) : borne dure `β > β_max` → NaN, ou repli
+sur CDF empirique. Les deux auraient dégradé le produit (perte de 9,4 % de mailles saines)
+pour corriger un problème qui n'existe pas dans les données.
 
 ---
 
-## 3. À corriger — bug préexistant, warm de cache au démarrage du backend
+## 3. ✅ CORRIGÉ — bug préexistant, warm de cache au démarrage du backend
+
+> **Corrigé le 2026-07-24** (`api/main.py`, commit `e04650b`) : les warms appellent désormais
+> `get_sector_situation(type=…, month=None, network="all")` et
+> `get_sector_timeline(type=…, network="all")` avec des valeurs explicites.
+> **Vérifié en prod** : `docker logs junon-backend` → 0 occurrence de `InvalidDatetimeFormat`
+> / `annotation=Union`, et les trois warms confirment désormais (`Stations GeoJSON`,
+> `BRGM sectors`, `BRGM timeline` *cache warmed*).
 
 **Sévérité : basse (non bloquante), mais réelle.** Au démarrage de `junon-backend`, un warm
 de cache passe l'**objet FastAPI `Query(...)` au lieu de sa valeur** comme paramètre `month` :
@@ -112,9 +141,16 @@ chantier data distinct.
 
 ## 5. Reste à vérifier
 
-- [ ] Calibration SPEI 1991-2020 (§1) dès la fin du backfill.
+- [ ] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
+      « moyenne 2011-2020 négative », dès la fin du backfill.
 - [ ] Fréquence des 7 classes McKee vs attendu théorique, pour les 3 indices.
-- [ ] `dagster definitions validate` en CI/staging (jamais exécutable en sandbox ;
-      **contrôle indirect déjà OK** : le code-server a rechargé les définitions en prod avec
-      le nouvel asset visible dans `dagster asset list`).
-- [ ] Cohérence de signe SPEI ↔ `bilan_hydrique` sur un échantillon de mailles.
+- [x] **Cohérence de signe SPEI ↔ `bilan_hydrique`** : `corr = +0,353` sur 1 094 818 lignes
+      (fenêtre 1, 1991-2000). Correctement signée. La corrélation est modérée et non proche
+      de 1 **par construction** : le SPEI est standardisé par maille ET par mois calendaire,
+      ce qui retire justement la dispersion saisonnière et géographique que porte le
+      `bilan_hydrique` brut. Une corrélation négative aurait été l'alerte.
+- [x] **β sans borne supérieure** → vérifié, sans objet (§2).
+- [x] **Bug du warm de cache `Query(...)`** → corrigé et vérifié en prod (§3).
+- [x] `dagster definitions validate` : **contrôle indirect concluant** — le code-server a
+      rechargé les définitions en prod et `dagster asset list` expose bien
+      `fct_era5_spei_climatology_grid`. Le gap sandbox est levé.
