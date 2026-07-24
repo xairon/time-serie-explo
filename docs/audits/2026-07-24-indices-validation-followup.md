@@ -2,7 +2,7 @@
 
 **Date** : 2026-07-24
 **Origine** : déploiement du SPEI (cf. `docs/superpowers/specs/2026-07-23-climat-spei-design.md`).
-**Statut** : SPI ✅ · STI ✅ · SPEI ✅ · β sans objet ✅ · bug warm corrigé ✅ · couverture SPEI ✅ **résolue** (log-logistique → logistique généralisée, 74,6 % → 100 %)
+**Statut** : SPI ✅ · STI ✅ · SPEI ✅ · couverture ✅ (100 %) · ETP ✅ **corrigée** (PEV ERA5 → Hargreaves FAO-56, 2,15× trop élevée) · bug warm ✅
 
 Objectif : s'assurer que les indices sont **calculés correctement** et **font sens**, et
 recenser les bugs à corriger.
@@ -18,7 +18,7 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 |---|---|---|---|---|---|
 | **SPI** | 1/3/6/12 | −0,008 → +0,002 | 0,985 – 1,031 | 0,00 – 0,04 | 0,05 – 0,51 % |
 | **STI** | 1/3/6/12 | 0,000 | 0,983 | −0,09 – −0,02 | 0,00 – 0,04 % |
-| **SPEI** *(loi GLO)* | 1/3/6/12 | **+0,001 → +0,003** | 1,032 – 1,069 | 0,02 – 0,04 | 0,043 – 0,048 % |
+| **SPEI** *(GLO + ETP Hargreaves)* | 1/3/6/12 | **+0,004 → +0,006** | **0,999 – 1,013** | 0,01 – 0,03 | **0,012 – 0,035 %** |
 
 → **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
 
@@ -40,7 +40,7 @@ de façon monotone :
 
 | décennie | 1990s | 2000s | 2010s | 2020s |
 |---|---|---|---|---|
-| moyenne SPEI | **+0,079** | +0,005 | **−0,040** | **−0,301** |
+| moyenne SPEI | **+0,038** | +0,007 | **−0,016** | **−0,117** |
 
 La moyenne positive de la 1ʳᵉ décennie était donc bien un **signal climatique de
 dessèchement**, pas un biais d'ajustement : prédiction faite avant mesure, vérifiée.
@@ -58,9 +58,14 @@ GROUP BY fenetre ORDER BY fenetre;
 
 **Critère d'acceptation** (fixé *avant* la mesure) : moyenne ≈ 0 (±0,05), écart-type ≈ 1
 (±0,05), saturation du même ordre que le SPI (< 1 %). → **Atteint** : moyenne ≤ 0,003 en
-valeur absolue, saturation 0,045 %. Seul l'écart-type de la fenêtre 12 (1,069) dépasse
-légèrement la tolérance de ±0,05 — sans conséquence pratique (les classes McKee sont
-bornées à ±1,75), mais à re-regarder si la fenêtre 12 devient un usage central.
+valeur absolue, écarts-types **0,999-1,013** (tous dans la tolérance), saturation ≤ 0,035 %.
+La sur-dispersion résiduelle constatée avant la bascule ETP (w12 à 1,069) a **disparu**.
+
+Réserve subsistante : la classe NORMAL représente 54,8 % au lieu des 59,9 % théoriques alors
+que l'écart-type vaut 1,008 — la distribution garde des « épaules » un peu plus lourdes
+qu'une gaussienne. Sans conséquence opérationnelle (les seuils McKee restent ceux du SPI et
+du STI), mais à ne pas interpréter comme une anomalie de sécheresse : c'est une propriété de
+la transformation GLO→normale près des bornes de classes.
 
 **Contrôle de cohérence déjà fait (mois récents)** : la calibration suit correctement les
 entrées brutes — mai 2026 médiane −0,59 (bilan −132,8 vs réf −105,3), avril −1,41
@@ -208,12 +213,45 @@ soit 74,6 %) explique **exactement** la couverture observée du `spei`.
 3. En attendant, **assumer le trou dans l'UI** : la légende / le ⓘ doivent dire qu'une maille
    vide = ajustement impossible sur la référence, et non « pas de sécheresse ».
 
-## 4. Point de méthode assumé (pas un bug)
+## 4. ✅ RÉSOLU — l'ETP n'était pas une ET0 de référence (bascule vers Hargreaves)
 
-L'ETP provient de la **PEV ERA5-Land**, qui n'est **pas** un Penman-Monteith FAO-56. Le SPEI
-en hérite. C'est cohérent avec l'ETP et le bilan hydrique déjà affichés, et le caveat est
-surfacé dans l'UI (`climat.picker.speiInfo`, ⓘ sur SPEI, fr+en). Améliorer l'ETP est un
-chantier data distinct.
+**Déclencheur** : comparaison avec l'étude World Weather Attribution sur l'Europe, qui
+calcule son SPEI avec « ERA5 + schéma de **Hargreaves** » pour l'ETP. Nous utilisions la
+`potential_evaporation` **native d'ERA5-Land**. Ce ne sont pas la même grandeur.
+
+**Mesure** (30 888 mailles-mois, 2015-2025, mêmes mailles) :
+
+| | Hargreaves | PEV ERA5-Land | ratio |
+|---|---|---|---|
+| ETP annuelle | **818 mm** | **1 756 mm** | **×2,15** |
+| Bilan P−ETP | **+146 mm/an** | **−793 mm/an** | — |
+
+818 mm/an est cohérent avec l'ET0 de référence pour la France (littérature 700-900 mm) ;
+1 756 mm/an ne l'est pas et mettait le pays en déficit hydrique **permanent**. La PEV d'ERA5
+n'est pas une ET0 FAO : c'est l'évaporation d'une surface sans stress hydrique calculée avec
+la résistance aérodynamique du modèle.
+
+**Correctif appliqué le 2026-07-24** : `etp_totale` est désormais une ET0 **Hargreaves
+(FAO-56)** calculée depuis les Tmin/Tmax journaliers vrais (rendu possible par le cutover
+température). La PEV brute est conservée en `etp_pev_era5`, non consommée.
+
+**Effets mesurés — tous favorables :**
+- ETP France **819 mm/an**, bilan **+150 mm/an** (le SQL reproduit un calcul Python
+  indépendant à 1 mm près : 819 vs 818).
+- Calibration SPEI **améliorée** : écart-type 1,032-1,069 → **0,999-1,013** ; saturation
+  0,045 % → **0,024 %** ; couverture 99,9 % → **100 %**. La sur-dispersion résiduelle a
+  disparu — signal indépendant que Hargreaves est la bonne ETP.
+- Tendance décennale **moins amplifiée** : `+0,079 → −0,301` devient `+0,038 → −0,117`. Le
+  dessèchement reste réel et monotone, mais la PEV l'exagérait d'un facteur ~2,5 (elle
+  réagit plus fortement au réchauffement).
+- Juin 2026 (w3) : médiane −2,16 → **−1,94**. Toujours sévère, moins extrême.
+
+**Incohérence assumée** : la chaîne *station* (`hubeau_daily_chroniques`,
+`hydro_daily_chroniques`, `fct_monthly_*`) garde la **PEV brute** — elle force les modèles
+Pastas et la changer invaliderait tous les calages TFN. Une « ETP » du module Climat
+(~820 mm/an) et une « ETP » de la page Station (~1 740 mm/an) ne sont donc pas la même
+grandeur. À traiter comme un chantier distinct si on veut l'unifier.
+`/observatory/era5/*` suit Hargreaves (il dérive sa PEV journalière de `etp_totale`).
 
 ---
 
@@ -230,7 +268,7 @@ chantier data distinct.
       | théorie N(0,1) | 4,0 | 6,0 | 10,0 | **59,9** | 10,0 | 6,0 | 4,0 |
       | SPI | 4,6 | 6,2 | 9,5 | 58,9 | 11,1 | 6,4 | 3,4 |
       | STI | 3,1 | 6,8 | 10,8 | 58,9 | 9,7 | 6,7 | 4,1 |
-      | **SPEI** (GLO) | 4,8 | **7,6** | 10,5 | **53,5** | 11,7 | **8,2** | 3,8 |
+      | **SPEI** (GLO+Hargreaves) | 3,8 | **7,7** | 10,9 | **54,8** | 11,6 | **7,7** | 3,5 |
 
       SPI et STI collent à la théorie. Le **SPEI est légèrement sur-dispersé** : classe
       NORMAL à 53,5 % au lieu de 59,9 %, au profit des classes « très sec » / « très
