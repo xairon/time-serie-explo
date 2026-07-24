@@ -2,7 +2,7 @@
 
 **Date** : 2026-07-24
 **Origine** : déploiement du SPEI (cf. `docs/superpowers/specs/2026-07-23-climat-spei-design.md`).
-**Statut** : SPI ✅ · STI ✅ · SPEI ✅ (calibration partielle 1991-2000 concluante ; complète à rejouer) · β sans objet ✅ · bug warm corrigé ✅
+**Statut** : SPI ✅ · STI ✅ · SPEI ✅ calibré (référence complète) · β sans objet ✅ · bug warm corrigé ✅ · ⚠️ **couverture SPEI incomplète et groupée (§3bis) = point ouvert principal**
 
 Objectif : s'assurer que les indices sont **calculés correctement** et **font sens**, et
 recenser les bugs à corriger.
@@ -18,9 +18,24 @@ Un indice standardisé doit suivre ~N(0,1) **sur sa propre période de référen
 |---|---|---|---|---|---|
 | **SPI** | 1/3/6/12 | −0,008 → +0,002 | 0,985 – 1,031 | 0,00 – 0,04 | 0,05 – 0,51 % |
 | **STI** | 1/3/6/12 | 0,000 | 0,983 | −0,09 – −0,02 | 0,00 – 0,04 % |
-| **SPEI** *(1991-2000, backfill partiel)* | 1/3/6/12 | +0,083 → +0,156 | 1,025 – 1,054 | 0,10 – 0,19 | 0,02 – 0,05 % |
+| **SPEI** | 1/3/6/12 | **+0,001 → −0,004** | 1,033 – 1,074 | 0,01 – 0,02 | 0,055 – 0,063 % |
 
 → **SPI, STI et SPEI sont correctement calibrés.** Rien à corriger.
+
+**SPEI — mesure définitive sur la référence complète 1991-2020** (backfill terminé :
+41 960 400 lignes en 48,3 min) : moyenne nulle à la 3ᵉ décimale, écart-type ≈ 1,03-1,07,
+saturation ≈ 0,06 % (au niveau ou en dessous du SPI). Le critère d'acceptation fixé *avant*
+la mesure est atteint.
+
+**Contre-épreuve de la tendance — CONFIRMÉE.** La moyenne par décennie (fenêtre 1) décroît
+de façon monotone :
+
+| décennie | 1990s | 2000s | 2010s | 2020s |
+|---|---|---|---|---|
+| moyenne SPEI | **+0,083** | −0,005 | **−0,038** | **−0,273** |
+
+La moyenne positive de la 1ʳᵉ décennie était donc bien un **signal climatique de
+dessèchement**, pas un biais d'ajustement : prédiction faite avant mesure, vérifiée.
 
 Note SPEI : l'écart-type est excellent (≈ 1,03) et la saturation est **plus faible que celle
 du SPI**. La moyenne légèrement positive (+0,08 à +0,16, croissante avec la fenêtre) est
@@ -130,6 +145,46 @@ cache visé n'est pas préchauffé → première requête utilisateur plus lente
 
 ---
 
+## 3bis. ⚠️ LE VRAI PROBLÈME RESTANT — couverture SPEI incomplète et **groupée géographiquement**
+
+**Sévérité : moyenne-haute. C'est le point le plus important de cet audit** — plus que la
+piste β (§2), qui s'est révélée sans objet.
+
+Le SPEI n'est calculé que sur une fraction des mailles, contre 100 % pour le SPI :
+
+| fenêtre | couverture SPEI | couverture SPI |
+|---|---|---|
+| 1 | 88,1 % | 100 % |
+| 3 | 72,9 % | 100 % |
+| 6 | 70,3 % | 100 % |
+| 12 | **67,1 %** | 100 % |
+
+**Ces trous ne sont pas dispersés, ils sont groupés** (couverture fenêtre 3, juin 2026, par
+bande de latitude) :
+
+| bande | 40-42 | 42-44 | **44-46** | 46-48 | 48-50 | **50-52** |
+|---|---|---|---|---|---|---|
+| couvert | 98,4 % | 92,0 % | **52,5 %** | 93,6 % | 81,2 % | **41,6 %** |
+
+→ **Conséquence produit directe : la carte SPEI présente des trous régionaux visibles**
+(bandes où près de la moitié des mailles sont vides), là où la carte SPI est pleine.
+L'utilisateur verra une carte « à trous » sans explication.
+
+**Origine** : chaque maille absente vient d'un groupe rejeté à l'ajustement dans
+`fit_reference_frame` — soit `n < MIN_YEARS_REF` (25 ans), soit un ajustement non fini, soit
+le garde `β ≤ 1`. La couverture du mart de référence (411 816 lignes sur 551 808 possibles,
+soit 74,6 %) explique **exactement** la couverture observée du `spei`.
+
+**À faire (dans cet ordre)** :
+1. **Instrumenter** `fit_reference_frame` pour compter les rejets **par motif**
+   (`n<25` / non fini / `β≤1`) et par fenêtre — aujourd'hui on ne peut pas distinguer les
+   causes a posteriori, puisqu'un groupe rejeté ne laisse aucune ligne.
+2. Selon le motif dominant : si `β ≤ 1` domine, envisager une paramétrisation plus robuste
+   (log-logistique à 2 paramètres, ou Pearson III comme le fait `climate-indices`) **pour les
+   seules mailles concernées**, plutôt que de les laisser vides.
+3. En attendant, **assumer le trou dans l'UI** : la légende / le ⓘ doivent dire qu'une maille
+   vide = ajustement impossible sur la référence, et non « pas de sécheresse ».
+
 ## 4. Point de méthode assumé (pas un bug)
 
 L'ETP provient de la **PEV ERA5-Land**, qui n'est **pas** un Penman-Monteith FAO-56. Le SPEI
@@ -141,8 +196,10 @@ chantier data distinct.
 
 ## 5. Reste à vérifier
 
-- [ ] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
-      « moyenne 2011-2020 négative », dès la fin du backfill.
+- [ ] **PRIORITÉ — couverture SPEI (§3bis)** : instrumenter les motifs de rejet, puis décider.
+
+- [x] Calibration SPEI sur la référence **complète** 1991-2020 (§1) + contre-épreuve
+      « moyenne 2011-2020 négative » : **les deux confirmés** (§1).
 - [ ] Fréquence des 7 classes McKee vs attendu théorique, pour les 3 indices.
 - [x] **Cohérence de signe SPEI ↔ `bilan_hydrique`** : `corr = +0,353` sur 1 094 818 lignes
       (fenêtre 1, 1991-2000). Correctement signée. La corrélation est modérée et non proche
