@@ -91,7 +91,16 @@ describe('useClimatPointSeries / useClimatPointEpisodes gating', () => {
   it('calls the episodes API with the fixed 3-month window once lat/lon are defined', async () => {
     const { result } = renderHook(() => useClimatPointEpisodes(47.4, 0.7), { wrapper: queryWrapper() })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(pointEpisodesMock).toHaveBeenCalledWith(47.4, 0.7, 3)
+    // 4ᵉ argument = l'indice des épisodes, 'spi' par défaut (le SPEI est opt-in).
+    expect(pointEpisodesMock).toHaveBeenCalledWith(47.4, 0.7, 3, 'spi')
+  })
+
+  it('passes the chosen index through to the episodes API', async () => {
+    const { result } = renderHook(() => useClimatPointEpisodes(47.4, 0.7, 3, 'spei'), {
+      wrapper: queryWrapper(),
+    })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(pointEpisodesMock).toHaveBeenCalledWith(47.4, 0.7, 3, 'spei')
   })
 })
 
