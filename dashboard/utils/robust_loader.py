@@ -8,7 +8,7 @@ nécessiter ce patch.
 Pour les nouveaux modèles, utilisez le chargement standard de Darts :
     model = ModelClass.load(model_path)
 
-Voir ARCHITECTURE.md pour les bonnes pratiques et la migration.
+Voir docs/ARCHITECTURE.md pour les bonnes pratiques et la migration.
 """
 
 import sys

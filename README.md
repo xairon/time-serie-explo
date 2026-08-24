@@ -4,160 +4,125 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![React](https://img.shields.io/badge/react-19-61dafb.svg)](https://react.dev/)
 
-Full-stack platform for groundwater level forecasting and scenario analysis, integrating physically-based transfer function-noise models ([Pastas](https://pastas.readthedocs.io/)) and deep learning forecasters ([Darts](https://unit8co.github.io/darts/)) under a unified MLflow registry. Built for the [BRGM](https://www.brgm.fr/) (French Geological Survey) data warehouse, exposed through a React frontend and a FastAPI backend.
+Full-stack platform for groundwater level forecasting and scenario analysis. It combines
+physically-based transfer function-noise models ([Pastas](https://pastas.readthedocs.io/)) with
+deep learning forecasters ([Darts](https://unit8co.github.io/darts/)) under a unified MLflow
+registry, on top of the [BRGM](https://www.brgm.fr/) data warehouse, exposed through a React
+frontend and a FastAPI backend.
 
-## 🚀 Deployment (split front / back)
+**Status** — active. Documentation verified on 2026-08-24.
 
-Production is **split**: the **frontend** runs on the IT department's Kubernetes
-cluster, while the **backend + GPU + databases** stay on `dib-2019006065`.
+New here? Finish this page, then open [docs/README.md](docs/README.md) for the documentation map.
 
-> 👉 **Frontend deployment guide: [`deploy/frontend/README.md`](deploy/frontend/README.md)**
-> — everything is ready to wire up: GitLab CI, Kubernetes manifests, and configuration.
-
-In short:
-- **CI provided** (`.gitlab-ci.yml`): pushing to `main` builds and pushes the frontend image to the registry.
-- **K8s manifests** ready (`deploy/frontend/k8s/`: Deployment, Service, Ingress, hostname `junon.univ-tours.fr` pre-filled).
-- The frontend proxies `/api/` to the dib backend (`10.195.25.16:49514`) — **no persistent storage** required.
-- **Critical network requirement**: open the route *cluster pods → `10.195.25.16:49514`*.
-- Backend on dib: [`deploy/dib-backend/`](deploy/dib-backend/) · dev/prod environments: [`docs/dev-environment.md`](docs/dev-environment.md).
-
-## Features
-
-### Pastas Lab — Transfer Function-Noise models
-- TFN calibration on piezometric series with precipitation and evapotranspiration as forcings
-- **Auto-fit** with STOWA quality criteria and configuration grid search
-- **Calibration/validation split** with full diagnostics (NSE, KGE, RMSE, residual autocorrelation, normality)
-- **Prospective scenarios** — synthetic pumping (AEP, irrigation, industrial), climate trends, stress scaling
-- **Adaptive bounds** — drawdown estimation derived from the calibrated step response, with physically-bounded recommendations
-- **BDLISA-aware presets** — aquifer-family-specific response function defaults (alluvial, sedimentary, karst, fractured, volcanic)
-
-### AI Lab — Deep learning forecasters
-- 12+ Darts models: TFT, Transformer, N-BEATS, N-HiTS, LSTM, GRU, TCN, TiDE, TSMixer, DLinear, NLinear
-- Hyperparameter optimization with Optuna
-- Real-time training monitoring via Server-Sent Events
-- Explainability: SHAP, TimeSHAP, Captum gradients, attention weights
-- Counterfactual analysis: PhysCF, CoMTE with dual validation
-
-### Observatory
-
-The Observatory is a **container with two sub-tabs**, one per compartment (`ObservatoryShell`
-+ `ObservatoryTabs`, both mounted under a pathless layout route so the URLs are unchanged):
-
-**Groundwater & rivers** (`/`)
-- Spatial exploration of piezometric and hydrometric stations
-- BDLISA aquifer overlays, BSH sector layer, drought indices (SPI, SPLI, SSFI)
-- Cross-station comparison with persistent selection
-
-**Climat** (`/climat`)
-- 3 views: **Situation** (France-wide 0.1° grid map), **Point/Zone** (per-cell 1950→present
-  history, precip vs. normal, multi-window index chart, drought-episode table, CSV export),
-  **Comparaison** (multi-year rainfall overlays, SPI small multiples)
-- Map layers, by family:
-  - *standardized indices* — **SPI** (precipitation), **STI** (temperature), **SPEI**
-    (precipitation − PET), all on the 7-class McKee/WMO scale
-  - *water balance* (`bilan_hydrique`, mm) — discrete classes, same palette
-  - *daily* — `tmax` / `tmin` / `tmean` (absolute fixed °C scale) and daily rainfall classes
-- Absolute monthly precipitation / temperature / PET are deliberately **not** map layers:
-  the project rule is *either a real standardized indicator, or a real value as a number* —
-  never an invented in-between. They are shown as exact figures in the point panel
-  (see `docs/superpowers/specs/2026-07-16-climat-etp-echelle-temperature-design.md`).
-- Backend endpoints under `/api/v1/observatory/climat/*` (`range`, `grid-monthly`,
-  `grid-indices`, `situation-summary`, `point-series`, `point-episodes`, `compare-years`,
-  `export-point.csv`) — plain `SELECT`s (no on-the-fly statistics) over the warehouse's
-  precomputed ERA5 grid marts (`gold.fct_era5_monthly_grid`, `gold.fct_era5_climatology_grid`,
-  `gold.fct_era5_spei_climatology_grid`, `gold.fct_era5_indices_grid`), Redis-cached 24h
-- `grid-indices?index=` accepts `spi|sti|spei`; `point-episodes?index=` accepts `spi|spei`
-  only (episodes are drought-only, never STI). Both reject anything else with a 422 raised
-  **before** the value reaches SQL.
-- Reachable from the Groundwater map via a cell-popup deep-link, and from the Station page
-  (local SPI / rolling cumuls)
-- The default month and the `MonthStepper` bounds come from `GET /observatory/climat/range`
-  (`max_indices_month` / `max_monthly_complete_month` / `max_monthly_month` / `min_month`),
-  not from `/observatory/era5/range` (the daily grid) — the daily grid's max is the current
-  partial month, which has no index yet. `situation-summary` returns `available: false`
-  (instead of zeroed percentages) when no cell has an index for the requested month/window.
-
-**Index correctness** — SPI, STI and SPEI are each verified to follow ~N(0,1) over their own
-1991-2020 reference period (mean ≤ 0.008, sd 0.98-1.07, saturation < 0.5 %). The validation
-method, measured figures and the open points are recorded in
-`docs/audits/2026-07-24-indices-validation-followup.md`. Re-run that audit's control query
-after any change to the upstream marts.
-
-#### Cache to purge after a Climat deployment
-
-Climat responses are Redis-cached for 24 h, so a deploy that changes payload shape **or
-index values** must purge them, otherwise stale entries are served for up to 24 h. Keys are
-suffixed with a hash of the parameters (see `dashboard/utils/cache.py::_make_key`), hence
-the `*` patterns.
-
-```bash
-# production (junon-redis) — swap to junon-redis-dev for the dev stack
-docker exec junon-redis redis-cli --scan --pattern 'junon:obs_climat_*' | xargs -r docker exec -i junon-redis redis-cli DEL
-# only if the Station page's "Contexte climatique" block is affected (TTL 1 h)
-docker exec junon-redis redis-cli --scan --pattern 'junon:obs_piezo_detail:*' | xargs -r docker exec -i junon-redis redis-cli DEL
-docker exec junon-redis redis-cli --scan --pattern 'junon:obs_hydro_detail:*' | xargs -r docker exec -i junon-redis redis-cli DEL
-```
-
-## Quick Start
+## Quick start
 
 ### Requirements
 
 - Docker Engine + Docker Compose v2
-- NVIDIA GPU + CUDA 12.x drivers (optional, for accelerated DL training)
-- ~8 GB disk space for images
-- Access to the BRGM gold data warehouse (PostgreSQL, networked or local replica)
+- NVIDIA GPU + CUDA 12.x drivers (optional, for accelerated deep-learning training)
+- ~8 GB disk for the images
+- Access to the BRGM gold data warehouse (PostgreSQL, networked or a local replica)
 
-### Install and run
+### 1. Install and run
 
 ```bash
 git clone https://scm.univ-tours.fr/ringuet/time-serie-explo.git
 cd time-serie-explo
 cp .env.example .env
-# Edit .env: set BRGM_DB credentials, ALLOWED_ORIGINS, COMPOSE_FILE
+# Edit .env: BRGM_DB credentials, ALLOWED_ORIGINS, COMPOSE_FILE
 
 docker compose up -d --build
 ```
 
 For GPU acceleration, set `COMPOSE_FILE=docker-compose.yml:docker-compose.cuda.yml` in `.env`.
 
-Open `http://localhost:49513` for the application and `http://localhost:49512` for the MLflow UI.
+### 2. Create the first account — you cannot log in without this
 
-### Verify installation
+Junon has **no self-registration and no SSO**: the admin creates every account. On a fresh
+install there is no account at all, so the login screen is a dead end until you run:
 
 ```bash
-# API health
-curl http://localhost:49513/api/v1/health
-
-# Run the test suite
-docker compose exec backend pytest tests/
+docker compose exec backend python scripts/create_admin.py \
+  --email you@univ-tours.fr --name "Your Name"
 ```
+
+It prompts for a password without echoing it. `--password` also works but leaks through `ps`
+and shell history, so prefer the prompt. Creating further accounts, roles and the secret
+policy are covered in [docs/account-management.md](docs/account-management.md).
+
+### 3. Open it
+
+- Application: `http://localhost:49513`
+- MLflow UI: `http://localhost:49512`
+
+Both ports come from `.env` (`APP_PORT`, `MLFLOW_PORT`).
+
+### 4. Verify
+
+```bash
+curl http://localhost:49513/api/v1/health      # API health (no auth needed)
+```
+
+Run the test suite **on the host**, not in the container:
+
+```bash
+uv run pytest tests/ -v --maxfail=5
+```
+
+`tests/` is not copied into the backend image (`docker/backend/Dockerfile`) and `pytest` lives
+in the `dev` extra, which the image does not install — so `docker compose exec backend pytest`
+cannot work.
+
+> **Known gap: nothing runs these tests automatically.** The only test automation is
+> `.github/workflows/test.yml`, a GitHub Actions workflow, and this repository is hosted on
+> GitLab. `.gitlab-ci.yml` has a single `build` stage and never mentions pytest. Until a test
+> job is added there, the suite only runs when someone runs it by hand.
+
+## What it does
+
+### Pastas Lab — transfer function-noise models
+
+- TFN calibration on piezometric series, with precipitation and evapotranspiration as forcings
+- **Auto-fit** with STOWA quality criteria and a configuration grid search
+- **Calibration/validation split** with full diagnostics (NSE, KGE, RMSE, residual
+  autocorrelation, normality)
+- **Prospective scenarios** — synthetic pumping (drinking water, irrigation, industrial),
+  climate trends, stress scaling
+- **Adaptive bounds** — drawdown estimated from the calibrated step response, with
+  physically-bounded recommendations
+- **BDLISA-aware presets** — response-function defaults per aquifer family (alluvial,
+  sedimentary, karst, fractured, volcanic)
+
+### AI Lab — deep learning forecasters
+
+- 12+ Darts models: TFT, Transformer, N-BEATS, N-HiTS, LSTM, GRU, TCN, TiDE, TSMixer, DLinear,
+  NLinear
+- Hyperparameter optimization with Optuna
+- Real-time training monitoring over Server-Sent Events
+- Explainability: SHAP, TimeSHAP, Captum gradients, attention weights
+- Counterfactual analysis: PhysCF, CoMTE with dual validation
+
+### Observatory
+
+Spatial exploration of piezometric and hydrometric stations, BDLISA aquifer overlays, drought
+indices, and a Climat tab over the France-wide 0.1° ERA5 grid. Full description, API surface
+and the cache-purge procedure in [docs/observatory.md](docs/observatory.md); what the indices
+mean and how they are validated in [docs/climate-indices.md](docs/climate-indices.md).
 
 ## Architecture
 
 ```
-frontend/                     React SPA (Vite, Tailwind, TanStack Query, Plotly)
-  src/pages/                  Route pages
-  src/components/             UI components
-  src/hooks/                  Data-fetching hooks
-  src/lib/                    API client, shared types
-
-api/                          FastAPI REST + SSE
-  routers/                    Endpoint modules
-  schemas/                    Pydantic models
-
-dashboard/utils/              Framework-free Python core
-  pastas/                     TFN builder, fit service, scenarios, diagnostics
-  explainability/             SHAP, attention, gradients, feature importance
-  counterfactual/             PhysCF, CoMTE, dual validation, IPS
-  training.py                 Darts training pipeline
-  model_factory.py            Darts model instantiation
-  preprocessing.py            Data preparation
-
-tests/                        Pytest suite
-docker/                       Per-service Dockerfiles
+frontend/            React SPA (Vite, Tailwind, TanStack Query, Plotly)
+api/                 FastAPI REST + SSE
+dashboard/utils/     Framework-free Python core (Pastas, XAI, counterfactual, training)
+tests/               Pytest suite
+docker/              Per-service Dockerfiles
+deploy/              Deployment manifests (frontend K8s + backend compose)
 ```
 
-## Tech Stack
+The Python core under `dashboard/utils/` has no framework dependency: it is callable from
+notebooks, scripts or the API layer without modification. Details in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Layer | Stack |
 |---|---|
@@ -169,36 +134,40 @@ docker/                       Per-service Dockerfiles
 | Database | PostgreSQL (BRGM gold layer) |
 | Deployment | Docker Compose (rootless), NVIDIA CUDA |
 
-## Ports
+## Deployment
 
-| Service | Port | Notes |
-|---|---|---|
-| Application (Nginx) | 49513 | UI + `/api/v1/*` |
-| MLflow | 49512 | Experiment tracking |
-| PostgreSQL | — | Internal only |
+Production is **split**: the frontend runs on the IT department's Kubernetes cluster, the
+backend, GPU and databases stay on `dib-2019006065`. The CI (`.gitlab-ci.yml`) builds and
+pushes the frontend image on every push to `main`, and the K8s manifests are ready in
+`deploy/frontend/k8s/`.
+
+One network requirement gates everything: the route *cluster pods → `10.195.25.16:49514`*
+must be open.
+
+Full procedure in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and
+[deploy/frontend/README.md](deploy/frontend/README.md).
 
 ## Development
 
 ```bash
-# Rebuild after code changes
-docker compose up -d --build
-
-# Rebuild only one service
-docker compose up -d --build frontend
-docker compose up -d --build backend
-
-# View backend logs
-docker compose logs -f backend
-
-# TypeScript type-check (runs inside the container, no Node on host)
-docker compose run --rm frontend npx tsc --noEmit
+docker compose up -d --build             # rebuild after code changes
+docker compose up -d --build frontend    # one service only
+docker compose logs -f backend           # backend logs
 ```
 
-The Python core under `dashboard/utils/` has no framework dependency: it is callable from notebooks, scripts, or the API layer without modification.
+TypeScript type-check without installing Node on the host — the `frontend` service image is
+`nginx:alpine` and carries neither Node nor the sources, so it cannot run `tsc` itself:
+
+```bash
+docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
+  sh -c "npm ci && npx tsc --noEmit"
+```
+
+## Documentation
+
+The map is [docs/README.md](docs/README.md).
 
 ## Citation
-
-If you use Junon in published work, please cite:
 
 ```bibtex
 @software{ringuet_junon_2026,
@@ -215,4 +184,6 @@ MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Built around [Pastas](https://github.com/pastas/pastas) (Collenteur et al.), [Darts](https://github.com/unit8co/darts) (Unit8), and the BRGM Hub'Eau / BDLISA / ADES open data services.
+Built around [Pastas](https://github.com/pastas/pastas) (Collenteur et al.),
+[Darts](https://github.com/unit8co/darts) (Unit8), and the BRGM Hub'Eau / BDLISA / ADES open
+data services.
