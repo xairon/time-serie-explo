@@ -5,7 +5,7 @@ description = "Hybrid platform for piezometric forecasting combining Pastas tran
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Nicolas Ringuet", email = "ringuetnicolas2@gmail.com" }
+    { name = "Nicolas Ringuet" }   # paternité ; aucune adresse e-mail publiée
 ]
 requires-python = ">=3.12,<3.13"
 keywords = [
