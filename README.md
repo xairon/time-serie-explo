@@ -21,7 +21,22 @@ New here? Finish this page, then open [docs/README.md](docs/README.md) for the d
 - Docker Engine + Docker Compose v2
 - NVIDIA GPU + CUDA 12.x drivers (optional, for accelerated deep-learning training)
 - ~8 GB disk for the images
-- Access to the BRGM gold data warehouse (PostgreSQL, networked or a local replica)
+- **The `hubeau_data_integration` stack, started at least once** — see below
+
+> **Junon does not own its data, and it cannot start alone.** The Observatory reads the Gold
+> tables of the [`hubeau_data_integration`](https://scm.univ-tours.fr/ringuet/hubeau_data_integration)
+> warehouse, over the Docker network `hubeau_data_integration_default` at host
+> `brgm-postgres`. That network is declared `external: true` here, so Compose refuses to start
+> Junon until it exists:
+>
+> ```
+> network hubeau_data_integration_default declared as external, but could not be found
+> ```
+>
+> Bring the hubeau stack up first. Note that the network name is derived from hubeau's
+> **directory name**: cloning it as anything other than `hubeau_data_integration`, or setting
+> `COMPOSE_PROJECT_NAME`, renames the network and breaks Junon. Rename the network in
+> `docker-compose.yml` if you must.
 
 ### 1. Install and run
 
@@ -29,7 +44,10 @@ New here? Finish this page, then open [docs/README.md](docs/README.md) for the d
 git clone https://scm.univ-tours.fr/ringuet/time-serie-explo.git
 cd time-serie-explo
 cp .env.example .env
-# Edit .env: BRGM_DB credentials, ALLOWED_ORIGINS, COMPOSE_FILE
+
+# JWT_SECRET has no default and the stack refuses to start without it:
+sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" .env
+# Then edit .env: POSTGRES_PASSWORD, BRGM_DB_PASSWORD, ALLOWED_ORIGINS, COMPOSE_FILE
 
 docker compose up -d --build
 ```

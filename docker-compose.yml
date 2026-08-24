@@ -140,6 +140,12 @@ services:
     container_name: junon-frontend
     restart: unless-stopped
     logging: *default-logging
+    # nginx résout ses upstreams au démarrage : sans cette dépendance le conteneur
+    # boucle sur « host not found in upstream "backend" » jusqu'à ce que le backend
+    # soit là (9 redémarrages mesurés sur un démarrage à froid).
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-49513}:80"
     healthcheck:

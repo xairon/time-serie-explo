@@ -3,6 +3,61 @@
 The application consists of a FastAPI backend (`api/`) and a React frontend
 (`frontend/`). The legacy Streamlit interface has been removed.
 
+## Deploying the whole platform, in order
+
+Junon is **not standalone**. It reads the Gold tables of the `hubeau_data_integration`
+warehouse over a Docker network that the warehouse owns. Deploy in this order — steps 1 and 2
+are not optional, and skipping either produces errors that look unrelated to their cause.
+
+**1. The warehouse (`hubeau_data_integration`)**
+
+```bash
+git clone https://scm.univ-tours.fr/ringuet/hubeau_data_integration.git
+cd hubeau_data_integration
+bash scripts/init_volumes.sh          # external volumes, once
+cp .env.example .env                  # set PG_PASSWORD, DAGSTER_PG_PASSWORD, COPERNICUS_API_KEY
+docker compose up -d --build
+```
+
+Keep the directory name `hubeau_data_integration`: Compose derives the network name from it
+(`hubeau_data_integration_default`), and Junon references that name literally.
+
+**2. Load the data.** Dagster UI at `http://localhost:49500` → Jobs → `full_bootstrap`. Until
+Gold tables exist, every Junon Observatory endpoint answers HTTP 500 with `UndefinedTable`.
+A full load takes hours and tens of GB — restrict it first, see the warehouse's
+`docs/OPERATIONS.md`.
+
+**3. Junon (this repository)**
+
+```bash
+git clone https://scm.univ-tours.fr/ringuet/time-serie-explo.git
+cd time-serie-explo
+cp .env.example .env
+sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" .env
+# BRGM_DB_PASSWORD must equal the warehouse's PG_PASSWORD
+docker compose up -d --build
+```
+
+**4. Create the first account** — there is no self-registration:
+
+```bash
+docker compose exec backend python scripts/create_admin.py \
+  --email you@univ-tours.fr --name "Your Name"
+```
+
+**5. Check.** `curl http://localhost:49513/api/v1/health` should answer
+`{"status":"ok","db":"ok","redis":"ok",...}`, and logging in should return a
+`junon_session` cookie.
+
+### What breaks when the order is wrong
+
+| Symptom | Cause |
+|---------|-------|
+| `network hubeau_data_integration_default declared as external, but could not be found` | Step 1 never ran, or the warehouse was cloned under a different directory name |
+| Observatory 500 with `fe_sendauth: no password supplied` | `BRGM_DB_PASSWORD` empty or different from the warehouse's `PG_PASSWORD` |
+| Observatory 500 with `relation "gold.…" does not exist` | Step 2 never ran |
+| `junon-frontend` restarting in a loop at cold start | The backend was not healthy yet; it settles on its own once it is |
+
 ## Local development
 
 ### Backend (API)

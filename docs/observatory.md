@@ -69,6 +69,39 @@ The default month and the `MonthStepper` bounds come from
 `max_monthly_month`, `min_month` — and **not** from `/observatory/era5/range`, which describes
 the daily grid. The daily grid's maximum is the current partial month, which has no index yet.
 
+## A file the repository does not ship
+
+`api/services/sector_mapping.py` reads `api/data/secteurs-bsh.geojson` to map station
+coordinates onto BSH sectors. **That file is not in the repository** — it is not committed and
+not gitignored, so a fresh clone simply does not have it. The backend logs a
+`FileNotFoundError` at startup and the BSH sector layer stays empty; nothing else breaks.
+
+It is produced by a one-shot script that needs the warehouse published on the host:
+
+```bash
+DEBUG=true BRGM_DB_HOST=localhost BRGM_DB_PORT=49502 \
+  uv run python scripts/build_secteurs_bsh_geojson.py
+```
+
+It writes two copies — `frontend/public/geo/secteurs-bsh.geojson` and
+`api/data/secteurs-bsh.geojson` — and needs a bootstrapped warehouse, since it derives each
+sector's name from the dominant hydrogeological entity of the piezometers inside it.
+
+## When the Observatory returns HTTP 500
+
+Every Observatory endpoint reads the warehouse directly, so it fails hard when the warehouse
+is not reachable or not populated. The two causes look identical from the browser — check the
+backend log to tell them apart (`docker compose logs backend`).
+
+| Backend error | Cause | Fix |
+|---------------|-------|-----|
+| `fe_sendauth: no password supplied` | `BRGM_DB_PASSWORD` is empty in `.env` | Set it to the **`PG_PASSWORD` of the hubeau stack**. The two must match: Junon authenticates against hubeau's PostgreSQL as user `postgres`. |
+| `relation "gold.…" does not exist` | The warehouse is reachable but was never bootstrapped | Run `full_bootstrap` in the hubeau Dagster UI. Until Gold tables exist, the Observatory cannot work. |
+
+`.env.example` says `BRGM_DB_PASSWORD` may be left empty "if not using observatory features".
+That is true only in the sense that the rest of the application still runs — the Observatory
+itself answers 500, it does not degrade gracefully or hide itself.
+
 ## Purging the cache after a Climat deployment
 
 Climat responses are Redis-cached for 24 hours (`GRID_TTL = 86400`), so a deployment that

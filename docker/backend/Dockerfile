@@ -26,6 +26,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
             --index-url https://download.pytorch.org/whl/cu126 && \
         pip install --no-cache-dir ".[api,cuda]"; \
     else \
+        pip install --no-cache-dir torch torchvision torchaudio \
+            --index-url https://download.pytorch.org/whl/cpu && \
         pip install --no-cache-dir ".[api,cpu]"; \
     fi
 
