@@ -46,6 +46,30 @@ Two pieces of maths are duplicated across the repositories on purpose and are gu
 matching golden tables — see the cross-repository contract in
 [climate-indices.md](climate-indices.md#cross-repository-contract).
 
+## Test suite — read this before trusting it
+
+**552 tests exist and nothing runs them automatically.** `.gitlab-ci.yml` has a single `build`
+stage; the only test automation is `.github/workflows/test.yml`, a GitHub Actions workflow, and
+this repository lives on GitLab. `tests/` is not copied into the backend image and `pytest`
+sits in the `dev` extra that the image does not install.
+
+Measured on 2026-08-24 — **547 passed, 4 failed, 1 skipped** in 92 s:
+
+| Failing test | Cause | Is it a real defect? |
+|--------------|-------|----------------------|
+| `test_brgm_sectors_parse` | `FileNotFoundError: api/data/secteurs-bsh.geojson` | **Yes** — the file is not in the repository. Same root cause as the empty BSH sector layer, see [observatory.md](observatory.md#a-file-the-repository-does-not-ship) |
+| `test_sectors_endpoint` | idem | **Yes**, same file |
+| `test_sectors_timeline_endpoint` | idem | **Yes**, same file |
+| `test_purge_expired` | `TypeError: can't compare offset-naive and offset-aware datetimes` | **No** — a harness artifact. The tests run on `sqlite+aiosqlite:///:memory:`, which does not preserve timezone awareness; production uses PostgreSQL with `DateTime(timezone=True)` and compares correctly. The consequence is still that the GDPR retention purge is effectively **untested**. |
+
+To run them against the real dependency set:
+
+```bash
+docker cp tests junon-backend:/app/tests
+docker exec junon-backend pip install -q pytest pytest-asyncio aiosqlite
+docker exec -w /app junon-backend python3 -m pytest tests -o addopts="" -q
+```
+
 ## Conventions
 
 - **One fact, one place.** A fact lives in exactly one document; everywhere else links to it.
