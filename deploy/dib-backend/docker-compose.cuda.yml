@@ -1,4 +1,4 @@
-## CUDA (NVIDIA) override pour la stack backend sur dib-2019006065.
+## CUDA (NVIDIA) override pour la stack backend sur <backend-host>.
 ## Usage : BACKEND=cuda docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build
 
 services:

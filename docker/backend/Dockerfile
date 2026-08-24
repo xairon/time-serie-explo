@@ -26,6 +26,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
             --index-url https://download.pytorch.org/whl/cu126 && \
         pip install --no-cache-dir ".[api,cuda]"; \
     else \
+        pip install --no-cache-dir torch torchvision torchaudio \
+            --index-url https://download.pytorch.org/whl/cpu && \
         pip install --no-cache-dir ".[api,cpu]"; \
     fi
 
@@ -33,6 +35,11 @@ COPY dashboard/ ./dashboard/
 COPY api/ ./api/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+# The BSH sector geometry is versioned once, under frontend/public/geo/. The backend reads it
+# from api/data/, so the image copies it rather than the repository duplicating 5 MB of JSON.
+# Without it, api/services/sector_mapping.py raises FileNotFoundError at startup and the BSH
+# sector layer stays empty (three tests fail on it too).
+COPY frontend/public/geo/secteurs-bsh.geojson ./api/data/secteurs-bsh.geojson
 COPY scripts/ ./scripts/
 COPY docker/backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

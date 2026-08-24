@@ -1,3 +1,6 @@
+# Ports bind to 127.0.0.1 by default. Set BIND_ADDR=0.0.0.0 to publish on every interface.
+# The application requires a login, but MLflow does not — it has no authentication at all.
+# Prefer a reverse proxy or a VPN over BIND_ADDR=0.0.0.0.
 ## ──────────────────────────────────────────────
 ##  Junon Time-Series Explorer — docker compose
 ##  Usage:
@@ -55,7 +58,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${MLFLOW_PORT:-49512}:5000"
+      - "${BIND_ADDR:-127.0.0.1}:${MLFLOW_PORT:-49512}:5000"
     working_dir: /app
     command: >
       mlflow server
@@ -87,8 +90,8 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      # Backend PROD — le frontend K8s s'y connecte (10.195.25.16:49514).
-      - "${BACKEND_PORT:-49514}:8000"
+      # Backend PROD — le frontend K8s s'y connecte (<backend-ip>:49514).
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-49514}:8000"
     environment:
       - DB_HOST=junon-postgres
       - DB_PORT=5432
@@ -140,39 +143,19 @@ services:
     container_name: junon-frontend
     restart: unless-stopped
     logging: *default-logging
-    ports:
-      - "${FRONTEND_PORT:-49513}:80"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-
-  # ── Nginx Reverse Proxy ──────────────────────
-  nginx:
-    image: nginx:alpine
-    container_name: junon-nginx
-    restart: unless-stopped
-    logging: *default-logging
-    ports:
-      - "${APP_PORT:-49509}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/observatory-bridge.js:/usr/share/nginx/html/observatory-bridge.js:ro
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
+    # nginx résout ses upstreams au démarrage : sans cette dépendance le conteneur
+    # boucle sur « host not found in upstream "backend" » jusqu'à ce que le backend
+    # soit là (9 redémarrages mesurés sur un démarrage à froid).
     depends_on:
       backend:
         condition: service_healthy
-      frontend:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 256M
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${APP_PORT:-49513}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 networks:
   brgm_net:

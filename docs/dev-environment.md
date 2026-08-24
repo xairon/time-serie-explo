@@ -1,6 +1,19 @@
 # Isolated development environment (on dib)
 
-Two **completely separate** environments run on `dib-2019006065`:
+> **The dev stack requires an NVIDIA GPU and a large machine.**
+> `docker-compose.dev.yml` reserves `driver: nvidia, count: all` unconditionally and sets a
+> 24 GB memory limit on the backend. On a host without `nvidia-container-toolkit`, Compose
+> refuses to start it:
+>
+> ```
+> could not select device driver "nvidia" with capabilities: [[gpu]]
+> ```
+>
+> There is no CPU variant of the dev stack. To work without a GPU, use the production compose
+> (`COMPOSE_FILE=docker-compose.yml`, `BACKEND=cpu`), which carries no GPU reservation, and
+> accept that deep-learning training will run on CPU.
+
+Two **completely separate** environments run on `<backend-host>`:
 
 | | **PROD** | **DEV** |
 |---|---|---|

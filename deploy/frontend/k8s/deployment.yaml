@@ -25,10 +25,12 @@ spec:
           ports:
             - containerPort: 80
           env:
-            # Backend FastAPI sur dib-2019006065 (réseau interne universitaire).
+            # ⚠️ PLACEHOLDER — remplacer <backend-ip> par l'adresse réelle du backend
+            #    AVANT d'appliquer ce manifeste. Tel quel, le frontend ne joint rien.
+            # Backend FastAPI sur <backend-host> (réseau interne universitaire).
             # IP LAN validée localement ; à confirmer avec la DSI (routage K8s → dib).
             - name: DIB_BACKEND
-              value: "10.195.25.16:49514"
+              value: "<backend-ip>:49514"
           resources:
             requests:
               cpu: "100m"

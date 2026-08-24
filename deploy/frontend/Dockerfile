@@ -1,5 +1,5 @@
 # Frontend autonome pour déploiement distant (K8s ou compose).
-# Sert le SPA React en statique ET proxie /api/ vers le backend de dib-2019006065.
+# Sert le SPA React en statique ET proxie /api/ vers le backend de <backend-host>.
 # Contexte de build attendu : racine du dépôt.
 #   docker build -f deploy/frontend/Dockerfile -t junon-frontend .
 

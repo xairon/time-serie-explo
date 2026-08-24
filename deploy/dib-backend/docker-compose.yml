@@ -1,5 +1,5 @@
 ## ──────────────────────────────────────────────
-##  Junon — BACKEND stack (à déployer sur dib-2019006065)
+##  Junon — BACKEND stack (à déployer sur <backend-host>)
 ##  Contient : Postgres (entrepôt), Redis, MLflow, API FastAPI + GPU.
 ##  Le frontend n'est PAS ici : il tourne sur K8s et joint cette API
 ##  via le port exposé ci-dessous (BACKEND_PORT) sur le réseau interne.
@@ -91,7 +91,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     # Exposé sur le réseau interne universitaire : le nginx du front (K8s)
-    # proxie /api/ vers dib-2019006065:${BACKEND_PORT}. À NE PAS exposer sur Internet.
+    # proxie /api/ vers <backend-host>:${BACKEND_PORT}. À NE PAS exposer sur Internet.
     ports:
       - "${BACKEND_PORT:-49514}:8000"
     environment:

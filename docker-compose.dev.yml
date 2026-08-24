@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${MLFLOW_PORT_DEV:-49517}:5000"
+      - "${BIND_ADDR:-127.0.0.1}:${MLFLOW_PORT_DEV:-49517}:5000"
     working_dir: /app
     command: >
       mlflow server
@@ -87,7 +87,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${BACKEND_PORT_DEV:-49516}:8000"
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT_DEV:-49516}:8000"
     environment:
       - DB_HOST=junon-postgres-dev
       - DB_PORT=5432
@@ -150,7 +150,7 @@ services:
       # Le front dev proxie /api vers le backend dev (réseau interne du projet dev)
       - BACKEND_URL=http://backend-dev:8000
     ports:
-      - "${FRONTEND_PORT_DEV:-49518}:80"
+      - "${BIND_ADDR:-127.0.0.1}:${FRONTEND_PORT_DEV:-49518}:80"
     depends_on:
       - backend-dev
     healthcheck:

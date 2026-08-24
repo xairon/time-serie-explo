@@ -11,7 +11,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # so the backend URL can be set per environment (dib compose vs K8s) without rebuilding.
 COPY docker/frontend/nginx.conf /etc/nginx/templates/default.conf.template
 # Default target = docker-compose service on dib. On K8s, override with
-# BACKEND_URL=http://10.195.25.16:49514 in the deployment env.
+# BACKEND_URL=http://<backend-ip>:49514 in the deployment env.
 ENV BACKEND_URL=http://backend:8000
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
