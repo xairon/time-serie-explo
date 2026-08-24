@@ -140,23 +140,25 @@ See `deploy/README.md`, `deploy/frontend/README.md` and the matching `.env.examp
 > These are **not** what currently serves the live `dib` instance — that is the root
 > Compose project above. Don't assume `deploy/` is the running production.
 
-## The pipeline stays `pending` forever
+## Kubernetes is optional
 
-`build-frontend` requires a runner tagged **`k8s`**, and this project has
-**`shared_runners_enabled = false`** with no project runner registered. GitLab therefore queues
-the job and never runs it: the pipeline sits in `pending` indefinitely rather than failing, so
-nothing alerts anyone.
+The platform runs entirely on `docker compose`. Everything above — the warehouse, the
+observatory, the accounts — works without Kubernetes, and that is the supported default.
 
-Measured on 2026-08-24: pipeline #8308 pending, `runner=aucun`. For comparison, the warehouse
-project has shared runners enabled and its pipelines run.
+`deploy/frontend/` exists for organisations that *want* to put the frontend on a cluster: it
+holds ready-made manifests and a CI job that builds the container image. Both are opt-in.
 
-Two ways out, both outside this repository:
+- The CI job `build-frontend` is declared `when: manual` with `allow_failure: true`. The
+  pipeline succeeds without it; launch it from GitLab only if you deploy on a cluster.
+- It carries no runner tag. If your organisation reserves runners by tag, add
+  `tags: [your-tag]` to the job.
+- Its kaniko image defaults to the public `gcr.io/kaniko-project/executor`. Override it with
+  `KANIKO_IMAGE` if you mirror images internally.
 
-1. Enable shared runners on the project (**Settings → CI/CD → Runners**), if an available
-   runner carries the `k8s` tag.
-2. Have the infrastructure team grant this project access to the tagged Kubernetes runners.
+Without those precautions the pipeline waited on a runner that did not exist and stayed
+`pending` for ever — never failing, so never alerting anyone.
 
-Until then the CI builds nothing, and the frontend image has to be built and pushed by hand:
+Building the image by hand, if you prefer:
 
 ```bash
 docker build -f deploy/frontend/Dockerfile -t <registry>/junon-frontend:latest .

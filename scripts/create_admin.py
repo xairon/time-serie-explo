@@ -1,5 +1,5 @@
 """Create (or promote) an admin user. Usage:
-    python scripts/create_admin.py --email a@b.fr --name "Nicolas" [--password ...]
+    python scripts/create_admin.py --email admin@example.org --name "Admin" [--password ...]
 Password resolution order: --password, then $ADMIN_PASSWORD (for automation),
 then a secure interactive prompt (no echo). Avoid --password on shared hosts:
 it leaks via `ps` and shell history.

@@ -1,10 +1,12 @@
-# CI GitLab — build + push de l'image Docker du FRONTEND Junon.
+# CI GitLab — construction et publication de l'image Docker du FRONTEND.
 #
-# Fusion : le « contrat » infra DSN/DSI (runner k8s, kaniko interne, tag =
-# numéro de pipeline surveillé par ArgoCD image-updater) + le packaging réel de
-# ce dépôt (Dockerfile de déploiement `deploy/frontend/Dockerfile`, contexte =
-# racine). L'image est poussée sur le Container Registry DE CE PROJET
-# (`time-serie-explo`) ; c'est ce registry que l'image-updater doit surveiller.
+# ⚠️ Ce job est FACULTATIF. La plateforme se déploie et fonctionne entièrement
+#    avec `docker compose` — voir docs/DEPLOYMENT.md. Cette image ne sert qu'au
+#    déploiement Kubernetes OPTIONNEL décrit dans deploy/frontend/.
+#
+#    Il est donc `when: manual` et `allow_failure: true` : le pipeline réussit
+#    sans lui, et personne n'attend un runner qui n'existe peut-être pas.
+#    Lancez-le à la demande depuis GitLab si vous déployez sur Kubernetes.
 #
 # $CI_REGISTRY*, $CI_REGISTRY_IMAGE et le token de job sont fournis par GitLab.
 
@@ -16,13 +18,10 @@ stages:
 
 build-frontend:
   stage: build
-  tags:
-    - k8s   # runners Kubernetes de l'établissement.
-            # ⚠️ Ce projet n'a AUCUN runner disponible (shared_runners_enabled=False) :
-            #    le pipeline reste indéfiniment en `pending`, sans jamais échouer.
-            #    Voir docs/DEPLOYMENT.md, « Le pipeline reste en attente ».
+  # Aucun tag imposé : le job tourne sur n'importe quel runner disponible.
+  # Si votre organisation réserve des runners par tag, ajoutez-le ici, par ex. :
+  #   tags: [k8s]
   image:
-    # Registry kaniko interne DSI (les runners K8s n'ont pas forcément accès à gcr.io)
     # Registry interne hébergeant kaniko. Remplacer par le vôtre :
     #   KANIKO_IMAGE=<registry>/kaniko/executor
     name: ${KANIKO_IMAGE:-gcr.io/kaniko-project/executor}:v${KANIKO_VERSION}-debug
@@ -33,8 +32,9 @@ build-frontend:
       changes:
         - frontend/**/*
         - deploy/frontend/**/*
-        - nginx/**/*
         - .gitlab-ci.yml
+      when: manual
+      allow_failure: true
   before_script:
     # Auth explicite au registry du projet (marche même sans DOCKER_AUTH_CONFIG global)
     - mkdir -p /kaniko/.docker
