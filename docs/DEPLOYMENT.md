@@ -98,15 +98,18 @@ dev.
 
 | | Compose project | Files | Containers | Ports |
 |---|---|---|---|---|
-| **Production** | `time-serie-explo` | `docker-compose.yml` + `docker-compose.cuda.yml` (via `COMPOSE_FILE` in `.env`) | `junon-backend`, `junon-frontend` | 49514 / 49513 |
+| **Production** | `time-serie-explo` | `docker-compose.yml` + `docker-compose.cuda.yml` (via `COMPOSE_FILE` in `.env`) | `junon-backend`, `junon-frontend`, `junon-postgres`, `junon-redis`, `junon-mlflow` | 49514 / 49513 |
 | **Dev** | `junon-dev` | `docker-compose.dev.yml` only | `junon-*-dev` | 49516 / 49518 |
 
 ### Production (live stack on `dib`)
 
 ```bash
 # from the repo root, on main
-docker compose up -d --build backend frontend
+docker compose up -d --build
 ```
+
+Starting the whole stack is now correct — there is no longer a second `nginx` service fighting
+`frontend` for port 49513. `frontend` is the entry point and publishes `APP_PORT`.
 
 > **Never pass `-f` here.** `.env` sets
 > `COMPOSE_FILE=docker-compose.yml:docker-compose.cuda.yml`; overriding it with an explicit

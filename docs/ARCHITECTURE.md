@@ -10,6 +10,22 @@ The application has three layers:
 
 > The legacy Streamlit interface has been removed. `dashboard/utils/` remains the shared business library.
 
+## One entry point
+
+The `frontend` container is the single HTTP entry point. Its image is built on `nginx:alpine`
+and its config (`docker/frontend/nginx.conf`) does everything: serves the SPA, falls back to
+`index.html` for client-side routes, proxies `/api/` to the backend with SSE buffering
+disabled, applies the security headers and the rate limits (429 over the limit, matching the
+backend's own convention).
+
+A second, standalone `nginx` service used to sit in front of it. It was removed: it duplicated
+this reverse proxy, published the same host port (so a full `docker compose up -d` always
+failed with `port is already allocated`), and was never started in production — which meant
+the rate limiting and security headers it carried were, in practice, never applied. Its only
+unique payload was `observatory-bridge.js`, an iframe bridge to `junondashboard` that became
+dead code when the Observatory was ported natively into this SPA. Everything worth keeping was
+folded into `docker/frontend/nginx.conf`.
+
 ## Separation of concerns (training / interface)
 
 Training code is **independent of any interface**: it writes its progress to a
