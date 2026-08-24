@@ -90,7 +90,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      # Backend PROD — le frontend K8s s'y connecte (10.195.25.16:49514).
+      # Backend PROD — le frontend K8s s'y connecte (<backend-ip>:49514).
       - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-49514}:8000"
     environment:
       - DB_HOST=junon-postgres

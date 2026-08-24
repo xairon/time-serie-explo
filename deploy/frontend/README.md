@@ -1,7 +1,7 @@
 # JUNON frontend deployment (K8s)
 
 The **frontend** (React SPA + nginx) runs on the Kubernetes cluster; it serves the site
-**and** proxies `/api/` to the **backend**, which remains on `dib-2019006065` (`10.195.25.16:49514`).
+**and** proxies `/api/` to the **backend**, which remains on `<backend-host>` (`<backend-ip>:49514`).
 The backend is never exposed: only the frontend calls it, internally.
 
 ## Provided in the repository
@@ -18,7 +18,7 @@ The backend is never exposed: only the frontend calls it, internally.
 | File | Setting | Default |
 |---|---|---|
 | `k8s/ingress.yaml` | `host` + `tls.hosts` | `junon.univ-tours.fr` (to be confirmed) |
-| `k8s/deployment.yaml` | `DIB_BACKEND` | `10.195.25.16:49514` |
+| `k8s/deployment.yaml` | `DIB_BACKEND` | `<backend-ip>:49514` |
 | `k8s/deployment.yaml` | `image` | `$CI_REGISTRY_IMAGE/frontend:latest` |
 
 ## Deploy
@@ -31,7 +31,7 @@ kubectl rollout restart deploy/junon-frontend   # force an image update
 
 ## ⚠️ The only blocking point on the network side
 
-Open the route **cluster pods → `10.195.25.16:49514`**. Without it, the site displays
+Open the route **cluster pods → `<backend-ip>:49514`**. Without it, the site displays
 but `/api/` returns 502 (no data). The frontend is *stateless* (no volume required).
 
 Local test of the image without a registry: `docker build -f deploy/frontend/Dockerfile -t junon-frontend:test .`

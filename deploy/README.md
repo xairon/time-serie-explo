@@ -3,7 +3,7 @@
 Target architecture (Option A — reverse proxy): the **frontend** (React + nginx) is
 hosted remotely (Kubernetes, IT department (DSI)) and is the **only public entry
 point**. It proxies `/api/` to the **backend** (FastAPI + GPU + Postgres warehouse),
-which stays on `dib-2019006065`, accessible only via the **university internal
+which stays on `<backend-host>`, accessible only via the **university internal
 network**.
 
 ```
@@ -13,14 +13,14 @@ network**.
 [K8s — DSI]  junon-frontend (nginx: static SPA + /api/ proxy)
       │ /api/  → university internal network (port BACKEND_PORT)
       ▼
-[dib-2019006065]  FastAPI backend + Postgres + Redis + MLflow + GPU (RTX A6000)
+[<backend-host>]  FastAPI backend + Postgres + Redis + MLflow + GPU (RTX A6000)
 ```
 
 The frontend calls the API using a relative path (`API_BASE = '/api/v1'`), so it is
 the **same origin** from the browser's perspective: no CORS, no changes to the
 frontend code, and the backend is **never exposed to the Internet**.
 
-## 1. Backend on dib-2019006065
+## 1. Backend on the on-premise host
 
 ```bash
 cd deploy/dib-backend
@@ -58,7 +58,7 @@ docker compose up -d --build
 ## Network prerequisites
 
 - **Inbound**: public access to the frontend (K8s Ingress, or port 49513 otherwise).
-- **Internal**: the frontend (K8s) must be able to reach `dib-2019006065:BACKEND_PORT`.
+- **Internal**: the frontend (K8s) must be able to reach `<backend-host>:BACKEND_PORT`.
   → this is the equivalent of the DB port already opened on the university network.
 - **Outbound Internet**: from the **backend** (dib) for Hub'Eau; from the
   **browser** for the map tiles. The K8s frontend only needs to be able to reach dib.

@@ -1,6 +1,6 @@
 # Template nginx du frontend distant.
 # ${DIB_BACKEND} est substitué au démarrage (envsubst) par l'adresse du backend
-# sur dib, ex : "dib-2019006065.univ-tours.fr:49514" ou "10.x.x.x:49514".
+# sur dib, ex : "backend-host.example.org:49514" ou "10.x.x.x:49514".
 # Les variables nginx ($host, $remote_addr, ...) ne sont PAS substituées
 # (elles ne sont pas des variables d'environnement).
 

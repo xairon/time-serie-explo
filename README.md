@@ -155,11 +155,11 @@ notebooks, scripts or the API layer without modification. Details in
 ## Deployment
 
 Production is **split**: the frontend runs on the IT department's Kubernetes cluster, the
-backend, GPU and databases stay on `dib-2019006065`. The CI (`.gitlab-ci.yml`) builds and
+backend, GPU and databases stay on `<backend-host>`. The CI (`.gitlab-ci.yml`) builds and
 pushes the frontend image on every push to `main`, and the K8s manifests are ready in
 `deploy/frontend/k8s/`.
 
-One network requirement gates everything: the route *cluster pods → `10.195.25.16:49514`*
+One network requirement gates everything: the route *cluster pods → `<backend-ip>:49514`*
 must be open.
 
 Full procedure in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and
@@ -196,9 +196,26 @@ The map is [docs/README.md](docs/README.md).
 }
 ```
 
+## Data sources
+
+The Observatory displays data it does not own, read from the
+[`hubeau_data_integration`](https://scm.univ-tours.fr/ringuet/hubeau_data_integration) warehouse.
+**Copernicus requires a verbatim acknowledgement** in anything derived from ERA5 — which
+includes the Climat tab and the SPI/STI/SPEI layers. Hub'Eau and BDLISA expect attribution.
+
+> Generated using Copernicus Climate Change Service information, 2026.
+> Neither the European Commission nor ECMWF is responsible for any use that may be made of the
+> Copernicus information or data it contains.
+
+> Source: Hub'Eau — eaufrance.fr · Source: BDLISA — BRGM / Sandre
+
+Full detail, and what to check before a public release, in the warehouse's
+`docs/DATA_SOURCES.md`.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The licence covers **the code**, not the data it displays: each
+source keeps its own terms.
 
 ## Acknowledgments
 

@@ -17,6 +17,22 @@ infrastructure secrets. Keep up to date.
 
 ---
 
+## The last administrator cannot be deleted
+
+`DELETE /api/v1/admin/users/{id}` answers **409 — "Impossible de supprimer le dernier
+administrateur"** when the target is the only remaining active admin. This is deliberate:
+there is no self-registration, so deleting the last admin would lock everyone out of the
+application permanently, with no way back in through the interface.
+
+To remove an administrator, create or promote another one first.
+
+Recreating an admin from the shell, should you ever be locked out anyway:
+
+```bash
+docker compose exec backend python scripts/create_admin.py \
+  --email you@example.org --name "Your Name"
+```
+
 ## Create a user account
 
 1. Log in as admin in the interface → account menu → **Users**

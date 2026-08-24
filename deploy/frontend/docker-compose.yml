@@ -22,7 +22,7 @@ services:
         max-file: "3"
     environment:
       # Adresse du backend FastAPI sur dib (réseau interne universitaire)
-      - DIB_BACKEND=${DIB_BACKEND:-dib-2019006065.univ-tours.fr:49514}
+      - DIB_BACKEND=${DIB_BACKEND:-backend-host.example.org:49514}
     # Permet de résoudre host.docker.internal vers l'hôte (utile si le backend
     # est joint via un port publié sur l'hôte). Sans effet sur K8s.
     extra_hosts:

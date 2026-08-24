@@ -13,7 +13,7 @@
 > (`COMPOSE_FILE=docker-compose.yml`, `BACKEND=cpu`), which carries no GPU reservation, and
 > accept that deep-learning training will run on CPU.
 
-Two **completely separate** environments run on `dib-2019006065`:
+Two **completely separate** environments run on `<backend-host>`:
 
 | | **PROD** | **DEV** |
 |---|---|---|
