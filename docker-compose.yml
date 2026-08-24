@@ -1,3 +1,6 @@
+# Ports bind to 127.0.0.1 by default. Set BIND_ADDR=0.0.0.0 to publish on every interface.
+# The application requires a login, but MLflow does not — it has no authentication at all.
+# Prefer a reverse proxy or a VPN over BIND_ADDR=0.0.0.0.
 ## ──────────────────────────────────────────────
 ##  Junon Time-Series Explorer — docker compose
 ##  Usage:
@@ -55,7 +58,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     ports:
-      - "${MLFLOW_PORT:-49512}:5000"
+      - "${BIND_ADDR:-127.0.0.1}:${MLFLOW_PORT:-49512}:5000"
     working_dir: /app
     command: >
       mlflow server
@@ -88,7 +91,7 @@ services:
     logging: *default-logging
     ports:
       # Backend PROD — le frontend K8s s'y connecte (10.195.25.16:49514).
-      - "${BACKEND_PORT:-49514}:8000"
+      - "${BIND_ADDR:-127.0.0.1}:${BACKEND_PORT:-49514}:8000"
     environment:
       - DB_HOST=junon-postgres
       - DB_PORT=5432
@@ -147,7 +150,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${APP_PORT:-49513}:80"
+      - "${BIND_ADDR:-127.0.0.1}:${APP_PORT:-49513}:80"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
       interval: 15s

@@ -140,6 +140,29 @@ See `deploy/README.md`, `deploy/frontend/README.md` and the matching `.env.examp
 > These are **not** what currently serves the live `dib` instance — that is the root
 > Compose project above. Don't assume `deploy/` is the running production.
 
+## Network exposure
+
+Every published port binds to **`127.0.0.1` by default**, so a fresh install is not reachable
+from the network. Override it deliberately:
+
+```bash
+BIND_ADDR=0.0.0.0 docker compose up -d
+```
+
+The application requires a login, but **MLflow (49512) has no authentication at all** — it
+exposes every experiment, model and artifact to anyone who can reach the port. Behind
+`BIND_ADDR=0.0.0.0` on a shared network, that is an open door.
+
+Prefer a reverse proxy with authentication, or a VPN. Both reach the loopback bind without
+exposing it:
+
+```bash
+tailscale serve --bg --https=8459 http://127.0.0.1:49513
+```
+
+The Kubernetes deployment in `deploy/` is unaffected: the ingress terminates in front of the
+pod and the container port is not published on a host at all.
+
 ## GDPR / retention
 
 Authentication log purging (365-day retention by default) runs via cron:
