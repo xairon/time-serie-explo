@@ -72,20 +72,24 @@ the daily grid. The daily grid's maximum is the current partial month, which has
 ## A file the repository does not ship
 
 `api/services/sector_mapping.py` reads `api/data/secteurs-bsh.geojson` to map station
-coordinates onto BSH sectors. **That file is not in the repository** — it is not committed and
-not gitignored, so a fresh clone simply does not have it. The backend logs a
-`FileNotFoundError` at startup and the BSH sector layer stays empty; nothing else breaks.
+coordinates onto BSH sectors.
 
-It is produced by a one-shot script that needs the warehouse published on the host:
+The generating script writes **two copies** — `frontend/public/geo/secteurs-bsh.geojson` and
+`api/data/secteurs-bsh.geojson` — and only the first was ever committed. The backend read the
+second, did not find it, logged a `FileNotFoundError` at startup and served an empty BSH sector
+layer.
+
+Fixed by having the backend image copy the versioned file into place
+(`docker/backend/Dockerfile`), rather than duplicating 5 MB of JSON in Git. Verified: the
+startup `FileNotFoundError` is gone.
+
+To regenerate the file — it needs a bootstrapped warehouse published on the host, since each
+sector's name is derived from the dominant hydrogeological entity of the piezometers inside it:
 
 ```bash
 DEBUG=true BRGM_DB_HOST=localhost BRGM_DB_PORT=49502 \
   uv run python scripts/build_secteurs_bsh_geojson.py
 ```
-
-It writes two copies — `frontend/public/geo/secteurs-bsh.geojson` and
-`api/data/secteurs-bsh.geojson` — and needs a bootstrapped warehouse, since it derives each
-sector's name from the dominant hydrogeological entity of the piezometers inside it.
 
 ## When the Observatory returns HTTP 500
 

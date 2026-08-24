@@ -53,14 +53,19 @@ stage; the only test automation is `.github/workflows/test.yml`, a GitHub Action
 this repository lives on GitLab. `tests/` is not copied into the backend image and `pytest`
 sits in the `dev` extra that the image does not install.
 
-Measured on 2026-08-24 — **547 passed, 4 failed, 1 skipped** in 92 s:
+Measured on 2026-08-24 — **547 passed, 4 failed, 1 skipped** in 92 s. None of the four failures
+means the application is broken; they mean the suite mixes three kinds of test without saying so.
 
-| Failing test | Cause | Is it a real defect? |
-|--------------|-------|----------------------|
-| `test_brgm_sectors_parse` | `FileNotFoundError: api/data/secteurs-bsh.geojson` | **Yes** — the file is not in the repository. Same root cause as the empty BSH sector layer, see [observatory.md](observatory.md#a-file-the-repository-does-not-ship) |
-| `test_sectors_endpoint` | idem | **Yes**, same file |
-| `test_sectors_timeline_endpoint` | idem | **Yes**, same file |
-| `test_purge_expired` | `TypeError: can't compare offset-naive and offset-aware datetimes` | **No** — a harness artifact. The tests run on `sqlite+aiosqlite:///:memory:`, which does not preserve timezone awareness; production uses PostgreSQL with `DateTime(timezone=True)` and compares correctly. The consequence is still that the GDPR retention purge is effectively **untested**. |
+| Failing test | Error | What it actually is |
+|--------------|-------|---------------------|
+| `test_brgm_sectors_parse` | `FileNotFoundError: /tmp/bdrv/wfs_2026-05-01.json` | **A broken test.** It reads a hardcoded absolute path into someone's `/tmp`. It cannot pass on any other machine, ever. Either commit the snapshot as a fixture or delete the test. |
+| `test_sectors_endpoint` | `relation "gold.dim_piezo_stations" does not exist` | **An integration test in disguise.** It needs a populated warehouse. It fails on a fresh install and passes once dbt has run. |
+| `test_sectors_timeline_endpoint` | idem | idem |
+| `test_purge_expired` | `TypeError: can't compare offset-naive and offset-aware datetimes` | **A harness artifact.** The suite runs on `sqlite+aiosqlite:///:memory:`, which does not preserve timezone awareness; production uses PostgreSQL with `DateTime(timezone=True)` and compares correctly. The code is right — but the GDPR retention purge is effectively untested. |
+
+The honest reading: **548 of the 552 are real unit tests and they pass.** Two require a
+warehouse, one requires a file nobody has, and one is defeated by the test database. Splitting
+the integration tests into their own marker would make a green run mean something.
 
 To run them against the real dependency set:
 
