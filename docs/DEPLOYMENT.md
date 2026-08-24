@@ -140,6 +140,44 @@ See `deploy/README.md`, `deploy/frontend/README.md` and the matching `.env.examp
 > These are **not** what currently serves the live `dib` instance — that is the root
 > Compose project above. Don't assume `deploy/` is the running production.
 
+## The pipeline stays `pending` forever
+
+`build-frontend` requires a runner tagged **`k8s`**, and this project has
+**`shared_runners_enabled = false`** with no project runner registered. GitLab therefore queues
+the job and never runs it: the pipeline sits in `pending` indefinitely rather than failing, so
+nothing alerts anyone.
+
+Measured on 2026-08-24: pipeline #8308 pending, `runner=aucun`. For comparison, the warehouse
+project has shared runners enabled and its pipelines run.
+
+Two ways out, both outside this repository:
+
+1. Enable shared runners on the project (**Settings → CI/CD → Runners**), if an available
+   runner carries the `k8s` tag.
+2. Have the infrastructure team grant this project access to the tagged Kubernetes runners.
+
+Until then the CI builds nothing, and the frontend image has to be built and pushed by hand:
+
+```bash
+docker build -f deploy/frontend/Dockerfile -t <registry>/junon-frontend:latest .
+docker push <registry>/junon-frontend:latest
+```
+
+## Post-deployment: adopting ownerless objects
+
+`scripts/assign_legacy_ownership.py` assigns every ownerless MLflow model and prepared dataset
+to a given administrator. Objects created before ownership was introduced have no `owner_id`,
+so they are invisible to the per-user partitioning and belong to nobody.
+
+Run it once, after deploying, inside the backend container:
+
+```bash
+docker compose exec backend python scripts/assign_legacy_ownership.py --email admin@example.org
+```
+
+It targets the `Junon_TimeSeries` and `pastas` MLflow experiments, which are live — see
+`dashboard/utils/mlflow_client.py`.
+
 ## Network exposure
 
 Every published port binds to **`127.0.0.1` by default**, so a fresh install is not reachable

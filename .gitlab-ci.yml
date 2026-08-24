@@ -17,10 +17,15 @@ stages:
 build-frontend:
   stage: build
   tags:
-    - k8s                       # ← cible les runners K8s de la DSI (repris de la MR d'Olivier)
+    - k8s   # runners Kubernetes de l'établissement.
+            # ⚠️ Ce projet n'a AUCUN runner disponible (shared_runners_enabled=False) :
+            #    le pipeline reste indéfiniment en `pending`, sans jamais échouer.
+            #    Voir docs/DEPLOYMENT.md, « Le pipeline reste en attente ».
   image:
     # Registry kaniko interne DSI (les runners K8s n'ont pas forcément accès à gcr.io)
-    name: gitlab.univ-tours.fr:5050/kaniko/executor:v${KANIKO_VERSION}-debug
+    # Registry interne hébergeant kaniko. Remplacer par le vôtre :
+    #   KANIKO_IMAGE=<registry>/kaniko/executor
+    name: ${KANIKO_IMAGE:-gcr.io/kaniko-project/executor}:v${KANIKO_VERSION}-debug
     entrypoint: [""]
   rules:
     # Ne construit que sur `main` (= prod) et si le frontend/son packaging change.
