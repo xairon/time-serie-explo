@@ -18,6 +18,7 @@ not listed below; if you add a document, add its line too.
 | Document | Read it when |
 |----------|--------------|
 | [climate-indices.md](climate-indices.md) | You need to know what SPI / STI / SPEI mean here, how they were validated, and the two results that are easy to misread. |
+| [etp-station-mesure-2026-08-25.md](etp-station-mesure-2026-08-25.md) | 🗄 Snapshot du 25/08/2026. Mesure de l'effet du forçage d'évapotranspiration sur une calibration Pastas : le paramètre sature, l'écart n'est pas absorbé. |
 | [account-management.md](account-management.md) | You are creating accounts, assigning roles, or handling secrets and password policy. |
 
 ## Do something
