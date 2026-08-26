@@ -1,7 +1,8 @@
 """STOWA 4-criteria quality assessment for Pastas TFN models.
 
-Reference: STOWA (2012) - Beoordeling van tijdreeksmodellen voor
-grondwaterbeheer. Dutch standard for TFN model acceptance.
+Reference: STOWA report 2021-32, "Handleiding tijdreeksanalyse"
+(Von Asmuth et al., 2021). Dutch reference manual for groundwater time
+series analysis, which defines the model acceptance criteria.
 
 The four criteria are:
 1. EVP (Explained Variance Percentage) >= threshold (default 70%)
