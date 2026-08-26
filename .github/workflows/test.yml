@@ -31,6 +31,10 @@ jobs:
       - name: Run pytest
         env:
           PYTHONPATH: ${{ github.workspace }}
+          # Valeur jetable, propre au runner. api/config.py instancie Settings()
+          # a l'import et refuse le defaut quand DEBUG est desactive : sans cette
+          # variable, la collecte des tests echoue avant le premier test.
+          JWT_SECRET: ci-only-throwaway-secret-0123456789abcdef
         run: uv run pytest tests/ -v --maxfail=5 -m "not integration"
 
   frontend-typecheck:
