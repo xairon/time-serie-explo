@@ -113,3 +113,7 @@ packages = ["dashboard", "api"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra --strict-markers"
+markers = [
+    "slow: test long, exclu des executions rapides",
+    "integration: exige un service que le runner de CI n'a pas (entrepot peuple, PostgreSQL reel)",
+]

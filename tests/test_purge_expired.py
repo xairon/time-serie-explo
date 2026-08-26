@@ -6,6 +6,9 @@ from sqlalchemy import select
 from api.models_db.auth_event import AuthEvent
 from scripts.purge_expired import purge_auth_events
 
+# exige PostgreSQL : sqlite ne conserve pas la conscience du fuseau
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_purge_removes_old_events(db_session):

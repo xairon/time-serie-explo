@@ -1,5 +1,9 @@
 from fastapi.testclient import TestClient
 from api.main import app
+import pytest
+
+# exige gold.dim_piezo_stations, donc un entrepot peuple
+pytestmark = pytest.mark.integration
 
 client = TestClient(app)
 
