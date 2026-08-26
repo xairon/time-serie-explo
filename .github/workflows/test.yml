@@ -10,6 +10,8 @@ jobs:
   pytest:
     name: Python tests
     runs-on: ubuntu-latest
+    # Sans borne, un test qui pend occupe le runner six heures avant d'echouer.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +38,7 @@ jobs:
           # variable, la collecte des tests echoue avant le premier test.
           JWT_SECRET: ci-only-throwaway-secret-0123456789abcdef
           DB_PASSWORD: ci-only-throwaway-password
-        run: uv run pytest tests/ -v --maxfail=5 -m "not integration"
+        run: uv run pytest tests/ -v --maxfail=5 --durations=10 -m "not integration and not slow"
 
   frontend-typecheck:
     name: Frontend type-check
